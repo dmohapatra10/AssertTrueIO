@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <script>try{if(localStorage.getItem('assertTrueTheme')==='dark'){document.documentElement.setAttribute('data-theme','dark');}}catch(e){}</script>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Virtual Users &amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp; Iterations in k6: vus, duration, and iterations Explained</title>
+  <meta name="description" content="The basic units of load in k6 — virtual users, iterations, concurrent execution, and the vus/duration/iterations options — explained precisely, not just by syntax." />
+  <link rel="canonical" href="https://asserttrue.io/k6/virtual-users-and-iterations.html" />
+  <link rel="stylesheet" href="../css/style.css?v=57" />
+</head>
+<body class="theme-k6">
+  <header class="topnav">
+    <button class="mobile-menu-btn" onclick="openSidebar()">&#9776;</button>
+    <a href="../index.html" class="brand"><svg class="logo-mark" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="40" rx="11" fill="url(#logoGrad)"/><path d="M11 21.5 L17 27.5 L29.5 13" stroke="#ffffff" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/><defs><linearGradient id="logoGrad" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse"><stop stop-color="#22c55e"/><stop offset="1" stop-color="#15803d"/></linearGradient></defs></svg><span class="brand-text">Assert<span class="brand-true">True</span><span class="brand-io">IO</span></span></a>
+    <nav class="topnav-links">
+      <a href="../playwright/index.html">Playwright</a>
+      <a href="../restassured/index.html">RestAssured</a>
+      <a href="index.html" class="active">K6</a>
+      <a href="../github-actions/index.html">GitHub Actions</a>
+      <a href="../about.html">About</a>
+      <a href="../books.html">Books</a>
+    </nav>
+    <div class="topnav-right">
+      <span class="search-box">Search tutorials...</span>
+      <button class="icon-btn theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Toggle dark mode"><svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
+    </div>
+  </header>
+
+  <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeSidebar()"></div>
+
+  <div class="app-shell">
+    <nav class="doc-sidebar" id="doc-sidebar">
+<div class="sidebar-mobile-header"><span>Menu</span><button class="sidebar-close-btn" onclick="closeSidebar()">&times;</button></div>
+<a href="index.html" class="sidebar-overview-link"><svg class="icon" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg><span>Roadmap</span></a>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>01 Performance Testing Fundamentals</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="performance-testing-fundamentals.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Performance Testing Fundamentals</a>
+<div class="sidebar-sub">
+<a href="test-types-load-stress-spike-soak-volume.html" class="sidebar-link"><span class="dot"></span>Load, Stress, Spike, Soak & Volume Testing</a>
+<a href="baseline-capacity-and-scalability-testing.html" class="sidebar-link"><span class="dot"></span>Baseline, Capacity & Scalability Testing</a>
+<a href="core-performance-metrics.html" class="sidebar-link"><span class="dot"></span>Response Time, Throughput, Latency & Concurrency</a>
+<a href="percentiles-and-reading-performance-data.html" class="sidebar-link"><span class="dot"></span>Percentiles & Reading Performance Data</a>
+<a href="slas-slos-slis-and-virtual-users.html" class="sidebar-link"><span class="dot"></span>SLAs, SLOs, SLIs & Virtual Users</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"/></svg><span>02 Getting Started With k6</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="getting-started-with-k6.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Getting Started with k6</a>
+<div class="sidebar-sub">
+<a href="what-is-k6-and-how-it-compares.html" class="sidebar-link"><span class="dot"></span>What is k6? Architecture & Tool Comparison</a>
+<a href="installing-k6-and-your-first-test.html" class="sidebar-link"><span class="dot"></span>Installing k6 & Your First Test</a>
+<a href="the-k6-test-lifecycle.html" class="sidebar-link"><span class="dot"></span>The k6 Test Lifecycle: init, setup, VU code, teardown</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="8 6 2 12 8 18"/><polyline points="16 6 22 12 16 18"/></svg><span>03 k6 Scripting Fundamentals</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="k6-scripting-fundamentals.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>k6 Scripting Fundamentals</a>
+<div class="sidebar-sub">
+<a href="making-http-requests-in-k6.html" class="sidebar-link"><span class="dot"></span>Making HTTP Requests: GET, POST, PUT, PATCH, DELETE</a>
+<a href="check-sleep-and-group.html" class="sidebar-link"><span class="dot"></span>check(), sleep(), and group(): Structuring a k6 Test</a>
+<a href="organizing-k6-scripts.html" class="sidebar-link"><span class="dot"></span>Organizing k6 Scripts: Variables, Functions & Reusable Code</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><span>04 Virtual Users & Workload Modeling</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="virtual-users-scenarios-workload-modeling.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Virtual Users, Scenarios & Workload Modeling</a>
+<div class="sidebar-sub">
+<a href="virtual-users-and-iterations.html" class="sidebar-link active"><span class="dot"></span>Virtual Users & Iterations</a>
+<a href="ramping-and-stages.html" class="sidebar-link"><span class="dot"></span>Ramping & Stages</a>
+<a href="k6-executors-explained.html" class="sidebar-link"><span class="dot"></span>k6 Executors Explained</a>
+<a href="scenarios-multiple-workloads.html" class="sidebar-link"><span class="dot"></span>Scenarios: Multiple Workloads in One Test</a>
+<a href="translating-requirements-into-workloads.html" class="sidebar-link"><span class="dot"></span>Translating a Business Requirement into a Workload</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4 7h4V5a2 2 0 0 1 4 0v2h4v4h2a2 2 0 0 1 0 4h-2v4H4v-4H2a2 2 0 0 1 0-4h2z"/></svg><span>05 HTTP/API Performance Testing</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="http-api-performance-testing.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>HTTP/API Performance Testing</a>
+<div class="sidebar-sub">
+<a href="building-a-realistic-end-to-end-workflow.html" class="sidebar-link"><span class="dot"></span>Building a Realistic End-to-End Workflow</a>
+<a href="cookies-in-performance-tests.html" class="sidebar-link"><span class="dot"></span>Cookies in Performance Tests</a>
+<a href="why-performance-tests-should-validate-functionality-too.html" class="sidebar-link"><span class="dot"></span>Why Performance Tests Should Validate Functionality Too</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg><span>06 Checks Metrics & Results</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="checks-metrics-and-results.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Checks, Metrics & Results</a>
+<div class="sidebar-sub">
+<a href="built-in-http-metrics-explained.html" class="sidebar-link"><span class="dot"></span>Built-in HTTP Metrics Explained</a>
+<a href="custom-metrics-counter-gauge-rate-trend.html" class="sidebar-link"><span class="dot"></span>Custom Metrics: Counter, Gauge, Rate, Trend</a>
+<a href="good-vs-misleading-performance-analysis.html" class="sidebar-link"><span class="dot"></span>Good vs. Misleading Performance Analysis</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>07 Thresholds & Performance Criteria</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="thresholds-and-performance-criteria.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Thresholds & Performance Criteria</a>
+<div class="sidebar-sub">
+<a href="threshold-syntax-and-types.html" class="sidebar-link"><span class="dot"></span>Threshold Syntax & Types</a>
+<a href="threshold-vs-check-the-real-distinction.html" class="sidebar-link"><span class="dot"></span>Threshold vs. Check: The Real Distinction</a>
+<a href="deriving-realistic-thresholds.html" class="sidebar-link"><span class="dot"></span>Deriving Realistic Thresholds</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>08 Test Data & Correlation</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="test-data-correlation-and-dynamic-workflows.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Test Data, Correlation & Dynamic Workflows</a>
+<div class="sidebar-sub">
+<a href="unique-test-data-and-avoiding-collisions.html" class="sidebar-link"><span class="dot"></span>Unique Test Data & Avoiding Collisions</a>
+<a href="parameterization-csv-json-and-sharedarray.html" class="sidebar-link"><span class="dot"></span>Parameterization: CSV, JSON & SharedArray</a>
+<a href="building-the-full-crud-chain-with-real-data.html" class="sidebar-link"><span class="dot"></span>Building the Full CRUD Chain With Real Data</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><span>09 Auth & Realistic User Journeys</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="authentication-sessions-and-realistic-user-journeys.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Authentication, Sessions & Realistic User Journeys</a>
+<div class="sidebar-sub">
+<a href="authentication-mechanisms-basic-bearer-apikey-jwt-oauth.html" class="sidebar-link"><span class="dot"></span>Authentication Mechanisms: Basic, Bearer, API Key, JWT, OAuth</a>
+<a href="session-management-token-reuse-expiration-and-refresh.html" class="sidebar-link"><span class="dot"></span>Session Management: Token Reuse, Expiration & Refresh</a>
+<a href="building-a-realistic-user-journey.html" class="sidebar-link"><span class="dot"></span>Building a Realistic User Journey</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="8 6 2 12 8 18"/><polyline points="16 6 22 12 16 18"/></svg><span>10 Advanced k6 Test Design</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="advanced-k6-test-design.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Advanced k6 Test Design</a>
+<div class="sidebar-sub">
+<a href="tags-and-environment-variables.html" class="sidebar-link"><span class="dot"></span>Tags & Environment Variables</a>
+<a href="designing-every-test-type-from-one-script.html" class="sidebar-link"><span class="dot"></span>Designing Every Test Type From One Script</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4 7h4V5a2 2 0 0 1 4 0v2h4v4h2a2 2 0 0 1 0 4h-2v4H4v-4H2a2 2 0 0 1 0-4h2z"/></svg><span>11 Performance Test Architecture</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="performance-test-architecture-and-framework-design.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Performance Test Architecture & Framework Design</a>
+<div class="sidebar-sub">
+<a href="layer-by-layer-responsibilities-k6.html" class="sidebar-link"><span class="dot"></span>Layer-by-Layer Responsibilities</a>
+<a href="the-recommended-k6-folder-structure.html" class="sidebar-link"><span class="dot"></span>The Recommended Folder Structure</a>
+<a href="avoiding-the-anti-patterns.html" class="sidebar-link"><span class="dot"></span>Avoiding the Anti-Patterns</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><span>12 Distributed & Large-Scale Testing</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="distributed-and-large-scale-performance-testing.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Distributed & Large-Scale Performance Testing</a>
+<div class="sidebar-sub">
+<a href="recognizing-when-the-load-generator-is-the-bottleneck.html" class="sidebar-link"><span class="dot"></span>Recognizing When the Load Generator Is the Bottleneck</a>
+<a href="local-vs-distributed-execution-and-geographic-distribution.html" class="sidebar-link"><span class="dot"></span>Local vs. Distributed Execution & Geographic Distribution</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg><span>13 Results Analysis Monitoring & CI/CD</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="results-analysis-monitoring-and-cicd.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Results Analysis, Monitoring & CI/CD</a>
+<div class="sidebar-sub">
+<a href="sending-k6-metrics-to-grafana-and-dashboards.html" class="sidebar-link"><span class="dot"></span>Sending k6 Metrics to Grafana & External Dashboards</a>
+<a href="correlating-k6-metrics-with-application-and-infrastructure.html" class="sidebar-link"><span class="dot"></span>Correlating k6 Metrics With Application & Infrastructure Metrics</a>
+<a href="running-k6-in-cicd-github-actions-and-regression-detection.html" class="sidebar-link"><span class="dot"></span>Running k6 in CI/CD: GitHub Actions & Regression Detection</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg><span>14 Production-Style Framework</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="production-k6-framework.html" class="sidebar-link"><span class="dot"></span>Building the Framework</a>
+</div></details>
+</nav>
+
+    <main class="doc-main">
+      <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="../index.html">Home</a> <span class="crumb-sep">&rsaquo;</span> <a href="index.html">K6</a> <span class="crumb-sep">&rsaquo;</span> <a href="virtual-users-scenarios-workload-modeling.html">Virtual Users, Scenarios & Workload Modeling</a> <span class="crumb-sep">&rsaquo;</span> <span class="crumb-current">Virtual Users & Iterations</span></nav>
+
+      <div class="page-header-banner">
+        <header class="page-head">
+          <h1>Virtual Users &amp; Iterations</h1>
+        </header>
+        <div class="meta-row">
+          <span class="tag-pill Beginner">Beginner</span>
+          <span class="read-time">7 min read</span>
+        </div>
+      </div>
+
+      <p class="prereqs"><strong>Prerequisites:</strong> <a href="virtual-users-scenarios-workload-modeling.html">Virtual Users, Scenarios & Workload Modeling overview</a></p>
+
+      <article class="content">
+        <h2 id="what-is-this">What is this?</h2>
+<p>Chapter 1 defined a virtual user conceptually — a simulated user your load-testing tool runs. This page covers how that concept actually becomes real k6 configuration: the exact options that control how many VUs run, for how long, and how many times each one repeats its work.</p>
+
+<h2 id="vus-how-many-virtual-users">vus — How Many Virtual Users</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export const options = {
+  vus: 50,
+};</code></pre>
+<p><code>vus</code> sets how many virtual users run concurrently. With no other configuration, k6 defaults to running each of these 50 VUs through your default function exactly once — which is rarely what you actually want for a real test, which is exactly why <code>vus</code> is almost always paired with either <code>duration</code> or <code>iterations</code>.</p>
+
+<h2 id="duration-how-long-the-test-runs">duration — How Long the Test Runs</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export const options = {
+  vus: 50,
+  duration: '5m',
+};</code></pre>
+<p>With <code>duration</code> set, each of the 50 virtual users keeps repeating the default function in a loop for the full 5 minutes, rather than running just once. This is the most common configuration shape for a straightforward load test — a fixed number of concurrent users, sustained for a meaningful period.</p>
+
+<h2 id="iterations-a-fixed-total-count-instead">iterations — A Fixed Total Count Instead</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export const options = {
+  vus: 50,
+  iterations: 500,
+};</code></pre>
+<p>Instead of running for a fixed duration, this configuration runs a fixed total number of iterations (500) distributed across the 50 virtual users, then stops — regardless of how long that actually takes. This is useful when you care about completing a specific total amount of work, rather than sustaining load for a specific period of time.</p>
+
+<h2 id="concurrent-execution-what-50-vus-actually-means-moment-to-moment">Concurrent Execution — What "50 VUs" Actually Means Moment to Moment</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Time →
+VU 1: [request][sleep][request][sleep][request]...
+VU 2: [request][sleep][request][sleep][request]...
+VU 3: [request][sleep][request][sleep][request]...
+...
+VU 50: [request][sleep][request][sleep][request]...</code></pre>
+<p>All 50 virtual users execute independently and in parallel, each running through the default function on their own timeline (including their own <code>sleep()</code> calls) — "50 VUs" means up to 50 requests could genuinely be happening at the same literal instant, not 50 requests processed one after another.</p>
+
+<h2 id="detailed-example-vus-and-iterations-are-not-the-same-as-requests">Detailed Example — VUs and Iterations Are Not the Same as Requests</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export default function () {
+  http.get(url1); // request 1
+  sleep(1);
+  http.get(url2); // request 2
+  sleep(1);
+  http.get(url3); // request 3
+}</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>vus: 10, iterations: 10  →  10 total iterations, but 30 total HTTP requests
+                             (3 requests per iteration × 10 iterations)</code></pre>
+<p>This is a genuinely common point of confusion: an "iteration" is one full run through the default function, which might contain any number of actual HTTP requests inside it. Configuring "10 iterations" doesn't mean "10 requests" — it means 10 complete passes through whatever your script's default function actually does.</p>
+
+<h2 id="real-world-example-choosing-vus-duration-vs-vus-iterations">Real-World Example — Choosing vus+duration vs. vus+iterations</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Scenario A: "Simulate typical Tuesday afternoon traffic for 10 minutes."
+→ Use vus + duration — you care about SUSTAINED load over a time period.
+export const options = { vus: 200, duration: '10m' };
+
+Scenario B: "Confirm the system correctly processes exactly 1,000 order submissions."
+→ Use vus + iterations — you care about a specific TOTAL amount of completed work.
+export const options = { vus: 20, iterations: 1000 };</code></pre>
+<p>Neither configuration style is universally "correct" — the right choice depends entirely on whether the real question you're asking is about sustained behavior over time, or about completing a specific, countable amount of work.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Setting vus with no duration or iterations — runs each VU exactly once, rarely useful
+export const options = { vus: 50 };
+
+// ✅ Pairing vus with a deliberate duration or iteration count matching the actual goal
+export const options = { vus: 50, duration: '5m' }; // sustained load test
+</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Setting <code>vus</code> alone with no <code>duration</code> or <code>iterations</code></strong> — produces a test that runs each VU exactly once, almost never what's actually intended for real load testing.</li>
+  <li><strong>Confusing an iteration count with a request count</strong> — one iteration can contain any number of actual HTTP requests, depending on what the default function does.</li>
+  <li><strong>Assuming higher VU count always means proportionally more realistic load</strong> — the actual traffic pattern (sustained, ramping, bursty) matters as much as the raw VU number, covered fully in the next two pages.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>An iteration that takes meaningfully longer for some VUs than others</strong> (due to varying sleep durations or response times) — with <code>duration</code>-based configuration, this naturally balances out over the test's runtime; with <code>iterations</code>-based configuration, some VUs may complete their share of iterations well before others.</li>
+  <li><strong>A test needing to stop after a fixed total amount of work regardless of how long it takes</strong> — this is exactly when <code>iterations</code> is the right choice over <code>duration</code>, even though <code>duration</code> is more commonly seen in typical load test examples.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a test's request count doesn't match what you expected from a given iteration count, check how many actual HTTP requests happen inside a single pass through the default function — this is almost always the source of an "iterations vs. requests" mismatch.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Always pair <code>vus</code> with either <code>duration</code> or <code>iterations</code> deliberately — never leave it configured alone.</li>
+  <li>Choose <code>duration</code> when the real question is about sustained behavior over time; choose <code>iterations</code> when it's about completing a specific total amount of work.</li>
+  <li>Remember that one iteration can contain multiple requests — don't assume iteration count equals request count without checking the actual script.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>For a script whose default function makes exactly 2 HTTP requests per iteration, calculate the total number of requests generated by a configuration of <code>vus: 25, iterations: 200</code>, and explain whether this same script would produce a fixed, predictable total request count if configured with <code>duration</code> instead.</p>
+
+<h2 id="summary">Summary</h2>
+<p><code>vus</code> sets how many virtual users run concurrently, <code>duration</code> sustains that concurrency for a fixed time period, and <code>iterations</code> instead runs a fixed total count of complete passes through the default function. An iteration is not the same as a request — one iteration can contain any number of actual HTTP calls — and choosing between duration-based and iteration-based configuration depends on whether the real goal is sustained behavior over time or a specific total amount of completed work.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why does setting vus alone, with no duration or iterations, rarely produce a useful test?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">With no duration or iteration count specified, k6 runs each virtual user through the default function exactly once and then stops — this almost never represents meaningful sustained load, since real performance testing is usually about how the system behaves over a period of time or across a specific volume of work, not a single pass per VU.</div>
+</details>
+<details class="faq-item">
+<summary>Why isn't "10 iterations" the same as "10 HTTP requests"?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">An iteration is one complete pass through the default function, which can contain any number of actual HTTP requests depending on what that function does — a script making three requests per iteration configured for 10 iterations would generate 30 total requests, not 10. Iteration count and request count are only equal when the default function makes exactly one request per pass.</div>
+</details>
+<details class="faq-item">
+<summary>When would you choose iterations over duration for configuring a test's load?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Choose iterations when the actual goal is completing a specific, countable amount of work — like confirming the system correctly processes exactly 1,000 order submissions — regardless of how long that takes. Choose duration when the goal is about sustained behavior over a fixed time period, like simulating 10 minutes of typical afternoon traffic, regardless of exactly how many iterations that produces.</div>
+</details>
+<details class="faq-item">
+<summary>What does "50 concurrent virtual users" actually mean in terms of real-time execution?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It means up to 50 virtual users are executing their scripted behavior — including their own requests and sleep calls — independently and in parallel at the same literal moment, not 50 requests being processed sequentially one after another. Each VU runs on its own independent timeline, which is what makes this genuinely concurrent rather than just a queue of 50 sequential executions.</div>
+</details>
+<details class="faq-item">
+<summary>If two VUs in the same test have different sleep durations in their scripts, how does that affect an iterations-based configuration differently than a duration-based one?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">In a duration-based test, both VUs simply keep running for the full configured time period regardless of how their individual pacing differs — the total elapsed time is fixed and predictable. In an iterations-based test, a VU with shorter sleep times will complete its share of the total iteration count faster than one with longer sleeps, meaning some VUs may finish their assigned work and stop before others, which can shift the actual concurrency level partway through the test.</div>
+</details>
+</div>
+      </article>
+
+      <label class="mark-complete-row">
+        <input type="checkbox" class="mark-complete-checkbox" data-page-id="k6:virtual-users-and-iterations.html" onchange="toggleComplete(this)" />
+        <span>Mark this lesson complete</span>
+      </label>
+
+      <div class="prev-next">
+        <a href="virtual-users-scenarios-workload-modeling.html"><span class="pn-label">&larr; Previous</span>Virtual Users, Scenarios & Workload Modeling</a>
+        <a href="ramping-and-stages.html" class="pn-next"><span class="pn-label">Next &rarr;</span>Ramping & Stages</a>
+      </div>
+    </main>
+
+    <aside class="right-rail">
+      <div class="rail-card book-promo-card">
+  <div class="book-promo-badge">&#128218; Recommended Reading</div>
+  <div class="book-carousel">
+    <div class="book-slide active">
+  <a href="https://www.amazon.in/Performance-Testing-Automation-Engineering-Applications-ebook/dp/B0GTYVVGVD" target="_blank" rel="nofollow noopener" class="book-cover-mock"><img src="../images/books/book-7-performance-testing-with-k6.jpg" alt="Performance Testing with k6 book cover" loading="lazy" /></a>
+  <div class="book-info">
+    <h5>Performance Testing with k6</h5>
+    <p>A Practical Guide to Automation Engineering with Applications</p>
+    <a href="https://www.amazon.in/Performance-Testing-Automation-Engineering-Applications-ebook/dp/B0GTYVVGVD" target="_blank" rel="nofollow noopener" class="book-buy-btn">View on Amazon &rarr;</a>
+  </div>
+</div>
+  </div>
+  <div class="book-dots"><span class="book-dot active"></span></div>
+</div>
+
+      <div class="rail-card">
+        <h4>Related Chapters</h4>
+        <div class="related-list">
+          <a href="ramping-and-stages.html">Ramping & Stages<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+<a href="k6-executors-explained.html">k6 Executors Explained<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+<a href="scenarios-multiple-workloads.html">Scenarios: Multiple Workloads in One Test<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+<a href="translating-requirements-into-workloads.html">Translating a Business Requirement into a Workload<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+<a href="performance-testing-fundamentals.html">Performance Testing Fundamentals<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+        </div>
+      </div>
+
+      <div class="rail-card was-helpful-card">
+        <span>Was this helpful?</span>
+        <button title="Yes">&#128077;</button>
+        <button title="No">&#128078;</button>
+      </div>
+    </aside>
+  </div>
+
+  <nav class="mobile-tabbar">
+  <a href="../index.html"><svg class="icon" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg><span>Home</span></a>
+  <a href="index.html" class="active"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>Tutorials</span></a>
+  <a href="../books.html"><svg class="icon" viewBox="0 0 24 24"><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v16H6.5A2.5 2.5 0 0 0 4 20.5"/><path d="M4 4.5v16"/></svg><span>Books</span></a>
+  <a href="../about.html"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="12" y1="16" x2="12" y2="11.5"/><circle cx="12" cy="8" r="0.8" fill="currentColor" stroke="none"/></svg><span>About</span></a>
+</nav>
+
+  <script>
+  
+  document.querySelectorAll('.book-promo-card').forEach(function(card) {
+    var slides = card.querySelectorAll('.book-slide');
+    var dots = card.querySelectorAll('.book-dot');
+    if (slides.length < 2) return;
+    var idx = 0;
+    setInterval(function() {
+      slides[idx].classList.remove('active');
+      if (dots[idx]) dots[idx].classList.remove('active');
+      idx = (idx + 1) % slides.length;
+      slides[idx].classList.add('active');
+      if (dots[idx]) dots[idx].classList.add('active');
+    }, 5000);
+  });
+
+  function copyCode(btn) {
+    const code = btn.nextElementSibling.innerText;
+    navigator.clipboard.writeText(code).then(function() {
+      btn.textContent = 'Copied';
+      btn.classList.add('copied');
+      setTimeout(function() { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
+    });
+  }
+  function openSidebar() {
+    document.getElementById('doc-sidebar').classList.add('open');
+    document.getElementById('sidebar-backdrop').classList.add('show');
+    document.body.classList.add('no-scroll');
+  }
+  function closeSidebar() {
+    document.getElementById('doc-sidebar').classList.remove('open');
+    document.getElementById('sidebar-backdrop').classList.remove('show');
+    document.body.classList.remove('no-scroll');
+  }
+  function toggleTheme() {
+    var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark');
+    try { localStorage.setItem('assertTrueTheme', isDark ? 'light' : 'dark'); } catch (e) {}
+  }
+  function toggleComplete(checkbox) {
+    var pageId = checkbox.getAttribute('data-page-id');
+    var progress = {};
+    try { progress = JSON.parse(localStorage.getItem('assertTrueProgress') || '{}'); } catch (e) {}
+    if (checkbox.checked) { progress[pageId] = true; } else { delete progress[pageId]; }
+    try { localStorage.setItem('assertTrueProgress', JSON.stringify(progress)); } catch (e) {}
+  }
+  (function() {
+    var progress = {};
+    try { progress = JSON.parse(localStorage.getItem('assertTrueProgress') || '{}'); } catch (e) {}
+    var cb = document.querySelector('.mark-complete-checkbox');
+    if (cb && progress[cb.getAttribute('data-page-id')]) cb.checked = true;
+  })();
+  (function() {
+    var activeLink = document.querySelector('.doc-sidebar a.active');
+    if (activeLink) { activeLink.scrollIntoView({ block: 'center' }); }
+  })();
+  document.addEventListener('click', function(e) {
+    if (e.target.closest('.sidebar-link') && window.matchMedia('(max-width: 860px)').matches) {
+      closeSidebar();
+    }
+  });
+  </script>
+</body>
+</html>

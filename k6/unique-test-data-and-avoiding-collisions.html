@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <script>try{if(localStorage.getItem('assertTrueTheme')==='dark'){document.documentElement.setAttribute('data-theme','dark');}}catch(e){}</script>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Unique Test Data in k6: Avoiding Collisions Under Concurrent Load</title>
+  <meta name="description" content="Why identical hardcoded test data breaks under real concurrency, and how to generate genuinely unique data per VU and iteration using k6&amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;#x27;s execution context." />
+  <link rel="canonical" href="https://asserttrue.io/k6/unique-test-data-and-avoiding-collisions.html" />
+  <link rel="stylesheet" href="../css/style.css?v=57" />
+</head>
+<body class="theme-k6">
+  <header class="topnav">
+    <button class="mobile-menu-btn" onclick="openSidebar()">&#9776;</button>
+    <a href="../index.html" class="brand"><svg class="logo-mark" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="40" rx="11" fill="url(#logoGrad)"/><path d="M11 21.5 L17 27.5 L29.5 13" stroke="#ffffff" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/><defs><linearGradient id="logoGrad" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse"><stop stop-color="#22c55e"/><stop offset="1" stop-color="#15803d"/></linearGradient></defs></svg><span class="brand-text">Assert<span class="brand-true">True</span><span class="brand-io">IO</span></span></a>
+    <nav class="topnav-links">
+      <a href="../playwright/index.html">Playwright</a>
+      <a href="../restassured/index.html">RestAssured</a>
+      <a href="index.html" class="active">K6</a>
+      <a href="../github-actions/index.html">GitHub Actions</a>
+      <a href="../about.html">About</a>
+      <a href="../books.html">Books</a>
+    </nav>
+    <div class="topnav-right">
+      <span class="search-box">Search tutorials...</span>
+      <button class="icon-btn theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Toggle dark mode"><svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
+    </div>
+  </header>
+
+  <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeSidebar()"></div>
+
+  <div class="app-shell">
+    <nav class="doc-sidebar" id="doc-sidebar">
+<div class="sidebar-mobile-header"><span>Menu</span><button class="sidebar-close-btn" onclick="closeSidebar()">&times;</button></div>
+<a href="index.html" class="sidebar-overview-link"><svg class="icon" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg><span>Roadmap</span></a>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>01 Performance Testing Fundamentals</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="performance-testing-fundamentals.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Performance Testing Fundamentals</a>
+<div class="sidebar-sub">
+<a href="test-types-load-stress-spike-soak-volume.html" class="sidebar-link"><span class="dot"></span>Load, Stress, Spike, Soak & Volume Testing</a>
+<a href="baseline-capacity-and-scalability-testing.html" class="sidebar-link"><span class="dot"></span>Baseline, Capacity & Scalability Testing</a>
+<a href="core-performance-metrics.html" class="sidebar-link"><span class="dot"></span>Response Time, Throughput, Latency & Concurrency</a>
+<a href="percentiles-and-reading-performance-data.html" class="sidebar-link"><span class="dot"></span>Percentiles & Reading Performance Data</a>
+<a href="slas-slos-slis-and-virtual-users.html" class="sidebar-link"><span class="dot"></span>SLAs, SLOs, SLIs & Virtual Users</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"/></svg><span>02 Getting Started With k6</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="getting-started-with-k6.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Getting Started with k6</a>
+<div class="sidebar-sub">
+<a href="what-is-k6-and-how-it-compares.html" class="sidebar-link"><span class="dot"></span>What is k6? Architecture & Tool Comparison</a>
+<a href="installing-k6-and-your-first-test.html" class="sidebar-link"><span class="dot"></span>Installing k6 & Your First Test</a>
+<a href="the-k6-test-lifecycle.html" class="sidebar-link"><span class="dot"></span>The k6 Test Lifecycle: init, setup, VU code, teardown</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="8 6 2 12 8 18"/><polyline points="16 6 22 12 16 18"/></svg><span>03 k6 Scripting Fundamentals</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="k6-scripting-fundamentals.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>k6 Scripting Fundamentals</a>
+<div class="sidebar-sub">
+<a href="making-http-requests-in-k6.html" class="sidebar-link"><span class="dot"></span>Making HTTP Requests: GET, POST, PUT, PATCH, DELETE</a>
+<a href="check-sleep-and-group.html" class="sidebar-link"><span class="dot"></span>check(), sleep(), and group(): Structuring a k6 Test</a>
+<a href="organizing-k6-scripts.html" class="sidebar-link"><span class="dot"></span>Organizing k6 Scripts: Variables, Functions & Reusable Code</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><span>04 Virtual Users & Workload Modeling</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="virtual-users-scenarios-workload-modeling.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Virtual Users, Scenarios & Workload Modeling</a>
+<div class="sidebar-sub">
+<a href="virtual-users-and-iterations.html" class="sidebar-link"><span class="dot"></span>Virtual Users & Iterations</a>
+<a href="ramping-and-stages.html" class="sidebar-link"><span class="dot"></span>Ramping & Stages</a>
+<a href="k6-executors-explained.html" class="sidebar-link"><span class="dot"></span>k6 Executors Explained</a>
+<a href="scenarios-multiple-workloads.html" class="sidebar-link"><span class="dot"></span>Scenarios: Multiple Workloads in One Test</a>
+<a href="translating-requirements-into-workloads.html" class="sidebar-link"><span class="dot"></span>Translating a Business Requirement into a Workload</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4 7h4V5a2 2 0 0 1 4 0v2h4v4h2a2 2 0 0 1 0 4h-2v4H4v-4H2a2 2 0 0 1 0-4h2z"/></svg><span>05 HTTP/API Performance Testing</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="http-api-performance-testing.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>HTTP/API Performance Testing</a>
+<div class="sidebar-sub">
+<a href="building-a-realistic-end-to-end-workflow.html" class="sidebar-link"><span class="dot"></span>Building a Realistic End-to-End Workflow</a>
+<a href="cookies-in-performance-tests.html" class="sidebar-link"><span class="dot"></span>Cookies in Performance Tests</a>
+<a href="why-performance-tests-should-validate-functionality-too.html" class="sidebar-link"><span class="dot"></span>Why Performance Tests Should Validate Functionality Too</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg><span>06 Checks Metrics & Results</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="checks-metrics-and-results.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Checks, Metrics & Results</a>
+<div class="sidebar-sub">
+<a href="built-in-http-metrics-explained.html" class="sidebar-link"><span class="dot"></span>Built-in HTTP Metrics Explained</a>
+<a href="custom-metrics-counter-gauge-rate-trend.html" class="sidebar-link"><span class="dot"></span>Custom Metrics: Counter, Gauge, Rate, Trend</a>
+<a href="good-vs-misleading-performance-analysis.html" class="sidebar-link"><span class="dot"></span>Good vs. Misleading Performance Analysis</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>07 Thresholds & Performance Criteria</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="thresholds-and-performance-criteria.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Thresholds & Performance Criteria</a>
+<div class="sidebar-sub">
+<a href="threshold-syntax-and-types.html" class="sidebar-link"><span class="dot"></span>Threshold Syntax & Types</a>
+<a href="threshold-vs-check-the-real-distinction.html" class="sidebar-link"><span class="dot"></span>Threshold vs. Check: The Real Distinction</a>
+<a href="deriving-realistic-thresholds.html" class="sidebar-link"><span class="dot"></span>Deriving Realistic Thresholds</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>08 Test Data & Correlation</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="test-data-correlation-and-dynamic-workflows.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Test Data, Correlation & Dynamic Workflows</a>
+<div class="sidebar-sub">
+<a href="unique-test-data-and-avoiding-collisions.html" class="sidebar-link active"><span class="dot"></span>Unique Test Data & Avoiding Collisions</a>
+<a href="parameterization-csv-json-and-sharedarray.html" class="sidebar-link"><span class="dot"></span>Parameterization: CSV, JSON & SharedArray</a>
+<a href="building-the-full-crud-chain-with-real-data.html" class="sidebar-link"><span class="dot"></span>Building the Full CRUD Chain With Real Data</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><span>09 Auth & Realistic User Journeys</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="authentication-sessions-and-realistic-user-journeys.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Authentication, Sessions & Realistic User Journeys</a>
+<div class="sidebar-sub">
+<a href="authentication-mechanisms-basic-bearer-apikey-jwt-oauth.html" class="sidebar-link"><span class="dot"></span>Authentication Mechanisms: Basic, Bearer, API Key, JWT, OAuth</a>
+<a href="session-management-token-reuse-expiration-and-refresh.html" class="sidebar-link"><span class="dot"></span>Session Management: Token Reuse, Expiration & Refresh</a>
+<a href="building-a-realistic-user-journey.html" class="sidebar-link"><span class="dot"></span>Building a Realistic User Journey</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="8 6 2 12 8 18"/><polyline points="16 6 22 12 16 18"/></svg><span>10 Advanced k6 Test Design</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="advanced-k6-test-design.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Advanced k6 Test Design</a>
+<div class="sidebar-sub">
+<a href="tags-and-environment-variables.html" class="sidebar-link"><span class="dot"></span>Tags & Environment Variables</a>
+<a href="designing-every-test-type-from-one-script.html" class="sidebar-link"><span class="dot"></span>Designing Every Test Type From One Script</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4 7h4V5a2 2 0 0 1 4 0v2h4v4h2a2 2 0 0 1 0 4h-2v4H4v-4H2a2 2 0 0 1 0-4h2z"/></svg><span>11 Performance Test Architecture</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="performance-test-architecture-and-framework-design.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Performance Test Architecture & Framework Design</a>
+<div class="sidebar-sub">
+<a href="layer-by-layer-responsibilities-k6.html" class="sidebar-link"><span class="dot"></span>Layer-by-Layer Responsibilities</a>
+<a href="the-recommended-k6-folder-structure.html" class="sidebar-link"><span class="dot"></span>The Recommended Folder Structure</a>
+<a href="avoiding-the-anti-patterns.html" class="sidebar-link"><span class="dot"></span>Avoiding the Anti-Patterns</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><span>12 Distributed & Large-Scale Testing</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="distributed-and-large-scale-performance-testing.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Distributed & Large-Scale Performance Testing</a>
+<div class="sidebar-sub">
+<a href="recognizing-when-the-load-generator-is-the-bottleneck.html" class="sidebar-link"><span class="dot"></span>Recognizing When the Load Generator Is the Bottleneck</a>
+<a href="local-vs-distributed-execution-and-geographic-distribution.html" class="sidebar-link"><span class="dot"></span>Local vs. Distributed Execution & Geographic Distribution</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg><span>13 Results Analysis Monitoring & CI/CD</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="results-analysis-monitoring-and-cicd.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Results Analysis, Monitoring & CI/CD</a>
+<div class="sidebar-sub">
+<a href="sending-k6-metrics-to-grafana-and-dashboards.html" class="sidebar-link"><span class="dot"></span>Sending k6 Metrics to Grafana & External Dashboards</a>
+<a href="correlating-k6-metrics-with-application-and-infrastructure.html" class="sidebar-link"><span class="dot"></span>Correlating k6 Metrics With Application & Infrastructure Metrics</a>
+<a href="running-k6-in-cicd-github-actions-and-regression-detection.html" class="sidebar-link"><span class="dot"></span>Running k6 in CI/CD: GitHub Actions & Regression Detection</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg><span>14 Production-Style Framework</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="production-k6-framework.html" class="sidebar-link"><span class="dot"></span>Building the Framework</a>
+</div></details>
+</nav>
+
+    <main class="doc-main">
+      <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="../index.html">Home</a> <span class="crumb-sep">&rsaquo;</span> <a href="index.html">K6</a> <span class="crumb-sep">&rsaquo;</span> <a href="test-data-correlation-and-dynamic-workflows.html">Test Data, Correlation & Dynamic Workflows</a> <span class="crumb-sep">&rsaquo;</span> <span class="crumb-current">Unique Test Data & Avoiding Collisions</span></nav>
+
+      <div class="page-header-banner">
+        <header class="page-head">
+          <h1>Unique Test Data &amp; Avoiding Collisions</h1>
+        </header>
+        <div class="meta-row">
+          <span class="tag-pill Beginner">Beginner</span>
+          <span class="read-time">6 min read</span>
+        </div>
+      </div>
+
+      <p class="prereqs"><strong>Prerequisites:</strong> <a href="test-data-correlation-and-dynamic-workflows.html">Test Data, Correlation & Dynamic Workflows overview</a></p>
+
+      <article class="content">
+        <h2 id="what-is-this">What is this?</h2>
+<p>Any data meant to be unique — an email, a username, an order reference — needs to actually be unique across every virtual user and every iteration in a real performance test, not just look plausible in a single example run. This page covers how to make that genuinely true.</p>
+
+<h2 id="the-problem-concretely">The Problem, Concretely</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const payload = JSON.stringify({ email: 'testuser@example.com' });
+// Every VU, every iteration, sends the exact same email.
+// A real system correctly rejects duplicates — so most of these fail,
+// and the test stops measuring what it was meant to measure.</code></pre>
+
+<h2 id="k6-s-execution-context-vu-and-iter">k6's Execution Context — __VU and __ITER</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export default function () {
+  const uniqueEmail = `user-${__VU}-${__ITER}@example.com`;
+  // VU 3, iteration 12 → user-3-12@example.com
+  // Genuinely unique as long as no two VUs share the same __VU number
+  // (which k6 guarantees) and no VU repeats an __ITER value (which it also guarantees)
+}</code></pre>
+<p>k6 exposes <code>__VU</code> (the current virtual user's ID) and <code>__ITER</code> (the current iteration number for that VU) as built-in variables — combining them produces a value that's guaranteed unique across the entire test, since no two VUs share a <code>__VU</code> number and no VU repeats an <code>__ITER</code> value.</p>
+
+<h2 id="adding-a-timestamp-for-cross-run-uniqueness">Adding a Timestamp for Cross-Run Uniqueness</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const runId = Date.now(); // captured once, outside the default function (init code)
+
+export default function () {
+  const uniqueEmail = `user-${runId}-${__VU}-${__ITER}@example.com`;
+  // Unique within THIS run, and unlikely to collide with a PREVIOUS run's
+  // leftover data, if cleanup didn't fully succeed last time
+}</code></pre>
+<p>Adding a timestamp captured once at script load time (init code, from Chapter 2's lifecycle model) protects against collisions with data left over from a previous test run — genuinely useful if a system doesn't guarantee full cleanup between runs.</p>
+
+<h2 id="detailed-example-randomization-for-non-sequential-uniqueness">Detailed Example — Randomization for Non-Sequential Uniqueness</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>function randomString(length) {
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
+export default function () {
+  const uniqueEmail = `user-${randomString(8)}@example.com`;
+}</code></pre>
+<p><code>__VU</code>/<code>__ITER</code>-based uniqueness is predictable and sequential — fine for most cases, but sometimes a test specifically needs data that doesn't reveal an obvious pattern (testing a system that might behave differently for sequential vs. genuinely random-looking input). Randomization achieves that, at the cost of needing a large enough random space that collisions remain vanishingly unlikely rather than guaranteed impossible.</p>
+
+<h2 id="real-world-example-why-random-isn-t-automatically-collision-free">Real-World Example — Why "Random" Isn't Automatically Collision-Free</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>❌ const id = Date.now(); // milliseconds since epoch
+// Two VUs executing in the SAME millisecond generate the IDENTICAL "unique" ID
+// — genuinely possible at high VU counts with fast-executing iterations
+
+✅ const id = `${Date.now()}-${__VU}-${__ITER}`;
+// Combining timestamp with guaranteed-unique VU/iteration context
+// eliminates the collision risk entirely</code></pre>
+<p>This is a genuinely common mistake — a timestamp alone feels unique, but at real concurrency, two virtual users can execute the same line of code within the same millisecond, especially for fast, lightweight requests. Combining a timestamp with k6's guaranteed-unique <code>__VU</code>/<code>__ITER</code> context removes this risk entirely, rather than merely making it unlikely.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ A single hardcoded value shared across every VU and iteration
+const email = 'testuser@example.com';
+
+// ✅ Genuinely unique per VU and iteration, using k6's execution context
+const email = `user-${__VU}-${__ITER}-${Date.now()}@example.com`;</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Reusing a single hardcoded value</strong> for anything the system treats as unique, across every VU and iteration.</li>
+  <li><strong>Relying on a timestamp alone for uniqueness</strong> — genuinely possible to collide when multiple VUs execute within the same millisecond.</li>
+  <li><strong>Using a random string that's too short</strong> for the actual scale of the test — a real, if small, collision probability at very high iteration counts with an insufficiently large random space.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>A test that needs to reuse the same identity across iterations for one VU</strong> but not across different VUs — capture the unique value once, outside the default function (relying on Chapter 2's per-VU init code behavior), rather than regenerating it every iteration.</li>
+  <li><strong>A system with its own strict uniqueness rules beyond a simple string match</strong> (like a checksum-validated ID format) — uniqueness generation needs to also produce data that satisfies whatever format rules the target system actually enforces, not just be different from other generated values.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a test shows a high failure rate specifically on "create" operations (accounts, orders) under load but not at low concurrency, check whether the data being sent is actually unique per iteration — a collision-based failure often only appears once concurrency is high enough for the collision probability to become likely.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Combine <code>__VU</code> and <code>__ITER</code> as the foundation for guaranteed uniqueness within a single test run.</li>
+  <li>Add a run-level timestamp when protection against leftover data from previous runs matters.</li>
+  <li>Use genuine randomization only when sequential, predictable data specifically isn't appropriate for what's being tested — it adds real collision-probability math that <code>__VU</code>/<code>__ITER</code> combinations don't require.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Write a function that generates a unique username guaranteed not to collide across any combination of VUs, iterations, or separate test runs — and explain in one sentence why each component of the generated value is necessary.</p>
+
+<h2 id="summary">Summary</h2>
+<p>Data meant to be unique in a performance test needs genuine, guaranteed uniqueness — not just data that looks different in a single example run. Combining k6's built-in <code>__VU</code> and <code>__ITER</code> values, optionally with a run-level timestamp, produces data that's mathematically guaranteed unique across an entire test, which a timestamp alone or an insufficiently large random value cannot promise.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why does a single hardcoded test value that works fine in a functional test break under performance testing?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A functional test typically runs a script once, sequentially — a hardcoded value never has to compete with itself. A performance test runs the same script hundreds or thousands of times, often simultaneously, so every virtual user attempting to use the identical value for something the system treats as unique (an email, a username) causes most of those attempts to fail with a duplicate error, changing what the test actually measures.</div>
+</details>
+<details class="faq-item">
+<summary>Why isn't Date.now() alone sufficient to guarantee unique data across virtual users?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Date.now() has millisecond resolution, and at real concurrency, multiple virtual users can execute the same line of code within the same millisecond — especially for fast, lightweight requests. This means two VUs can genuinely generate the identical "unique" timestamp-based value, causing exactly the collision the uniqueness was meant to prevent.</div>
+</details>
+<details class="faq-item">
+<summary>How do __VU and __ITER combine to guarantee uniqueness within a single test run?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">__VU is k6's built-in identifier for the current virtual user, and no two VUs ever share the same value. __ITER is the current iteration number for that specific VU, and a single VU never repeats an __ITER value. Combining the two produces a value that's mathematically guaranteed unique across the entire test, since the combination of (VU number, iteration number) can never repeat.</div>
+</details>
+<details class="faq-item">
+<summary>Why might a test add a run-level timestamp on top of __VU and __ITER, even though those two already guarantee uniqueness within one run?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">__VU and __ITER only guarantee uniqueness within a single test execution — if a previous run's test data wasn't fully cleaned up, a new run using the exact same __VU/__ITER combinations could collide with leftover data from before. A run-level timestamp, captured once at script load, protects against exactly this cross-run collision risk.</div>
+</details>
+<details class="faq-item">
+<summary>When might __VU/__ITER-based uniqueness actually be insufficient, requiring genuine randomization instead?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">__VU/__ITER-based values are predictable and sequential in pattern — if a test specifically needs to verify system behavior against genuinely unpredictable, non-sequential input (testing whether a system behaves differently for obviously patterned versus organic-looking data, for instance), true randomization is more appropriate, accepting the tradeoff that it requires a sufficiently large random space to keep collision probability acceptably low rather than mathematically impossible.</div>
+</details>
+</div>
+      </article>
+
+      <label class="mark-complete-row">
+        <input type="checkbox" class="mark-complete-checkbox" data-page-id="k6:unique-test-data-and-avoiding-collisions.html" onchange="toggleComplete(this)" />
+        <span>Mark this lesson complete</span>
+      </label>
+
+      <div class="prev-next">
+        <a href="test-data-correlation-and-dynamic-workflows.html"><span class="pn-label">&larr; Previous</span>Test Data, Correlation & Dynamic Workflows</a>
+        <a href="parameterization-csv-json-and-sharedarray.html" class="pn-next"><span class="pn-label">Next &rarr;</span>Parameterization: CSV, JSON & SharedArray</a>
+      </div>
+    </main>
+
+    <aside class="right-rail">
+      <div class="rail-card book-promo-card">
+  <div class="book-promo-badge">&#128218; Recommended Reading</div>
+  <div class="book-carousel">
+    <div class="book-slide active">
+  <a href="https://www.amazon.in/Performance-Testing-Automation-Engineering-Applications-ebook/dp/B0GTYVVGVD" target="_blank" rel="nofollow noopener" class="book-cover-mock"><img src="../images/books/book-7-performance-testing-with-k6.jpg" alt="Performance Testing with k6 book cover" loading="lazy" /></a>
+  <div class="book-info">
+    <h5>Performance Testing with k6</h5>
+    <p>A Practical Guide to Automation Engineering with Applications</p>
+    <a href="https://www.amazon.in/Performance-Testing-Automation-Engineering-Applications-ebook/dp/B0GTYVVGVD" target="_blank" rel="nofollow noopener" class="book-buy-btn">View on Amazon &rarr;</a>
+  </div>
+</div>
+  </div>
+  <div class="book-dots"><span class="book-dot active"></span></div>
+</div>
+
+      <div class="rail-card">
+        <h4>Related Chapters</h4>
+        <div class="related-list">
+          <a href="parameterization-csv-json-and-sharedarray.html">Parameterization: CSV, JSON & SharedArray<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+<a href="building-the-full-crud-chain-with-real-data.html">Building the Full CRUD Chain With Real Data<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+<a href="performance-testing-fundamentals.html">Performance Testing Fundamentals<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+<a href="test-types-load-stress-spike-soak-volume.html">Load, Stress, Spike, Soak & Volume Testing<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+<a href="baseline-capacity-and-scalability-testing.html">Baseline, Capacity & Scalability Testing<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+        </div>
+      </div>
+
+      <div class="rail-card was-helpful-card">
+        <span>Was this helpful?</span>
+        <button title="Yes">&#128077;</button>
+        <button title="No">&#128078;</button>
+      </div>
+    </aside>
+  </div>
+
+  <nav class="mobile-tabbar">
+  <a href="../index.html"><svg class="icon" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg><span>Home</span></a>
+  <a href="index.html" class="active"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>Tutorials</span></a>
+  <a href="../books.html"><svg class="icon" viewBox="0 0 24 24"><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v16H6.5A2.5 2.5 0 0 0 4 20.5"/><path d="M4 4.5v16"/></svg><span>Books</span></a>
+  <a href="../about.html"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="12" y1="16" x2="12" y2="11.5"/><circle cx="12" cy="8" r="0.8" fill="currentColor" stroke="none"/></svg><span>About</span></a>
+</nav>
+
+  <script>
+  
+  document.querySelectorAll('.book-promo-card').forEach(function(card) {
+    var slides = card.querySelectorAll('.book-slide');
+    var dots = card.querySelectorAll('.book-dot');
+    if (slides.length < 2) return;
+    var idx = 0;
+    setInterval(function() {
+      slides[idx].classList.remove('active');
+      if (dots[idx]) dots[idx].classList.remove('active');
+      idx = (idx + 1) % slides.length;
+      slides[idx].classList.add('active');
+      if (dots[idx]) dots[idx].classList.add('active');
+    }, 5000);
+  });
+
+  function copyCode(btn) {
+    const code = btn.nextElementSibling.innerText;
+    navigator.clipboard.writeText(code).then(function() {
+      btn.textContent = 'Copied';
+      btn.classList.add('copied');
+      setTimeout(function() { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
+    });
+  }
+  function openSidebar() {
+    document.getElementById('doc-sidebar').classList.add('open');
+    document.getElementById('sidebar-backdrop').classList.add('show');
+    document.body.classList.add('no-scroll');
+  }
+  function closeSidebar() {
+    document.getElementById('doc-sidebar').classList.remove('open');
+    document.getElementById('sidebar-backdrop').classList.remove('show');
+    document.body.classList.remove('no-scroll');
+  }
+  function toggleTheme() {
+    var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark');
+    try { localStorage.setItem('assertTrueTheme', isDark ? 'light' : 'dark'); } catch (e) {}
+  }
+  function toggleComplete(checkbox) {
+    var pageId = checkbox.getAttribute('data-page-id');
+    var progress = {};
+    try { progress = JSON.parse(localStorage.getItem('assertTrueProgress') || '{}'); } catch (e) {}
+    if (checkbox.checked) { progress[pageId] = true; } else { delete progress[pageId]; }
+    try { localStorage.setItem('assertTrueProgress', JSON.stringify(progress)); } catch (e) {}
+  }
+  (function() {
+    var progress = {};
+    try { progress = JSON.parse(localStorage.getItem('assertTrueProgress') || '{}'); } catch (e) {}
+    var cb = document.querySelector('.mark-complete-checkbox');
+    if (cb && progress[cb.getAttribute('data-page-id')]) cb.checked = true;
+  })();
+  (function() {
+    var activeLink = document.querySelector('.doc-sidebar a.active');
+    if (activeLink) { activeLink.scrollIntoView({ block: 'center' }); }
+  })();
+  document.addEventListener('click', function(e) {
+    if (e.target.closest('.sidebar-link') && window.matchMedia('(max-width: 860px)').matches) {
+      closeSidebar();
+    }
+  });
+  </script>
+</body>
+</html>

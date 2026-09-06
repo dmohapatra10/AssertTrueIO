@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <script>try{if(localStorage.getItem('assertTrueTheme')==='dark'){document.documentElement.setAttribute('data-theme','dark');}}catch(e){}</script>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Playwright Trace Viewer: Time-Travel Debugging for Failed Tests</title>
+  <meta name="description" content="Learn how Playwright&amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;#x27;s trace viewer captures a full recording of a test run — DOM snapshots, network, console — and how to use it to debug CI failures." />
+  <link rel="canonical" href="https://asserttrue.io/playwright/trace-viewer.html" />
+  <link rel="stylesheet" href="../css/style.css?v=57" />
+</head>
+<body>
+  <header class="topnav">
+    <button class="mobile-menu-btn" onclick="openSidebar()">&#9776;</button>
+    <a href="../index.html" class="brand"><svg class="logo-mark" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="40" rx="11" fill="url(#logoGrad)"/><path d="M11 21.5 L17 27.5 L29.5 13" stroke="#ffffff" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/><defs><linearGradient id="logoGrad" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse"><stop stop-color="#22c55e"/><stop offset="1" stop-color="#15803d"/></linearGradient></defs></svg><span class="brand-text">Assert<span class="brand-true">True</span><span class="brand-io">IO</span></span></a>
+    <nav class="topnav-links">
+      <a href="index.html" class="active">Playwright</a>
+      <a href="../restassured/index.html">RestAssured</a>
+      <a href="../k6/index.html">K6</a>
+      <a href="../github-actions/index.html">GitHub Actions</a>
+      <a href="../about.html">About</a>
+      <a href="../books.html">Books</a>
+    </nav>
+    <div class="topnav-right">
+      <span class="search-box">Search tutorials...</span>
+      <button class="icon-btn theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Toggle dark mode"><svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
+    </div>
+  </header>
+
+  <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeSidebar()"></div>
+
+  <div class="app-shell">
+    <nav class="doc-sidebar" id="doc-sidebar">
+<div class="sidebar-mobile-header"><span>Menu</span><button class="sidebar-close-btn" onclick="closeSidebar()">&times;</button></div>
+<a href="index.html" class="sidebar-overview-link"><svg class="icon" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg><span>Roadmap</span></a>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg><span>01 Introduction</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="introduction.html" class="sidebar-link"><span class="dot"></span>Introduction</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"/></svg><span>02 Getting Started</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="getting-started.html" class="sidebar-link"><span class="dot"></span>Getting Started</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="8 6 2 12 8 18"/><polyline points="16 6 22 12 16 18"/></svg><span>03 Locators</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="locators.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Locators</a>
+<div class="sidebar-sub">
+<a href="get-by-role.html" class="sidebar-link"><span class="dot"></span>getByRole()</a>
+<a href="get-by-label.html" class="sidebar-link"><span class="dot"></span>getByLabel()</a>
+<a href="get-by-placeholder.html" class="sidebar-link"><span class="dot"></span>getByPlaceholder()</a>
+<a href="get-by-text.html" class="sidebar-link"><span class="dot"></span>getByText()</a>
+<a href="get-by-alt-text.html" class="sidebar-link"><span class="dot"></span>getByAltText()</a>
+<a href="get-by-title.html" class="sidebar-link"><span class="dot"></span>getByTitle()</a>
+<a href="get-by-test-id.html" class="sidebar-link"><span class="dot"></span>getByTestId()</a>
+<a href="locator-and-css-xpath.html" class="sidebar-link"><span class="dot"></span>CSS & XPath</a>
+<a href="filtering-and-chaining.html" class="sidebar-link"><span class="dot"></span>Filtering & Chaining</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><span>04 Actions, Assertions & Sync</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="actions.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Actions</a>
+<div class="sidebar-sub">
+<a href="click-and-dblclick.html" class="sidebar-link"><span class="dot"></span>click() / dblclick()</a>
+<a href="fill-and-press-sequentially.html" class="sidebar-link"><span class="dot"></span>fill() / pressSequentially()</a>
+<a href="press.html" class="sidebar-link"><span class="dot"></span>press()</a>
+<a href="check-and-uncheck.html" class="sidebar-link"><span class="dot"></span>check() / uncheck()</a>
+<a href="select-option.html" class="sidebar-link"><span class="dot"></span>selectOption()</a>
+<a href="hover.html" class="sidebar-link"><span class="dot"></span>hover()</a>
+<a href="set-input-files.html" class="sidebar-link"><span class="dot"></span>setInputFiles()</a>
+<a href="drag-to.html" class="sidebar-link"><span class="dot"></span>dragTo()</a>
+<a href="actionability-and-force.html" class="sidebar-link"><span class="dot"></span>Actionability & Force</a>
+</div>
+<a href="assertions.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Assertions</a>
+<div class="sidebar-sub">
+<a href="visibility-and-state-assertions.html" class="sidebar-link"><span class="dot"></span>Visibility & State</a>
+<a href="text-and-value-assertions.html" class="sidebar-link"><span class="dot"></span>Text & Value</a>
+<a href="count-url-title-assertions.html" class="sidebar-link"><span class="dot"></span>Count, URL & Title</a>
+<a href="hard-vs-soft-assertions.html" class="sidebar-link"><span class="dot"></span>Hard vs Soft Assertions</a>
+</div>
+<a href="waiting-and-synchronization.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Waiting & Synchronization</a>
+<div class="sidebar-sub">
+<a href="auto-waiting-explained.html" class="sidebar-link"><span class="dot"></span>Auto-Waiting Explained</a>
+<a href="wait-for-url-and-load-state.html" class="sidebar-link"><span class="dot"></span>waitForURL() & waitForLoadState()</a>
+<a href="wait-for-request-and-response.html" class="sidebar-link"><span class="dot"></span>waitForRequest() & waitForResponse()</a>
+<a href="wait-for-selector-and-timeout.html" class="sidebar-link"><span class="dot"></span>waitForSelector() & waitForTimeout()</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18"/></svg><span>05 Pages, Browser & Context</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="architecture.html" class="sidebar-link"><span class="dot"></span>Architecture</a>
+<a href="pages-and-navigation.html" class="sidebar-link"><span class="dot"></span>Pages & Navigation</a>
+<a href="browser-and-browsercontext.html" class="sidebar-link"><span class="dot"></span>Browser & Context</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>06 Real-World Web Apps</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="forms.html" class="sidebar-link"><span class="dot"></span>Forms</a>
+<a href="tables.html" class="sidebar-link"><span class="dot"></span>Tables</a>
+<a href="frames.html" class="sidebar-link"><span class="dot"></span>Frames</a>
+<a href="multiple-tabs-and-windows.html" class="sidebar-link"><span class="dot"></span>Multiple Tabs & Windows</a>
+<a href="dialogs.html" class="sidebar-link"><span class="dot"></span>Dialogs</a>
+<a href="file-upload-and-download.html" class="sidebar-link"><span class="dot"></span>File Upload & Download</a>
+<a href="special-ui-elements.html" class="sidebar-link"><span class="dot"></span>Special UI Elements</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"/></svg><span>07 Test Runner</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="test-runner.html" class="sidebar-link"><span class="dot"></span>Test Runner</a>
+<a href="hooks.html" class="sidebar-link"><span class="dot"></span>Hooks</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4 7h4V5a2 2 0 0 1 4 0v2h4v4h2a2 2 0 0 1 0 4h-2v4H4v-4H2a2 2 0 0 1 0-4h2z"/></svg><span>08 Fixtures & Architecture</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="fixtures.html" class="sidebar-link"><span class="dot"></span>Fixtures</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><span>09 Auth, API & Mocking</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="authentication-and-storage-state.html" class="sidebar-link"><span class="dot"></span>Authentication & storageState</a>
+<a href="api-testing-with-playwright.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>API Testing</a>
+<div class="sidebar-sub">
+<a href="get-request.html" class="sidebar-link"><span class="dot"></span>GET Requests</a>
+<a href="post-request.html" class="sidebar-link"><span class="dot"></span>POST Requests</a>
+<a href="put-and-patch-request.html" class="sidebar-link"><span class="dot"></span>PUT & PATCH Requests</a>
+<a href="delete-request.html" class="sidebar-link"><span class="dot"></span>DELETE Requests</a>
+</div>
+<a href="network-mocking-and-routes.html" class="sidebar-link"><span class="dot"></span>Network Mocking</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>10 Configuration & Environments</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="playwright-config-options.html" class="sidebar-link"><span class="dot"></span>Configuration Options</a>
+<a href="projects-and-environments.html" class="sidebar-link"><span class="dot"></span>Projects & Environments</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>11 Page Objects & Framework</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="page-object-model.html" class="sidebar-link"><span class="dot"></span>Page Object Model</a>
+<a href="framework-folder-structure.html" class="sidebar-link"><span class="dot"></span>Framework Folder Structure</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><span>12 Parallelism & Debugging</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="parallel-execution-and-workers.html" class="sidebar-link"><span class="dot"></span>Parallel Execution & Workers</a>
+<a href="diagnosing-flaky-tests.html" class="sidebar-link"><span class="dot"></span>Diagnosing Flaky Tests</a>
+<a href="screenshots-and-videos.html" class="sidebar-link"><span class="dot"></span>Screenshots & Videos</a>
+<a href="trace-viewer.html" class="sidebar-link active"><span class="dot"></span>Trace Viewer</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg><span>13 Reporting & CI/CD</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="test-reporting.html" class="sidebar-link"><span class="dot"></span>Test Reporting</a>
+<a href="github-actions-cicd.html" class="sidebar-link"><span class="dot"></span>GitHub Actions CI/CD</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg><span>14 Production-Style Framework</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="production-framework-capstone.html" class="sidebar-link"><span class="dot"></span>Building the Framework</a>
+</div></details>
+</nav>
+
+    <main class="doc-main">
+      <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="../index.html">Home</a> <span class="crumb-sep">&rsaquo;</span> <a href="index.html">Playwright</a> <span class="crumb-sep">&rsaquo;</span> <span class="crumb-current">Trace Viewer</span></nav>
+
+      <div class="page-header-banner">
+        <header class="page-head">
+          <h1>Chapter 15: Trace Viewer</h1>
+        </header>
+        <div class="meta-row">
+          <span class="tag-pill Beginner">Beginner</span>
+          <span class="read-time">7 min read</span>
+        </div>
+      </div>
+
+      <p class="prereqs"><strong>Prerequisites:</strong> <a href="screenshots-and-videos.html">Screenshots and Videos</a></p>
+
+      <article class="content">
+        <h2 id="what-is-this">What is this?</h2>
+<p>A trace is a complete recording of a test run — DOM snapshots for every action, network requests, console logs, and source code — that can be opened afterward in an interactive, time-travel debugger. It's the single most useful tool for debugging a test that fails in CI but passes locally.</p>
+
+<h2 id="why-it-s-important">Why it's important</h2>
+<p>A screenshot shows one moment; a video shows what happened but not why. A trace lets you step through the test action-by-action, inspect the DOM exactly as it was at each step, see the network request that was in flight, and read console output — turning "it failed somewhere in this 40-line test" into "it failed on this exact line, and here's the page state at that instant."</p>
+
+<h2 id="mental-model">Mental Model</h2>
+<p>Think of a trace as the test-execution equivalent of a flight recorder: it doesn't change how the test runs, it just records everything that happened alongside it — every action, every DOM state, every network call — into a single portable <code>.zip</code> file. That file can be opened, shared, and replayed on any machine, entirely independent of whether the environment that generated it is still available.</p>
+
+<h2 id="enabling-tracing">Enabling Tracing</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// playwright.config.ts
+export default defineConfig({
+  use: {
+    trace: 'on-first-retry',
+  },
+});</code></pre>
+<p><code>'on-first-retry'</code> is the recommended default: it only records a trace when a test fails and is retried, which avoids the overhead of tracing every passing test while still capturing the exact failure that matters. Other values include <code>'retain-on-failure'</code> (keep a trace for any failed test, no retry needed) and <code>'on'</code> (trace everything, useful temporarily while actively debugging).</p>
+
+<h2 id="opening-a-trace">Opening a Trace</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>npx playwright show-trace trace.zip
+
+# Or open the trace from the last test run automatically:
+npx playwright show-report</code></pre>
+<p>This opens a browser-based UI with a timeline of every action, a DOM snapshot you can inspect like real dev tools at any point in that timeline, a network tab, and console output — all reconstructed from the trace file, without needing to rerun the test.</p>
+
+<h2 id="what-the-trace-viewer-shows">What the Trace Viewer Shows</h2>
+<ul>
+  <li><strong>Action timeline</strong> — every locator call, action, and assertion, in order, with duration</li>
+  <li><strong>DOM snapshot per action</strong> — a real, inspectable snapshot of the page at that exact moment, before and after each action</li>
+  <li><strong>Network tab</strong> — every request and response during the test</li>
+  <li><strong>Console tab</strong> — any <code>console.log</code>/warnings/errors the page itself produced</li>
+  <li><strong>Source tab</strong> — the exact line of test code that ran at each step</li>
+</ul>
+
+<h2 id="basic-example-walking-through-a-failure">Basic Example — Walking Through a Failure</h2>
+<p>A concrete debugging sequence: a test fails asserting <code>toBeVisible()</code> on a "Success" message. Opening its trace, you'd typically:</p>
+<ol>
+  <li>Scrub to the last action before the failure in the timeline.</li>
+  <li>Check the DOM snapshot at that moment — is the expected element present but hidden? Not present at all? Covered by something?</li>
+  <li>Switch to the Network tab at that same timestamp — did the API call the success message depends on actually complete, or is it still pending or did it fail?</li>
+  <li>Check the Console tab for a JavaScript error that might explain why the UI never updated.</li>
+</ol>
+<p>This sequence — DOM, then network, then console — resolves the large majority of "why did this fail" questions without needing to add a single <code>console.log</code> or re-run anything.</p>
+
+<h2 id="trace-viewer-vs-ui-mode">Trace Viewer vs. UI Mode</h2>
+<p>These are related but distinct: UI Mode (Chapter 2) is for running and watching tests <em>live</em> during development, with its own built-in trace-like timeline for the current run. Trace Viewer is specifically for opening a <em>saved</em> trace file — often one generated by a CI run you weren't watching live at all. In practice, UI Mode is the everyday local tool; standalone Trace Viewer is what you reach for once a trace artifact has been downloaded from a CI failure.</p>
+
+<h2 id="real-world-example-debugging-a-ci-only-failure">Real-World Example — Debugging a CI-Only Failure</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// playwright.config.ts — capture just enough to debug without bloating CI storage
+export default defineConfig({
+  use: {
+    trace: 'on-first-retry',
+    screenshot: 'only-on-failure',
+  },
+  retries: process.env.CI ? 1 : 0,
+});</code></pre>
+<p>With this config, a test that fails in CI automatically retries once, and if it fails again, a trace is captured for that retry. Downloading that trace artifact and opening it with <code>npx playwright show-trace</code> usually turns a "works on my machine" mystery into an obvious root cause within a couple of minutes — a timing issue, an unexpected redirect, a different viewport size triggering a responsive layout change.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Debugging a flaky CI failure by adding console.log and re-running repeatedly
+// (slow, and may not even reproduce the same way twice)
+
+// ✅ Download the trace artifact that was already captured and open it directly
+// npx playwright show-trace downloaded-trace.zip</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Setting <code>trace: 'on'</code> permanently in CI</strong>, generating a large trace file for every single test regardless of outcome.</li>
+  <li><strong>Not configuring retries in CI</strong>, meaning <code>'on-first-retry'</code> never actually captures anything since there's no retry to capture during.</li>
+  <li><strong>Debugging a flaky failure by adding console.log statements and re-running many times</strong>, instead of just opening the trace that was likely already captured.</li>
+  <li><strong>Not uploading trace artifacts from CI</strong>, throwing away exactly the evidence needed the next time a failure needs investigating.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Traces for tests using multiple browser contexts/pages</strong> (Chapter 9) — the trace viewer shows a separate timeline tab for each page, making multi-tab and multi-user tests fully inspectable too.</li>
+  <li><strong>Very long-running tests</strong> — trace files scale with test duration and action count; for exceptionally long tests, consider whether the test should be split rather than producing an unwieldy trace.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>When a trace itself seems incomplete or missing an expected action, confirm the <code>trace</code> config value actually applies to the project/run in question — a common surprise is a per-project override in <code>playwright.config.ts</code> silently taking precedence over the top-level default.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Use <code>trace: 'on-first-retry'</code> paired with at least one CI retry — this is the standard, low-overhead setup most projects should default to.</li>
+  <li>Upload trace artifacts from CI runs (most CI providers support this easily) so failures can be debugged without reproducing them locally first.</li>
+  <li>Reach for <code>trace: 'on'</code> only temporarily, scoped to a single local debugging session for a specific stubborn test.</li>
+  <li>Follow the DOM → network → console sequence when reading an unfamiliar trace, rather than scrubbing randomly.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Configure a project with <code>trace: 'on-first-retry'</code> and one retry, intentionally break a test, run it, and practice opening and navigating the resulting trace file with <code>npx playwright show-trace</code>.</p>
+
+<h2 id="summary">Summary</h2>
+<p>A trace is a full recording of a test run — DOM, network, console, and source — replayable in an interactive viewer, and distinct from UI Mode's live-run timeline. <code>trace: 'on-first-retry'</code> combined with CI retries is the standard low-overhead setup, and it's usually the fastest path to diagnosing a failure you can't reproduce locally.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why is 'on-first-retry' generally preferred over 'on' for the trace setting in CI?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer"><code>'on'</code> records a trace for every test regardless of outcome, which adds overhead and storage cost for tests that already passed and revealed nothing new. <code>'on-first-retry'</code> only captures a trace when a test actually fails and is retried — exactly the case where a trace is useful — giving the same debugging value at a fraction of the cost.</div>
+</details>
+<details class="faq-item">
+<summary>Why is trace: 'on-first-retry' the recommended default over 'on'?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It only captures a trace for a test that actually failed and is retried — the exact case where a trace is useful — at a fraction of the storage cost of tracing everything.</div>
+</details>
+<details class="faq-item">
+<summary>What's the difference between UI Mode and standalone Trace Viewer?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">UI Mode is for running and watching tests live during local development; Trace Viewer opens a saved trace file, often from a CI run you weren't watching live.</div>
+</details>
+<details class="faq-item">
+<summary>What's the recommended order for reading an unfamiliar trace?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">DOM snapshot first, then the Network tab, then Console — this sequence resolves the majority of 'why did this fail' questions.</div>
+</details>
+<details class="faq-item">
+<summary>Why does trace: 'on-first-retry' require retries to be configured to actually capture anything?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Without at least one retry configured, there's never a 'first retry' for the trace setting to attach to, so nothing gets captured.</div>
+</details>
+</div>
+      </article>
+
+      <label class="mark-complete-row">
+        <input type="checkbox" class="mark-complete-checkbox" data-page-id="pw:trace-viewer.html" onchange="toggleComplete(this)" />
+        <span>Mark this lesson complete</span>
+      </label>
+
+      <div class="prev-next">
+        <a href="screenshots-and-videos.html"><span class="pn-label">&larr; Previous</span>Screenshots & Videos</a>
+        <a href="test-reporting.html" class="pn-next"><span class="pn-label">Next &rarr;</span>Test Reporting</a>
+      </div>
+    </main>
+
+    <aside class="right-rail">
+      <div class="rail-card book-promo-card">
+  <div class="book-promo-badge">&#128218; Recommended Reading</div>
+  <div class="book-carousel">
+    <div class="book-slide active">
+  <a href="https://www.amazon.in/CRACKING-PLAYWRIGHT-INTERVIEW-Interview-Preparation-ebook/dp/B0H7MGN2XK" target="_blank" rel="nofollow noopener" class="book-cover-mock"><img src="../images/books/book-1-cracking-playwright-interview.webp" alt="Cracking the Playwright Interview book cover" loading="lazy" /></a>
+  <div class="book-info">
+    <h5>Cracking the Playwright Interview</h5>
+    <p>The Complete Interview Preparation Guide</p>
+    <a href="https://www.amazon.in/CRACKING-PLAYWRIGHT-INTERVIEW-Interview-Preparation-ebook/dp/B0H7MGN2XK" target="_blank" rel="nofollow noopener" class="book-buy-btn">View on Amazon &rarr;</a>
+  </div>
+</div><div class="book-slide">
+  <a href="https://www.amazon.in/Playwright-Automation-Testing-Complete-TypeScript-ebook/dp/B0G492YGYJ" target="_blank" rel="nofollow noopener" class="book-cover-mock"><img src="../images/books/book-2-playwright-automation-testing.jpg" alt="Playwright Automation Testing book cover" loading="lazy" /></a>
+  <div class="book-info">
+    <h5>Playwright Automation Testing</h5>
+    <p>Complete Guide with TypeScript</p>
+    <a href="https://www.amazon.in/Playwright-Automation-Testing-Complete-TypeScript-ebook/dp/B0G492YGYJ" target="_blank" rel="nofollow noopener" class="book-buy-btn">View on Amazon &rarr;</a>
+  </div>
+</div><div class="book-slide">
+  <a href="https://www.amazon.in/API-Testing-Playwright-TypeScript-Practical-ebook/dp/B0GS99CDCK" target="_blank" rel="nofollow noopener" class="book-cover-mock"><img src="../images/books/book-3-api-testing-playwright-typescript.webp" alt="API Testing with Playwright & TypeScript book cover" loading="lazy" /></a>
+  <div class="book-info">
+    <h5>API Testing with Playwright & TypeScript</h5>
+    <p>A Practical Guide from Zero to Expert</p>
+    <a href="https://www.amazon.in/API-Testing-Playwright-TypeScript-Practical-ebook/dp/B0GS99CDCK" target="_blank" rel="nofollow noopener" class="book-buy-btn">View on Amazon &rarr;</a>
+  </div>
+</div><div class="book-slide">
+  <a href="https://www.amazon.in/Playwright-Mastery-TypeScript-Cucumber-Applications-ebook/dp/B0GPKXYB9Q" target="_blank" rel="nofollow noopener" class="book-cover-mock"><img src="../images/books/book-4-playwright-mastery-typescript-cucumber.jpg" alt="Playwright Mastery with TypeScript & Cucumber book cover" loading="lazy" /></a>
+  <div class="book-info">
+    <h5>Playwright Mastery with TypeScript & Cucumber</h5>
+    <p>Building Robust, Scalable Test Frameworks</p>
+    <a href="https://www.amazon.in/Playwright-Mastery-TypeScript-Cucumber-Applications-ebook/dp/B0GPKXYB9Q" target="_blank" rel="nofollow noopener" class="book-buy-btn">View on Amazon &rarr;</a>
+  </div>
+</div>
+  </div>
+  <div class="book-dots"><span class="book-dot active"></span><span class="book-dot"></span><span class="book-dot"></span><span class="book-dot"></span></div>
+</div>
+
+      <div class="rail-card">
+        <h4>Related Articles</h4>
+        <div class="related-list">
+          <a href="parallel-execution-and-workers.html">Parallel Execution & Workers<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+<a href="diagnosing-flaky-tests.html">Diagnosing Flaky Tests<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+<a href="screenshots-and-videos.html">Screenshots & Videos<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+        </div>
+      </div>
+
+      <div class="rail-card was-helpful-card">
+        <span>Was this helpful?</span>
+        <button title="Yes">&#128077;</button>
+        <button title="No">&#128078;</button>
+      </div>
+    </aside>
+  </div>
+
+  <nav class="mobile-tabbar">
+  <a href="../index.html" class=""><svg class="icon" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg><span>Home</span></a>
+  <a href="index.html" class="active"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>Tutorials</span></a>
+  <a href="../books.html" class=""><svg class="icon" viewBox="0 0 24 24"><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v16H6.5A2.5 2.5 0 0 0 4 20.5"/><path d="M4 4.5v16"/></svg><span>Books</span></a>
+  <a href="../about.html"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="12" y1="16" x2="12" y2="11.5"/><circle cx="12" cy="8" r="0.8" fill="currentColor" stroke="none"/></svg><span>About</span></a>
+</nav>
+
+  <script>
+  
+  document.querySelectorAll('.book-promo-card').forEach(function(card) {
+    var slides = card.querySelectorAll('.book-slide');
+    var dots = card.querySelectorAll('.book-dot');
+    if (slides.length < 2) return;
+    var idx = 0;
+    setInterval(function() {
+      slides[idx].classList.remove('active');
+      if (dots[idx]) dots[idx].classList.remove('active');
+      idx = (idx + 1) % slides.length;
+      slides[idx].classList.add('active');
+      if (dots[idx]) dots[idx].classList.add('active');
+    }, 5000);
+  });
+
+  function copyCode(btn) {
+    const code = btn.nextElementSibling.innerText;
+    navigator.clipboard.writeText(code).then(function() {
+      btn.textContent = 'Copied';
+      btn.classList.add('copied');
+      setTimeout(function() { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
+    });
+  }
+  function openSidebar() {
+    document.getElementById('doc-sidebar').classList.add('open');
+    document.getElementById('sidebar-backdrop').classList.add('show');
+    document.body.classList.add('no-scroll');
+  }
+  function closeSidebar() {
+    document.getElementById('doc-sidebar').classList.remove('open');
+    document.getElementById('sidebar-backdrop').classList.remove('show');
+    document.body.classList.remove('no-scroll');
+  }
+  function toggleTheme() {
+    var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark');
+    try { localStorage.setItem('assertTrueTheme', isDark ? 'light' : 'dark'); } catch (e) {}
+  }
+  function toggleComplete(checkbox) {
+    var pageId = checkbox.getAttribute('data-page-id');
+    var progress = {};
+    try { progress = JSON.parse(localStorage.getItem('assertTrueProgress') || '{}'); } catch (e) {}
+    if (checkbox.checked) { progress[pageId] = true; } else { delete progress[pageId]; }
+    try { localStorage.setItem('assertTrueProgress', JSON.stringify(progress)); } catch (e) {}
+  }
+  (function() {
+    var progress = {};
+    try { progress = JSON.parse(localStorage.getItem('assertTrueProgress') || '{}'); } catch (e) {}
+    var cb = document.querySelector('.mark-complete-checkbox');
+    if (cb && progress[cb.getAttribute('data-page-id')]) cb.checked = true;
+  })();
+  (function() {
+    var activeLink = document.querySelector('.doc-sidebar a.active');
+    if (activeLink) { activeLink.scrollIntoView({ block: 'center' }); }
+  })();
+  document.addEventListener('click', function(e) {
+    if (e.target.closest('.sidebar-link') && window.matchMedia('(max-width: 860px)').matches) {
+      closeSidebar();
+    }
+  });
+  (function() {
+    var sidebar = document.getElementById('doc-sidebar');
+    if (!sidebar) return;
+    var saved = sessionStorage.getItem('sidebarScrollTop');
+    if (saved !== null) sidebar.scrollTop = parseInt(saved, 10);
+    var saveScroll = function() { sessionStorage.setItem('sidebarScrollTop', sidebar.scrollTop); };
+    sidebar.addEventListener('scroll', saveScroll);
+    sidebar.addEventListener('click', function(e) {
+      if (e.target.closest('a')) saveScroll();
+    });
+  })();
+  </script>
+</body>
+</html>

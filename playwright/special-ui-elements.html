@@ -1,0 +1,465 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <script>try{if(localStorage.getItem('assertTrueTheme')==='dark'){document.documentElement.setAttribute('data-theme','dark');}}catch(e){}</script>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Playwright and Special UI: Shadow DOM, Tooltips, Toasts, Loading States</title>
+  <meta name="description" content="How to reliably test Shadow DOM components, tooltips, toast messages, loading indicators, and other dynamic content in Playwright — the naive approach, why it breaks, and the recommended pattern for each." />
+  <link rel="canonical" href="https://asserttrue.io/playwright/special-ui-elements.html" />
+  <link rel="stylesheet" href="../css/style.css?v=57" />
+</head>
+<body>
+  <header class="topnav">
+    <button class="mobile-menu-btn" onclick="openSidebar()">&#9776;</button>
+    <a href="../index.html" class="brand"><svg class="logo-mark" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="40" rx="11" fill="url(#logoGrad)"/><path d="M11 21.5 L17 27.5 L29.5 13" stroke="#ffffff" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/><defs><linearGradient id="logoGrad" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse"><stop stop-color="#22c55e"/><stop offset="1" stop-color="#15803d"/></linearGradient></defs></svg><span class="brand-text">Assert<span class="brand-true">True</span><span class="brand-io">IO</span></span></a>
+    <nav class="topnav-links">
+      <a href="index.html" class="active">Playwright</a>
+      <a href="../restassured/index.html">RestAssured</a>
+      <a href="../k6/index.html">K6</a>
+      <a href="../github-actions/index.html">GitHub Actions</a>
+      <a href="../about.html">About</a>
+      <a href="../books.html">Books</a>
+    </nav>
+    <div class="topnav-right">
+      <span class="search-box">Search tutorials...</span>
+      <button class="icon-btn theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Toggle dark mode"><svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
+    </div>
+  </header>
+
+  <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeSidebar()"></div>
+
+  <div class="app-shell">
+    <nav class="doc-sidebar" id="doc-sidebar">
+<div class="sidebar-mobile-header"><span>Menu</span><button class="sidebar-close-btn" onclick="closeSidebar()">&times;</button></div>
+<a href="index.html" class="sidebar-overview-link"><svg class="icon" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg><span>Roadmap</span></a>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg><span>01 Introduction</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="introduction.html" class="sidebar-link"><span class="dot"></span>Introduction</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"/></svg><span>02 Getting Started</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="getting-started.html" class="sidebar-link"><span class="dot"></span>Getting Started</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="8 6 2 12 8 18"/><polyline points="16 6 22 12 16 18"/></svg><span>03 Locators</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="locators.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Locators</a>
+<div class="sidebar-sub">
+<a href="get-by-role.html" class="sidebar-link"><span class="dot"></span>getByRole()</a>
+<a href="get-by-label.html" class="sidebar-link"><span class="dot"></span>getByLabel()</a>
+<a href="get-by-placeholder.html" class="sidebar-link"><span class="dot"></span>getByPlaceholder()</a>
+<a href="get-by-text.html" class="sidebar-link"><span class="dot"></span>getByText()</a>
+<a href="get-by-alt-text.html" class="sidebar-link"><span class="dot"></span>getByAltText()</a>
+<a href="get-by-title.html" class="sidebar-link"><span class="dot"></span>getByTitle()</a>
+<a href="get-by-test-id.html" class="sidebar-link"><span class="dot"></span>getByTestId()</a>
+<a href="locator-and-css-xpath.html" class="sidebar-link"><span class="dot"></span>CSS & XPath</a>
+<a href="filtering-and-chaining.html" class="sidebar-link"><span class="dot"></span>Filtering & Chaining</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><span>04 Actions, Assertions & Sync</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="actions.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Actions</a>
+<div class="sidebar-sub">
+<a href="click-and-dblclick.html" class="sidebar-link"><span class="dot"></span>click() / dblclick()</a>
+<a href="fill-and-press-sequentially.html" class="sidebar-link"><span class="dot"></span>fill() / pressSequentially()</a>
+<a href="press.html" class="sidebar-link"><span class="dot"></span>press()</a>
+<a href="check-and-uncheck.html" class="sidebar-link"><span class="dot"></span>check() / uncheck()</a>
+<a href="select-option.html" class="sidebar-link"><span class="dot"></span>selectOption()</a>
+<a href="hover.html" class="sidebar-link"><span class="dot"></span>hover()</a>
+<a href="set-input-files.html" class="sidebar-link"><span class="dot"></span>setInputFiles()</a>
+<a href="drag-to.html" class="sidebar-link"><span class="dot"></span>dragTo()</a>
+<a href="actionability-and-force.html" class="sidebar-link"><span class="dot"></span>Actionability & Force</a>
+</div>
+<a href="assertions.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Assertions</a>
+<div class="sidebar-sub">
+<a href="visibility-and-state-assertions.html" class="sidebar-link"><span class="dot"></span>Visibility & State</a>
+<a href="text-and-value-assertions.html" class="sidebar-link"><span class="dot"></span>Text & Value</a>
+<a href="count-url-title-assertions.html" class="sidebar-link"><span class="dot"></span>Count, URL & Title</a>
+<a href="hard-vs-soft-assertions.html" class="sidebar-link"><span class="dot"></span>Hard vs Soft Assertions</a>
+</div>
+<a href="waiting-and-synchronization.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Waiting & Synchronization</a>
+<div class="sidebar-sub">
+<a href="auto-waiting-explained.html" class="sidebar-link"><span class="dot"></span>Auto-Waiting Explained</a>
+<a href="wait-for-url-and-load-state.html" class="sidebar-link"><span class="dot"></span>waitForURL() & waitForLoadState()</a>
+<a href="wait-for-request-and-response.html" class="sidebar-link"><span class="dot"></span>waitForRequest() & waitForResponse()</a>
+<a href="wait-for-selector-and-timeout.html" class="sidebar-link"><span class="dot"></span>waitForSelector() & waitForTimeout()</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18"/></svg><span>05 Pages, Browser & Context</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="architecture.html" class="sidebar-link"><span class="dot"></span>Architecture</a>
+<a href="pages-and-navigation.html" class="sidebar-link"><span class="dot"></span>Pages & Navigation</a>
+<a href="browser-and-browsercontext.html" class="sidebar-link"><span class="dot"></span>Browser & Context</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>06 Real-World Web Apps</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="forms.html" class="sidebar-link"><span class="dot"></span>Forms</a>
+<a href="tables.html" class="sidebar-link"><span class="dot"></span>Tables</a>
+<a href="frames.html" class="sidebar-link"><span class="dot"></span>Frames</a>
+<a href="multiple-tabs-and-windows.html" class="sidebar-link"><span class="dot"></span>Multiple Tabs & Windows</a>
+<a href="dialogs.html" class="sidebar-link"><span class="dot"></span>Dialogs</a>
+<a href="file-upload-and-download.html" class="sidebar-link"><span class="dot"></span>File Upload & Download</a>
+<a href="special-ui-elements.html" class="sidebar-link active"><span class="dot"></span>Special UI Elements</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"/></svg><span>07 Test Runner</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="test-runner.html" class="sidebar-link"><span class="dot"></span>Test Runner</a>
+<a href="hooks.html" class="sidebar-link"><span class="dot"></span>Hooks</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4 7h4V5a2 2 0 0 1 4 0v2h4v4h2a2 2 0 0 1 0 4h-2v4H4v-4H2a2 2 0 0 1 0-4h2z"/></svg><span>08 Fixtures & Architecture</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="fixtures.html" class="sidebar-link"><span class="dot"></span>Fixtures</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><span>09 Auth, API & Mocking</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="authentication-and-storage-state.html" class="sidebar-link"><span class="dot"></span>Authentication & storageState</a>
+<a href="api-testing-with-playwright.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>API Testing</a>
+<div class="sidebar-sub">
+<a href="get-request.html" class="sidebar-link"><span class="dot"></span>GET Requests</a>
+<a href="post-request.html" class="sidebar-link"><span class="dot"></span>POST Requests</a>
+<a href="put-and-patch-request.html" class="sidebar-link"><span class="dot"></span>PUT & PATCH Requests</a>
+<a href="delete-request.html" class="sidebar-link"><span class="dot"></span>DELETE Requests</a>
+</div>
+<a href="network-mocking-and-routes.html" class="sidebar-link"><span class="dot"></span>Network Mocking</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>10 Configuration & Environments</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="playwright-config-options.html" class="sidebar-link"><span class="dot"></span>Configuration Options</a>
+<a href="projects-and-environments.html" class="sidebar-link"><span class="dot"></span>Projects & Environments</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>11 Page Objects & Framework</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="page-object-model.html" class="sidebar-link"><span class="dot"></span>Page Object Model</a>
+<a href="framework-folder-structure.html" class="sidebar-link"><span class="dot"></span>Framework Folder Structure</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><span>12 Parallelism & Debugging</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="parallel-execution-and-workers.html" class="sidebar-link"><span class="dot"></span>Parallel Execution & Workers</a>
+<a href="diagnosing-flaky-tests.html" class="sidebar-link"><span class="dot"></span>Diagnosing Flaky Tests</a>
+<a href="screenshots-and-videos.html" class="sidebar-link"><span class="dot"></span>Screenshots & Videos</a>
+<a href="trace-viewer.html" class="sidebar-link"><span class="dot"></span>Trace Viewer</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg><span>13 Reporting & CI/CD</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="test-reporting.html" class="sidebar-link"><span class="dot"></span>Test Reporting</a>
+<a href="github-actions-cicd.html" class="sidebar-link"><span class="dot"></span>GitHub Actions CI/CD</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg><span>14 Production-Style Framework</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="production-framework-capstone.html" class="sidebar-link"><span class="dot"></span>Building the Framework</a>
+</div></details>
+</nav>
+
+    <main class="doc-main">
+      <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="../index.html">Home</a> <span class="crumb-sep">&rsaquo;</span> <a href="index.html">Playwright</a> <span class="crumb-sep">&rsaquo;</span> <span class="crumb-current">Special UI Elements</span></nav>
+
+      <div class="page-header-banner">
+        <header class="page-head">
+          <h1>Special UI Elements</h1>
+        </header>
+        <div class="meta-row">
+          <span class="tag-pill Beginner">Beginner</span>
+          <span class="read-time">9 min read</span>
+        </div>
+      </div>
+
+      <p class="prereqs"><strong>Prerequisites:</strong> <a href="dialogs.html">Dialogs</a>, <a href="wait-for-selector-and-timeout.html">waitForSelector() & waitForTimeout()</a></p>
+
+      <article class="content">
+        <h2 id="what-is-this">What is this?</h2>
+  <p>Five UI patterns that don't fit neatly into forms, tables, or dialogs, but show up constantly in real applications and each break naive automation in a different way: Shadow DOM components, tooltips, toast messages, loading indicators, and generically "dynamic" content. This page works through each one the same way — the problem, a naive attempt, why it's unreliable, and the recommended fix.</p>
+
+  <h2 id="shadow-dom">Shadow DOM</h2>
+  <p><strong>The problem:</strong> some components (native <code>&lt;video&gt;</code> controls, web components built with custom elements, some design-system libraries) render their internals inside a <em>shadow root</em> — a separate, encapsulated DOM tree attached to a host element, invisible to plain CSS selectors that don't know to look inside it.</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Naive — a plain CSS selector often can't see inside a shadow root
+await page.locator('.play-button').click(); // may silently match nothing</code></pre>
+  <p><strong>Why it's unreliable:</strong> traditional CSS selectors and older automation tools generally can't pierce shadow boundaries at all, so this either finds nothing (a clear failure) or, worse, matches an unrelated element with a similar class name elsewhere on the page.</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ✅ Recommended — Playwright's locator engine pierces OPEN shadow roots automatically
+await page.getByRole('button', { name: 'Play' }).click();
+
+// If a role-based locator isn't available, CSS still works — Playwright's own
+// CSS engine (unlike the browser's native querySelector) already searches through
+// open shadow roots without special syntax
+await page.locator('.play-button').click(); // works here specifically because Playwright's engine handles it</code></pre>
+  <p><strong>Explanation:</strong> unlike a browser's native <code>document.querySelector()</code>, Playwright's own locator engine is shadow-DOM-aware by default for <em>open</em> shadow roots (the common case) — most of the time, the same locators from the Locators chapter just work without any special handling. <em>Closed</em> shadow roots (deliberately inaccessible even to JavaScript) are the genuine exception; there's no supported way to reach inside one from outside the component.</p>
+  <p><strong>Common mistakes:</strong> assuming a failed locator means the selector is wrong, when the real issue is a closed shadow root with no accessible path in; reaching for a browser extension or manual <code>querySelector</code> workaround before trying Playwright's own (already shadow-aware) locators first.</p>
+
+  <h2 id="tooltips">Tooltips</h2>
+  <p><strong>The problem:</strong> a tooltip typically only exists in the DOM while its trigger element is hovered or focused — asserting on it requires first producing that state, which a plain assertion can't do on its own.</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Naive — asserting on a tooltip that was never triggered
+await expect(page.getByRole('tooltip')).toBeVisible(); // times out — nothing triggered it</code></pre>
+  <p><strong>Why it's unreliable:</strong> this isn't a timing problem auto-waiting can fix — the tooltip genuinely doesn't exist yet because nothing has hovered its trigger. No amount of retrying changes that.</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ✅ Recommended — trigger the hover state first, then assert
+await page.getByRole('button', { name: 'Info' }).hover();
+await expect(page.getByRole('tooltip')).toBeVisible();
+await expect(page.getByRole('tooltip')).toHaveText('Applies to orders over $50');</code></pre>
+  <p><strong>Explanation:</strong> this is the Actions chapter's <code>hover()</code> applied to its most common real use case — the assertion can only succeed once the precondition (hover) that would make a tooltip exist has actually happened.</p>
+  <p><strong>Common mistakes:</strong> forgetting the hover step entirely; asserting immediately after hover without accounting for a deliberate tooltip-appearance delay some design systems add (extend the assertion's timeout rather than adding a hard wait, per the Waiting chapter).</p>
+
+  <h2 id="toast-messages">Toast Messages</h2>
+  <p><strong>The problem:</strong> a toast is often visible for only a few seconds before auto-dismissing, and it renders after an action completes — asserting too early misses it, asserting too late misses it in the other direction.</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Naive — assumes the toast is already there without waiting for it,
+// or asserts and moves on without confirming it also disappears correctly
+await page.getByRole('button', { name: 'Save' }).click();
+const toastText = await page.getByRole('status').textContent(); // may run before the toast renders</code></pre>
+  <p><strong>Why it's unreliable:</strong> reading content with a plain, non-retrying call like <code>textContent()</code> immediately after the triggering click races against the toast's own render timing — it can run before the toast exists at all.</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ✅ Recommended — a web-first assertion waits for the toast to appear,
+// and (if relevant) a second assertion confirms it disappears again
+await page.getByRole('button', { name: 'Save' }).click();
+await expect(page.getByRole('status')).toHaveText('Changes saved');
+await expect(page.getByRole('status')).toBeHidden({ timeout: 5000 });</code></pre>
+  <p><strong>Explanation:</strong> this is the Assertions chapter's auto-retry doing exactly what it's for — <code>toHaveText()</code> polls until the toast appears with the right content, and a second, separate assertion (with an appropriately generous timeout) confirms the auto-dismiss behavior actually happens rather than assuming it.</p>
+  <p><strong>Common mistakes:</strong> using a one-time read (<code>textContent()</code>, <code>innerText()</code>) instead of a retrying assertion; not testing that a toast actually disappears, only that it appears.</p>
+
+  <h2 id="loading-indicators">Loading Indicators</h2>
+  <p><strong>The problem:</strong> a spinner or skeleton screen appears and disappears around an async operation — the test needs to wait for the <em>real content</em> that replaces it, not for a fixed amount of time that guesses how long loading takes.</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Naive — guessing how long loading takes
+await page.getByRole('button', { name: 'Load more' }).click();
+await page.waitForTimeout(2000);
+await expect(page.getByRole('listitem')).toHaveCount(20);</code></pre>
+  <p><strong>Why it's unreliable:</strong> this is the exact anti-pattern covered at length in the Waiting chapter — too short and it fails under real network variance, too long and it wastes time on every run even when loading finished quickly.</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ✅ Recommended — wait for the spinner to disappear, or better, wait directly
+// for the real content that indicates loading actually finished
+await page.getByRole('button', { name: 'Load more' }).click();
+await expect(page.getByTestId('loading-spinner')).toBeHidden();
+await expect(page.getByRole('listitem')).toHaveCount(20);</code></pre>
+  <p><strong>Explanation:</strong> asserting on the spinner's disappearance is a reasonable middle ground, but asserting directly on the resulting content (the actual list items) is usually stronger — it's possible for a spinner to disappear due to a bug while the real content still never loads, and a content-based assertion catches that; a spinner-only assertion wouldn't.</p>
+  <p><strong>Common mistakes:</strong> waiting only for the spinner to vanish without also confirming the real content arrived; using <code>waitForTimeout()</code> "temporarily" and never replacing it.</p>
+
+  <h2 id="dynamic-content-general-case">Dynamic Content (General Case)</h2>
+  <p><strong>The problem:</strong> content that changes without a full page navigation — a live notification count, a price that updates via WebSocket, a comment that appears after another user posts it — has no natural moment to "wait for navigation to finish," because nothing is navigating.</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Naive — reading a value once, assuming it's already current
+const count = await page.getByTestId('notification-count').textContent();
+expect(count).toBe('3'); // may read a stale value from before the update arrived</code></pre>
+  <p><strong>Why it's unreliable:</strong> a plain read captures whatever's in the DOM at that exact instant — if the update hasn't arrived yet (a WebSocket message still in flight, a polling interval that hasn't fired), the test reads the old value and fails, even though the feature is working correctly and would update a moment later.</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ✅ Recommended — a web-first assertion waits for the value to become correct
+await expect(page.getByTestId('notification-count')).toHaveText('3');</code></pre>
+  <p><strong>Explanation:</strong> this is the general principle underlying every specific case on this page — whenever content can change independently of any action the test itself performs, a retrying assertion (or, for cases with no visible signal at all, an explicit network wait from the Waiting chapter) is the correct tool, never a one-time read.</p>
+  <p><strong>Common mistakes:</strong> defaulting to a one-time read-and-compare pattern out of habit from non-web testing contexts; not recognizing that "dynamic content" isn't a special case requiring new APIs — it's the same auto-retry principle from the Assertions chapter, just applied to content that updates for reasons other than a direct user action.</p>
+
+  <h2 id="real-world-example-combining-several-of-these">Real-World Example — Combining Several of These</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('saving a comment shows a toast and updates the live count', async ({ page }) =&gt; {
+  await page.goto('/post/123');
+
+  await page.getByLabel('Comment').fill('Great article!');
+  await page.getByRole('button', { name: 'Post comment' }).click();
+
+  // Toast: appears, then confirms the count updated dynamically
+  await expect(page.getByRole('status')).toHaveText('Comment posted');
+  await expect(page.getByTestId('comment-count')).toHaveText('43');
+
+  // Loading indicator: the comment list itself finishes refreshing
+  await expect(page.getByTestId('comments-loading')).toBeHidden();
+  await expect(page.getByText('Great article!')).toBeVisible();
+});</code></pre>
+
+  <h2 id="common-mistakes-across-all-five">Common Mistakes (Across All Five)</h2>
+  <ul>
+    <li><strong>Reaching for a fixed <code>waitForTimeout()</code></strong> as the default response to any of these patterns, instead of identifying the specific real signal (hover state, content change, element disappearance) to wait on.</li>
+    <li><strong>Using a one-time read</strong> (<code>textContent()</code>, <code>innerText()</code>, a boolean <code>isVisible()</code> check) where a retrying <code>expect()</code> assertion is what's actually needed.</li>
+    <li><strong>Assuming a failed locator on a web-component-based UI means the locator is wrong</strong>, without first checking whether a closed shadow root is the real cause.</li>
+    <li><strong>Testing only that something appears, never that it correctly disappears</strong> (tooltips, toasts, loading states all have a lifecycle with two ends, not one).</li>
+  </ul>
+
+  <h2 id="best-practices">Best Practices</h2>
+  <ul>
+    <li>Trust Playwright's locators to handle open shadow roots automatically — don't reach for special syntax unless a specific case proves it's actually needed.</li>
+    <li>Always trigger the real precondition (hover, click) before asserting on state that only exists because of it.</li>
+    <li>Prefer asserting on real resulting content over just a loading indicator's disappearance, when both are available.</li>
+    <li>Treat "dynamic content" as the same auto-retry principle from the Assertions chapter, not a separate category needing new tools.</li>
+  </ul>
+
+  <h2 id="practice-exercise">Practice Exercise</h2>
+  <p>Write a test for a page with a bell icon that shows a tooltip on hover ("3 unread notifications"), and clicking it opens a panel that takes a moment to load its content — cover the tooltip, the loading state, and the final loaded content, each with the correct waiting strategy from this page.</p>
+
+  <h2 id="summary">Summary</h2>
+  <p>Shadow DOM, tooltips, toasts, loading indicators, and general dynamic content each look like a special case requiring new tools, but every one of them resolves to the same principles covered earlier in this course: Playwright's locators are shadow-DOM-aware by default, and web-first assertions (not one-time reads or fixed sleeps) are the correct way to wait for any of these patterns to reach the state a test cares about.</p>
+
+  <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why does a naive textContent() read on a live-updating notification count sometimes fail intermittently, even though the feature works correctly?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer"><code>textContent()</code> captures whatever value is in the DOM at the exact instant it's called, with no retry. If the update (from a WebSocket message, a poll, or any async source) hasn't arrived yet at that instant, the read captures a stale value and the test fails — even though the real application would have shown the correct value a moment later. A web-first assertion like <code>toHaveText()</code> polls until the value becomes correct or a timeout is reached, which is why it's reliable for exactly this kind of content.</div>
+</details>
+<details class="faq-item">
+<summary>Why do Playwright's locators usually work fine on Shadow DOM components without special syntax?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Playwright's own locator engine is shadow-DOM-aware by default for open shadow roots, unlike a browser's native querySelector.</div>
+</details>
+<details class="faq-item">
+<summary>Why does asserting on a tooltip immediately, with no prior action, always fail?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The tooltip genuinely doesn't exist yet — nothing has hovered its trigger — so no amount of retrying an assertion changes that; the hover has to happen first.</div>
+</details>
+<details class="faq-item">
+<summary>What's the risk of only asserting a loading spinner's disappearance, not the resulting content?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A spinner could disappear due to a bug while the real content never actually loads — a content-based assertion catches that, a spinner-only one doesn't.</div>
+</details>
+<details class="faq-item">
+<summary>Why is reading dynamic content with textContent() unreliable?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It captures a snapshot at that exact instant with no retry, so it can read a stale value if the real update (a WebSocket message, a poll) hasn't arrived yet.</div>
+</details>
+</div>
+      </article>
+
+      <label class="mark-complete-row">
+        <input type="checkbox" class="mark-complete-checkbox" data-page-id="pw:special-ui-elements.html" onchange="toggleComplete(this)" />
+        <span>Mark this lesson complete</span>
+      </label>
+
+      <div class="prev-next">
+        <a href="file-upload-and-download.html"><span class="pn-label">&larr; Previous</span>File Upload & Download</a>
+        <a href="test-runner.html" class="pn-next"><span class="pn-label">Next &rarr;</span>Test Runner</a>
+      </div>
+    </main>
+
+    <aside class="right-rail">
+      <div class="rail-card book-promo-card">
+  <div class="book-promo-badge">&#128218; Recommended Reading</div>
+  <div class="book-carousel">
+    <div class="book-slide active">
+  <a href="https://www.amazon.in/CRACKING-PLAYWRIGHT-INTERVIEW-Interview-Preparation-ebook/dp/B0H7MGN2XK" target="_blank" rel="nofollow noopener" class="book-cover-mock"><img src="../images/books/book-1-cracking-playwright-interview.webp" alt="Cracking the Playwright Interview book cover" loading="lazy" /></a>
+  <div class="book-info">
+    <h5>Cracking the Playwright Interview</h5>
+    <p>The Complete Interview Preparation Guide</p>
+    <a href="https://www.amazon.in/CRACKING-PLAYWRIGHT-INTERVIEW-Interview-Preparation-ebook/dp/B0H7MGN2XK" target="_blank" rel="nofollow noopener" class="book-buy-btn">View on Amazon &rarr;</a>
+  </div>
+</div><div class="book-slide">
+  <a href="https://www.amazon.in/Playwright-Automation-Testing-Complete-TypeScript-ebook/dp/B0G492YGYJ" target="_blank" rel="nofollow noopener" class="book-cover-mock"><img src="../images/books/book-2-playwright-automation-testing.jpg" alt="Playwright Automation Testing book cover" loading="lazy" /></a>
+  <div class="book-info">
+    <h5>Playwright Automation Testing</h5>
+    <p>Complete Guide with TypeScript</p>
+    <a href="https://www.amazon.in/Playwright-Automation-Testing-Complete-TypeScript-ebook/dp/B0G492YGYJ" target="_blank" rel="nofollow noopener" class="book-buy-btn">View on Amazon &rarr;</a>
+  </div>
+</div><div class="book-slide">
+  <a href="https://www.amazon.in/API-Testing-Playwright-TypeScript-Practical-ebook/dp/B0GS99CDCK" target="_blank" rel="nofollow noopener" class="book-cover-mock"><img src="../images/books/book-3-api-testing-playwright-typescript.webp" alt="API Testing with Playwright & TypeScript book cover" loading="lazy" /></a>
+  <div class="book-info">
+    <h5>API Testing with Playwright & TypeScript</h5>
+    <p>A Practical Guide from Zero to Expert</p>
+    <a href="https://www.amazon.in/API-Testing-Playwright-TypeScript-Practical-ebook/dp/B0GS99CDCK" target="_blank" rel="nofollow noopener" class="book-buy-btn">View on Amazon &rarr;</a>
+  </div>
+</div><div class="book-slide">
+  <a href="https://www.amazon.in/Playwright-Mastery-TypeScript-Cucumber-Applications-ebook/dp/B0GPKXYB9Q" target="_blank" rel="nofollow noopener" class="book-cover-mock"><img src="../images/books/book-4-playwright-mastery-typescript-cucumber.jpg" alt="Playwright Mastery with TypeScript & Cucumber book cover" loading="lazy" /></a>
+  <div class="book-info">
+    <h5>Playwright Mastery with TypeScript & Cucumber</h5>
+    <p>Building Robust, Scalable Test Frameworks</p>
+    <a href="https://www.amazon.in/Playwright-Mastery-TypeScript-Cucumber-Applications-ebook/dp/B0GPKXYB9Q" target="_blank" rel="nofollow noopener" class="book-buy-btn">View on Amazon &rarr;</a>
+  </div>
+</div>
+  </div>
+  <div class="book-dots"><span class="book-dot active"></span><span class="book-dot"></span><span class="book-dot"></span><span class="book-dot"></span></div>
+</div>
+
+      <div class="rail-card">
+        <h4>Related Articles</h4>
+        <div class="related-list">
+          <a href="forms.html">Forms<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+<a href="tables.html">Tables<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+<a href="frames.html">Frames<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+<a href="multiple-tabs-and-windows.html">Multiple Tabs & Windows<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+<a href="dialogs.html">Dialogs<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+        </div>
+      </div>
+
+      <div class="rail-card was-helpful-card">
+        <span>Was this helpful?</span>
+        <button title="Yes">&#128077;</button>
+        <button title="No">&#128078;</button>
+      </div>
+    </aside>
+  </div>
+
+  <nav class="mobile-tabbar">
+  <a href="../index.html" class=""><svg class="icon" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg><span>Home</span></a>
+  <a href="index.html" class="active"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>Tutorials</span></a>
+  <a href="../books.html" class=""><svg class="icon" viewBox="0 0 24 24"><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v16H6.5A2.5 2.5 0 0 0 4 20.5"/><path d="M4 4.5v16"/></svg><span>Books</span></a>
+  <a href="../about.html"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="12" y1="16" x2="12" y2="11.5"/><circle cx="12" cy="8" r="0.8" fill="currentColor" stroke="none"/></svg><span>About</span></a>
+</nav>
+
+  <script>
+  
+  document.querySelectorAll('.book-promo-card').forEach(function(card) {
+    var slides = card.querySelectorAll('.book-slide');
+    var dots = card.querySelectorAll('.book-dot');
+    if (slides.length < 2) return;
+    var idx = 0;
+    setInterval(function() {
+      slides[idx].classList.remove('active');
+      if (dots[idx]) dots[idx].classList.remove('active');
+      idx = (idx + 1) % slides.length;
+      slides[idx].classList.add('active');
+      if (dots[idx]) dots[idx].classList.add('active');
+    }, 5000);
+  });
+
+  function copyCode(btn) {
+    const code = btn.nextElementSibling.innerText;
+    navigator.clipboard.writeText(code).then(function() {
+      btn.textContent = 'Copied';
+      btn.classList.add('copied');
+      setTimeout(function() { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
+    });
+  }
+  function openSidebar() {
+    document.getElementById('doc-sidebar').classList.add('open');
+    document.getElementById('sidebar-backdrop').classList.add('show');
+    document.body.classList.add('no-scroll');
+  }
+  function closeSidebar() {
+    document.getElementById('doc-sidebar').classList.remove('open');
+    document.getElementById('sidebar-backdrop').classList.remove('show');
+    document.body.classList.remove('no-scroll');
+  }
+  function toggleTheme() {
+    var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark');
+    try { localStorage.setItem('assertTrueTheme', isDark ? 'light' : 'dark'); } catch (e) {}
+  }
+  function toggleComplete(checkbox) {
+    var pageId = checkbox.getAttribute('data-page-id');
+    var progress = {};
+    try { progress = JSON.parse(localStorage.getItem('assertTrueProgress') || '{}'); } catch (e) {}
+    if (checkbox.checked) { progress[pageId] = true; } else { delete progress[pageId]; }
+    try { localStorage.setItem('assertTrueProgress', JSON.stringify(progress)); } catch (e) {}
+  }
+  (function() {
+    var progress = {};
+    try { progress = JSON.parse(localStorage.getItem('assertTrueProgress') || '{}'); } catch (e) {}
+    var cb = document.querySelector('.mark-complete-checkbox');
+    if (cb && progress[cb.getAttribute('data-page-id')]) cb.checked = true;
+  })();
+  (function() {
+    var activeLink = document.querySelector('.doc-sidebar a.active');
+    if (activeLink) { activeLink.scrollIntoView({ block: 'center' }); }
+  })();
+  document.addEventListener('click', function(e) {
+    if (e.target.closest('.sidebar-link') && window.matchMedia('(max-width: 860px)').matches) {
+      closeSidebar();
+    }
+  });
+  (function() {
+    var sidebar = document.getElementById('doc-sidebar');
+    if (!sidebar) return;
+    var saved = sessionStorage.getItem('sidebarScrollTop');
+    if (saved !== null) sidebar.scrollTop = parseInt(saved, 10);
+    var saveScroll = function() { sessionStorage.setItem('sidebarScrollTop', sidebar.scrollTop); };
+    sidebar.addEventListener('scroll', saveScroll);
+    sidebar.addEventListener('click', function(e) {
+      if (e.target.closest('a')) saveScroll();
+    });
+  })();
+  </script>
+</body>
+</html>

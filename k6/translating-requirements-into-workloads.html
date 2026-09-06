@@ -1,0 +1,489 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <script>try{if(localStorage.getItem('assertTrueTheme')==='dark'){document.documentElement.setAttribute('data-theme','dark');}}catch(e){}</script>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Translating a Business Requirement into a Real k6 Workload</title>
+  <meta name="description" content="The actual skill this chapter builds toward — reading a real business requirement and deriving a correct k6 workload configuration from it, step by step, not by guessing." />
+  <link rel="canonical" href="https://asserttrue.io/k6/translating-requirements-into-workloads.html" />
+  <link rel="stylesheet" href="../css/style.css?v=57" />
+</head>
+<body class="theme-k6">
+  <header class="topnav">
+    <button class="mobile-menu-btn" onclick="openSidebar()">&#9776;</button>
+    <a href="../index.html" class="brand"><svg class="logo-mark" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="40" rx="11" fill="url(#logoGrad)"/><path d="M11 21.5 L17 27.5 L29.5 13" stroke="#ffffff" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/><defs><linearGradient id="logoGrad" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse"><stop stop-color="#22c55e"/><stop offset="1" stop-color="#15803d"/></linearGradient></defs></svg><span class="brand-text">Assert<span class="brand-true">True</span><span class="brand-io">IO</span></span></a>
+    <nav class="topnav-links">
+      <a href="../playwright/index.html">Playwright</a>
+      <a href="../restassured/index.html">RestAssured</a>
+      <a href="index.html" class="active">K6</a>
+      <a href="../github-actions/index.html">GitHub Actions</a>
+      <a href="../about.html">About</a>
+      <a href="../books.html">Books</a>
+    </nav>
+    <div class="topnav-right">
+      <span class="search-box">Search tutorials...</span>
+      <button class="icon-btn theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Toggle dark mode"><svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
+    </div>
+  </header>
+
+  <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeSidebar()"></div>
+
+  <div class="app-shell">
+    <nav class="doc-sidebar" id="doc-sidebar">
+<div class="sidebar-mobile-header"><span>Menu</span><button class="sidebar-close-btn" onclick="closeSidebar()">&times;</button></div>
+<a href="index.html" class="sidebar-overview-link"><svg class="icon" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg><span>Roadmap</span></a>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>01 Performance Testing Fundamentals</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="performance-testing-fundamentals.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Performance Testing Fundamentals</a>
+<div class="sidebar-sub">
+<a href="test-types-load-stress-spike-soak-volume.html" class="sidebar-link"><span class="dot"></span>Load, Stress, Spike, Soak & Volume Testing</a>
+<a href="baseline-capacity-and-scalability-testing.html" class="sidebar-link"><span class="dot"></span>Baseline, Capacity & Scalability Testing</a>
+<a href="core-performance-metrics.html" class="sidebar-link"><span class="dot"></span>Response Time, Throughput, Latency & Concurrency</a>
+<a href="percentiles-and-reading-performance-data.html" class="sidebar-link"><span class="dot"></span>Percentiles & Reading Performance Data</a>
+<a href="slas-slos-slis-and-virtual-users.html" class="sidebar-link"><span class="dot"></span>SLAs, SLOs, SLIs & Virtual Users</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"/></svg><span>02 Getting Started With k6</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="getting-started-with-k6.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Getting Started with k6</a>
+<div class="sidebar-sub">
+<a href="what-is-k6-and-how-it-compares.html" class="sidebar-link"><span class="dot"></span>What is k6? Architecture & Tool Comparison</a>
+<a href="installing-k6-and-your-first-test.html" class="sidebar-link"><span class="dot"></span>Installing k6 & Your First Test</a>
+<a href="the-k6-test-lifecycle.html" class="sidebar-link"><span class="dot"></span>The k6 Test Lifecycle: init, setup, VU code, teardown</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="8 6 2 12 8 18"/><polyline points="16 6 22 12 16 18"/></svg><span>03 k6 Scripting Fundamentals</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="k6-scripting-fundamentals.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>k6 Scripting Fundamentals</a>
+<div class="sidebar-sub">
+<a href="making-http-requests-in-k6.html" class="sidebar-link"><span class="dot"></span>Making HTTP Requests: GET, POST, PUT, PATCH, DELETE</a>
+<a href="check-sleep-and-group.html" class="sidebar-link"><span class="dot"></span>check(), sleep(), and group(): Structuring a k6 Test</a>
+<a href="organizing-k6-scripts.html" class="sidebar-link"><span class="dot"></span>Organizing k6 Scripts: Variables, Functions & Reusable Code</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><span>04 Virtual Users & Workload Modeling</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="virtual-users-scenarios-workload-modeling.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Virtual Users, Scenarios & Workload Modeling</a>
+<div class="sidebar-sub">
+<a href="virtual-users-and-iterations.html" class="sidebar-link"><span class="dot"></span>Virtual Users & Iterations</a>
+<a href="ramping-and-stages.html" class="sidebar-link"><span class="dot"></span>Ramping & Stages</a>
+<a href="k6-executors-explained.html" class="sidebar-link"><span class="dot"></span>k6 Executors Explained</a>
+<a href="scenarios-multiple-workloads.html" class="sidebar-link"><span class="dot"></span>Scenarios: Multiple Workloads in One Test</a>
+<a href="translating-requirements-into-workloads.html" class="sidebar-link active"><span class="dot"></span>Translating a Business Requirement into a Workload</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4 7h4V5a2 2 0 0 1 4 0v2h4v4h2a2 2 0 0 1 0 4h-2v4H4v-4H2a2 2 0 0 1 0-4h2z"/></svg><span>05 HTTP/API Performance Testing</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="http-api-performance-testing.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>HTTP/API Performance Testing</a>
+<div class="sidebar-sub">
+<a href="building-a-realistic-end-to-end-workflow.html" class="sidebar-link"><span class="dot"></span>Building a Realistic End-to-End Workflow</a>
+<a href="cookies-in-performance-tests.html" class="sidebar-link"><span class="dot"></span>Cookies in Performance Tests</a>
+<a href="why-performance-tests-should-validate-functionality-too.html" class="sidebar-link"><span class="dot"></span>Why Performance Tests Should Validate Functionality Too</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg><span>06 Checks Metrics & Results</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="checks-metrics-and-results.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Checks, Metrics & Results</a>
+<div class="sidebar-sub">
+<a href="built-in-http-metrics-explained.html" class="sidebar-link"><span class="dot"></span>Built-in HTTP Metrics Explained</a>
+<a href="custom-metrics-counter-gauge-rate-trend.html" class="sidebar-link"><span class="dot"></span>Custom Metrics: Counter, Gauge, Rate, Trend</a>
+<a href="good-vs-misleading-performance-analysis.html" class="sidebar-link"><span class="dot"></span>Good vs. Misleading Performance Analysis</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>07 Thresholds & Performance Criteria</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="thresholds-and-performance-criteria.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Thresholds & Performance Criteria</a>
+<div class="sidebar-sub">
+<a href="threshold-syntax-and-types.html" class="sidebar-link"><span class="dot"></span>Threshold Syntax & Types</a>
+<a href="threshold-vs-check-the-real-distinction.html" class="sidebar-link"><span class="dot"></span>Threshold vs. Check: The Real Distinction</a>
+<a href="deriving-realistic-thresholds.html" class="sidebar-link"><span class="dot"></span>Deriving Realistic Thresholds</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>08 Test Data & Correlation</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="test-data-correlation-and-dynamic-workflows.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Test Data, Correlation & Dynamic Workflows</a>
+<div class="sidebar-sub">
+<a href="unique-test-data-and-avoiding-collisions.html" class="sidebar-link"><span class="dot"></span>Unique Test Data & Avoiding Collisions</a>
+<a href="parameterization-csv-json-and-sharedarray.html" class="sidebar-link"><span class="dot"></span>Parameterization: CSV, JSON & SharedArray</a>
+<a href="building-the-full-crud-chain-with-real-data.html" class="sidebar-link"><span class="dot"></span>Building the Full CRUD Chain With Real Data</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><span>09 Auth & Realistic User Journeys</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="authentication-sessions-and-realistic-user-journeys.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Authentication, Sessions & Realistic User Journeys</a>
+<div class="sidebar-sub">
+<a href="authentication-mechanisms-basic-bearer-apikey-jwt-oauth.html" class="sidebar-link"><span class="dot"></span>Authentication Mechanisms: Basic, Bearer, API Key, JWT, OAuth</a>
+<a href="session-management-token-reuse-expiration-and-refresh.html" class="sidebar-link"><span class="dot"></span>Session Management: Token Reuse, Expiration & Refresh</a>
+<a href="building-a-realistic-user-journey.html" class="sidebar-link"><span class="dot"></span>Building a Realistic User Journey</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="8 6 2 12 8 18"/><polyline points="16 6 22 12 16 18"/></svg><span>10 Advanced k6 Test Design</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="advanced-k6-test-design.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Advanced k6 Test Design</a>
+<div class="sidebar-sub">
+<a href="tags-and-environment-variables.html" class="sidebar-link"><span class="dot"></span>Tags & Environment Variables</a>
+<a href="designing-every-test-type-from-one-script.html" class="sidebar-link"><span class="dot"></span>Designing Every Test Type From One Script</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4 7h4V5a2 2 0 0 1 4 0v2h4v4h2a2 2 0 0 1 0 4h-2v4H4v-4H2a2 2 0 0 1 0-4h2z"/></svg><span>11 Performance Test Architecture</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="performance-test-architecture-and-framework-design.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Performance Test Architecture & Framework Design</a>
+<div class="sidebar-sub">
+<a href="layer-by-layer-responsibilities-k6.html" class="sidebar-link"><span class="dot"></span>Layer-by-Layer Responsibilities</a>
+<a href="the-recommended-k6-folder-structure.html" class="sidebar-link"><span class="dot"></span>The Recommended Folder Structure</a>
+<a href="avoiding-the-anti-patterns.html" class="sidebar-link"><span class="dot"></span>Avoiding the Anti-Patterns</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><span>12 Distributed & Large-Scale Testing</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="distributed-and-large-scale-performance-testing.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Distributed & Large-Scale Performance Testing</a>
+<div class="sidebar-sub">
+<a href="recognizing-when-the-load-generator-is-the-bottleneck.html" class="sidebar-link"><span class="dot"></span>Recognizing When the Load Generator Is the Bottleneck</a>
+<a href="local-vs-distributed-execution-and-geographic-distribution.html" class="sidebar-link"><span class="dot"></span>Local vs. Distributed Execution & Geographic Distribution</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg><span>13 Results Analysis Monitoring & CI/CD</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="results-analysis-monitoring-and-cicd.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Results Analysis, Monitoring & CI/CD</a>
+<div class="sidebar-sub">
+<a href="sending-k6-metrics-to-grafana-and-dashboards.html" class="sidebar-link"><span class="dot"></span>Sending k6 Metrics to Grafana & External Dashboards</a>
+<a href="correlating-k6-metrics-with-application-and-infrastructure.html" class="sidebar-link"><span class="dot"></span>Correlating k6 Metrics With Application & Infrastructure Metrics</a>
+<a href="running-k6-in-cicd-github-actions-and-regression-detection.html" class="sidebar-link"><span class="dot"></span>Running k6 in CI/CD: GitHub Actions & Regression Detection</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg><span>14 Production-Style Framework</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="production-k6-framework.html" class="sidebar-link"><span class="dot"></span>Building the Framework</a>
+</div></details>
+</nav>
+
+    <main class="doc-main">
+      <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="../index.html">Home</a> <span class="crumb-sep">&rsaquo;</span> <a href="index.html">K6</a> <span class="crumb-sep">&rsaquo;</span> <a href="virtual-users-scenarios-workload-modeling.html">Virtual Users, Scenarios & Workload Modeling</a> <span class="crumb-sep">&rsaquo;</span> <span class="crumb-current">Translating a Business Requirement into a Workload</span></nav>
+
+      <div class="page-header-banner">
+        <header class="page-head">
+          <h1>Translating a Business Requirement into a Workload</h1>
+        </header>
+        <div class="meta-row">
+          <span class="tag-pill Beginner">Beginner</span>
+          <span class="read-time">8 min read</span>
+        </div>
+      </div>
+
+      <p class="prereqs"><strong>Prerequisites:</strong> <a href="scenarios-multiple-workloads.html">Scenarios: Multiple Workloads in One Test</a></p>
+
+      <article class="content">
+        <h2 id="what-is-this">What is this?</h2>
+<p>Every earlier page in this chapter covered a piece of syntax. This page is about the actual skill all of that syntax serves — reading a real, often vague business requirement and deriving a specific, correct k6 configuration from it, deliberately, rather than picking numbers that merely sound plausible.</p>
+
+<h2 id="the-requirement-from-chapter-1-revisited">The Requirement From Chapter 1, Revisited</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>"The application should support 5,000 users during peak traffic, with 95% of
+ checkout requests completing within 2 seconds."</code></pre>
+<p>Chapter 1 broke this down conceptually — concurrency target, specific workflow, percentile, response-time threshold. This page turns that conceptual breakdown into an actual, runnable k6 configuration.</p>
+
+<h2 id="step-1-identify-what-kind-of-load-this-actually-describes">Step 1 — Identify What Kind of Load This Actually Describes</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>"5,000 users" → this is a CONCURRENCY statement, not a throughput statement
+              → points toward a VU-based executor, not an arrival-rate one
+
+"during peak traffic" → this is EXPECTED, realistic load → a LOAD test (Chapter 1),
+                         not a stress test looking for an unknown ceiling</code></pre>
+<p>Before writing any configuration, correctly classifying the requirement — concurrency vs. throughput, load vs. stress — determines which entire family of tools (from earlier in this chapter) is even appropriate to reach for.</p>
+
+<h2 id="step-2-model-realistic-arrival-not-an-instant-jump">Step 2 — Model Realistic Arrival, Not an Instant Jump</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>5,000 users don't all arrive in the same literal instant — model a realistic
+ramp toward that peak, sustained for a meaningful period, then ramped down.</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export const options = {
+  scenarios: {
+    peak_traffic: {
+      executor: 'ramping-vus',
+      startVUs: 0,
+      stages: [
+        { duration: '5m', target: 5000 },  // ramp to peak
+        { duration: '15m', target: 5000 }, // sustained peak
+        { duration: '5m', target: 0 },     // ramp down
+      ],
+      exec: 'checkoutFlow',
+    },
+  },
+};</code></pre>
+
+<h2 id="step-3-model-the-specific-workflow-not-just-any-request">Step 3 — Model the Specific Workflow, Not Just Any Request</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export function checkoutFlow() {
+  group('Checkout', function () {
+    const response = http.post('https://api.example.com/checkout',
+      JSON.stringify({ cartId: 'cart-123', paymentMethod: 'card' }),
+      { headers: { 'Content-Type': 'application/json' } });
+
+    check(response, {
+      'checkout succeeded': (r) => r.status === 200,
+    });
+  });
+  sleep(1);
+}</code></pre>
+<p>The requirement specifically names checkout, not "any endpoint" — the test needs to actually exercise that specific workflow, not a generic or unrelated request that happens to be easy to script.</p>
+
+<h2 id="step-4-encode-the-percentile-threshold-preview-of-chapter-7">Step 4 — Encode the Percentile Threshold (Preview of Chapter 7)</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export const options = {
+  scenarios: { /* ...as above... */ },
+  thresholds: {
+    http_req_duration: ['p(95)&lt;2000'], // the actual requirement, made enforceable
+  },
+};</code></pre>
+<p>This is where the requirement's specific percentile and response-time target become an actual, automated pass/fail condition — not just a number the team eyeballs after the fact. Chapter 7 covers thresholds in full depth; this is a preview showing exactly how directly a well-read requirement maps onto real threshold syntax.</p>
+
+<h2 id="detailed-example-the-complete-translation-end-to-end">Detailed Example — The Complete Translation, End to End</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import http from 'k6/http';
+import { check, sleep, group } from 'k6';
+
+export const options = {
+  scenarios: {
+    peak_checkout_traffic: {
+      executor: 'ramping-vus',
+      startVUs: 0,
+      stages: [
+        { duration: '5m', target: 5000 },
+        { duration: '15m', target: 5000 },
+        { duration: '5m', target: 0 },
+      ],
+      exec: 'checkoutFlow',
+    },
+  },
+  thresholds: {
+    http_req_duration: ['p(95)&lt;2000'],
+    http_req_failed: ['rate&lt;0.01'],
+  },
+};
+
+export function checkoutFlow() {
+  group('Checkout', function () {
+    const response = http.post('https://api.example.com/checkout',
+      JSON.stringify({ cartId: 'cart-123', paymentMethod: 'card' }),
+      { headers: { 'Content-Type': 'application/json' } });
+    check(response, { 'checkout succeeded': (r) => r.status === 200 });
+  });
+  sleep(1);
+}</code></pre>
+<p>Every single line here traces back to a specific part of the original one-sentence requirement — the concurrency target, the realistic ramp, the specific workflow, and the percentile-based pass/fail criteria. This is the actual outcome workload modeling is meant to produce: not "a k6 test," but a test that genuinely represents what the business actually asked for.</p>
+
+<h2 id="real-world-example-a-requirement-that-s-actually-about-throughput-not-concurrency">Real-World Example — A Requirement That's Actually About Throughput, Not Concurrency</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>"The payment API must sustain 150 transactions per second during a sale event."</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// This is a THROUGHPUT requirement — use an arrival-rate executor, not VU-based
+export const options = {
+  scenarios: {
+    sale_event: {
+      executor: 'ramping-arrival-rate',
+      startRate: 10,
+      timeUnit: '1s',
+      preAllocatedVUs: 100,
+      maxVUs: 400,
+      stages: [
+        { duration: '3m', target: 150 },
+        { duration: '10m', target: 150 },
+        { duration: '3m', target: 0 },
+      ],
+    },
+  },
+  thresholds: {
+    http_req_failed: ['rate&lt;0.02'],
+  },
+};</code></pre>
+<p>The wording here — "sustain 150 transactions per second" — is a throughput statement, not a concurrency statement, correctly calling for an arrival-rate executor rather than the VU-based approach used for the earlier checkout example. Reading requirements carefully enough to catch this distinction is exactly the skill this whole chapter has been building toward.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Guessing at a configuration without connecting it to the actual requirement
+export const options = { vus: 1000, duration: '10m' }; // "sounds like a lot"
+
+// ✅ A configuration deliberately derived from each specific part of the requirement
+export const options = {
+  scenarios: { /* concurrency target, realistic ramp, specific workflow */ },
+  thresholds: { /* the actual percentile and error-rate criteria named in the requirement */ },
+};</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Picking a VU count that sounds proportionally large</strong> without deriving it from the requirement's actual stated number.</li>
+  <li><strong>Missing whether a requirement is really about concurrency or throughput</strong> — leading to the wrong family of executor entirely.</li>
+  <li><strong>Testing a generic endpoint instead of the specific workflow the requirement actually names</strong> — technically running "a test," but not one that answers the real question being asked.</li>
+  <li><strong>Leaving the percentile/threshold criteria as an afterthought</strong>, checked manually after the fact, instead of encoding it directly as an automated threshold.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>A requirement with no explicit ramp behavior specified</strong> — "support 5,000 users at peak" doesn't say how fast users arrive; modeling a reasonable, realistic ramp based on the type of traffic event (a gradual daily peak vs. a flash-sale-style surge) is a judgment call worth making deliberately, not arbitrarily.</li>
+  <li><strong>A requirement combining both a concurrency AND a throughput target</strong> in the same sentence — this may call for scenarios (from the previous page) modeling both dimensions together, rather than forcing the whole requirement into a single executor type.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a test's results don't seem to actually answer the business question that prompted it, go back to the original requirement and check whether each of its specific parts — concurrency/throughput, workflow, percentile, threshold — is genuinely represented in the configuration; a common root cause is one of these being silently dropped or approximated away during translation.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Explicitly classify a requirement as concurrency-based or throughput-based before choosing an executor family.</li>
+  <li>Model the specific workflow the requirement actually names, not a generic, easier-to-script substitute.</li>
+  <li>Encode percentile and error-rate criteria as real thresholds, not something checked manually after the test runs.</li>
+  <li>Make ramp behavior a deliberate choice based on the nature of the traffic event, not an arbitrary default.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Translate this requirement into a complete k6 configuration: "During a product launch, the API should handle a ramp to 300 requests per second within 3 minutes, sustain that rate for 20 minutes, with 99% of requests completing within 800ms and an error rate under 0.5%." Identify which executor family this calls for, and write the corresponding <code>options</code> object including thresholds.</p>
+
+<h2 id="summary">Summary</h2>
+<p>Translating a business requirement into a real k6 workload means classifying it correctly (concurrency vs. throughput, load vs. stress), modeling realistic arrival rather than an instant jump, exercising the specific workflow actually named, and encoding the requirement's percentile and error criteria as genuine, automated thresholds — not eyeballed after the fact. This is the actual skill every piece of syntax in this chapter has been in service of, and it's what separates a test that happens to run from a test that genuinely verifies what the business actually asked for.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Given "the system should support 5,000 concurrent users," why does the word "concurrent" matter for choosing an executor?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">"Concurrent users" is fundamentally a statement about how many users are active at once — a concurrency requirement — which points toward a VU-based executor (constant-vus or ramping-vus) rather than an arrival-rate executor, which is designed for throughput requirements instead. Misreading this distinction leads to testing the wrong dimension of the system's behavior entirely.</div>
+</details>
+<details class="faq-item">
+<summary>Why should a business requirement's percentile and error-rate criteria be encoded as k6 thresholds rather than checked manually after a test run?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Encoding them as thresholds turns the requirement into an automated, repeatable pass/fail signal that doesn't depend on someone remembering to manually check the right numbers after every run — this is essential for running the same test consistently in CI/CD, and it removes the risk of a human eyeballing results and missing a genuine violation of the requirement.</div>
+</details>
+<details class="faq-item">
+<summary>Why is it important to test the specific workflow a requirement names, rather than a generic, easier-to-script endpoint?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A requirement about checkout performance specifically is asking a question about that particular workflow's behavior under load — testing a different, easier endpoint instead technically produces "a test," but it doesn't actually answer the question that was asked. Performance characteristics vary significantly between different endpoints, so a passing result on the wrong endpoint provides false confidence about the one that actually matters.</div>
+</details>
+<details class="faq-item">
+<summary>How would you distinguish whether a given requirement calls for a load test or a stress test during translation?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Language describing expected, realistic conditions — "during peak traffic," "typical usage," a number the business already anticipates — points toward a load test, confirming a known requirement. Language about finding a limit or an unknown breaking point — "how much can we handle before failure," "what's our ceiling" — points toward a stress test instead. Reading which of these two intents a requirement actually expresses determines the right test design from the very start.</div>
+</details>
+<details class="faq-item">
+<summary>Why might a single business requirement sometimes call for using scenarios rather than one executor?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Some requirements genuinely describe multiple distinct traffic dimensions at once — for instance, a concurrency target for browsing users combined with a separate throughput target for an API integration. Forcing this into a single executor and workload would misrepresent one dimension or the other; scenarios let each distinct part of the requirement be modeled with the executor that's actually appropriate for it, combined into one coherent test.</div>
+</details>
+</div>
+      </article>
+
+      <label class="mark-complete-row">
+        <input type="checkbox" class="mark-complete-checkbox" data-page-id="k6:translating-requirements-into-workloads.html" onchange="toggleComplete(this)" />
+        <span>Mark this lesson complete</span>
+      </label>
+
+      <div class="prev-next">
+        <a href="scenarios-multiple-workloads.html"><span class="pn-label">&larr; Previous</span>Scenarios: Multiple Workloads in One Test</a>
+        <a href="http-api-performance-testing.html" class="pn-next"><span class="pn-label">Next &rarr;</span>HTTP/API Performance Testing</a>
+      </div>
+    </main>
+
+    <aside class="right-rail">
+      <div class="rail-card book-promo-card">
+  <div class="book-promo-badge">&#128218; Recommended Reading</div>
+  <div class="book-carousel">
+    <div class="book-slide active">
+  <a href="https://www.amazon.in/Performance-Testing-Automation-Engineering-Applications-ebook/dp/B0GTYVVGVD" target="_blank" rel="nofollow noopener" class="book-cover-mock"><img src="../images/books/book-7-performance-testing-with-k6.jpg" alt="Performance Testing with k6 book cover" loading="lazy" /></a>
+  <div class="book-info">
+    <h5>Performance Testing with k6</h5>
+    <p>A Practical Guide to Automation Engineering with Applications</p>
+    <a href="https://www.amazon.in/Performance-Testing-Automation-Engineering-Applications-ebook/dp/B0GTYVVGVD" target="_blank" rel="nofollow noopener" class="book-buy-btn">View on Amazon &rarr;</a>
+  </div>
+</div>
+  </div>
+  <div class="book-dots"><span class="book-dot active"></span></div>
+</div>
+
+      <div class="rail-card">
+        <h4>Related Chapters</h4>
+        <div class="related-list">
+          <a href="virtual-users-and-iterations.html">Virtual Users & Iterations<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+<a href="ramping-and-stages.html">Ramping & Stages<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+<a href="k6-executors-explained.html">k6 Executors Explained<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+<a href="scenarios-multiple-workloads.html">Scenarios: Multiple Workloads in One Test<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+<a href="performance-testing-fundamentals.html">Performance Testing Fundamentals<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+        </div>
+      </div>
+
+      <div class="rail-card was-helpful-card">
+        <span>Was this helpful?</span>
+        <button title="Yes">&#128077;</button>
+        <button title="No">&#128078;</button>
+      </div>
+    </aside>
+  </div>
+
+  <nav class="mobile-tabbar">
+  <a href="../index.html"><svg class="icon" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg><span>Home</span></a>
+  <a href="index.html" class="active"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>Tutorials</span></a>
+  <a href="../books.html"><svg class="icon" viewBox="0 0 24 24"><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v16H6.5A2.5 2.5 0 0 0 4 20.5"/><path d="M4 4.5v16"/></svg><span>Books</span></a>
+  <a href="../about.html"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="12" y1="16" x2="12" y2="11.5"/><circle cx="12" cy="8" r="0.8" fill="currentColor" stroke="none"/></svg><span>About</span></a>
+</nav>
+
+  <script>
+  
+  document.querySelectorAll('.book-promo-card').forEach(function(card) {
+    var slides = card.querySelectorAll('.book-slide');
+    var dots = card.querySelectorAll('.book-dot');
+    if (slides.length < 2) return;
+    var idx = 0;
+    setInterval(function() {
+      slides[idx].classList.remove('active');
+      if (dots[idx]) dots[idx].classList.remove('active');
+      idx = (idx + 1) % slides.length;
+      slides[idx].classList.add('active');
+      if (dots[idx]) dots[idx].classList.add('active');
+    }, 5000);
+  });
+
+  function copyCode(btn) {
+    const code = btn.nextElementSibling.innerText;
+    navigator.clipboard.writeText(code).then(function() {
+      btn.textContent = 'Copied';
+      btn.classList.add('copied');
+      setTimeout(function() { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
+    });
+  }
+  function openSidebar() {
+    document.getElementById('doc-sidebar').classList.add('open');
+    document.getElementById('sidebar-backdrop').classList.add('show');
+    document.body.classList.add('no-scroll');
+  }
+  function closeSidebar() {
+    document.getElementById('doc-sidebar').classList.remove('open');
+    document.getElementById('sidebar-backdrop').classList.remove('show');
+    document.body.classList.remove('no-scroll');
+  }
+  function toggleTheme() {
+    var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark');
+    try { localStorage.setItem('assertTrueTheme', isDark ? 'light' : 'dark'); } catch (e) {}
+  }
+  function toggleComplete(checkbox) {
+    var pageId = checkbox.getAttribute('data-page-id');
+    var progress = {};
+    try { progress = JSON.parse(localStorage.getItem('assertTrueProgress') || '{}'); } catch (e) {}
+    if (checkbox.checked) { progress[pageId] = true; } else { delete progress[pageId]; }
+    try { localStorage.setItem('assertTrueProgress', JSON.stringify(progress)); } catch (e) {}
+  }
+  (function() {
+    var progress = {};
+    try { progress = JSON.parse(localStorage.getItem('assertTrueProgress') || '{}'); } catch (e) {}
+    var cb = document.querySelector('.mark-complete-checkbox');
+    if (cb && progress[cb.getAttribute('data-page-id')]) cb.checked = true;
+  })();
+  (function() {
+    var activeLink = document.querySelector('.doc-sidebar a.active');
+    if (activeLink) { activeLink.scrollIntoView({ block: 'center' }); }
+  })();
+  document.addEventListener('click', function(e) {
+    if (e.target.closest('.sidebar-link') && window.matchMedia('(max-width: 860px)').matches) {
+      closeSidebar();
+    }
+  });
+  </script>
+</body>
+</html>

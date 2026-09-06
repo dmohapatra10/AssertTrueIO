@@ -1,0 +1,454 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <script>try{if(localStorage.getItem('assertTrueTheme')==='dark'){document.documentElement.setAttribute('data-theme','dark');}}catch(e){}</script>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Playwright getByRole(): Complete Guide with Real-World Examples</title>
+  <meta name="description" content="How Playwright&amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;#x27;s getByRole() locator works, the accessibility tree it reads from, every important option, common mistakes, and when to reach for something else instead." />
+  <link rel="canonical" href="https://asserttrue.io/playwright/get-by-role.html" />
+  <link rel="stylesheet" href="../css/style.css?v=57" />
+</head>
+<body>
+  <header class="topnav">
+    <button class="mobile-menu-btn" onclick="openSidebar()">&#9776;</button>
+    <a href="../index.html" class="brand"><svg class="logo-mark" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="40" rx="11" fill="url(#logoGrad)"/><path d="M11 21.5 L17 27.5 L29.5 13" stroke="#ffffff" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/><defs><linearGradient id="logoGrad" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse"><stop stop-color="#22c55e"/><stop offset="1" stop-color="#15803d"/></linearGradient></defs></svg><span class="brand-text">Assert<span class="brand-true">True</span><span class="brand-io">IO</span></span></a>
+    <nav class="topnav-links">
+      <a href="index.html" class="active">Playwright</a>
+      <a href="../restassured/index.html">RestAssured</a>
+      <a href="../k6/index.html">K6</a>
+      <a href="../github-actions/index.html">GitHub Actions</a>
+      <a href="../about.html">About</a>
+      <a href="../books.html">Books</a>
+    </nav>
+    <div class="topnav-right">
+      <span class="search-box">Search tutorials...</span>
+      <button class="icon-btn theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Toggle dark mode"><svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
+    </div>
+  </header>
+
+  <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeSidebar()"></div>
+
+  <div class="app-shell">
+    <nav class="doc-sidebar" id="doc-sidebar">
+<div class="sidebar-mobile-header"><span>Menu</span><button class="sidebar-close-btn" onclick="closeSidebar()">&times;</button></div>
+<a href="index.html" class="sidebar-overview-link"><svg class="icon" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg><span>Roadmap</span></a>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg><span>01 Introduction</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="introduction.html" class="sidebar-link"><span class="dot"></span>Introduction</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"/></svg><span>02 Getting Started</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="getting-started.html" class="sidebar-link"><span class="dot"></span>Getting Started</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="8 6 2 12 8 18"/><polyline points="16 6 22 12 16 18"/></svg><span>03 Locators</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="locators.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Locators</a>
+<div class="sidebar-sub">
+<a href="get-by-role.html" class="sidebar-link active"><span class="dot"></span>getByRole()</a>
+<a href="get-by-label.html" class="sidebar-link"><span class="dot"></span>getByLabel()</a>
+<a href="get-by-placeholder.html" class="sidebar-link"><span class="dot"></span>getByPlaceholder()</a>
+<a href="get-by-text.html" class="sidebar-link"><span class="dot"></span>getByText()</a>
+<a href="get-by-alt-text.html" class="sidebar-link"><span class="dot"></span>getByAltText()</a>
+<a href="get-by-title.html" class="sidebar-link"><span class="dot"></span>getByTitle()</a>
+<a href="get-by-test-id.html" class="sidebar-link"><span class="dot"></span>getByTestId()</a>
+<a href="locator-and-css-xpath.html" class="sidebar-link"><span class="dot"></span>CSS & XPath</a>
+<a href="filtering-and-chaining.html" class="sidebar-link"><span class="dot"></span>Filtering & Chaining</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><span>04 Actions, Assertions & Sync</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="actions.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Actions</a>
+<div class="sidebar-sub">
+<a href="click-and-dblclick.html" class="sidebar-link"><span class="dot"></span>click() / dblclick()</a>
+<a href="fill-and-press-sequentially.html" class="sidebar-link"><span class="dot"></span>fill() / pressSequentially()</a>
+<a href="press.html" class="sidebar-link"><span class="dot"></span>press()</a>
+<a href="check-and-uncheck.html" class="sidebar-link"><span class="dot"></span>check() / uncheck()</a>
+<a href="select-option.html" class="sidebar-link"><span class="dot"></span>selectOption()</a>
+<a href="hover.html" class="sidebar-link"><span class="dot"></span>hover()</a>
+<a href="set-input-files.html" class="sidebar-link"><span class="dot"></span>setInputFiles()</a>
+<a href="drag-to.html" class="sidebar-link"><span class="dot"></span>dragTo()</a>
+<a href="actionability-and-force.html" class="sidebar-link"><span class="dot"></span>Actionability & Force</a>
+</div>
+<a href="assertions.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Assertions</a>
+<div class="sidebar-sub">
+<a href="visibility-and-state-assertions.html" class="sidebar-link"><span class="dot"></span>Visibility & State</a>
+<a href="text-and-value-assertions.html" class="sidebar-link"><span class="dot"></span>Text & Value</a>
+<a href="count-url-title-assertions.html" class="sidebar-link"><span class="dot"></span>Count, URL & Title</a>
+<a href="hard-vs-soft-assertions.html" class="sidebar-link"><span class="dot"></span>Hard vs Soft Assertions</a>
+</div>
+<a href="waiting-and-synchronization.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Waiting & Synchronization</a>
+<div class="sidebar-sub">
+<a href="auto-waiting-explained.html" class="sidebar-link"><span class="dot"></span>Auto-Waiting Explained</a>
+<a href="wait-for-url-and-load-state.html" class="sidebar-link"><span class="dot"></span>waitForURL() & waitForLoadState()</a>
+<a href="wait-for-request-and-response.html" class="sidebar-link"><span class="dot"></span>waitForRequest() & waitForResponse()</a>
+<a href="wait-for-selector-and-timeout.html" class="sidebar-link"><span class="dot"></span>waitForSelector() & waitForTimeout()</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18"/></svg><span>05 Pages, Browser & Context</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="architecture.html" class="sidebar-link"><span class="dot"></span>Architecture</a>
+<a href="pages-and-navigation.html" class="sidebar-link"><span class="dot"></span>Pages & Navigation</a>
+<a href="browser-and-browsercontext.html" class="sidebar-link"><span class="dot"></span>Browser & Context</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>06 Real-World Web Apps</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="forms.html" class="sidebar-link"><span class="dot"></span>Forms</a>
+<a href="tables.html" class="sidebar-link"><span class="dot"></span>Tables</a>
+<a href="frames.html" class="sidebar-link"><span class="dot"></span>Frames</a>
+<a href="multiple-tabs-and-windows.html" class="sidebar-link"><span class="dot"></span>Multiple Tabs & Windows</a>
+<a href="dialogs.html" class="sidebar-link"><span class="dot"></span>Dialogs</a>
+<a href="file-upload-and-download.html" class="sidebar-link"><span class="dot"></span>File Upload & Download</a>
+<a href="special-ui-elements.html" class="sidebar-link"><span class="dot"></span>Special UI Elements</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"/></svg><span>07 Test Runner</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="test-runner.html" class="sidebar-link"><span class="dot"></span>Test Runner</a>
+<a href="hooks.html" class="sidebar-link"><span class="dot"></span>Hooks</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4 7h4V5a2 2 0 0 1 4 0v2h4v4h2a2 2 0 0 1 0 4h-2v4H4v-4H2a2 2 0 0 1 0-4h2z"/></svg><span>08 Fixtures & Architecture</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="fixtures.html" class="sidebar-link"><span class="dot"></span>Fixtures</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><span>09 Auth, API & Mocking</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="authentication-and-storage-state.html" class="sidebar-link"><span class="dot"></span>Authentication & storageState</a>
+<a href="api-testing-with-playwright.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>API Testing</a>
+<div class="sidebar-sub">
+<a href="get-request.html" class="sidebar-link"><span class="dot"></span>GET Requests</a>
+<a href="post-request.html" class="sidebar-link"><span class="dot"></span>POST Requests</a>
+<a href="put-and-patch-request.html" class="sidebar-link"><span class="dot"></span>PUT & PATCH Requests</a>
+<a href="delete-request.html" class="sidebar-link"><span class="dot"></span>DELETE Requests</a>
+</div>
+<a href="network-mocking-and-routes.html" class="sidebar-link"><span class="dot"></span>Network Mocking</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>10 Configuration & Environments</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="playwright-config-options.html" class="sidebar-link"><span class="dot"></span>Configuration Options</a>
+<a href="projects-and-environments.html" class="sidebar-link"><span class="dot"></span>Projects & Environments</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>11 Page Objects & Framework</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="page-object-model.html" class="sidebar-link"><span class="dot"></span>Page Object Model</a>
+<a href="framework-folder-structure.html" class="sidebar-link"><span class="dot"></span>Framework Folder Structure</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><span>12 Parallelism & Debugging</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="parallel-execution-and-workers.html" class="sidebar-link"><span class="dot"></span>Parallel Execution & Workers</a>
+<a href="diagnosing-flaky-tests.html" class="sidebar-link"><span class="dot"></span>Diagnosing Flaky Tests</a>
+<a href="screenshots-and-videos.html" class="sidebar-link"><span class="dot"></span>Screenshots & Videos</a>
+<a href="trace-viewer.html" class="sidebar-link"><span class="dot"></span>Trace Viewer</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg><span>13 Reporting & CI/CD</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="test-reporting.html" class="sidebar-link"><span class="dot"></span>Test Reporting</a>
+<a href="github-actions-cicd.html" class="sidebar-link"><span class="dot"></span>GitHub Actions CI/CD</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg><span>14 Production-Style Framework</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="production-framework-capstone.html" class="sidebar-link"><span class="dot"></span>Building the Framework</a>
+</div></details>
+</nav>
+
+    <main class="doc-main">
+      <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="../index.html">Home</a> <span class="crumb-sep">&rsaquo;</span> <a href="index.html">Playwright</a> <span class="crumb-sep">&rsaquo;</span> <a href="locators.html">Locators</a> <span class="crumb-sep">&rsaquo;</span> <span class="crumb-current">getByRole()</span></nav>
+
+      <div class="page-header-banner">
+        <header class="page-head">
+          <h1><code class="api-name">getByRole()</code></h1>
+        </header>
+        <div class="meta-row">
+          <span class="tag-pill Beginner">Beginner</span>
+          <span class="read-time">6 min read</span>
+        </div>
+      </div>
+
+      <p class="prereqs"><strong>Prerequisites:</strong> <a href="locators.html">Locators overview</a></p>
+
+      <article class="content">
+        <h2 id="what-is-getbyrole">What is <code>getByRole()</code>?</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>page.getByRole(role: string, options?: {
+  name?: string | RegExp,
+  exact?: boolean,
+  checked?: boolean,
+  disabled?: boolean,
+  expanded?: boolean,
+  level?: number,
+  pressed?: boolean,
+  selected?: boolean,
+})</code></pre>
+      <p><code>getByRole()</code> finds elements by their <strong>accessibility role</strong> — the same information a screen reader uses to announce "button," "link," or "checkbox" to a visually impaired user. It reads from the browser's computed accessibility tree, not from the raw HTML, which is why it works whether an element is a native <code>&lt;button&gt;</code> or a <code>&lt;div role="button"&gt;</code> styled to look like one.</p>
+
+      <h2 id="why-it-s-the-recommended-default">Why it's the recommended default</h2>
+      <p>A role reflects what an element <em>is</em> to a user, not how a developer happened to implement it. That has two consequences: tests stay stable through refactors that change class names or DOM structure but don't change what the element does, and writing role-based tests continuously exercises whether your app is actually accessible — if you can't find a button by role, a screen reader user can't reliably find it either.</p>
+
+      <h2 id="mental-model-the-accessibility-tree">Mental Model: the accessibility tree</h2>
+      <p>Every element in the DOM maps to a node in a parallel tree the browser builds specifically for assistive technology — the accessibility tree. A styled <code>&lt;div&gt;</code> with <code>onClick</code> and no <code>role</code> attribute maps to role <code>generic</code>, invisible to <code>getByRole('button')</code>, even though it's visually a button. This is <code>getByRole()</code> reading real browser semantics, not guessing from markup patterns.</p>
+
+      <h2 id="basic-example">Basic Example</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>await page.getByRole('button', { name: 'Submit' }).click();</code></pre>
+
+      <h2 id="detailed-example-common-roles">Detailed Example — Common Roles</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>await page.getByRole('textbox', { name: 'Email' }).fill('user@example.com');
+await page.getByRole('checkbox', { name: 'Remember me' }).check();
+await page.getByRole('link', { name: 'Forgot password?' }).click();
+await page.getByRole('heading', { name: 'Sign in', level: 1 }).isVisible();
+await page.getByRole('combobox', { name: 'Country' }).selectOption('India');
+await page.getByRole('button', { name: 'Sign in' }).click();</code></pre>
+      <p><code>level</code> narrows heading roles to a specific <code>&lt;h1&gt;</code>–<code>&lt;h6&gt;</code> level — useful when a page legitimately has multiple headings with similar text at different levels.</p>
+
+      <h2 id="real-world-example-login-flow">Real-World Example — Login Flow</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('user can sign in and reach the dashboard', async ({ page }) =&gt; {
+  await page.goto('/login');
+  await page.getByRole('textbox', { name: 'Email' }).fill('user@example.com');
+  await page.getByRole('textbox', { name: 'Password' }).fill('correct-horse-battery-staple');
+  await page.getByRole('button', { name: 'Sign in' }).click();
+
+  await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+  await expect(page.getByRole('alert')).not.toBeVisible(); // no error banner
+});</code></pre>
+      <p>Every line reads like the test plan a human would write, and none of it breaks if the underlying markup is refactored from a <code>&lt;table&gt;</code>-based form to a <code>&lt;div&gt;</code>-based one — the roles stay the same either way.</p>
+
+      <h2 id="matching-by-state-checked-disabled-expanded-pressed-selected">Matching by state: checked, disabled, expanded, pressed, selected</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Disambiguate two "Notifications" toggles by their current state
+await page.getByRole('checkbox', { name: 'Email notifications', checked: true }).uncheck();
+
+// Only target the button while it's genuinely disabled — e.g. during a submit
+await expect(page.getByRole('button', { name: 'Save', disabled: true })).toBeVisible();
+
+// An accordion header's expanded state
+await page.getByRole('button', { name: 'Shipping details', expanded: false }).click();</code></pre>
+      <p>These state options don't just filter — they also make the test's <em>intent</em> explicit: a reviewer sees at a glance that the test cares about the disabled state, not just the presence of the button.</p>
+
+      <h2 id="exact-matching">exact matching</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Matches "Sign in" AND "Sign in to continue" (default: substring, case-insensitive)
+await page.getByRole('button', { name: 'Sign in' }).click();
+
+// Matches ONLY the exact text "Sign in"
+await page.getByRole('button', { name: 'Sign in', exact: true }).click();</code></pre>
+      <p>Without <code>exact: true</code>, name matching is a case-insensitive substring match, not an equality check — worth knowing before assuming a name filter is more specific than it actually is.</p>
+
+      <h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Fragile — depends on class names that can change for styling reasons alone
+await page.locator('.btn.btn-primary.submit-btn').click();
+
+// ✅ Recommended — depends on what the element IS, not how it's styled
+await page.getByRole('button', { name: 'Submit' }).click();</code></pre>
+
+      <h2 id="common-mistakes">Common Mistakes</h2>
+      <ul>
+        <li><strong>Omitting <code>name</code> when the page has multiple elements with the same role</strong> — <code>page.getByRole('button')</code> on a page with five buttons throws a strict-mode violation the moment you act on it.</li>
+        <li><strong>Assuming a styled <code>&lt;div&gt;</code> has a role just because it looks interactive</strong> — without an explicit <code>role</code> attribute (or a native element like <code>&lt;button&gt;</code>), it maps to <code>generic</code> and <code>getByRole()</code> won't find it. This is usually a real accessibility bug worth reporting, not just a test problem.</li>
+        <li><strong>Forgetting that <code>name</code> matching is substring by default</strong> and being surprised when <code>{ name: 'Sign in' }</code> also matches a "Sign in to continue" button elsewhere on the page.</li>
+      </ul>
+
+      <h2 id="edge-cases">Edge Cases</h2>
+      <ul>
+        <li><strong>Icon-only buttons with no visible text</strong> — the accessible name comes from <code>aria-label</code>, not visible text. If the button has neither, <code>getByRole()</code> can't target it by name at all, and <code>getByTestId()</code> becomes the pragmatic fallback.</li>
+        <li><strong>Custom components from UI libraries</strong> (e.g., a React Select) often render an internal <code>&lt;input role="combobox"&gt;</code> — inspect the real DOM rather than assuming the role matches the component's marketing name.</li>
+      </ul>
+
+      <h2 id="debugging">Debugging</h2>
+      <p>Use <code>--debug</code> or UI Mode's "Pick locator" (Chapter 2) to click the actual element and see its resolved role and accessible name — this is far more reliable than guessing from the HTML source, since the accessible name is computed from a chain of rules (aria-label, aria-labelledby, visible text, alt text, in that priority order).</p>
+
+      <h2 id="best-practices">Best Practices</h2>
+      <ul>
+        <li>Start every new locator decision with "can I write this as <code>getByRole()</code>?" before considering anything else.</li>
+        <li>Add <code>aria-label</code> to icon-only interactive elements in the app itself — it fixes accessibility and testability at the same time.</li>
+        <li>Use state options (<code>checked</code>, <code>disabled</code>, <code>expanded</code>) to make test intent explicit rather than asserting on CSS classes.</li>
+      </ul>
+
+      <h2 id="practice-exercise">Practice Exercise</h2>
+      <p>Given a page with three buttons — "Save," "Save as draft," and a disabled "Save" during submission — write three separate <code>getByRole()</code> locators that unambiguously target each one, using <code>exact</code> and <code>disabled</code> where needed.</p>
+
+      <h2 id="summary">Summary</h2>
+      <p><code>getByRole()</code> reads the browser's real accessibility tree, making it resilient to markup changes and a built-in accessibility check. Use <code>name</code> to disambiguate, <code>exact</code> when substring matching is too loose, and state options when the test cares about more than presence.</p>
+
+      <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why might <code>getByRole('button', { name: 'Submit' })</code> fail to find a visually obvious Submit button?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Most likely the element isn't a native <code>&lt;button&gt;</code> and has no explicit <code>role="button"</code> attribute, so it maps to the accessibility tree's <code>generic</code> role instead of <code>button</code> — a real accessibility gap the test just surfaced, not a locator mistake.</div>
+</details>
+<details class="faq-item">
+<summary>Where does getByRole() actually read an element's role from?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The browser's computed accessibility tree — the same structure a screen reader uses — not the raw HTML tag name alone.</div>
+</details>
+<details class="faq-item">
+<summary>Why might getByRole('button') fail to find a visually obvious button?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">If it's a styled &lt;div&gt; with no role='button' and no native button element, it maps to the generic role in the accessibility tree, not button.</div>
+</details>
+<details class="faq-item">
+<summary>What's the default matching behavior for the name option?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Case-insensitive substring matching, unless exact: true is passed, which requires a full match.</div>
+</details>
+<details class="faq-item">
+<summary>Name two role state options besides visibility that let you disambiguate elements.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">checked and disabled (also expanded, pressed, and selected) — useful when multiple elements share a role and name but differ in state.</div>
+</details>
+</div>
+      </article>
+
+      <label class="mark-complete-row">
+        <input type="checkbox" class="mark-complete-checkbox" data-page-id="pw:get-by-role.html" onchange="toggleComplete(this)" />
+        <span>Mark this lesson complete</span>
+      </label>
+
+      <div class="prev-next">
+        <a href="locators.html"><span class="pn-label">&larr; Previous</span>Locators</a>
+        <a href="get-by-label.html" class="pn-next"><span class="pn-label">Next &rarr;</span>getByLabel()</a>
+      </div>
+    </main>
+
+    <aside class="right-rail">
+      <div class="rail-card book-promo-card">
+  <div class="book-promo-badge">&#128218; Recommended Reading</div>
+  <div class="book-carousel">
+    <div class="book-slide active">
+  <a href="https://www.amazon.in/CRACKING-PLAYWRIGHT-INTERVIEW-Interview-Preparation-ebook/dp/B0H7MGN2XK" target="_blank" rel="nofollow noopener" class="book-cover-mock"><img src="../images/books/book-1-cracking-playwright-interview.webp" alt="Cracking the Playwright Interview book cover" loading="lazy" /></a>
+  <div class="book-info">
+    <h5>Cracking the Playwright Interview</h5>
+    <p>The Complete Interview Preparation Guide</p>
+    <a href="https://www.amazon.in/CRACKING-PLAYWRIGHT-INTERVIEW-Interview-Preparation-ebook/dp/B0H7MGN2XK" target="_blank" rel="nofollow noopener" class="book-buy-btn">View on Amazon &rarr;</a>
+  </div>
+</div><div class="book-slide">
+  <a href="https://www.amazon.in/Playwright-Automation-Testing-Complete-TypeScript-ebook/dp/B0G492YGYJ" target="_blank" rel="nofollow noopener" class="book-cover-mock"><img src="../images/books/book-2-playwright-automation-testing.jpg" alt="Playwright Automation Testing book cover" loading="lazy" /></a>
+  <div class="book-info">
+    <h5>Playwright Automation Testing</h5>
+    <p>Complete Guide with TypeScript</p>
+    <a href="https://www.amazon.in/Playwright-Automation-Testing-Complete-TypeScript-ebook/dp/B0G492YGYJ" target="_blank" rel="nofollow noopener" class="book-buy-btn">View on Amazon &rarr;</a>
+  </div>
+</div><div class="book-slide">
+  <a href="https://www.amazon.in/API-Testing-Playwright-TypeScript-Practical-ebook/dp/B0GS99CDCK" target="_blank" rel="nofollow noopener" class="book-cover-mock"><img src="../images/books/book-3-api-testing-playwright-typescript.webp" alt="API Testing with Playwright & TypeScript book cover" loading="lazy" /></a>
+  <div class="book-info">
+    <h5>API Testing with Playwright & TypeScript</h5>
+    <p>A Practical Guide from Zero to Expert</p>
+    <a href="https://www.amazon.in/API-Testing-Playwright-TypeScript-Practical-ebook/dp/B0GS99CDCK" target="_blank" rel="nofollow noopener" class="book-buy-btn">View on Amazon &rarr;</a>
+  </div>
+</div><div class="book-slide">
+  <a href="https://www.amazon.in/Playwright-Mastery-TypeScript-Cucumber-Applications-ebook/dp/B0GPKXYB9Q" target="_blank" rel="nofollow noopener" class="book-cover-mock"><img src="../images/books/book-4-playwright-mastery-typescript-cucumber.jpg" alt="Playwright Mastery with TypeScript & Cucumber book cover" loading="lazy" /></a>
+  <div class="book-info">
+    <h5>Playwright Mastery with TypeScript & Cucumber</h5>
+    <p>Building Robust, Scalable Test Frameworks</p>
+    <a href="https://www.amazon.in/Playwright-Mastery-TypeScript-Cucumber-Applications-ebook/dp/B0GPKXYB9Q" target="_blank" rel="nofollow noopener" class="book-buy-btn">View on Amazon &rarr;</a>
+  </div>
+</div>
+  </div>
+  <div class="book-dots"><span class="book-dot active"></span><span class="book-dot"></span><span class="book-dot"></span><span class="book-dot"></span></div>
+</div>
+
+      <div class="rail-card">
+        <h4>Related Articles</h4>
+        <div class="related-list">
+          <a href="get-by-label.html">getByLabel()<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+<a href="get-by-placeholder.html">getByPlaceholder()<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+<a href="get-by-text.html">getByText()<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+<a href="get-by-alt-text.html">getByAltText()<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+<a href="get-by-title.html">getByTitle()<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+        </div>
+      </div>
+
+      <div class="rail-card was-helpful-card">
+        <span>Was this helpful?</span>
+        <button title="Yes">&#128077;</button>
+        <button title="No">&#128078;</button>
+      </div>
+    </aside>
+  </div>
+
+  <nav class="mobile-tabbar">
+  <a href="../index.html" class=""><svg class="icon" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg><span>Home</span></a>
+  <a href="index.html" class="active"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>Tutorials</span></a>
+  <a href="../books.html" class=""><svg class="icon" viewBox="0 0 24 24"><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v16H6.5A2.5 2.5 0 0 0 4 20.5"/><path d="M4 4.5v16"/></svg><span>Books</span></a>
+  <a href="../about.html"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="12" y1="16" x2="12" y2="11.5"/><circle cx="12" cy="8" r="0.8" fill="currentColor" stroke="none"/></svg><span>About</span></a>
+</nav>
+
+  <script>
+  
+  document.querySelectorAll('.book-promo-card').forEach(function(card) {
+    var slides = card.querySelectorAll('.book-slide');
+    var dots = card.querySelectorAll('.book-dot');
+    if (slides.length < 2) return;
+    var idx = 0;
+    setInterval(function() {
+      slides[idx].classList.remove('active');
+      if (dots[idx]) dots[idx].classList.remove('active');
+      idx = (idx + 1) % slides.length;
+      slides[idx].classList.add('active');
+      if (dots[idx]) dots[idx].classList.add('active');
+    }, 5000);
+  });
+
+  function copyCode(btn) {
+    const code = btn.nextElementSibling.innerText;
+    navigator.clipboard.writeText(code).then(function() {
+      btn.textContent = 'Copied';
+      btn.classList.add('copied');
+      setTimeout(function() { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
+    });
+  }
+  function openSidebar() {
+    document.getElementById('doc-sidebar').classList.add('open');
+    document.getElementById('sidebar-backdrop').classList.add('show');
+    document.body.classList.add('no-scroll');
+  }
+  function closeSidebar() {
+    document.getElementById('doc-sidebar').classList.remove('open');
+    document.getElementById('sidebar-backdrop').classList.remove('show');
+    document.body.classList.remove('no-scroll');
+  }
+  function toggleTheme() {
+    var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark');
+    try { localStorage.setItem('assertTrueTheme', isDark ? 'light' : 'dark'); } catch (e) {}
+  }
+  function toggleComplete(checkbox) {
+    var pageId = checkbox.getAttribute('data-page-id');
+    var progress = {};
+    try { progress = JSON.parse(localStorage.getItem('assertTrueProgress') || '{}'); } catch (e) {}
+    if (checkbox.checked) { progress[pageId] = true; } else { delete progress[pageId]; }
+    try { localStorage.setItem('assertTrueProgress', JSON.stringify(progress)); } catch (e) {}
+  }
+  (function() {
+    var progress = {};
+    try { progress = JSON.parse(localStorage.getItem('assertTrueProgress') || '{}'); } catch (e) {}
+    var cb = document.querySelector('.mark-complete-checkbox');
+    if (cb && progress[cb.getAttribute('data-page-id')]) cb.checked = true;
+  })();
+  (function() {
+    var activeLink = document.querySelector('.doc-sidebar a.active');
+    if (activeLink) { activeLink.scrollIntoView({ block: 'center' }); }
+  })();
+  document.addEventListener('click', function(e) {
+    if (e.target.closest('.sidebar-link') && window.matchMedia('(max-width: 860px)').matches) {
+      closeSidebar();
+    }
+  });
+  (function() {
+    var sidebar = document.getElementById('doc-sidebar');
+    if (!sidebar) return;
+    var saved = sessionStorage.getItem('sidebarScrollTop');
+    if (saved !== null) sidebar.scrollTop = parseInt(saved, 10);
+    var saveScroll = function() { sessionStorage.setItem('sidebarScrollTop', sidebar.scrollTop); };
+    sidebar.addEventListener('scroll', saveScroll);
+    sidebar.addEventListener('click', function(e) {
+      if (e.target.closest('a')) saveScroll();
+    });
+  })();
+  </script>
+</body>
+</html>

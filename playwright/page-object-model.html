@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <script>try{if(localStorage.getItem('assertTrueTheme')==='dark'){document.documentElement.setAttribute('data-theme','dark');}}catch(e){}</script>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Page Object Model in Playwright: Encapsulating Locators and Actions</title>
+  <meta name="description" content="How to build a Page Object Model in Playwright — encapsulating locators and actions, combining POM with fixtures, and the anti-patterns to avoid like assertion-heavy page objects." />
+  <link rel="canonical" href="https://asserttrue.io/playwright/page-object-model.html" />
+  <link rel="stylesheet" href="../css/style.css?v=57" />
+</head>
+<body>
+  <header class="topnav">
+    <button class="mobile-menu-btn" onclick="openSidebar()">&#9776;</button>
+    <a href="../index.html" class="brand"><svg class="logo-mark" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="40" rx="11" fill="url(#logoGrad)"/><path d="M11 21.5 L17 27.5 L29.5 13" stroke="#ffffff" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/><defs><linearGradient id="logoGrad" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse"><stop stop-color="#22c55e"/><stop offset="1" stop-color="#15803d"/></linearGradient></defs></svg><span class="brand-text">Assert<span class="brand-true">True</span><span class="brand-io">IO</span></span></a>
+    <nav class="topnav-links">
+      <a href="index.html" class="active">Playwright</a>
+      <a href="../restassured/index.html">RestAssured</a>
+      <a href="../k6/index.html">K6</a>
+      <a href="../github-actions/index.html">GitHub Actions</a>
+      <a href="../about.html">About</a>
+      <a href="../books.html">Books</a>
+    </nav>
+    <div class="topnav-right">
+      <span class="search-box">Search tutorials...</span>
+      <button class="icon-btn theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Toggle dark mode"><svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
+    </div>
+  </header>
+
+  <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeSidebar()"></div>
+
+  <div class="app-shell">
+    <nav class="doc-sidebar" id="doc-sidebar">
+<div class="sidebar-mobile-header"><span>Menu</span><button class="sidebar-close-btn" onclick="closeSidebar()">&times;</button></div>
+<a href="index.html" class="sidebar-overview-link"><svg class="icon" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg><span>Roadmap</span></a>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg><span>01 Introduction</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="introduction.html" class="sidebar-link"><span class="dot"></span>Introduction</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"/></svg><span>02 Getting Started</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="getting-started.html" class="sidebar-link"><span class="dot"></span>Getting Started</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="8 6 2 12 8 18"/><polyline points="16 6 22 12 16 18"/></svg><span>03 Locators</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="locators.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Locators</a>
+<div class="sidebar-sub">
+<a href="get-by-role.html" class="sidebar-link"><span class="dot"></span>getByRole()</a>
+<a href="get-by-label.html" class="sidebar-link"><span class="dot"></span>getByLabel()</a>
+<a href="get-by-placeholder.html" class="sidebar-link"><span class="dot"></span>getByPlaceholder()</a>
+<a href="get-by-text.html" class="sidebar-link"><span class="dot"></span>getByText()</a>
+<a href="get-by-alt-text.html" class="sidebar-link"><span class="dot"></span>getByAltText()</a>
+<a href="get-by-title.html" class="sidebar-link"><span class="dot"></span>getByTitle()</a>
+<a href="get-by-test-id.html" class="sidebar-link"><span class="dot"></span>getByTestId()</a>
+<a href="locator-and-css-xpath.html" class="sidebar-link"><span class="dot"></span>CSS & XPath</a>
+<a href="filtering-and-chaining.html" class="sidebar-link"><span class="dot"></span>Filtering & Chaining</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><span>04 Actions, Assertions & Sync</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="actions.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Actions</a>
+<div class="sidebar-sub">
+<a href="click-and-dblclick.html" class="sidebar-link"><span class="dot"></span>click() / dblclick()</a>
+<a href="fill-and-press-sequentially.html" class="sidebar-link"><span class="dot"></span>fill() / pressSequentially()</a>
+<a href="press.html" class="sidebar-link"><span class="dot"></span>press()</a>
+<a href="check-and-uncheck.html" class="sidebar-link"><span class="dot"></span>check() / uncheck()</a>
+<a href="select-option.html" class="sidebar-link"><span class="dot"></span>selectOption()</a>
+<a href="hover.html" class="sidebar-link"><span class="dot"></span>hover()</a>
+<a href="set-input-files.html" class="sidebar-link"><span class="dot"></span>setInputFiles()</a>
+<a href="drag-to.html" class="sidebar-link"><span class="dot"></span>dragTo()</a>
+<a href="actionability-and-force.html" class="sidebar-link"><span class="dot"></span>Actionability & Force</a>
+</div>
+<a href="assertions.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Assertions</a>
+<div class="sidebar-sub">
+<a href="visibility-and-state-assertions.html" class="sidebar-link"><span class="dot"></span>Visibility & State</a>
+<a href="text-and-value-assertions.html" class="sidebar-link"><span class="dot"></span>Text & Value</a>
+<a href="count-url-title-assertions.html" class="sidebar-link"><span class="dot"></span>Count, URL & Title</a>
+<a href="hard-vs-soft-assertions.html" class="sidebar-link"><span class="dot"></span>Hard vs Soft Assertions</a>
+</div>
+<a href="waiting-and-synchronization.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Waiting & Synchronization</a>
+<div class="sidebar-sub">
+<a href="auto-waiting-explained.html" class="sidebar-link"><span class="dot"></span>Auto-Waiting Explained</a>
+<a href="wait-for-url-and-load-state.html" class="sidebar-link"><span class="dot"></span>waitForURL() & waitForLoadState()</a>
+<a href="wait-for-request-and-response.html" class="sidebar-link"><span class="dot"></span>waitForRequest() & waitForResponse()</a>
+<a href="wait-for-selector-and-timeout.html" class="sidebar-link"><span class="dot"></span>waitForSelector() & waitForTimeout()</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18"/></svg><span>05 Pages, Browser & Context</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="architecture.html" class="sidebar-link"><span class="dot"></span>Architecture</a>
+<a href="pages-and-navigation.html" class="sidebar-link"><span class="dot"></span>Pages & Navigation</a>
+<a href="browser-and-browsercontext.html" class="sidebar-link"><span class="dot"></span>Browser & Context</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>06 Real-World Web Apps</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="forms.html" class="sidebar-link"><span class="dot"></span>Forms</a>
+<a href="tables.html" class="sidebar-link"><span class="dot"></span>Tables</a>
+<a href="frames.html" class="sidebar-link"><span class="dot"></span>Frames</a>
+<a href="multiple-tabs-and-windows.html" class="sidebar-link"><span class="dot"></span>Multiple Tabs & Windows</a>
+<a href="dialogs.html" class="sidebar-link"><span class="dot"></span>Dialogs</a>
+<a href="file-upload-and-download.html" class="sidebar-link"><span class="dot"></span>File Upload & Download</a>
+<a href="special-ui-elements.html" class="sidebar-link"><span class="dot"></span>Special UI Elements</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"/></svg><span>07 Test Runner</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="test-runner.html" class="sidebar-link"><span class="dot"></span>Test Runner</a>
+<a href="hooks.html" class="sidebar-link"><span class="dot"></span>Hooks</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4 7h4V5a2 2 0 0 1 4 0v2h4v4h2a2 2 0 0 1 0 4h-2v4H4v-4H2a2 2 0 0 1 0-4h2z"/></svg><span>08 Fixtures & Architecture</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="fixtures.html" class="sidebar-link"><span class="dot"></span>Fixtures</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><span>09 Auth, API & Mocking</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="authentication-and-storage-state.html" class="sidebar-link"><span class="dot"></span>Authentication & storageState</a>
+<a href="api-testing-with-playwright.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>API Testing</a>
+<div class="sidebar-sub">
+<a href="get-request.html" class="sidebar-link"><span class="dot"></span>GET Requests</a>
+<a href="post-request.html" class="sidebar-link"><span class="dot"></span>POST Requests</a>
+<a href="put-and-patch-request.html" class="sidebar-link"><span class="dot"></span>PUT & PATCH Requests</a>
+<a href="delete-request.html" class="sidebar-link"><span class="dot"></span>DELETE Requests</a>
+</div>
+<a href="network-mocking-and-routes.html" class="sidebar-link"><span class="dot"></span>Network Mocking</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>10 Configuration & Environments</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="playwright-config-options.html" class="sidebar-link"><span class="dot"></span>Configuration Options</a>
+<a href="projects-and-environments.html" class="sidebar-link"><span class="dot"></span>Projects & Environments</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>11 Page Objects & Framework</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="page-object-model.html" class="sidebar-link active"><span class="dot"></span>Page Object Model</a>
+<a href="framework-folder-structure.html" class="sidebar-link"><span class="dot"></span>Framework Folder Structure</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><span>12 Parallelism & Debugging</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="parallel-execution-and-workers.html" class="sidebar-link"><span class="dot"></span>Parallel Execution & Workers</a>
+<a href="diagnosing-flaky-tests.html" class="sidebar-link"><span class="dot"></span>Diagnosing Flaky Tests</a>
+<a href="screenshots-and-videos.html" class="sidebar-link"><span class="dot"></span>Screenshots & Videos</a>
+<a href="trace-viewer.html" class="sidebar-link"><span class="dot"></span>Trace Viewer</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg><span>13 Reporting & CI/CD</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="test-reporting.html" class="sidebar-link"><span class="dot"></span>Test Reporting</a>
+<a href="github-actions-cicd.html" class="sidebar-link"><span class="dot"></span>GitHub Actions CI/CD</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg><span>14 Production-Style Framework</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="production-framework-capstone.html" class="sidebar-link"><span class="dot"></span>Building the Framework</a>
+</div></details>
+</nav>
+
+    <main class="doc-main">
+      <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="../index.html">Home</a> <span class="crumb-sep">&rsaquo;</span> <a href="index.html">Playwright</a> <span class="crumb-sep">&rsaquo;</span> <span class="crumb-current">Page Object Model</span></nav>
+
+      <div class="page-header-banner">
+        <header class="page-head">
+          <h1>Page Object Model</h1>
+        </header>
+        <div class="meta-row">
+          <span class="tag-pill Beginner">Beginner</span>
+          <span class="read-time">7 min read</span>
+        </div>
+      </div>
+
+      <p class="prereqs"><strong>Prerequisites:</strong> <a href="fixtures.html">Fixtures</a>, <a href="projects-and-environments.html">Projects & Environments</a></p>
+
+      <article class="content">
+        <h2 id="what-is-this">What is this?</h2>
+  <p>The Page Object Model (POM) wraps a page's locators and interactions in a class, so tests call readable, intention-revealing methods (<code>loginPage.signIn(email, password)</code>) instead of repeating raw locator chains everywhere. This is where this course shifts from "how do I write a test" to "how do I build a maintainable suite of many tests."</p>
+
+  <h2 id="why-it-s-important">Why it's important</h2>
+  <p>Without POM, the same locator (say, the "Add to cart" button) gets duplicated across dozens of tests. When that button's accessible name or structure changes, every duplicated copy needs updating. With POM, it's defined once, and every test that uses it automatically benefits from the fix.</p>
+
+  <h2 id="basic-example-a-simple-page-object">Basic Example — A Simple Page Object</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// pages/login-page.ts
+import { Page, Locator } from '@playwright/test';
+
+export class LoginPage {
+  readonly page: Page;
+  readonly emailInput: Locator;
+  readonly passwordInput: Locator;
+  readonly signInButton: Locator;
+
+  constructor(page: Page) {
+    this.page = page;
+    this.emailInput = page.getByLabel('Email');
+    this.passwordInput = page.getByLabel('Password');
+    this.signInButton = page.getByRole('button', { name: 'Sign in' });
+  }
+
+  async goto() {
+    await this.page.goto('/login');
+  }
+
+  async signIn(email: string, password: string) {
+    await this.emailInput.fill(email);
+    await this.passwordInput.fill(password);
+    await this.signInButton.click();
+  }
+}</code></pre>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// login.spec.ts
+import { test, expect } from '@playwright/test';
+import { LoginPage } from './pages/login-page';
+
+test('valid credentials redirect to the dashboard', async ({ page }) =&gt; {
+  const loginPage = new LoginPage(page);
+  await loginPage.goto();
+  await loginPage.signIn('user@example.com', 'correct-horse-battery-staple');
+
+  await expect(page).toHaveURL('/dashboard');
+});</code></pre>
+  <p>Notice the assertion stays in the test, not the page object — a deliberate boundary covered in detail below.</p>
+
+  <h2 id="combining-pom-with-fixtures">Combining POM With Fixtures</h2>
+  <p>The cleanest real-world pattern (foreshadowed in the Fixtures chapter) injects page objects as fixtures instead of instantiating them manually in every test:</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// fixtures.ts
+import { test as base } from '@playwright/test';
+import { LoginPage } from './pages/login-page';
+import { DashboardPage } from './pages/dashboard-page';
+
+type Pages = { loginPage: LoginPage; dashboardPage: DashboardPage };
+
+export const test = base.extend&lt;Pages&gt;({
+  loginPage: async ({ page }, use) =&gt; { await use(new LoginPage(page)); },
+  dashboardPage: async ({ page }, use) =&gt; { await use(new DashboardPage(page)); },
+});
+export { expect } from '@playwright/test';</code></pre>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// login.spec.ts
+import { test, expect } from './fixtures';
+
+test('valid credentials redirect to the dashboard', async ({ loginPage, dashboardPage }) =&gt; {
+  await loginPage.goto();
+  await loginPage.signIn('user@example.com', 'correct-horse-battery-staple');
+  await expect(dashboardPage.welcomeHeading).toBeVisible();
+});</code></pre>
+  <p>No manual <code>new LoginPage(page)</code> anywhere in the test file — the fixture handles construction, and every test that needs the page object just declares it as a parameter.</p>
+
+  <h2 id="a-base-page-for-shared-behavior">A Base Page for Shared Behavior</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// pages/base-page.ts
+export class BasePage {
+  constructor(protected page: Page) {}
+
+  async waitForToast(text: string) {
+    await expect(this.page.getByRole('status')).toHaveText(text);
+  }
+}
+
+// pages/login-page.ts
+export class LoginPage extends BasePage {
+  // inherits waitForToast() automatically
+}</code></pre>
+  <p>A base page is worth introducing once several page objects share genuinely common behavior (a toast helper, a nav bar present on every page) — but see the anti-patterns below for how this can be overdone.</p>
+
+  <h2 id="component-objects-reusable-ui-pieces">Component Objects — Reusable UI Pieces</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// components/nav-bar.ts
+export class NavBar {
+  constructor(private page: Page) {}
+
+  async goToOrders() {
+    await this.page.getByRole('link', { name: 'Orders' }).click();
+  }
+}
+
+// A page object can compose a shared component rather than duplicating it
+export class DashboardPage extends BasePage {
+  readonly navBar: NavBar;
+  constructor(page: Page) {
+    super(page);
+    this.navBar = new NavBar(page);
+  }
+}</code></pre>
+  <p>Component objects address the same "structure that appears on many pages" problem POM solves at the page level, applied to a shared header, sidebar, or modal that appears across many different pages.</p>
+
+  <h2 id="anti-pattern-vs-recommended">❌ Anti-Pattern vs. ✅ Recommended</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Assertions living inside the page object
+class LoginPage {
+  async signIn(email, password) {
+    // ...
+    await expect(this.page).toHaveURL('/dashboard'); // hides what the test actually verifies
+  }
+}
+
+// ✅ Page objects perform actions; tests own their own assertions
+class LoginPage {
+  async signIn(email, password) { /* actions only, no expect() calls */ }
+}
+test('...', async ({ page }) =&gt; {
+  await loginPage.signIn(...);
+  await expect(page).toHaveURL('/dashboard'); // visible, explicit, in the test
+});</code></pre>
+
+  <h2 id="common-mistakes-what-not-to-do">Common Mistakes (What NOT to Do)</h2>
+  <ul>
+    <li><strong>Giant page objects</strong> covering an entire large application in one class — split by logical page or feature area instead, mirroring how a user would actually navigate.</li>
+    <li><strong>Assertions inside page objects</strong> — this hides what a test is actually verifying behind a method name, and makes tests harder to read and debug. Page objects should expose locators and perform actions; tests should own their own <code>expect()</code> calls.</li>
+    <li><strong>Business logic mixed with UI interaction</strong> — a page object method that calculates a discounted price and asserts on it is doing two unrelated jobs; keep page objects focused purely on interacting with the DOM.</li>
+    <li><strong>Excessive inheritance chains</strong> (a page object extending a class that extends another class three levels deep) — prefer composition (component objects) over deep inheritance for shared behavior.</li>
+    <li><strong>Over-abstraction</strong> — wrapping a single, simple <code>page.goto('/settings')</code> in an elaborate page object with no other meaningful behavior adds indirection without benefit.</li>
+  </ul>
+
+  <h2 id="edge-cases">Edge Cases</h2>
+  <ul>
+    <li><strong>A page object needing conditional behavior across environments</strong> (a feature flag hidden in one environment) — keep this logic explicit and visible, ideally as a clearly named method or parameter, not silently branching inside a shared method.</li>
+    <li><strong>Very simple pages with almost no interaction</strong> — not every page needs a page object; a one-line <code>page.goto('/about')</code> plus a direct assertion in the test is often clearer than a page object with a single trivial method.</li>
+  </ul>
+
+  <h2 id="debugging">Debugging</h2>
+  <p>If a test fails inside a page object method and the failure is hard to trace, check whether the method is doing too much — a page object method that does five things in sequence makes it unclear which one actually failed; breaking it into smaller, named methods (or using <code>test.step()</code> around the call site) usually helps.</p>
+
+  <h2 id="best-practices">Best Practices</h2>
+  <ul>
+    <li>Page objects encapsulate locators and actions; tests own assertions.</li>
+    <li>Inject page objects via fixtures rather than manual instantiation in every test.</li>
+    <li>Use composition (component objects) for shared UI pieces rather than deep inheritance.</li>
+    <li>Don't create a page object for every page reflexively — reserve it for pages with genuine, reused interaction complexity.</li>
+  </ul>
+
+  <h2 id="practice-exercise">Practice Exercise</h2>
+  <p>Build a <code>CheckoutPage</code> page object with methods for filling shipping details and submitting payment (no assertions inside it), inject it via a fixture, and write two tests using it — one for successful checkout, one for a declined card — with each test owning its own assertions.</p>
+
+  <h2 id="summary">Summary</h2>
+  <p>Page Object Model encapsulates locators and actions behind readable methods, reducing duplication and centralizing updates when the UI changes. Combine it with fixtures for clean injection, use composition over deep inheritance for shared UI pieces, and keep assertions in tests, not page objects — the single most important discipline for keeping a POM-based suite maintainable.</p>
+
+  <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why is it generally considered an anti-pattern to put expect() assertions inside page object methods?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It hides what a test is actually verifying behind a method call, making tests harder to read and their failures harder to diagnose — a reader has to open the page object to discover what's being checked. Keeping assertions in the test itself makes the test's intent explicit at the call site, and keeps the page object focused on a single responsibility: interacting with the page, not verifying outcomes.</div>
+</details>
+<details class="faq-item">
+<summary>Why is putting expect() assertions inside page object methods considered an anti-pattern?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It hides what a test is actually verifying behind a method call, making the test's intent and failures harder to read and diagnose.</div>
+</details>
+<details class="faq-item">
+<summary>What's the cleanest way to make page objects available to tests?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Inject them via fixtures rather than manually instantiating them with `new` in every test file.</div>
+</details>
+<details class="faq-item">
+<summary>When would you use composition (component objects) over inheritance for shared page behavior?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">For UI pieces that appear across many unrelated pages, like a shared nav bar — composition avoids deep, fragile inheritance chains.</div>
+</details>
+<details class="faq-item">
+<summary>Is it worth creating a page object for every single page in an app?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">No — reserve it for pages with genuine, reused interaction complexity; a one-line goto() plus a direct assertion is often clearer for trivial pages.</div>
+</details>
+</div>
+      </article>
+
+      <label class="mark-complete-row">
+        <input type="checkbox" class="mark-complete-checkbox" data-page-id="pw:page-object-model.html" onchange="toggleComplete(this)" />
+        <span>Mark this lesson complete</span>
+      </label>
+
+      <div class="prev-next">
+        <a href="projects-and-environments.html"><span class="pn-label">&larr; Previous</span>Projects & Environments</a>
+        <a href="framework-folder-structure.html" class="pn-next"><span class="pn-label">Next &rarr;</span>Framework Folder Structure</a>
+      </div>
+    </main>
+
+    <aside class="right-rail">
+      <div class="rail-card book-promo-card">
+  <div class="book-promo-badge">&#128218; Recommended Reading</div>
+  <div class="book-carousel">
+    <div class="book-slide active">
+  <a href="https://www.amazon.in/CRACKING-PLAYWRIGHT-INTERVIEW-Interview-Preparation-ebook/dp/B0H7MGN2XK" target="_blank" rel="nofollow noopener" class="book-cover-mock"><img src="../images/books/book-1-cracking-playwright-interview.webp" alt="Cracking the Playwright Interview book cover" loading="lazy" /></a>
+  <div class="book-info">
+    <h5>Cracking the Playwright Interview</h5>
+    <p>The Complete Interview Preparation Guide</p>
+    <a href="https://www.amazon.in/CRACKING-PLAYWRIGHT-INTERVIEW-Interview-Preparation-ebook/dp/B0H7MGN2XK" target="_blank" rel="nofollow noopener" class="book-buy-btn">View on Amazon &rarr;</a>
+  </div>
+</div><div class="book-slide">
+  <a href="https://www.amazon.in/Playwright-Automation-Testing-Complete-TypeScript-ebook/dp/B0G492YGYJ" target="_blank" rel="nofollow noopener" class="book-cover-mock"><img src="../images/books/book-2-playwright-automation-testing.jpg" alt="Playwright Automation Testing book cover" loading="lazy" /></a>
+  <div class="book-info">
+    <h5>Playwright Automation Testing</h5>
+    <p>Complete Guide with TypeScript</p>
+    <a href="https://www.amazon.in/Playwright-Automation-Testing-Complete-TypeScript-ebook/dp/B0G492YGYJ" target="_blank" rel="nofollow noopener" class="book-buy-btn">View on Amazon &rarr;</a>
+  </div>
+</div><div class="book-slide">
+  <a href="https://www.amazon.in/API-Testing-Playwright-TypeScript-Practical-ebook/dp/B0GS99CDCK" target="_blank" rel="nofollow noopener" class="book-cover-mock"><img src="../images/books/book-3-api-testing-playwright-typescript.webp" alt="API Testing with Playwright & TypeScript book cover" loading="lazy" /></a>
+  <div class="book-info">
+    <h5>API Testing with Playwright & TypeScript</h5>
+    <p>A Practical Guide from Zero to Expert</p>
+    <a href="https://www.amazon.in/API-Testing-Playwright-TypeScript-Practical-ebook/dp/B0GS99CDCK" target="_blank" rel="nofollow noopener" class="book-buy-btn">View on Amazon &rarr;</a>
+  </div>
+</div><div class="book-slide">
+  <a href="https://www.amazon.in/Playwright-Mastery-TypeScript-Cucumber-Applications-ebook/dp/B0GPKXYB9Q" target="_blank" rel="nofollow noopener" class="book-cover-mock"><img src="../images/books/book-4-playwright-mastery-typescript-cucumber.jpg" alt="Playwright Mastery with TypeScript & Cucumber book cover" loading="lazy" /></a>
+  <div class="book-info">
+    <h5>Playwright Mastery with TypeScript & Cucumber</h5>
+    <p>Building Robust, Scalable Test Frameworks</p>
+    <a href="https://www.amazon.in/Playwright-Mastery-TypeScript-Cucumber-Applications-ebook/dp/B0GPKXYB9Q" target="_blank" rel="nofollow noopener" class="book-buy-btn">View on Amazon &rarr;</a>
+  </div>
+</div>
+  </div>
+  <div class="book-dots"><span class="book-dot active"></span><span class="book-dot"></span><span class="book-dot"></span><span class="book-dot"></span></div>
+</div>
+
+      <div class="rail-card">
+        <h4>Related Articles</h4>
+        <div class="related-list">
+          <a href="framework-folder-structure.html">Framework Folder Structure<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+        </div>
+      </div>
+
+      <div class="rail-card was-helpful-card">
+        <span>Was this helpful?</span>
+        <button title="Yes">&#128077;</button>
+        <button title="No">&#128078;</button>
+      </div>
+    </aside>
+  </div>
+
+  <nav class="mobile-tabbar">
+  <a href="../index.html" class=""><svg class="icon" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg><span>Home</span></a>
+  <a href="index.html" class="active"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>Tutorials</span></a>
+  <a href="../books.html" class=""><svg class="icon" viewBox="0 0 24 24"><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v16H6.5A2.5 2.5 0 0 0 4 20.5"/><path d="M4 4.5v16"/></svg><span>Books</span></a>
+  <a href="../about.html"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="12" y1="16" x2="12" y2="11.5"/><circle cx="12" cy="8" r="0.8" fill="currentColor" stroke="none"/></svg><span>About</span></a>
+</nav>
+
+  <script>
+  
+  document.querySelectorAll('.book-promo-card').forEach(function(card) {
+    var slides = card.querySelectorAll('.book-slide');
+    var dots = card.querySelectorAll('.book-dot');
+    if (slides.length < 2) return;
+    var idx = 0;
+    setInterval(function() {
+      slides[idx].classList.remove('active');
+      if (dots[idx]) dots[idx].classList.remove('active');
+      idx = (idx + 1) % slides.length;
+      slides[idx].classList.add('active');
+      if (dots[idx]) dots[idx].classList.add('active');
+    }, 5000);
+  });
+
+  function copyCode(btn) {
+    const code = btn.nextElementSibling.innerText;
+    navigator.clipboard.writeText(code).then(function() {
+      btn.textContent = 'Copied';
+      btn.classList.add('copied');
+      setTimeout(function() { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
+    });
+  }
+  function openSidebar() {
+    document.getElementById('doc-sidebar').classList.add('open');
+    document.getElementById('sidebar-backdrop').classList.add('show');
+    document.body.classList.add('no-scroll');
+  }
+  function closeSidebar() {
+    document.getElementById('doc-sidebar').classList.remove('open');
+    document.getElementById('sidebar-backdrop').classList.remove('show');
+    document.body.classList.remove('no-scroll');
+  }
+  function toggleTheme() {
+    var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark');
+    try { localStorage.setItem('assertTrueTheme', isDark ? 'light' : 'dark'); } catch (e) {}
+  }
+  function toggleComplete(checkbox) {
+    var pageId = checkbox.getAttribute('data-page-id');
+    var progress = {};
+    try { progress = JSON.parse(localStorage.getItem('assertTrueProgress') || '{}'); } catch (e) {}
+    if (checkbox.checked) { progress[pageId] = true; } else { delete progress[pageId]; }
+    try { localStorage.setItem('assertTrueProgress', JSON.stringify(progress)); } catch (e) {}
+  }
+  (function() {
+    var progress = {};
+    try { progress = JSON.parse(localStorage.getItem('assertTrueProgress') || '{}'); } catch (e) {}
+    var cb = document.querySelector('.mark-complete-checkbox');
+    if (cb && progress[cb.getAttribute('data-page-id')]) cb.checked = true;
+  })();
+  (function() {
+    var activeLink = document.querySelector('.doc-sidebar a.active');
+    if (activeLink) { activeLink.scrollIntoView({ block: 'center' }); }
+  })();
+  document.addEventListener('click', function(e) {
+    if (e.target.closest('.sidebar-link') && window.matchMedia('(max-width: 860px)').matches) {
+      closeSidebar();
+    }
+  });
+  (function() {
+    var sidebar = document.getElementById('doc-sidebar');
+    if (!sidebar) return;
+    var saved = sessionStorage.getItem('sidebarScrollTop');
+    if (saved !== null) sidebar.scrollTop = parseInt(saved, 10);
+    var saveScroll = function() { sessionStorage.setItem('sidebarScrollTop', sidebar.scrollTop); };
+    sidebar.addEventListener('scroll', saveScroll);
+    sidebar.addEventListener('click', function(e) {
+      if (e.target.closest('a')) saveScroll();
+    });
+  })();
+  </script>
+</body>
+</html>

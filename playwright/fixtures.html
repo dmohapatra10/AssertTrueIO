@@ -1,0 +1,586 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <script>try{if(localStorage.getItem('assertTrueTheme')==='dark'){document.documentElement.setAttribute('data-theme','dark');}}catch(e){}</script>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Playwright Fixtures: Built-in and Custom Fixtures Explained</title>
+  <meta name="description" content="How Playwright fixtures work, the difference between test-scoped and worker-scoped fixtures, and how to build custom fixtures for login, page objects, and test data." />
+  <link rel="canonical" href="https://asserttrue.io/playwright/fixtures.html" />
+  <link rel="stylesheet" href="../css/style.css?v=57" />
+</head>
+<body>
+  <header class="topnav">
+    <button class="mobile-menu-btn" onclick="openSidebar()">&#9776;</button>
+    <a href="../index.html" class="brand"><svg class="logo-mark" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="40" rx="11" fill="url(#logoGrad)"/><path d="M11 21.5 L17 27.5 L29.5 13" stroke="#ffffff" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/><defs><linearGradient id="logoGrad" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse"><stop stop-color="#22c55e"/><stop offset="1" stop-color="#15803d"/></linearGradient></defs></svg><span class="brand-text">Assert<span class="brand-true">True</span><span class="brand-io">IO</span></span></a>
+    <nav class="topnav-links">
+      <a href="index.html" class="active">Playwright</a>
+      <a href="../restassured/index.html">RestAssured</a>
+      <a href="../k6/index.html">K6</a>
+      <a href="../github-actions/index.html">GitHub Actions</a>
+      <a href="../about.html">About</a>
+      <a href="../books.html">Books</a>
+    </nav>
+    <div class="topnav-right">
+      <span class="search-box">Search tutorials...</span>
+      <button class="icon-btn theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Toggle dark mode"><svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
+    </div>
+  </header>
+
+  <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeSidebar()"></div>
+
+  <div class="app-shell">
+    <nav class="doc-sidebar" id="doc-sidebar">
+<div class="sidebar-mobile-header"><span>Menu</span><button class="sidebar-close-btn" onclick="closeSidebar()">&times;</button></div>
+<a href="index.html" class="sidebar-overview-link"><svg class="icon" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg><span>Roadmap</span></a>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg><span>01 Introduction</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="introduction.html" class="sidebar-link"><span class="dot"></span>Introduction</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"/></svg><span>02 Getting Started</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="getting-started.html" class="sidebar-link"><span class="dot"></span>Getting Started</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="8 6 2 12 8 18"/><polyline points="16 6 22 12 16 18"/></svg><span>03 Locators</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="locators.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Locators</a>
+<div class="sidebar-sub">
+<a href="get-by-role.html" class="sidebar-link"><span class="dot"></span>getByRole()</a>
+<a href="get-by-label.html" class="sidebar-link"><span class="dot"></span>getByLabel()</a>
+<a href="get-by-placeholder.html" class="sidebar-link"><span class="dot"></span>getByPlaceholder()</a>
+<a href="get-by-text.html" class="sidebar-link"><span class="dot"></span>getByText()</a>
+<a href="get-by-alt-text.html" class="sidebar-link"><span class="dot"></span>getByAltText()</a>
+<a href="get-by-title.html" class="sidebar-link"><span class="dot"></span>getByTitle()</a>
+<a href="get-by-test-id.html" class="sidebar-link"><span class="dot"></span>getByTestId()</a>
+<a href="locator-and-css-xpath.html" class="sidebar-link"><span class="dot"></span>CSS & XPath</a>
+<a href="filtering-and-chaining.html" class="sidebar-link"><span class="dot"></span>Filtering & Chaining</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><span>04 Actions, Assertions & Sync</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="actions.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Actions</a>
+<div class="sidebar-sub">
+<a href="click-and-dblclick.html" class="sidebar-link"><span class="dot"></span>click() / dblclick()</a>
+<a href="fill-and-press-sequentially.html" class="sidebar-link"><span class="dot"></span>fill() / pressSequentially()</a>
+<a href="press.html" class="sidebar-link"><span class="dot"></span>press()</a>
+<a href="check-and-uncheck.html" class="sidebar-link"><span class="dot"></span>check() / uncheck()</a>
+<a href="select-option.html" class="sidebar-link"><span class="dot"></span>selectOption()</a>
+<a href="hover.html" class="sidebar-link"><span class="dot"></span>hover()</a>
+<a href="set-input-files.html" class="sidebar-link"><span class="dot"></span>setInputFiles()</a>
+<a href="drag-to.html" class="sidebar-link"><span class="dot"></span>dragTo()</a>
+<a href="actionability-and-force.html" class="sidebar-link"><span class="dot"></span>Actionability & Force</a>
+</div>
+<a href="assertions.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Assertions</a>
+<div class="sidebar-sub">
+<a href="visibility-and-state-assertions.html" class="sidebar-link"><span class="dot"></span>Visibility & State</a>
+<a href="text-and-value-assertions.html" class="sidebar-link"><span class="dot"></span>Text & Value</a>
+<a href="count-url-title-assertions.html" class="sidebar-link"><span class="dot"></span>Count, URL & Title</a>
+<a href="hard-vs-soft-assertions.html" class="sidebar-link"><span class="dot"></span>Hard vs Soft Assertions</a>
+</div>
+<a href="waiting-and-synchronization.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Waiting & Synchronization</a>
+<div class="sidebar-sub">
+<a href="auto-waiting-explained.html" class="sidebar-link"><span class="dot"></span>Auto-Waiting Explained</a>
+<a href="wait-for-url-and-load-state.html" class="sidebar-link"><span class="dot"></span>waitForURL() & waitForLoadState()</a>
+<a href="wait-for-request-and-response.html" class="sidebar-link"><span class="dot"></span>waitForRequest() & waitForResponse()</a>
+<a href="wait-for-selector-and-timeout.html" class="sidebar-link"><span class="dot"></span>waitForSelector() & waitForTimeout()</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18"/></svg><span>05 Pages, Browser & Context</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="architecture.html" class="sidebar-link"><span class="dot"></span>Architecture</a>
+<a href="pages-and-navigation.html" class="sidebar-link"><span class="dot"></span>Pages & Navigation</a>
+<a href="browser-and-browsercontext.html" class="sidebar-link"><span class="dot"></span>Browser & Context</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>06 Real-World Web Apps</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="forms.html" class="sidebar-link"><span class="dot"></span>Forms</a>
+<a href="tables.html" class="sidebar-link"><span class="dot"></span>Tables</a>
+<a href="frames.html" class="sidebar-link"><span class="dot"></span>Frames</a>
+<a href="multiple-tabs-and-windows.html" class="sidebar-link"><span class="dot"></span>Multiple Tabs & Windows</a>
+<a href="dialogs.html" class="sidebar-link"><span class="dot"></span>Dialogs</a>
+<a href="file-upload-and-download.html" class="sidebar-link"><span class="dot"></span>File Upload & Download</a>
+<a href="special-ui-elements.html" class="sidebar-link"><span class="dot"></span>Special UI Elements</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"/></svg><span>07 Test Runner</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="test-runner.html" class="sidebar-link"><span class="dot"></span>Test Runner</a>
+<a href="hooks.html" class="sidebar-link"><span class="dot"></span>Hooks</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4 7h4V5a2 2 0 0 1 4 0v2h4v4h2a2 2 0 0 1 0 4h-2v4H4v-4H2a2 2 0 0 1 0-4h2z"/></svg><span>08 Fixtures & Architecture</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="fixtures.html" class="sidebar-link active"><span class="dot"></span>Fixtures</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><span>09 Auth, API & Mocking</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="authentication-and-storage-state.html" class="sidebar-link"><span class="dot"></span>Authentication & storageState</a>
+<a href="api-testing-with-playwright.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>API Testing</a>
+<div class="sidebar-sub">
+<a href="get-request.html" class="sidebar-link"><span class="dot"></span>GET Requests</a>
+<a href="post-request.html" class="sidebar-link"><span class="dot"></span>POST Requests</a>
+<a href="put-and-patch-request.html" class="sidebar-link"><span class="dot"></span>PUT & PATCH Requests</a>
+<a href="delete-request.html" class="sidebar-link"><span class="dot"></span>DELETE Requests</a>
+</div>
+<a href="network-mocking-and-routes.html" class="sidebar-link"><span class="dot"></span>Network Mocking</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>10 Configuration & Environments</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="playwright-config-options.html" class="sidebar-link"><span class="dot"></span>Configuration Options</a>
+<a href="projects-and-environments.html" class="sidebar-link"><span class="dot"></span>Projects & Environments</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>11 Page Objects & Framework</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="page-object-model.html" class="sidebar-link"><span class="dot"></span>Page Object Model</a>
+<a href="framework-folder-structure.html" class="sidebar-link"><span class="dot"></span>Framework Folder Structure</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><span>12 Parallelism & Debugging</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="parallel-execution-and-workers.html" class="sidebar-link"><span class="dot"></span>Parallel Execution & Workers</a>
+<a href="diagnosing-flaky-tests.html" class="sidebar-link"><span class="dot"></span>Diagnosing Flaky Tests</a>
+<a href="screenshots-and-videos.html" class="sidebar-link"><span class="dot"></span>Screenshots & Videos</a>
+<a href="trace-viewer.html" class="sidebar-link"><span class="dot"></span>Trace Viewer</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg><span>13 Reporting & CI/CD</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="test-reporting.html" class="sidebar-link"><span class="dot"></span>Test Reporting</a>
+<a href="github-actions-cicd.html" class="sidebar-link"><span class="dot"></span>GitHub Actions CI/CD</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg><span>14 Production-Style Framework</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="production-framework-capstone.html" class="sidebar-link"><span class="dot"></span>Building the Framework</a>
+</div></details>
+</nav>
+
+    <main class="doc-main">
+      <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="../index.html">Home</a> <span class="crumb-sep">&rsaquo;</span> <a href="index.html">Playwright</a> <span class="crumb-sep">&rsaquo;</span> <span class="crumb-current">Fixtures</span></nav>
+
+      <div class="page-header-banner">
+        <header class="page-head">
+          <h1>Chapter 18: Fixtures</h1>
+        </header>
+        <div class="meta-row">
+          <span class="tag-pill Beginner">Beginner</span>
+          <span class="read-time">11 min read</span>
+        </div>
+      </div>
+
+      <p class="prereqs"><strong>Prerequisites:</strong> <a href="hooks.html">Hooks</a>, <a href="test-runner.html">Playwright Test Runner</a></p>
+
+      <article class="content">
+        <h2 id="what-is-this">What is this?</h2>
+      <p>A fixture is a piece of setup that a test declares it needs, by naming it as a parameter — and Playwright provides it automatically, already built. <code>page</code> is a fixture. So is <code>context</code>, <code>browser</code>, and <code>request</code>. You've been using fixtures since Chapter 2 without necessarily calling them that; this chapter covers what they actually are and how to build your own.</p>
+
+      <h2 id="why-is-it-important">Why is it important?</h2>
+      <p>Hooks (Chapter 17) share setup across tests, but the setup itself still lives in the test file, and every test that needs it must remember to declare the right <code>beforeEach</code>. Fixtures flip this: the test just asks for what it needs — <code>async ({ loggedInPage }) =&gt; { ... }</code> — and Playwright figures out how to build it, including anything <em>that</em> fixture itself depends on. This is what lets large suites share complex setup (authenticated sessions, seeded data, page objects) without every test file repeating boilerplate.</p>
+
+      <h2 id="built-in-fixtures">Built-in fixtures</h2>
+      <table>
+        <thead><tr><th>Fixture</th><th>Scope</th><th>What it provides</th></tr></thead>
+        <tbody>
+          <tr><td><code>page</code></td><td>Test</td><td>A fresh page (tab) in a fresh, isolated context.</td></tr>
+          <tr><td><code>context</code></td><td>Test</td><td>The BrowserContext the page belongs to.</td></tr>
+          <tr><td><code>browser</code></td><td>Worker</td><td>The shared browser instance for the current worker.</td></tr>
+          <tr><td><code>request</code></td><td>Test</td><td>An APIRequestContext for making HTTP calls (Chapter 9's API chapter).</td></tr>
+        </tbody>
+      </table>
+      <p>Notice <code>browser</code> is <strong>worker-scoped</strong>, not test-scoped — one browser process is reused for every test that worker runs, while <code>page</code> and <code>context</code> are recreated fresh for each individual test. This is the same Browser → BrowserContext → Page hierarchy from Chapter 3, expressed as fixture scopes.</p>
+
+      <h2 id="writing-a-custom-fixture">Writing a custom fixture</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// fixtures.ts
+import { test as base } from '@playwright/test';
+
+type MyFixtures = {
+  loggedInPage: Page;
+};
+
+export const test = base.extend&lt;MyFixtures&gt;({
+  loggedInPage: async ({ page }, use) =&gt; {
+    // --- setup ---
+    await page.goto('/login');
+    await page.getByLabel('Email').fill('user@example.com');
+    await page.getByLabel('Password').fill('secret123');
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await page.waitForURL('/dashboard');
+
+    await use(page); // --- hand control to the test ---
+
+    // --- teardown (runs after the test, even if it fails) ---
+    await page.context().clearCookies();
+  },
+});
+
+export { expect } from '@playwright/test';</code></pre>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// login.spec.ts
+import { test, expect } from './fixtures';
+
+test('dashboard shows the welcome banner', async ({ loggedInPage }) =&gt; {
+  await expect(loggedInPage.getByText('Welcome back')).toBeVisible();
+});</code></pre>
+      <p>The <code>use(page)</code> call is the pivot point: everything before it is setup, everything after it is teardown, and Playwright guarantees the teardown half runs even if the test itself throws. This single-function setup/teardown shape is what replaces a matched <code>beforeEach</code>/<code>afterEach</code> pair.</p>
+
+      <h2 id="test-scoped-vs-worker-scoped-fixtures">Test-scoped vs. worker-scoped fixtures</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export const test = base.extend&lt;{}, { apiToken: string }&gt;({
+  apiToken: [async ({}, use) =&gt; {
+    const token = await fetchServiceToken(); // expensive — do it once
+    await use(token);
+  }, { scope: 'worker' }],
+});</code></pre>
+      <p>A <strong>test-scoped</strong> fixture (the default) is rebuilt for every test — right for anything that must be isolated per test, like <code>page</code>. A <strong>worker-scoped</strong> fixture is built once and reused across every test that worker runs — right for genuinely expensive, shareable setup, like acquiring a service-account API token. Mixing these up in the wrong direction causes two different problems: making <code>page</code> worker-scoped would leak state between tests; making an expensive token fetch test-scoped would slow the suite down for no isolation benefit.</p>
+
+      <h2 id="fixture-dependencies">Fixture dependencies</h2>
+      <p>Fixtures can depend on other fixtures simply by naming them as parameters — Playwright resolves the dependency graph automatically:</p>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export const test = base.extend&lt;{ dashboardPage: DashboardPage }&gt;({
+  dashboardPage: async ({ loggedInPage }, use) =&gt; {
+    await use(new DashboardPage(loggedInPage));
+  },
+});</code></pre>
+      <p>Here <code>dashboardPage</code> depends on <code>loggedInPage</code>, which itself depends on <code>page</code>. Playwright builds them in the correct order automatically — a test that asks for <code>dashboardPage</code> transparently gets a logged-in session wrapped in a page object.</p>
+
+      <h2 id="automatic-fixtures">Automatic fixtures</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export const test = base.extend({
+  forEachTest: [async ({ page }, use) =&gt; {
+    console.log('Starting test...');
+    await use();
+    console.log('Finished test.');
+  }, { auto: true }],
+});</code></pre>
+      <p><code>{ auto: true }</code> makes a fixture run for every test automatically, even if no test explicitly asks for it — useful for cross-cutting concerns like logging or setting a consistent viewport, but easy to overuse into "invisible magic" that makes tests harder to reason about in isolation.</p>
+
+      <h2 id="real-world-example-page-object-fixture">Real-world example: Page Object fixture</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export const test = base.extend&lt;{ inventoryPage: InventoryPage }&gt;({
+  inventoryPage: async ({ page }, use) =&gt; {
+    const inventoryPage = new InventoryPage(page);
+    await inventoryPage.goto();
+    await use(inventoryPage);
+  },
+});
+
+// inventory.spec.ts
+test('can add item to cart', async ({ inventoryPage }) =&gt; {
+  await inventoryPage.addToCart('Wireless Mouse');
+  await expect(inventoryPage.cartBadge).toHaveText('1');
+});</code></pre>
+      <p>This is the pattern Chapter 11's Page Object Model chapter builds on directly — the page object's navigation is handled once, in the fixture, instead of repeated in every test that needs it.</p>
+
+      <h2 id="six-custom-fixture-patterns">Six Custom Fixture Patterns</h2>
+      <p>The login and page object fixtures above are two of the six patterns that cover almost every real custom fixture you'll write. The remaining four:</p>
+
+      <h3>API fixture</h3>
+      <p>Wraps <code>APIRequestContext</code> in a small client class, so tests call readable methods instead of raw <code>request.post()</code> calls with inline URLs and payloads scattered everywhere.</p>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>class OrdersApi {
+  constructor(private request: APIRequestContext) {}
+  async create(data: { item: string; quantity: number }) {
+    const res = await this.request.post('/api/orders', { data });
+    return res.json();
+  }
+}
+
+export const test = base.extend&lt;{ ordersApi: OrdersApi }&gt;({
+  ordersApi: async ({ request }, use) =&gt; {
+    await use(new OrdersApi(request));
+  },
+});</code></pre>
+      <p>This is the exact pattern the API Testing and Framework Folder Structure chapters build on — an API fixture is what turns "seed some test data fast" from a repeated block of <code>request.post()</code> calls into a single, readable <code>ordersApi.create(...)</code> line.</p>
+
+      <h3>Test data fixture</h3>
+      <p>Generates fresh, unique data a test needs — not hardcoded, so parallel tests (Parallelism chapter) never collide over the same fixed values.</p>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>type NewUser = { email: string; password: string };
+
+export const test = base.extend&lt;{ newUser: NewUser }&gt;({
+  newUser: async ({}, use) =&gt; {
+    const user = {
+      email: `test-${Date.now()}-${Math.random().toString(36).slice(2)}@example.com`,
+      password: 'correct-horse-battery-staple',
+    };
+    await use(user);
+  },
+});
+
+// signup.spec.ts
+test('new user can complete signup', async ({ page, newUser }) =&gt; {
+  await page.goto('/signup');
+  await page.getByLabel('Email').fill(newUser.email);
+  await page.getByLabel('Password').fill(newUser.password);
+  await page.getByRole('button', { name: 'Create account' }).click();
+});</code></pre>
+      <p>Unlike the login or API fixtures, this one has no <code>use()</code> teardown at all — there's nothing to clean up for data that only ever existed as a plain in-memory object, which is a normal, valid shape for a fixture to take.</p>
+
+      <h3>Database fixture</h3>
+      <p>Provides a real database connection (or a scoped transaction) directly to a test — useful for tests that need to verify backend state a UI or API response wouldn't fully expose, such as confirming a row was actually deleted, not just that the UI stopped showing it.</p>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import { Pool } from 'pg';
+
+export const test = base.extend&lt;{}, { dbPool: Pool }&gt;({
+  dbPool: [async ({}, use) =&gt; {
+    const pool = new Pool({ connectionString: process.env.TEST_DATABASE_URL });
+    await use(pool); // worker-scoped — one pool shared across that worker's tests
+    await pool.end();
+  }, { scope: 'worker' }],
+});
+
+// order-cleanup.spec.ts
+test('cancelled orders are actually removed from the database', async ({ page, dbPool }) =&gt; {
+  // ...cancel the order via the UI...
+  const { rows } = await dbPool.query('SELECT * FROM orders WHERE id = $1', [orderId]);
+  expect(rows).toHaveLength(0);
+});</code></pre>
+      <p>A database connection is exactly the kind of genuinely expensive, safely shareable resource the Test-Scoped vs. Worker-Scoped section above is describing — worker scope here isn't just an option, it's the correct choice, since opening a fresh connection pool per test would be needlessly slow.</p>
+
+      <h3>Cleanup fixture</h3>
+      <p>Sometimes a fixture's entire purpose is teardown, not setup — tracking resources a test creates during its body (not known in advance) and guaranteeing they're all removed afterward, regardless of how many were created or whether the test passed.</p>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export const test = base.extend&lt;{ trackOrder: (id: string) =&gt; void }&gt;({
+  trackOrder: async ({ request }, use) =&gt; {
+    const createdIds: string[] = [];
+
+    await use((id: string) =&gt; { createdIds.push(id); }); // setup: just an empty tracking array
+
+    // teardown: clean up EVERYTHING the test tracked, however many there were
+    for (const id of createdIds) {
+      await request.delete(`/api/orders/${id}`).catch(() =&gt; {});
+    }
+  },
+});
+
+// bulk-orders.spec.ts
+test('creating three orders in a row all succeed', async ({ request, trackOrder }) =&gt; {
+  for (let i = 0; i &lt; 3; i++) {
+    const res = await request.post('/api/orders', { data: { item: `Item ${i}` } });
+    trackOrder((await res.json()).id); // register each one for cleanup
+  }
+});</code></pre>
+      <p>This is a genuinely different shape from the other five patterns: <code>use()</code> here doesn't hand the test a resource to act on, it hands the test a <em>function</em> the test calls during its body to register cleanup work — flexible enough to handle "however many things this specific test happens to create," which a fixed teardown block can't do.</p>
+
+      <h2 id="extending-fixtures">Extending Fixtures</h2>
+      <p>Fixture files aren't limited to one flat <code>base.extend()</code> call — they can build on each other, and one project's fixtures can extend another's, which is how larger codebases avoid one enormous fixtures file.</p>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// auth-fixtures.ts
+export const authTest = base.extend&lt;{ loggedInPage: Page }&gt;({
+  loggedInPage: async ({ page }, use) =&gt; { /* ...login... */ await use(page); },
+});
+
+// checkout-fixtures.ts — extends authTest, adding on top of it rather than starting over
+import { authTest } from './auth-fixtures';
+
+export const checkoutTest = authTest.extend&lt;{ checkoutPage: CheckoutPage }&gt;({
+  checkoutPage: async ({ loggedInPage }, use) =&gt; {
+    await use(new CheckoutPage(loggedInPage));
+  },
+});</code></pre>
+      <p><code>checkoutTest</code> now has both <code>loggedInPage</code> <em>and</em> <code>checkoutPage</code> available, without redefining the login logic — a test file that only needs auth imports from <code>auth-fixtures</code>, one that needs checkout too imports from <code>checkout-fixtures</code>. Playwright also provides <code>mergeTests()</code> for combining multiple independent fixture files (rather than one extending another) when two unrelated fixture sets both need to be available together:</p>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import { mergeTests } from '@playwright/test';
+import { authTest } from './auth-fixtures';
+import { apiTest } from './api-fixtures';
+
+export const test = mergeTests(authTest, apiTest); // has fixtures from BOTH files</code></pre>
+      <p>Overriding an inherited fixture (rather than adding a new one) is also supported — a later <code>.extend()</code> call can redefine a fixture the base already provides, useful when one specific test file needs slightly different behavior (a different login role, a mocked version of an otherwise-real fixture) without affecting every other file that imports the original.</p>
+
+      <h2 id="common-mistakes">Common mistakes</h2>
+      <ul>
+        <li>Making an expensive, shareable resource test-scoped by default, slowing the whole suite down — check whether it actually needs per-test isolation before defaulting to test scope.</li>
+        <li>Overusing automatic fixtures for things only some tests need, making test behavior harder to trace back to its source.</li>
+        <li>Forgetting the teardown half after <code>use()</code> — a fixture that opens a resource but never cleans it up will leak across a long test run.</li>
+        <li>Reaching for a fixture when a plain hook would do — a one-off setup used by a single test file doesn't need the extra indirection of a custom fixture.</li>
+      </ul>
+
+      <h2 id="beforeeach-vs-fixture-vs-beforeall">beforeEach vs. Fixture vs. beforeAll</h2>
+      <table>
+        <thead><tr><th></th><th>Use for</th></tr></thead>
+        <tbody>
+          <tr><td><code>beforeEach</code></td><td>Simple, file-local setup used by every test in that file.</td></tr>
+          <tr><td>Fixture</td><td>Setup shared across many files, with dependencies, or that needs teardown logic tied to it.</td></tr>
+          <tr><td><code>beforeAll</code></td><td>Genuinely one-time, expensive setup with no per-test variation.</td></tr>
+        </tbody>
+      </table>
+
+      <h2 id="best-practices">Best practices</h2>
+      <ul>
+        <li>Default new fixtures to test scope; promote to worker scope only when the setup is provably expensive and safely shareable.</li>
+        <li>Keep the teardown half of every fixture symmetrical with its setup — whatever you open, close.</li>
+        <li>Reserve <code>{ auto: true }</code> for setup that genuinely applies to every single test in the project.</li>
+        <li>Put shared fixtures in a dedicated <code>fixtures.ts</code> file and import <code>test</code>/<code>expect</code> from there, not from <code>@playwright/test</code> directly, once a project has more than one or two custom fixtures.</li>
+      </ul>
+
+      <h2 id="summary">Summary</h2>
+      <p>Fixtures are named, declarative setup that Playwright builds on demand and tears down automatically, with dependencies resolved for you. Built-in fixtures like <code>page</code> and <code>browser</code> already use this system, at test and worker scope respectively. Custom fixtures — for logins, page objects, API tokens, or seeded data — are the main tool for scaling shared setup across a large suite without repeating it, and are the foundation Chapter 11's framework architecture builds on.</p>
+
+      <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why would you make a fixture worker-scoped instead of test-scoped, and what's the risk of getting it wrong?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Worker scope reuses the fixture's value across every test in that worker, so it's right for expensive setup that's safe to share, like an API token. Making something worker-scoped that actually needs per-test isolation — like a logged-in page — would leak state between tests. Making something test-scoped that's expensive to build but safe to share just wastes time rebuilding it unnecessarily for every test.</div>
+</details>
+<details class="faq-item">
+<summary>What's the real difference between expect(locator) and worker-scoped vs test-scoped fixtures?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Test-scoped fixtures rebuild fresh for every test (right for isolation, like page); worker-scoped fixtures build once per worker and are reused (right for expensive, safely shareable resources).</div>
+</details>
+<details class="faq-item">
+<summary>What does the use() call inside a fixture actually do?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It's the pivot point — everything before it is setup, everything after is teardown, and Playwright guarantees the teardown half runs even if the test throws.</div>
+</details>
+<details class="faq-item">
+<summary>How do you combine fixtures from two independent fixture files?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Use mergeTests() to combine them, or have one file's test extend() the other's if one should build on top of it.</div>
+</details>
+<details class="faq-item">
+<summary>Why is a 'cleanup fixture' shaped differently from the other fixture patterns?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Its use() call hands the test a function to register cleanup work during the test body, rather than handing back a ready-to-use resource.</div>
+</details>
+</div>
+      </article>
+
+      <label class="mark-complete-row">
+        <input type="checkbox" class="mark-complete-checkbox" data-page-id="pw:fixtures.html" onchange="toggleComplete(this)" />
+        <span>Mark this lesson complete</span>
+      </label>
+
+      <div class="prev-next">
+        <a href="hooks.html"><span class="pn-label">&larr; Previous</span>Hooks</a>
+        <a href="authentication-and-storage-state.html" class="pn-next"><span class="pn-label">Next &rarr;</span>Authentication & storageState</a>
+      </div>
+    </main>
+
+    <aside class="right-rail">
+      <div class="rail-card book-promo-card">
+  <div class="book-promo-badge">&#128218; Recommended Reading</div>
+  <div class="book-carousel">
+    <div class="book-slide active">
+  <a href="https://www.amazon.in/CRACKING-PLAYWRIGHT-INTERVIEW-Interview-Preparation-ebook/dp/B0H7MGN2XK" target="_blank" rel="nofollow noopener" class="book-cover-mock"><img src="../images/books/book-1-cracking-playwright-interview.webp" alt="Cracking the Playwright Interview book cover" loading="lazy" /></a>
+  <div class="book-info">
+    <h5>Cracking the Playwright Interview</h5>
+    <p>The Complete Interview Preparation Guide</p>
+    <a href="https://www.amazon.in/CRACKING-PLAYWRIGHT-INTERVIEW-Interview-Preparation-ebook/dp/B0H7MGN2XK" target="_blank" rel="nofollow noopener" class="book-buy-btn">View on Amazon &rarr;</a>
+  </div>
+</div><div class="book-slide">
+  <a href="https://www.amazon.in/Playwright-Automation-Testing-Complete-TypeScript-ebook/dp/B0G492YGYJ" target="_blank" rel="nofollow noopener" class="book-cover-mock"><img src="../images/books/book-2-playwright-automation-testing.jpg" alt="Playwright Automation Testing book cover" loading="lazy" /></a>
+  <div class="book-info">
+    <h5>Playwright Automation Testing</h5>
+    <p>Complete Guide with TypeScript</p>
+    <a href="https://www.amazon.in/Playwright-Automation-Testing-Complete-TypeScript-ebook/dp/B0G492YGYJ" target="_blank" rel="nofollow noopener" class="book-buy-btn">View on Amazon &rarr;</a>
+  </div>
+</div><div class="book-slide">
+  <a href="https://www.amazon.in/API-Testing-Playwright-TypeScript-Practical-ebook/dp/B0GS99CDCK" target="_blank" rel="nofollow noopener" class="book-cover-mock"><img src="../images/books/book-3-api-testing-playwright-typescript.webp" alt="API Testing with Playwright & TypeScript book cover" loading="lazy" /></a>
+  <div class="book-info">
+    <h5>API Testing with Playwright & TypeScript</h5>
+    <p>A Practical Guide from Zero to Expert</p>
+    <a href="https://www.amazon.in/API-Testing-Playwright-TypeScript-Practical-ebook/dp/B0GS99CDCK" target="_blank" rel="nofollow noopener" class="book-buy-btn">View on Amazon &rarr;</a>
+  </div>
+</div><div class="book-slide">
+  <a href="https://www.amazon.in/Playwright-Mastery-TypeScript-Cucumber-Applications-ebook/dp/B0GPKXYB9Q" target="_blank" rel="nofollow noopener" class="book-cover-mock"><img src="../images/books/book-4-playwright-mastery-typescript-cucumber.jpg" alt="Playwright Mastery with TypeScript & Cucumber book cover" loading="lazy" /></a>
+  <div class="book-info">
+    <h5>Playwright Mastery with TypeScript & Cucumber</h5>
+    <p>Building Robust, Scalable Test Frameworks</p>
+    <a href="https://www.amazon.in/Playwright-Mastery-TypeScript-Cucumber-Applications-ebook/dp/B0GPKXYB9Q" target="_blank" rel="nofollow noopener" class="book-buy-btn">View on Amazon &rarr;</a>
+  </div>
+</div>
+  </div>
+  <div class="book-dots"><span class="book-dot active"></span><span class="book-dot"></span><span class="book-dot"></span><span class="book-dot"></span></div>
+</div>
+
+      <div class="rail-card">
+        <h4>Related Articles</h4>
+        <div class="related-list">
+          <span style="color:var(--text-faint);font-size:0.8rem;">No related pages</span>
+        </div>
+      </div>
+
+      <div class="rail-card was-helpful-card">
+        <span>Was this helpful?</span>
+        <button title="Yes">&#128077;</button>
+        <button title="No">&#128078;</button>
+      </div>
+    </aside>
+  </div>
+
+  <nav class="mobile-tabbar">
+  <a href="../index.html" class=""><svg class="icon" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg><span>Home</span></a>
+  <a href="index.html" class="active"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>Tutorials</span></a>
+  <a href="../books.html" class=""><svg class="icon" viewBox="0 0 24 24"><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v16H6.5A2.5 2.5 0 0 0 4 20.5"/><path d="M4 4.5v16"/></svg><span>Books</span></a>
+  <a href="../about.html"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="12" y1="16" x2="12" y2="11.5"/><circle cx="12" cy="8" r="0.8" fill="currentColor" stroke="none"/></svg><span>About</span></a>
+</nav>
+
+  <script>
+  
+  document.querySelectorAll('.book-promo-card').forEach(function(card) {
+    var slides = card.querySelectorAll('.book-slide');
+    var dots = card.querySelectorAll('.book-dot');
+    if (slides.length < 2) return;
+    var idx = 0;
+    setInterval(function() {
+      slides[idx].classList.remove('active');
+      if (dots[idx]) dots[idx].classList.remove('active');
+      idx = (idx + 1) % slides.length;
+      slides[idx].classList.add('active');
+      if (dots[idx]) dots[idx].classList.add('active');
+    }, 5000);
+  });
+
+  function copyCode(btn) {
+    const code = btn.nextElementSibling.innerText;
+    navigator.clipboard.writeText(code).then(function() {
+      btn.textContent = 'Copied';
+      btn.classList.add('copied');
+      setTimeout(function() { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
+    });
+  }
+  function openSidebar() {
+    document.getElementById('doc-sidebar').classList.add('open');
+    document.getElementById('sidebar-backdrop').classList.add('show');
+    document.body.classList.add('no-scroll');
+  }
+  function closeSidebar() {
+    document.getElementById('doc-sidebar').classList.remove('open');
+    document.getElementById('sidebar-backdrop').classList.remove('show');
+    document.body.classList.remove('no-scroll');
+  }
+  function toggleTheme() {
+    var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark');
+    try { localStorage.setItem('assertTrueTheme', isDark ? 'light' : 'dark'); } catch (e) {}
+  }
+  function toggleComplete(checkbox) {
+    var pageId = checkbox.getAttribute('data-page-id');
+    var progress = {};
+    try { progress = JSON.parse(localStorage.getItem('assertTrueProgress') || '{}'); } catch (e) {}
+    if (checkbox.checked) { progress[pageId] = true; } else { delete progress[pageId]; }
+    try { localStorage.setItem('assertTrueProgress', JSON.stringify(progress)); } catch (e) {}
+  }
+  (function() {
+    var progress = {};
+    try { progress = JSON.parse(localStorage.getItem('assertTrueProgress') || '{}'); } catch (e) {}
+    var cb = document.querySelector('.mark-complete-checkbox');
+    if (cb && progress[cb.getAttribute('data-page-id')]) cb.checked = true;
+  })();
+  (function() {
+    var activeLink = document.querySelector('.doc-sidebar a.active');
+    if (activeLink) { activeLink.scrollIntoView({ block: 'center' }); }
+  })();
+  document.addEventListener('click', function(e) {
+    if (e.target.closest('.sidebar-link') && window.matchMedia('(max-width: 860px)').matches) {
+      closeSidebar();
+    }
+  });
+  (function() {
+    var sidebar = document.getElementById('doc-sidebar');
+    if (!sidebar) return;
+    var saved = sessionStorage.getItem('sidebarScrollTop');
+    if (saved !== null) sidebar.scrollTop = parseInt(saved, 10);
+    var saveScroll = function() { sessionStorage.setItem('sidebarScrollTop', sidebar.scrollTop); };
+    sidebar.addEventListener('scroll', saveScroll);
+    sidebar.addEventListener('click', function(e) {
+      if (e.target.closest('a')) saveScroll();
+    });
+  })();
+  </script>
+</body>
+</html>

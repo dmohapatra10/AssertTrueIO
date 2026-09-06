@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <script>try{if(localStorage.getItem('assertTrueTheme')==='dark'){document.documentElement.setAttribute('data-theme','dark');}}catch(e){}</script>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Building a Realistic End-to-End k6 Workflow: Login, Browse, Order, Verify</title>
+  <meta name="description" content="A complete, realistic k6 workflow chaining login, product browsing, order creation, and order verification — with data correctly flowing between every step." />
+  <link rel="canonical" href="https://asserttrue.io/k6/building-a-realistic-end-to-end-workflow.html" />
+  <link rel="stylesheet" href="../css/style.css?v=57" />
+</head>
+<body class="theme-k6">
+  <header class="topnav">
+    <button class="mobile-menu-btn" onclick="openSidebar()">&#9776;</button>
+    <a href="../index.html" class="brand"><svg class="logo-mark" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="40" rx="11" fill="url(#logoGrad)"/><path d="M11 21.5 L17 27.5 L29.5 13" stroke="#ffffff" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/><defs><linearGradient id="logoGrad" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse"><stop stop-color="#22c55e"/><stop offset="1" stop-color="#15803d"/></linearGradient></defs></svg><span class="brand-text">Assert<span class="brand-true">True</span><span class="brand-io">IO</span></span></a>
+    <nav class="topnav-links">
+      <a href="../playwright/index.html">Playwright</a>
+      <a href="../restassured/index.html">RestAssured</a>
+      <a href="index.html" class="active">K6</a>
+      <a href="../github-actions/index.html">GitHub Actions</a>
+      <a href="../about.html">About</a>
+      <a href="../books.html">Books</a>
+    </nav>
+    <div class="topnav-right">
+      <span class="search-box">Search tutorials...</span>
+      <button class="icon-btn theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Toggle dark mode"><svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
+    </div>
+  </header>
+
+  <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeSidebar()"></div>
+
+  <div class="app-shell">
+    <nav class="doc-sidebar" id="doc-sidebar">
+<div class="sidebar-mobile-header"><span>Menu</span><button class="sidebar-close-btn" onclick="closeSidebar()">&times;</button></div>
+<a href="index.html" class="sidebar-overview-link"><svg class="icon" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg><span>Roadmap</span></a>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>01 Performance Testing Fundamentals</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="performance-testing-fundamentals.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Performance Testing Fundamentals</a>
+<div class="sidebar-sub">
+<a href="test-types-load-stress-spike-soak-volume.html" class="sidebar-link"><span class="dot"></span>Load, Stress, Spike, Soak & Volume Testing</a>
+<a href="baseline-capacity-and-scalability-testing.html" class="sidebar-link"><span class="dot"></span>Baseline, Capacity & Scalability Testing</a>
+<a href="core-performance-metrics.html" class="sidebar-link"><span class="dot"></span>Response Time, Throughput, Latency & Concurrency</a>
+<a href="percentiles-and-reading-performance-data.html" class="sidebar-link"><span class="dot"></span>Percentiles & Reading Performance Data</a>
+<a href="slas-slos-slis-and-virtual-users.html" class="sidebar-link"><span class="dot"></span>SLAs, SLOs, SLIs & Virtual Users</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"/></svg><span>02 Getting Started With k6</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="getting-started-with-k6.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Getting Started with k6</a>
+<div class="sidebar-sub">
+<a href="what-is-k6-and-how-it-compares.html" class="sidebar-link"><span class="dot"></span>What is k6? Architecture & Tool Comparison</a>
+<a href="installing-k6-and-your-first-test.html" class="sidebar-link"><span class="dot"></span>Installing k6 & Your First Test</a>
+<a href="the-k6-test-lifecycle.html" class="sidebar-link"><span class="dot"></span>The k6 Test Lifecycle: init, setup, VU code, teardown</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="8 6 2 12 8 18"/><polyline points="16 6 22 12 16 18"/></svg><span>03 k6 Scripting Fundamentals</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="k6-scripting-fundamentals.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>k6 Scripting Fundamentals</a>
+<div class="sidebar-sub">
+<a href="making-http-requests-in-k6.html" class="sidebar-link"><span class="dot"></span>Making HTTP Requests: GET, POST, PUT, PATCH, DELETE</a>
+<a href="check-sleep-and-group.html" class="sidebar-link"><span class="dot"></span>check(), sleep(), and group(): Structuring a k6 Test</a>
+<a href="organizing-k6-scripts.html" class="sidebar-link"><span class="dot"></span>Organizing k6 Scripts: Variables, Functions & Reusable Code</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><span>04 Virtual Users & Workload Modeling</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="virtual-users-scenarios-workload-modeling.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Virtual Users, Scenarios & Workload Modeling</a>
+<div class="sidebar-sub">
+<a href="virtual-users-and-iterations.html" class="sidebar-link"><span class="dot"></span>Virtual Users & Iterations</a>
+<a href="ramping-and-stages.html" class="sidebar-link"><span class="dot"></span>Ramping & Stages</a>
+<a href="k6-executors-explained.html" class="sidebar-link"><span class="dot"></span>k6 Executors Explained</a>
+<a href="scenarios-multiple-workloads.html" class="sidebar-link"><span class="dot"></span>Scenarios: Multiple Workloads in One Test</a>
+<a href="translating-requirements-into-workloads.html" class="sidebar-link"><span class="dot"></span>Translating a Business Requirement into a Workload</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4 7h4V5a2 2 0 0 1 4 0v2h4v4h2a2 2 0 0 1 0 4h-2v4H4v-4H2a2 2 0 0 1 0-4h2z"/></svg><span>05 HTTP/API Performance Testing</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="http-api-performance-testing.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>HTTP/API Performance Testing</a>
+<div class="sidebar-sub">
+<a href="building-a-realistic-end-to-end-workflow.html" class="sidebar-link active"><span class="dot"></span>Building a Realistic End-to-End Workflow</a>
+<a href="cookies-in-performance-tests.html" class="sidebar-link"><span class="dot"></span>Cookies in Performance Tests</a>
+<a href="why-performance-tests-should-validate-functionality-too.html" class="sidebar-link"><span class="dot"></span>Why Performance Tests Should Validate Functionality Too</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg><span>06 Checks Metrics & Results</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="checks-metrics-and-results.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Checks, Metrics & Results</a>
+<div class="sidebar-sub">
+<a href="built-in-http-metrics-explained.html" class="sidebar-link"><span class="dot"></span>Built-in HTTP Metrics Explained</a>
+<a href="custom-metrics-counter-gauge-rate-trend.html" class="sidebar-link"><span class="dot"></span>Custom Metrics: Counter, Gauge, Rate, Trend</a>
+<a href="good-vs-misleading-performance-analysis.html" class="sidebar-link"><span class="dot"></span>Good vs. Misleading Performance Analysis</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>07 Thresholds & Performance Criteria</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="thresholds-and-performance-criteria.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Thresholds & Performance Criteria</a>
+<div class="sidebar-sub">
+<a href="threshold-syntax-and-types.html" class="sidebar-link"><span class="dot"></span>Threshold Syntax & Types</a>
+<a href="threshold-vs-check-the-real-distinction.html" class="sidebar-link"><span class="dot"></span>Threshold vs. Check: The Real Distinction</a>
+<a href="deriving-realistic-thresholds.html" class="sidebar-link"><span class="dot"></span>Deriving Realistic Thresholds</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>08 Test Data & Correlation</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="test-data-correlation-and-dynamic-workflows.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Test Data, Correlation & Dynamic Workflows</a>
+<div class="sidebar-sub">
+<a href="unique-test-data-and-avoiding-collisions.html" class="sidebar-link"><span class="dot"></span>Unique Test Data & Avoiding Collisions</a>
+<a href="parameterization-csv-json-and-sharedarray.html" class="sidebar-link"><span class="dot"></span>Parameterization: CSV, JSON & SharedArray</a>
+<a href="building-the-full-crud-chain-with-real-data.html" class="sidebar-link"><span class="dot"></span>Building the Full CRUD Chain With Real Data</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><span>09 Auth & Realistic User Journeys</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="authentication-sessions-and-realistic-user-journeys.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Authentication, Sessions & Realistic User Journeys</a>
+<div class="sidebar-sub">
+<a href="authentication-mechanisms-basic-bearer-apikey-jwt-oauth.html" class="sidebar-link"><span class="dot"></span>Authentication Mechanisms: Basic, Bearer, API Key, JWT, OAuth</a>
+<a href="session-management-token-reuse-expiration-and-refresh.html" class="sidebar-link"><span class="dot"></span>Session Management: Token Reuse, Expiration & Refresh</a>
+<a href="building-a-realistic-user-journey.html" class="sidebar-link"><span class="dot"></span>Building a Realistic User Journey</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="8 6 2 12 8 18"/><polyline points="16 6 22 12 16 18"/></svg><span>10 Advanced k6 Test Design</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="advanced-k6-test-design.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Advanced k6 Test Design</a>
+<div class="sidebar-sub">
+<a href="tags-and-environment-variables.html" class="sidebar-link"><span class="dot"></span>Tags & Environment Variables</a>
+<a href="designing-every-test-type-from-one-script.html" class="sidebar-link"><span class="dot"></span>Designing Every Test Type From One Script</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4 7h4V5a2 2 0 0 1 4 0v2h4v4h2a2 2 0 0 1 0 4h-2v4H4v-4H2a2 2 0 0 1 0-4h2z"/></svg><span>11 Performance Test Architecture</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="performance-test-architecture-and-framework-design.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Performance Test Architecture & Framework Design</a>
+<div class="sidebar-sub">
+<a href="layer-by-layer-responsibilities-k6.html" class="sidebar-link"><span class="dot"></span>Layer-by-Layer Responsibilities</a>
+<a href="the-recommended-k6-folder-structure.html" class="sidebar-link"><span class="dot"></span>The Recommended Folder Structure</a>
+<a href="avoiding-the-anti-patterns.html" class="sidebar-link"><span class="dot"></span>Avoiding the Anti-Patterns</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><span>12 Distributed & Large-Scale Testing</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="distributed-and-large-scale-performance-testing.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Distributed & Large-Scale Performance Testing</a>
+<div class="sidebar-sub">
+<a href="recognizing-when-the-load-generator-is-the-bottleneck.html" class="sidebar-link"><span class="dot"></span>Recognizing When the Load Generator Is the Bottleneck</a>
+<a href="local-vs-distributed-execution-and-geographic-distribution.html" class="sidebar-link"><span class="dot"></span>Local vs. Distributed Execution & Geographic Distribution</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg><span>13 Results Analysis Monitoring & CI/CD</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="results-analysis-monitoring-and-cicd.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Results Analysis, Monitoring & CI/CD</a>
+<div class="sidebar-sub">
+<a href="sending-k6-metrics-to-grafana-and-dashboards.html" class="sidebar-link"><span class="dot"></span>Sending k6 Metrics to Grafana & External Dashboards</a>
+<a href="correlating-k6-metrics-with-application-and-infrastructure.html" class="sidebar-link"><span class="dot"></span>Correlating k6 Metrics With Application & Infrastructure Metrics</a>
+<a href="running-k6-in-cicd-github-actions-and-regression-detection.html" class="sidebar-link"><span class="dot"></span>Running k6 in CI/CD: GitHub Actions & Regression Detection</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg><span>14 Production-Style Framework</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="production-k6-framework.html" class="sidebar-link"><span class="dot"></span>Building the Framework</a>
+</div></details>
+</nav>
+
+    <main class="doc-main">
+      <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="../index.html">Home</a> <span class="crumb-sep">&rsaquo;</span> <a href="index.html">K6</a> <span class="crumb-sep">&rsaquo;</span> <a href="http-api-performance-testing.html">HTTP/API Performance Testing</a> <span class="crumb-sep">&rsaquo;</span> <span class="crumb-current">Building a Realistic End-to-End Workflow</span></nav>
+
+      <div class="page-header-banner">
+        <header class="page-head">
+          <h1>Building a Realistic End-to-End Workflow</h1>
+        </header>
+        <div class="meta-row">
+          <span class="tag-pill Beginner">Beginner</span>
+          <span class="read-time">7 min read</span>
+        </div>
+      </div>
+
+      <p class="prereqs"><strong>Prerequisites:</strong> <a href="http-api-performance-testing.html">HTTP/API Performance Testing overview</a></p>
+
+      <article class="content">
+        <h2 id="what-is-this">What is this?</h2>
+<p>This page builds one complete, realistic workflow — login, browse products, place an order, then verify it — with each step's output feeding correctly into the next. This is the actual shape most real k6 workflow tests take, not an isolated single request.</p>
+
+<h2 id="step-1-login-and-extract-a-token">Step 1 — Login and Extract a Token</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import http from 'k6/http';
+import { check, sleep, group } from 'k6';
+
+function login() {
+  const response = http.post('https://api.example.com/login',
+    JSON.stringify({ username: 'testuser', password: 'secret' }),
+    { headers: { 'Content-Type': 'application/json' } });
+
+  check(response, { 'login succeeded': (r) => r.status === 200 });
+  return response.json('token');
+}</code></pre>
+<p>The token extracted here is what makes every following step possible — this is the same <code>response.json('fieldName')</code> pattern from Chapter 3, now genuinely load-bearing for the rest of the workflow rather than just a demonstration.</p>
+
+<h2 id="step-2-get-products-authenticated">Step 2 — Get Products, Authenticated</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>function getProducts(token) {
+  const response = http.get('https://api.example.com/products', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  check(response, {
+    'products loaded': (r) => r.status === 200,
+    'at least one product returned': (r) => r.json().length > 0,
+  });
+
+  return response.json()[0].id; // pick the first product for this workflow
+}</code></pre>
+<p>Notice the second check here — <code>at least one product returned</code> — this is functional validation, not just a status code check. A products endpoint that returns 200 with an empty array is technically "successful" by status code alone, but functionally broken for anyone trying to actually shop.</p>
+
+<h2 id="step-3-create-an-order">Step 3 — Create an Order</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>function createOrder(token, productId) {
+  const response = http.post('https://api.example.com/orders',
+    JSON.stringify({ productId, quantity: 1 }),
+    { headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      } });
+
+  check(response, { 'order created': (r) => r.status === 201 });
+  return response.json('id');
+}</code></pre>
+
+<h2 id="step-4-get-the-order-and-verify-it">Step 4 — Get the Order and Verify It</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>function getOrder(token, orderId, expectedProductId) {
+  const response = http.get(`https://api.example.com/orders/${orderId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  check(response, {
+    'order retrieved': (r) => r.status === 200,
+    'order has correct product': (r) => r.json('productId') === expectedProductId,
+  });
+}</code></pre>
+<p>This final check is the whole point of the workflow being connected rather than isolated — it verifies that the order retrieved actually matches what was ordered in step 3, catching a class of bug (data corruption, a race condition, a mismatched ID somewhere in the chain) that four separate, disconnected single-endpoint tests would never be positioned to catch.</p>
+
+<h2 id="detailed-example-the-complete-workflow-assembled">Detailed Example — The Complete Workflow, Assembled</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export default function () {
+  group('Complete Purchase Journey', function () {
+    const token = login();
+    sleep(1);
+
+    const productId = getProducts(token);
+    sleep(2);
+
+    const orderId = createOrder(token, productId);
+    sleep(1);
+
+    getOrder(token, orderId, productId);
+  });
+}</code></pre>
+<p>This reads as a genuine narrative — log in, browse, order, verify — with realistic pacing between steps and every piece of data flowing correctly from where it was produced to where it's needed. This is the actual target shape for a realistic k6 performance test, not the single-request examples used to introduce individual concepts earlier.</p>
+
+<h2 id="real-world-example-what-this-catches-that-isolated-tests-miss">Real-World Example — What This Catches That Isolated Tests Miss</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Isolated tests (each endpoint tested alone):
+  ✅ Login works
+  ✅ Get Products works
+  ✅ Create Order works
+  ✅ Get Order works
+  → All four pass. Ship it?
+
+Chained workflow test:
+  ❌ "order has correct product" FAILS — the order retrieved shows a different
+     product than what was actually ordered
+  → A real bug, invisible to any of the four isolated tests</code></pre>
+<p>This is a genuine, realistic scenario — perhaps a caching bug, a race condition under concurrent load, or an ID mapping issue that only manifests when data actually flows between real, dependent operations. Four passing isolated tests provide false confidence that a connected workflow test would have caught immediately.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Four completely disconnected requests, no data flowing between them
+export default function () {
+  http.post(loginUrl, credentials);
+  http.get(productsUrl);
+  http.post(ordersUrl, hardcodedOrderPayload);
+  http.get(someHardcodedOrderUrl);
+}
+
+// ✅ A genuinely connected workflow, each step depending on real prior output
+export default function () {
+  const token = login();
+  const productId = getProducts(token);
+  const orderId = createOrder(token, productId);
+  getOrder(token, orderId, productId);
+}</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Hardcoding IDs instead of extracting them from real responses</strong> — defeats the purpose of a connected workflow, since the "chain" isn't actually testing real data flow.</li>
+  <li><strong>Skipping functional checks at intermediate steps</strong> — checking only the final step's correctness misses exactly where in a multi-step chain a problem actually originated.</li>
+  <li><strong>No realistic pacing between steps</strong> — a workflow with no <code>sleep()</code> between login, browse, and purchase doesn't represent how a real user actually moves through these steps.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>A step failing partway through the workflow</strong> — if <code>login()</code> fails and returns no usable token, every subsequent step will also fail, cascading from one root cause; worth checking the very first step's check results first when a whole workflow looks broken.</li>
+  <li><strong>Data extracted from one step being subtly wrong in a way that doesn't cause an immediate failure</strong> — like extracting the wrong field name that happens to also exist on the response — this is exactly why the final verification step (checking the retrieved order matches what was ordered) matters.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a chained workflow test fails partway through, check the earliest failing step first, not the one that happened to fail loudest — a login failure early in the chain can cascade into confusing-looking failures several steps later that have nothing to do with those later steps' own logic.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Extract real values from real responses at every step — never hardcode IDs a chained workflow is supposed to be deriving dynamically.</li>
+  <li>Include functional checks at every step, not just the final one — this pinpoints exactly where in the chain a problem originates.</li>
+  <li>Use realistic pacing (<code>sleep()</code>) between steps to represent genuine user behavior, not an unrealistic burst.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Extend the four-step workflow on this page with a fifth step — canceling the order and verifying its status changed to "cancelled" — extracting and passing all necessary data (token, order ID) from the existing chain.</p>
+
+<h2 id="summary">Summary</h2>
+<p>A realistic k6 workflow chains multiple dependent requests together — login, browse, order, verify — with real data extracted from each response and passed into the next request, not hardcoded values. Checking correctness at every step, not just the final one, is what lets a connected workflow catch integration-level bugs that four isolated, disconnected tests would never be positioned to find.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why might four individually passing endpoint tests still miss a real bug that a chained workflow test catches?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Testing endpoints in isolation only confirms each one works correctly given its own inputs — it says nothing about whether data flowing from one operation to the next is handled correctly. A bug that only appears when real data genuinely flows between connected operations (a caching issue, a race condition, an ID mapping problem) is invisible to isolated tests by design, since none of them ever actually exercise that connection.</div>
+</details>
+<details class="faq-item">
+<summary>Why is hardcoding an order ID in a "chained" workflow test actually a mistake?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It defeats the actual purpose of chaining — the value of a connected workflow is verifying that data genuinely produced by one step is correctly usable by the next. Hardcoding a value instead of extracting it from a real response means the test isn't actually testing that data flow at all; it just looks superficially connected while not verifying anything about how the steps genuinely relate.</div>
+</details>
+<details class="faq-item">
+<summary>Why should functional checks appear at every step of a workflow, not just the final one?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Checking only the final step tells you the workflow eventually produced a wrong result, but not where in the chain the problem actually originated — was it the login, the product selection, or the order creation itself? Checking every step pinpoints the actual source of a failure immediately, rather than requiring separate investigation to trace a final-step failure back through several earlier steps.</div>
+</details>
+<details class="faq-item">
+<summary>If a multi-step workflow test fails, why should you investigate the earliest failing step first?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Since later steps typically depend on data produced by earlier ones, a failure early in the chain (like a failed login) can cascade into confusing, seemingly unrelated failures in every subsequent step — none of which are actually caused by those later steps' own logic. Starting the investigation at the earliest failure avoids wasting time debugging downstream symptoms of an upstream root cause.</div>
+</details>
+<details class="faq-item">
+<summary>Why does realistic pacing (sleep between steps) matter in a multi-step workflow, beyond what was already covered for a single request?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A real user doesn't move instantly from logging in, to browsing, to purchasing — there's genuine time spent reading, deciding, and navigating between each step. A workflow with no pacing between steps compresses an entire realistic user journey into an unnaturally rapid burst, which distorts the load pattern the system actually experiences compared to how real users genuinely move through the same journey.</div>
+</details>
+</div>
+      </article>
+
+      <label class="mark-complete-row">
+        <input type="checkbox" class="mark-complete-checkbox" data-page-id="k6:building-a-realistic-end-to-end-workflow.html" onchange="toggleComplete(this)" />
+        <span>Mark this lesson complete</span>
+      </label>
+
+      <div class="prev-next">
+        <a href="http-api-performance-testing.html"><span class="pn-label">&larr; Previous</span>HTTP/API Performance Testing</a>
+        <a href="cookies-in-performance-tests.html" class="pn-next"><span class="pn-label">Next &rarr;</span>Cookies in Performance Tests</a>
+      </div>
+    </main>
+
+    <aside class="right-rail">
+      <div class="rail-card book-promo-card">
+  <div class="book-promo-badge">&#128218; Recommended Reading</div>
+  <div class="book-carousel">
+    <div class="book-slide active">
+  <a href="https://www.amazon.in/Performance-Testing-Automation-Engineering-Applications-ebook/dp/B0GTYVVGVD" target="_blank" rel="nofollow noopener" class="book-cover-mock"><img src="../images/books/book-7-performance-testing-with-k6.jpg" alt="Performance Testing with k6 book cover" loading="lazy" /></a>
+  <div class="book-info">
+    <h5>Performance Testing with k6</h5>
+    <p>A Practical Guide to Automation Engineering with Applications</p>
+    <a href="https://www.amazon.in/Performance-Testing-Automation-Engineering-Applications-ebook/dp/B0GTYVVGVD" target="_blank" rel="nofollow noopener" class="book-buy-btn">View on Amazon &rarr;</a>
+  </div>
+</div>
+  </div>
+  <div class="book-dots"><span class="book-dot active"></span></div>
+</div>
+
+      <div class="rail-card">
+        <h4>Related Chapters</h4>
+        <div class="related-list">
+          <a href="cookies-in-performance-tests.html">Cookies in Performance Tests<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+<a href="why-performance-tests-should-validate-functionality-too.html">Why Performance Tests Should Validate Functionality Too<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+<a href="performance-testing-fundamentals.html">Performance Testing Fundamentals<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+<a href="test-types-load-stress-spike-soak-volume.html">Load, Stress, Spike, Soak & Volume Testing<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+<a href="baseline-capacity-and-scalability-testing.html">Baseline, Capacity & Scalability Testing<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+        </div>
+      </div>
+
+      <div class="rail-card was-helpful-card">
+        <span>Was this helpful?</span>
+        <button title="Yes">&#128077;</button>
+        <button title="No">&#128078;</button>
+      </div>
+    </aside>
+  </div>
+
+  <nav class="mobile-tabbar">
+  <a href="../index.html"><svg class="icon" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg><span>Home</span></a>
+  <a href="index.html" class="active"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>Tutorials</span></a>
+  <a href="../books.html"><svg class="icon" viewBox="0 0 24 24"><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v16H6.5A2.5 2.5 0 0 0 4 20.5"/><path d="M4 4.5v16"/></svg><span>Books</span></a>
+  <a href="../about.html"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="12" y1="16" x2="12" y2="11.5"/><circle cx="12" cy="8" r="0.8" fill="currentColor" stroke="none"/></svg><span>About</span></a>
+</nav>
+
+  <script>
+  
+  document.querySelectorAll('.book-promo-card').forEach(function(card) {
+    var slides = card.querySelectorAll('.book-slide');
+    var dots = card.querySelectorAll('.book-dot');
+    if (slides.length < 2) return;
+    var idx = 0;
+    setInterval(function() {
+      slides[idx].classList.remove('active');
+      if (dots[idx]) dots[idx].classList.remove('active');
+      idx = (idx + 1) % slides.length;
+      slides[idx].classList.add('active');
+      if (dots[idx]) dots[idx].classList.add('active');
+    }, 5000);
+  });
+
+  function copyCode(btn) {
+    const code = btn.nextElementSibling.innerText;
+    navigator.clipboard.writeText(code).then(function() {
+      btn.textContent = 'Copied';
+      btn.classList.add('copied');
+      setTimeout(function() { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
+    });
+  }
+  function openSidebar() {
+    document.getElementById('doc-sidebar').classList.add('open');
+    document.getElementById('sidebar-backdrop').classList.add('show');
+    document.body.classList.add('no-scroll');
+  }
+  function closeSidebar() {
+    document.getElementById('doc-sidebar').classList.remove('open');
+    document.getElementById('sidebar-backdrop').classList.remove('show');
+    document.body.classList.remove('no-scroll');
+  }
+  function toggleTheme() {
+    var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark');
+    try { localStorage.setItem('assertTrueTheme', isDark ? 'light' : 'dark'); } catch (e) {}
+  }
+  function toggleComplete(checkbox) {
+    var pageId = checkbox.getAttribute('data-page-id');
+    var progress = {};
+    try { progress = JSON.parse(localStorage.getItem('assertTrueProgress') || '{}'); } catch (e) {}
+    if (checkbox.checked) { progress[pageId] = true; } else { delete progress[pageId]; }
+    try { localStorage.setItem('assertTrueProgress', JSON.stringify(progress)); } catch (e) {}
+  }
+  (function() {
+    var progress = {};
+    try { progress = JSON.parse(localStorage.getItem('assertTrueProgress') || '{}'); } catch (e) {}
+    var cb = document.querySelector('.mark-complete-checkbox');
+    if (cb && progress[cb.getAttribute('data-page-id')]) cb.checked = true;
+  })();
+  (function() {
+    var activeLink = document.querySelector('.doc-sidebar a.active');
+    if (activeLink) { activeLink.scrollIntoView({ block: 'center' }); }
+  })();
+  document.addEventListener('click', function(e) {
+    if (e.target.closest('.sidebar-link') && window.matchMedia('(max-width: 860px)').matches) {
+      closeSidebar();
+    }
+  });
+  </script>
+</body>
+</html>

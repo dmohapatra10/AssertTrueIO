@@ -1,0 +1,536 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <script>try{if(localStorage.getItem('assertTrueTheme')==='dark'){document.documentElement.setAttribute('data-theme','dark');}}catch(e){}</script>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Playwright Browser and BrowserContext API: Options and Configuration</title>
+  <meta name="description" content="A practical guide to the Browser and BrowserContext APIs — launch options, context options like viewport and permissions, and storageState for session reuse." />
+  <link rel="canonical" href="https://asserttrue.io/playwright/browser-and-browsercontext.html" />
+  <link rel="stylesheet" href="../css/style.css?v=57" />
+</head>
+<body>
+  <header class="topnav">
+    <button class="mobile-menu-btn" onclick="openSidebar()">&#9776;</button>
+    <a href="../index.html" class="brand"><svg class="logo-mark" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="40" rx="11" fill="url(#logoGrad)"/><path d="M11 21.5 L17 27.5 L29.5 13" stroke="#ffffff" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/><defs><linearGradient id="logoGrad" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse"><stop stop-color="#22c55e"/><stop offset="1" stop-color="#15803d"/></linearGradient></defs></svg><span class="brand-text">Assert<span class="brand-true">True</span><span class="brand-io">IO</span></span></a>
+    <nav class="topnav-links">
+      <a href="index.html" class="active">Playwright</a>
+      <a href="../restassured/index.html">RestAssured</a>
+      <a href="../k6/index.html">K6</a>
+      <a href="../github-actions/index.html">GitHub Actions</a>
+      <a href="../about.html">About</a>
+      <a href="../books.html">Books</a>
+    </nav>
+    <div class="topnav-right">
+      <span class="search-box">Search tutorials...</span>
+      <button class="icon-btn theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Toggle dark mode"><svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
+    </div>
+  </header>
+
+  <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeSidebar()"></div>
+
+  <div class="app-shell">
+    <nav class="doc-sidebar" id="doc-sidebar">
+<div class="sidebar-mobile-header"><span>Menu</span><button class="sidebar-close-btn" onclick="closeSidebar()">&times;</button></div>
+<a href="index.html" class="sidebar-overview-link"><svg class="icon" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg><span>Roadmap</span></a>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg><span>01 Introduction</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="introduction.html" class="sidebar-link"><span class="dot"></span>Introduction</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"/></svg><span>02 Getting Started</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="getting-started.html" class="sidebar-link"><span class="dot"></span>Getting Started</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="8 6 2 12 8 18"/><polyline points="16 6 22 12 16 18"/></svg><span>03 Locators</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="locators.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Locators</a>
+<div class="sidebar-sub">
+<a href="get-by-role.html" class="sidebar-link"><span class="dot"></span>getByRole()</a>
+<a href="get-by-label.html" class="sidebar-link"><span class="dot"></span>getByLabel()</a>
+<a href="get-by-placeholder.html" class="sidebar-link"><span class="dot"></span>getByPlaceholder()</a>
+<a href="get-by-text.html" class="sidebar-link"><span class="dot"></span>getByText()</a>
+<a href="get-by-alt-text.html" class="sidebar-link"><span class="dot"></span>getByAltText()</a>
+<a href="get-by-title.html" class="sidebar-link"><span class="dot"></span>getByTitle()</a>
+<a href="get-by-test-id.html" class="sidebar-link"><span class="dot"></span>getByTestId()</a>
+<a href="locator-and-css-xpath.html" class="sidebar-link"><span class="dot"></span>CSS & XPath</a>
+<a href="filtering-and-chaining.html" class="sidebar-link"><span class="dot"></span>Filtering & Chaining</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><span>04 Actions, Assertions & Sync</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="actions.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Actions</a>
+<div class="sidebar-sub">
+<a href="click-and-dblclick.html" class="sidebar-link"><span class="dot"></span>click() / dblclick()</a>
+<a href="fill-and-press-sequentially.html" class="sidebar-link"><span class="dot"></span>fill() / pressSequentially()</a>
+<a href="press.html" class="sidebar-link"><span class="dot"></span>press()</a>
+<a href="check-and-uncheck.html" class="sidebar-link"><span class="dot"></span>check() / uncheck()</a>
+<a href="select-option.html" class="sidebar-link"><span class="dot"></span>selectOption()</a>
+<a href="hover.html" class="sidebar-link"><span class="dot"></span>hover()</a>
+<a href="set-input-files.html" class="sidebar-link"><span class="dot"></span>setInputFiles()</a>
+<a href="drag-to.html" class="sidebar-link"><span class="dot"></span>dragTo()</a>
+<a href="actionability-and-force.html" class="sidebar-link"><span class="dot"></span>Actionability & Force</a>
+</div>
+<a href="assertions.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Assertions</a>
+<div class="sidebar-sub">
+<a href="visibility-and-state-assertions.html" class="sidebar-link"><span class="dot"></span>Visibility & State</a>
+<a href="text-and-value-assertions.html" class="sidebar-link"><span class="dot"></span>Text & Value</a>
+<a href="count-url-title-assertions.html" class="sidebar-link"><span class="dot"></span>Count, URL & Title</a>
+<a href="hard-vs-soft-assertions.html" class="sidebar-link"><span class="dot"></span>Hard vs Soft Assertions</a>
+</div>
+<a href="waiting-and-synchronization.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Waiting & Synchronization</a>
+<div class="sidebar-sub">
+<a href="auto-waiting-explained.html" class="sidebar-link"><span class="dot"></span>Auto-Waiting Explained</a>
+<a href="wait-for-url-and-load-state.html" class="sidebar-link"><span class="dot"></span>waitForURL() & waitForLoadState()</a>
+<a href="wait-for-request-and-response.html" class="sidebar-link"><span class="dot"></span>waitForRequest() & waitForResponse()</a>
+<a href="wait-for-selector-and-timeout.html" class="sidebar-link"><span class="dot"></span>waitForSelector() & waitForTimeout()</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18"/></svg><span>05 Pages, Browser & Context</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="architecture.html" class="sidebar-link"><span class="dot"></span>Architecture</a>
+<a href="pages-and-navigation.html" class="sidebar-link"><span class="dot"></span>Pages & Navigation</a>
+<a href="browser-and-browsercontext.html" class="sidebar-link active"><span class="dot"></span>Browser & Context</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>06 Real-World Web Apps</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="forms.html" class="sidebar-link"><span class="dot"></span>Forms</a>
+<a href="tables.html" class="sidebar-link"><span class="dot"></span>Tables</a>
+<a href="frames.html" class="sidebar-link"><span class="dot"></span>Frames</a>
+<a href="multiple-tabs-and-windows.html" class="sidebar-link"><span class="dot"></span>Multiple Tabs & Windows</a>
+<a href="dialogs.html" class="sidebar-link"><span class="dot"></span>Dialogs</a>
+<a href="file-upload-and-download.html" class="sidebar-link"><span class="dot"></span>File Upload & Download</a>
+<a href="special-ui-elements.html" class="sidebar-link"><span class="dot"></span>Special UI Elements</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"/></svg><span>07 Test Runner</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="test-runner.html" class="sidebar-link"><span class="dot"></span>Test Runner</a>
+<a href="hooks.html" class="sidebar-link"><span class="dot"></span>Hooks</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4 7h4V5a2 2 0 0 1 4 0v2h4v4h2a2 2 0 0 1 0 4h-2v4H4v-4H2a2 2 0 0 1 0-4h2z"/></svg><span>08 Fixtures & Architecture</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="fixtures.html" class="sidebar-link"><span class="dot"></span>Fixtures</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><span>09 Auth, API & Mocking</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="authentication-and-storage-state.html" class="sidebar-link"><span class="dot"></span>Authentication & storageState</a>
+<a href="api-testing-with-playwright.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>API Testing</a>
+<div class="sidebar-sub">
+<a href="get-request.html" class="sidebar-link"><span class="dot"></span>GET Requests</a>
+<a href="post-request.html" class="sidebar-link"><span class="dot"></span>POST Requests</a>
+<a href="put-and-patch-request.html" class="sidebar-link"><span class="dot"></span>PUT & PATCH Requests</a>
+<a href="delete-request.html" class="sidebar-link"><span class="dot"></span>DELETE Requests</a>
+</div>
+<a href="network-mocking-and-routes.html" class="sidebar-link"><span class="dot"></span>Network Mocking</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>10 Configuration & Environments</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="playwright-config-options.html" class="sidebar-link"><span class="dot"></span>Configuration Options</a>
+<a href="projects-and-environments.html" class="sidebar-link"><span class="dot"></span>Projects & Environments</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>11 Page Objects & Framework</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="page-object-model.html" class="sidebar-link"><span class="dot"></span>Page Object Model</a>
+<a href="framework-folder-structure.html" class="sidebar-link"><span class="dot"></span>Framework Folder Structure</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><span>12 Parallelism & Debugging</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="parallel-execution-and-workers.html" class="sidebar-link"><span class="dot"></span>Parallel Execution & Workers</a>
+<a href="diagnosing-flaky-tests.html" class="sidebar-link"><span class="dot"></span>Diagnosing Flaky Tests</a>
+<a href="screenshots-and-videos.html" class="sidebar-link"><span class="dot"></span>Screenshots & Videos</a>
+<a href="trace-viewer.html" class="sidebar-link"><span class="dot"></span>Trace Viewer</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg><span>13 Reporting & CI/CD</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="test-reporting.html" class="sidebar-link"><span class="dot"></span>Test Reporting</a>
+<a href="github-actions-cicd.html" class="sidebar-link"><span class="dot"></span>GitHub Actions CI/CD</a>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg><span>14 Production-Style Framework</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="production-framework-capstone.html" class="sidebar-link"><span class="dot"></span>Building the Framework</a>
+</div></details>
+</nav>
+
+    <main class="doc-main">
+      <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="../index.html">Home</a> <span class="crumb-sep">&rsaquo;</span> <a href="index.html">Playwright</a> <span class="crumb-sep">&rsaquo;</span> <span class="crumb-current">Browser & Context</span></nav>
+
+      <div class="page-header-banner">
+        <header class="page-head">
+          <h1>Chapter 9: Browser and BrowserContext</h1>
+        </header>
+        <div class="meta-row">
+          <span class="tag-pill Beginner">Beginner</span>
+          <span class="read-time">10 min read</span>
+        </div>
+      </div>
+
+      <p class="prereqs"><strong>Prerequisites:</strong> <a href="architecture.html">Playwright Architecture</a>, <a href="pages-and-navigation.html">Pages and Navigation</a></p>
+
+      <article class="content">
+        <h2 id="what-is-this">What is this?</h2>
+<p>Chapter 3 introduced Browser and BrowserContext conceptually. This chapter is the practical follow-up: the actual options you configure on each — launch options for the browser, and context options that control viewport, permissions, geolocation, cookies, and stored session state.</p>
+
+<h2 id="why-it-s-important">Why it's important</h2>
+<p>Most real test suites need at least a few of these options — a mobile viewport for responsive testing, geolocation for a location-aware feature, denied permissions to test a fallback UI, or reused login state so hundreds of tests don't each perform a fresh login. Knowing what's configurable here removes a lot of workarounds people otherwise reach for.</p>
+
+<h2 id="launching-a-browser">Launching a Browser</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import { chromium } from '@playwright/test';
+
+const browser = await chromium.launch({
+  headless: false,   // show the browser window
+  slowMo: 100,       // slow down each operation by 100ms, useful for debugging
+});</code></pre>
+<p>In most projects, though, you never call <code>launch()</code> yourself — the Test Runner manages the browser lifecycle for you based on <code>playwright.config.ts</code>, and these options are set there under each project's <code>use</code> block instead.</p>
+
+<h2 id="common-browsercontext-options">Common BrowserContext Options</h2>
+<table>
+  <thead><tr><th>Option</th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td><code>viewport</code></td><td>Simulated browser window size</td></tr>
+    <tr><td><code>userAgent</code></td><td>Override the reported user agent string</td></tr>
+    <tr><td><code>geolocation</code> / <code>permissions</code></td><td>Simulated GPS coordinates and granted browser permissions</td></tr>
+    <tr><td><code>locale</code> / <code>timezoneId</code></td><td>Simulated language and timezone</td></tr>
+    <tr><td><code>storageState</code></td><td>Preloaded cookies/localStorage — the basis for session reuse</td></tr>
+    <tr><td><code>colorScheme</code></td><td>Simulate light or dark mode preference</td></tr>
+  </tbody>
+</table>
+
+<h2 id="basic-example-mobile-geolocation-aware-context">Basic Example — Mobile, Geolocation-Aware Context</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const context = await browser.newContext({
+  viewport: { width: 390, height: 844 },
+  geolocation: { latitude: 51.5074, longitude: -0.1278 },
+  permissions: ['geolocation'],
+  locale: 'en-GB',
+});
+
+const page = await context.newPage();
+await page.goto('/nearby-stores');
+await expect(page.getByText('London')).toBeVisible();</code></pre>
+
+<h2 id="timezone">Timezone</h2>
+<p><code>timezoneId</code> is easy to overlook until a test needs to verify something that's genuinely timezone-sensitive — a "delivery by 6pm local time" message, a scheduling widget, or a timestamp displayed in the user's own timezone rather than UTC. Without setting it, contexts inherit whatever timezone the machine running the test happens to be in, which is exactly the kind of hidden, environment-dependent behavior that makes a test pass locally and fail (or vice versa) in CI.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const context = await browser.newContext({
+  timezoneId: 'America/New_York',
+});
+const page = await context.newPage();
+await page.goto('/schedule-delivery');
+
+// The app renders delivery slots in the context's local time —
+// this assertion is only meaningful because the timezone is pinned explicitly
+await expect(page.getByText('Delivery slot: 2:00 PM EST')).toBeVisible();</code></pre>
+<p>Use the standard IANA timezone database names (<code>'America/New_York'</code>, <code>'Europe/London'</code>, <code>'Asia/Kolkata'</code>) — the same identifiers JavaScript's own <code>Intl</code> API and most backend systems use, so there's no separate mapping to maintain. Pair <code>timezoneId</code> with <code>locale</code> when a feature depends on both (a date format <em>and</em> a local time), since they're independent settings that don't imply each other — setting <code>locale: 'en-GB'</code> does not also set the timezone to London.</p>
+
+<h2 id="detailed-example-reading-and-setting-cookies-directly">Detailed Example — Reading and Setting Cookies Directly</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Read all cookies in the current context
+const cookies = await context.cookies();
+console.log(cookies.find((c) =&gt; c.name === 'session_id'));
+
+// Set a cookie directly, bypassing the UI entirely — useful for seeding
+// state a test doesn't actually need to exercise
+await context.addCookies([{
+  name: 'feature_flag_new_checkout',
+  value: 'true',
+  domain: 'staging.example.com',
+  path: '/',
+}]);</code></pre>
+<p>Manipulating cookies and storage directly is a common technique for setting up preconditions a test doesn't care about testing itself — feature flags, consent banners already dismissed, A/B test bucketing — without spending time clicking through UI that isn't the point of the test.</p>
+
+<h2 id="local-storage-and-session-storage">Local Storage and Session Storage</h2>
+<p>Not every app stores state in cookies — many keep it in the browser's <code>localStorage</code> or <code>sessionStorage</code> instead (a JWT auth token, a "don't show this tip again" flag, a theme preference). These live per-origin, separately from cookies, and Playwright reads and writes them through the page's own JavaScript context rather than a dedicated context-level API like <code>cookies()</code>.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Read a value out of localStorage
+const theme = await page.evaluate(() =&gt; window.localStorage.getItem('theme'));
+
+// Set a value directly, bypassing the UI — e.g. pre-seed a dismissed announcement banner
+await page.addInitScript(() =&gt; {
+  window.localStorage.setItem('announcement_dismissed', 'true');
+});
+
+// sessionStorage works the same way, but the value only persists for that one tab's session
+await page.evaluate(() =&gt; window.sessionStorage.setItem('wizard_step', '2'));</code></pre>
+<p><code>page.addInitScript()</code> is the important detail here — it runs <em>before</em> the page's own scripts on every navigation in that page, which is what lets you seed a localStorage value the app will actually read on its very first load. Setting it via a plain <code>page.evaluate()</code> call after the page has already loaded works for values the app reads later, but is too late for anything the app checks during its initial render.</p>
+<p>This is also why <code>storageState</code> (below) captures more than just cookies: it snapshots each origin's <code>localStorage</code> alongside its cookies, which is exactly what's needed to correctly reproduce a session where auth lives in a token rather than a cookie.</p>
+
+<h2 id="testing-a-denied-permission-fallback">Testing a Denied-Permission Fallback</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const context = await browser.newContext({ permissions: [] }); // deny geolocation
+const page = await context.newPage();
+await page.goto('/nearby-stores');
+
+await expect(page.getByText('Enable location to see nearby stores')).toBeVisible();</code></pre>
+<p>This is easy to overlook but important: apps that request a browser permission almost always need a fallback UI for when it's denied, and that fallback is just as testable as the happy path — simply omit the permission instead of granting it.</p>
+
+<h2 id="real-world-example-persisting-login-with-storagestate">Real-World Example — Persisting Login with storageState</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Log in once, save the resulting session
+const context = await browser.newContext();
+const page = await context.newPage();
+await page.goto('/login');
+await page.getByLabel('Email').fill('user@example.com');
+await page.getByLabel('Password').fill('correct-horse-battery-staple');
+await page.getByRole('button', { name: 'Sign in' }).click();
+await context.storageState({ path: 'auth.json' });
+
+// Later tests: start already logged in
+const authedContext = await browser.newContext({ storageState: 'auth.json' });</code></pre>
+<p>This is normally wired into the Test Runner's project configuration rather than written by hand in every test file — covered in depth in the Authentication chapter.</p>
+
+<h2 id="multiple-contexts-for-multi-user-scenarios">Multiple Contexts for Multi-User Scenarios</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('two users can chat with each other', async ({ browser }) =&gt; {
+  const alice = await (await browser.newContext()).newPage();
+  const bob = await (await browser.newContext()).newPage();
+
+  await alice.goto('/chat');
+  await bob.goto('/chat');
+
+  await alice.getByLabel('Message').fill('Hi Bob!');
+  await alice.getByRole('button', { name: 'Send' }).click();
+
+  await expect(bob.getByText('Hi Bob!')).toBeVisible();
+});</code></pre>
+<p>Because each context is a fully isolated "profile," this genuinely simulates two separate browser sessions in one test — the deliberate, correct use of multiple contexts referenced back in Chapter 3.</p>
+
+<h2 id="multiple-pages-within-one-context">Multiple Pages Within One Context</h2>
+<p>Distinct from multiple <em>contexts</em> (different isolated users) is multiple <strong>pages within the same context</strong> — several open tabs that deliberately <em>do</em> share the same cookies and login session, exactly like a real person opening a second tab in the same browser window instead of a separate incognito session.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const context = await browser.newContext();
+
+const productPage = await context.newPage();
+await productPage.goto('/products/wireless-mouse');
+
+// Open a second tab in the SAME context — shares the same login session
+const cartPage = await context.newPage();
+await cartPage.goto('/cart');
+
+// Both pages see the same logged-in user, because they belong to one context
+await productPage.getByRole('button', { name: 'Add to cart' }).click();
+await cartPage.reload();
+await expect(cartPage.getByText('Wireless Mouse')).toBeVisible();</code></pre>
+<p>This is the mechanism underneath every "opens in a new tab" interaction a real user triggers — clicking a <code>target="_blank"</code> link, a "sign in with Google" popup — which is why <code>context.pages()</code> returns every currently open page in that context, and why capturing a newly opened tab (covered fully in the Multiple Tabs & Windows chapter) means listening for the context's <code>page</code> event rather than expecting a return value from the click itself.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>console.log(context.pages().length); // 2 — productPage and cartPage, both still open
+
+await cartPage.close(); // closing one page doesn't affect the context or its other pages
+console.log(context.pages().length); // 1</code></pre>
+<p>The distinction to keep straight: reach for a <strong>new context</strong> when you need genuinely separate identities (two different logged-in users, as in the chat example above); reach for a <strong>new page in the same context</strong> when you're modeling one user who simply has more than one tab open.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Setting viewport inline in every mobile-related test
+test('mobile menu opens', async ({ browser }) =&gt; {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  // ...
+});
+
+// ✅ Define a dedicated mobile project once in playwright.config.ts
+// projects: [{ name: 'Mobile Safari', use: { ...devices['iPhone 13'] } }]</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Calling <code>browser.launch()</code> manually</strong> inside tests that already run under the Test Runner, duplicating what the runner already manages via <code>playwright.config.ts</code>.</li>
+  <li><strong>Setting viewport per-test with inline code</strong> instead of defining a dedicated mobile project in the config, making mobile coverage inconsistent across the suite.</li>
+  <li><strong>Forgetting to grant a permission</strong> that a simulated capability (geolocation, notifications) depends on, then debugging the wrong layer when it silently fails.</li>
+  <li><strong>Not testing the denied-permission path</strong> — teams often only test the granted case, leaving the fallback UI uncovered.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Permissions that require a user gesture</strong> in real browsers (like clipboard access) — Playwright's <code>permissions</code> option pre-grants these for testing, bypassing the interactive prompt a real user would see.</li>
+  <li><strong>Contexts with expired <code>storageState</code></strong> — a saved session with an expired token will silently behave as logged-out; regenerate <code>auth.json</code> periodically or as part of CI setup rather than committing a long-lived static file.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a location- or permission-dependent feature isn't behaving as expected, check <code>context.cookies()</code>/<code>context.storageState()</code> directly in a debug session or via <code>--debug</code> mode to confirm the simulated values actually took effect, rather than assuming the option was applied correctly.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Configure context options (viewport, locale, permissions) at the project level in <code>playwright.config.ts</code> wherever they apply to a whole class of tests, not per-test.</li>
+  <li>Use <code>storageState</code> for any suite where more than a handful of tests require being logged in.</li>
+  <li>Only reach for manual <code>browser.newContext()</code> calls for scenarios that genuinely need multiple simultaneous contexts within one test — most tests should rely on the runner's built-in <code>page</code> fixture instead.</li>
+  <li>Test both the granted and denied paths for any feature that depends on a browser permission.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Write a test that creates two separate browser contexts representing two different users with different <code>storageState</code> files, and verifies one user can't see the other's private data on a shared dashboard URL.</p>
+
+<h2 id="summary">Summary</h2>
+<p>Browser launch options control the browser process itself; BrowserContext options control the isolated session within it — viewport, locale, permissions, cookies, and stored login state among them. Most of these belong in <code>playwright.config.ts</code> rather than scattered through individual tests, and <code>storageState</code> is the standard way to avoid repeating login across a whole suite.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Where should context options like viewport and locale typically be configured in a real project, and why?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">In <code>playwright.config.ts</code>, as part of a project's <code>use</code> block, rather than inline in individual tests. Centralizing them keeps every test in that project consistent automatically, and makes adding a new device/locale target (e.g., a mobile Safari project) a config change rather than an edit to every test file.</div>
+</details>
+<details class="faq-item">
+<summary>What's the difference between opening a new context versus a new page in the same context?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A new context is a genuinely separate identity with its own cookies/storage; a new page in the same context shares the session, like a second tab for the same logged-in user.</div>
+</details>
+<details class="faq-item">
+<summary>Why does page.addInitScript() matter for seeding localStorage?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It runs before the page's own scripts on every navigation, letting you seed a value the app reads during its very first render — a plain evaluate() after load would be too late.</div>
+</details>
+<details class="faq-item">
+<summary>Why is a database connection typically a worker-scoped fixture rather than test-scoped?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It's expensive to open and safe to share across tests in the same worker, unlike page-level state which genuinely needs per-test isolation.</div>
+</details>
+<details class="faq-item">
+<summary>What's a common mistake with browser permissions in tests?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Only testing the granted-permission path and never testing the denied-permission fallback UI, which most apps also need to handle correctly.</div>
+</details>
+</div>
+      </article>
+
+      <label class="mark-complete-row">
+        <input type="checkbox" class="mark-complete-checkbox" data-page-id="pw:browser-and-browsercontext.html" onchange="toggleComplete(this)" />
+        <span>Mark this lesson complete</span>
+      </label>
+
+      <div class="prev-next">
+        <a href="pages-and-navigation.html"><span class="pn-label">&larr; Previous</span>Pages & Navigation</a>
+        <a href="forms.html" class="pn-next"><span class="pn-label">Next &rarr;</span>Forms</a>
+      </div>
+    </main>
+
+    <aside class="right-rail">
+      <div class="rail-card book-promo-card">
+  <div class="book-promo-badge">&#128218; Recommended Reading</div>
+  <div class="book-carousel">
+    <div class="book-slide active">
+  <a href="https://www.amazon.in/CRACKING-PLAYWRIGHT-INTERVIEW-Interview-Preparation-ebook/dp/B0H7MGN2XK" target="_blank" rel="nofollow noopener" class="book-cover-mock"><img src="../images/books/book-1-cracking-playwright-interview.webp" alt="Cracking the Playwright Interview book cover" loading="lazy" /></a>
+  <div class="book-info">
+    <h5>Cracking the Playwright Interview</h5>
+    <p>The Complete Interview Preparation Guide</p>
+    <a href="https://www.amazon.in/CRACKING-PLAYWRIGHT-INTERVIEW-Interview-Preparation-ebook/dp/B0H7MGN2XK" target="_blank" rel="nofollow noopener" class="book-buy-btn">View on Amazon &rarr;</a>
+  </div>
+</div><div class="book-slide">
+  <a href="https://www.amazon.in/Playwright-Automation-Testing-Complete-TypeScript-ebook/dp/B0G492YGYJ" target="_blank" rel="nofollow noopener" class="book-cover-mock"><img src="../images/books/book-2-playwright-automation-testing.jpg" alt="Playwright Automation Testing book cover" loading="lazy" /></a>
+  <div class="book-info">
+    <h5>Playwright Automation Testing</h5>
+    <p>Complete Guide with TypeScript</p>
+    <a href="https://www.amazon.in/Playwright-Automation-Testing-Complete-TypeScript-ebook/dp/B0G492YGYJ" target="_blank" rel="nofollow noopener" class="book-buy-btn">View on Amazon &rarr;</a>
+  </div>
+</div><div class="book-slide">
+  <a href="https://www.amazon.in/API-Testing-Playwright-TypeScript-Practical-ebook/dp/B0GS99CDCK" target="_blank" rel="nofollow noopener" class="book-cover-mock"><img src="../images/books/book-3-api-testing-playwright-typescript.webp" alt="API Testing with Playwright & TypeScript book cover" loading="lazy" /></a>
+  <div class="book-info">
+    <h5>API Testing with Playwright & TypeScript</h5>
+    <p>A Practical Guide from Zero to Expert</p>
+    <a href="https://www.amazon.in/API-Testing-Playwright-TypeScript-Practical-ebook/dp/B0GS99CDCK" target="_blank" rel="nofollow noopener" class="book-buy-btn">View on Amazon &rarr;</a>
+  </div>
+</div><div class="book-slide">
+  <a href="https://www.amazon.in/Playwright-Mastery-TypeScript-Cucumber-Applications-ebook/dp/B0GPKXYB9Q" target="_blank" rel="nofollow noopener" class="book-cover-mock"><img src="../images/books/book-4-playwright-mastery-typescript-cucumber.jpg" alt="Playwright Mastery with TypeScript & Cucumber book cover" loading="lazy" /></a>
+  <div class="book-info">
+    <h5>Playwright Mastery with TypeScript & Cucumber</h5>
+    <p>Building Robust, Scalable Test Frameworks</p>
+    <a href="https://www.amazon.in/Playwright-Mastery-TypeScript-Cucumber-Applications-ebook/dp/B0GPKXYB9Q" target="_blank" rel="nofollow noopener" class="book-buy-btn">View on Amazon &rarr;</a>
+  </div>
+</div>
+  </div>
+  <div class="book-dots"><span class="book-dot active"></span><span class="book-dot"></span><span class="book-dot"></span><span class="book-dot"></span></div>
+</div>
+
+      <div class="rail-card">
+        <h4>Related Articles</h4>
+        <div class="related-list">
+          <a href="architecture.html">Architecture<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+<a href="pages-and-navigation.html">Pages & Navigation<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+        </div>
+      </div>
+
+      <div class="rail-card was-helpful-card">
+        <span>Was this helpful?</span>
+        <button title="Yes">&#128077;</button>
+        <button title="No">&#128078;</button>
+      </div>
+    </aside>
+  </div>
+
+  <nav class="mobile-tabbar">
+  <a href="../index.html" class=""><svg class="icon" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg><span>Home</span></a>
+  <a href="index.html" class="active"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>Tutorials</span></a>
+  <a href="../books.html" class=""><svg class="icon" viewBox="0 0 24 24"><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v16H6.5A2.5 2.5 0 0 0 4 20.5"/><path d="M4 4.5v16"/></svg><span>Books</span></a>
+  <a href="../about.html"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="12" y1="16" x2="12" y2="11.5"/><circle cx="12" cy="8" r="0.8" fill="currentColor" stroke="none"/></svg><span>About</span></a>
+</nav>
+
+  <script>
+  
+  document.querySelectorAll('.book-promo-card').forEach(function(card) {
+    var slides = card.querySelectorAll('.book-slide');
+    var dots = card.querySelectorAll('.book-dot');
+    if (slides.length < 2) return;
+    var idx = 0;
+    setInterval(function() {
+      slides[idx].classList.remove('active');
+      if (dots[idx]) dots[idx].classList.remove('active');
+      idx = (idx + 1) % slides.length;
+      slides[idx].classList.add('active');
+      if (dots[idx]) dots[idx].classList.add('active');
+    }, 5000);
+  });
+
+  function copyCode(btn) {
+    const code = btn.nextElementSibling.innerText;
+    navigator.clipboard.writeText(code).then(function() {
+      btn.textContent = 'Copied';
+      btn.classList.add('copied');
+      setTimeout(function() { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
+    });
+  }
+  function openSidebar() {
+    document.getElementById('doc-sidebar').classList.add('open');
+    document.getElementById('sidebar-backdrop').classList.add('show');
+    document.body.classList.add('no-scroll');
+  }
+  function closeSidebar() {
+    document.getElementById('doc-sidebar').classList.remove('open');
+    document.getElementById('sidebar-backdrop').classList.remove('show');
+    document.body.classList.remove('no-scroll');
+  }
+  function toggleTheme() {
+    var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark');
+    try { localStorage.setItem('assertTrueTheme', isDark ? 'light' : 'dark'); } catch (e) {}
+  }
+  function toggleComplete(checkbox) {
+    var pageId = checkbox.getAttribute('data-page-id');
+    var progress = {};
+    try { progress = JSON.parse(localStorage.getItem('assertTrueProgress') || '{}'); } catch (e) {}
+    if (checkbox.checked) { progress[pageId] = true; } else { delete progress[pageId]; }
+    try { localStorage.setItem('assertTrueProgress', JSON.stringify(progress)); } catch (e) {}
+  }
+  (function() {
+    var progress = {};
+    try { progress = JSON.parse(localStorage.getItem('assertTrueProgress') || '{}'); } catch (e) {}
+    var cb = document.querySelector('.mark-complete-checkbox');
+    if (cb && progress[cb.getAttribute('data-page-id')]) cb.checked = true;
+  })();
+  (function() {
+    var activeLink = document.querySelector('.doc-sidebar a.active');
+    if (activeLink) { activeLink.scrollIntoView({ block: 'center' }); }
+  })();
+  document.addEventListener('click', function(e) {
+    if (e.target.closest('.sidebar-link') && window.matchMedia('(max-width: 860px)').matches) {
+      closeSidebar();
+    }
+  });
+  (function() {
+    var sidebar = document.getElementById('doc-sidebar');
+    if (!sidebar) return;
+    var saved = sessionStorage.getItem('sidebarScrollTop');
+    if (saved !== null) sidebar.scrollTop = parseInt(saved, 10);
+    var saveScroll = function() { sessionStorage.setItem('sidebarScrollTop', sidebar.scrollTop); };
+    sidebar.addEventListener('scroll', saveScroll);
+    sidebar.addEventListener('click', function(e) {
+      if (e.target.closest('a')) saveScroll();
+    });
+  })();
+  </script>
+</body>
+</html>

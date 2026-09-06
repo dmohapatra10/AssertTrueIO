@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <script>try{if(localStorage.getItem('assertTrueTheme')==='dark'){document.documentElement.setAttribute('data-theme','dark');}}catch(e){}</script>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Building the Application &amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp; Running Unit Tests in GitHub Actions</title>
+  <meta name="description" content="Building an application in CI, why a build failure and a test failure are two different, sequential questions, and running unit tests as a distinct, deliberate pipeline stage." />
+  <link rel="canonical" href="https://asserttrue.io/github-actions/building-the-application-and-running-unit-tests.html" />
+  <link rel="stylesheet" href="../css/style.css?v=57" />
+</head>
+<body class="theme-gh">
+  <header class="topnav">
+    <button class="mobile-menu-btn" onclick="openSidebar()">&#9776;</button>
+    <a href="../index.html" class="brand"><svg class="logo-mark" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="40" rx="11" fill="url(#logoGrad)"/><path d="M11 21.5 L17 27.5 L29.5 13" stroke="#ffffff" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/><defs><linearGradient id="logoGrad" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse"><stop stop-color="#22c55e"/><stop offset="1" stop-color="#15803d"/></linearGradient></defs></svg><span class="brand-text">Assert<span class="brand-true">True</span><span class="brand-io">IO</span></span></a>
+    <nav class="topnav-links">
+      <a href="../playwright/index.html">Playwright</a>
+      <a href="../restassured/index.html">RestAssured</a>
+      <a href="../k6/index.html">K6</a>
+      <a href="index.html" class="active">GitHub Actions</a>
+      <a href="../about.html">About</a>
+      <a href="../books.html">Books</a>
+    </nav>
+    <div class="topnav-right">
+      <span class="search-box">Search tutorials...</span>
+      <button class="icon-btn theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Toggle dark mode"><svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
+    </div>
+  </header>
+
+  <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeSidebar()"></div>
+
+  <div class="app-shell">
+    <nav class="doc-sidebar" id="doc-sidebar">
+<div class="sidebar-mobile-header"><span>Menu</span><button class="sidebar-close-btn" onclick="closeSidebar()">&times;</button></div>
+<a href="index.html" class="sidebar-overview-link"><svg class="icon" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg><span>Roadmap</span></a>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>01 CI/CD & GitHub Actions Fundamentals</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="cicd-and-github-actions-fundamentals.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>CI/CD & GitHub Actions Fundamentals</a>
+<div class="sidebar-sub">
+<a href="what-is-cicd.html" class="sidebar-link"><span class="dot"></span>What is CI/CD?</a>
+<a href="what-is-github-actions.html" class="sidebar-link"><span class="dot"></span>What is GitHub Actions?</a>
+<a href="github-actions-mental-model.html" class="sidebar-link"><span class="dot"></span>GitHub Actions Mental Model</a>
+<a href="your-first-github-actions-workflow.html" class="sidebar-link"><span class="dot"></span>Your First GitHub Actions Workflow</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="8 6 2 12 8 18"/><polyline points="16 6 22 12 16 18"/></svg><span>02 Yaml Fundamentals</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="yaml-fundamentals-for-github-actions.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>YAML Fundamentals for GitHub Actions</a>
+<div class="sidebar-sub">
+<a href="what-is-yaml-and-why-github-actions-uses-it.html" class="sidebar-link"><span class="dot"></span>What is YAML? Why GitHub Actions Uses It</a>
+<a href="yaml-syntax-keys-values-lists-and-nesting.html" class="sidebar-link"><span class="dot"></span>YAML Syntax: Keys, Values, Lists & Nesting</a>
+<a href="common-yaml-mistakes-that-break-workflows.html" class="sidebar-link"><span class="dot"></span>Common YAML Mistakes That Break Workflows</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"/></svg><span>03 Events & Workflow Triggers</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="events-and-workflow-triggers.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Events & Workflow Triggers</a>
+<div class="sidebar-sub">
+<a href="what-is-a-github-actions-event.html" class="sidebar-link"><span class="dot"></span>What is a GitHub Actions Event?</a>
+<a href="push-and-pull-request-triggers.html" class="sidebar-link"><span class="dot"></span>Push & Pull Request Triggers</a>
+<a href="manual-workflows-with-workflow-dispatch.html" class="sidebar-link"><span class="dot"></span>Manual Workflows: workflow_dispatch</a>
+<a href="scheduled-workflows-and-cron.html" class="sidebar-link"><span class="dot"></span>Scheduled Workflows & Cron</a>
+<a href="advanced-triggers.html" class="sidebar-link"><span class="dot"></span>Advanced Triggers</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><span>04 Jobs Steps & Runners</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="jobs-steps-and-runners.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Jobs, Steps & Runners</a>
+<div class="sidebar-sub">
+<a href="jobs-and-steps-the-execution-model-in-depth.html" class="sidebar-link"><span class="dot"></span>Jobs & Steps: The Execution Model in Depth</a>
+<a href="github-hosted-runners-and-runs-on.html" class="sidebar-link"><span class="dot"></span>GitHub-Hosted Runners & runs-on</a>
+<a href="running-shell-commands-with-run.html" class="sidebar-link"><span class="dot"></span>Running Shell Commands: The run: Key</a>
+<a href="using-actions-with-uses-and-run-vs-uses.html" class="sidebar-link"><span class="dot"></span>Using Actions: uses:, with:, and run vs. uses</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4 7h4V5a2 2 0 0 1 4 0v2h4v4h2a2 2 0 0 1 0 4h-2v4H4v-4H2a2 2 0 0 1 0-4h2z"/></svg><span>05 Working With Code In Ci</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="working-with-code-in-ci.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Working with Code in CI</a>
+<div class="sidebar-sub">
+<a href="checking-out-repository-code.html" class="sidebar-link"><span class="dot"></span>Checking Out Repository Code</a>
+<a href="setting-up-programming-languages.html" class="sidebar-link"><span class="dot"></span>Setting Up Programming Languages: Java, Node.js & Python</a>
+<a href="installing-dependencies-and-caching.html" class="sidebar-link"><span class="dot"></span>Installing Dependencies & Caching</a>
+<a href="building-the-application-and-running-unit-tests.html" class="sidebar-link active"><span class="dot"></span>Building the Application & Running Unit Tests</a>
+<a href="running-automation-tests-playwright-restassured-k6.html" class="sidebar-link"><span class="dot"></span>Running Automation Tests: Playwright, RestAssured & k6</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>06 Variables Contexts & Expressions</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="variables-contexts-and-expressions.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Variables, Contexts & Expressions</a>
+<div class="sidebar-sub">
+<a href="environment-variables-job-vs-step-scope.html" class="sidebar-link"><span class="dot"></span>Environment Variables: env: and Job vs. Step Scope</a>
+<a href="github-actions-contexts-explained.html" class="sidebar-link"><span class="dot"></span>GitHub Actions Contexts Explained</a>
+<a href="expressions-and-the-double-curly-syntax.html" class="sidebar-link"><span class="dot"></span>Expressions: The ${{ }} Syntax</a>
+<a href="conditional-execution-with-if.html" class="sidebar-link"><span class="dot"></span>Conditional Execution: if:</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><span>07 Secrets Security & Permissions</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="secrets-security-and-permissions.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Secrets, Security & Permissions</a>
+<div class="sidebar-sub">
+<a href="why-secrets-matter-and-using-github-secrets.html" class="sidebar-link"><span class="dot"></span>Why Secrets Matter & Using GitHub Secrets</a>
+<a href="variables-vs-secrets-choosing-the-right-one.html" class="sidebar-link"><span class="dot"></span>Variables vs. Secrets: Choosing the Right One</a>
+<a href="the-github-token-explained.html" class="sidebar-link"><span class="dot"></span>GITHUB_TOKEN: The Automatic Token Explained</a>
+<a href="workflow-permissions-and-least-privilege.html" class="sidebar-link"><span class="dot"></span>Workflow Permissions & Least Privilege</a>
+<a href="common-security-mistakes-and-a-security-challenge.html" class="sidebar-link"><span class="dot"></span>Common Security Mistakes & a Security Challenge</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>08 Artifacts Caching & Build Outputs</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="artifacts-caching-and-build-outputs.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Artifacts, Caching & Build Outputs</a>
+<div class="sidebar-sub">
+<a href="what-is-an-artifact-and-uploading-artifacts.html" class="sidebar-link"><span class="dot"></span>What is an Artifact? & Uploading Artifacts</a>
+<a href="downloading-artifacts-and-passing-data-between-jobs.html" class="sidebar-link"><span class="dot"></span>Downloading Artifacts & Passing Data Between Jobs</a>
+<a href="test-reports-screenshots-and-videos-in-ci.html" class="sidebar-link"><span class="dot"></span>Test Reports, Screenshots & Videos in CI</a>
+<a href="artifact-vs-cache-choosing-the-right-one.html" class="sidebar-link"><span class="dot"></span>Artifact vs. Cache: Choosing the Right One</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><span>09 Job Dependencies Conditions & Data Flow</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="job-dependencies-conditions-and-data-flow.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Job Dependencies, Conditions & Data Flow</a>
+<div class="sidebar-sub">
+<a href="job-dependencies-with-needs-in-depth.html" class="sidebar-link"><span class="dot"></span>Job Dependencies: needs: In Depth</a>
+<a href="passing-information-between-steps.html" class="sidebar-link"><span class="dot"></span>Passing Information Between Steps</a>
+<a href="passing-information-between-jobs.html" class="sidebar-link"><span class="dot"></span>Passing Information Between Jobs</a>
+<a href="conditional-jobs-and-failure-handling.html" class="sidebar-link"><span class="dot"></span>Conditional Jobs & Failure Handling</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="8 6 2 12 8 18"/><polyline points="16 6 22 12 16 18"/></svg><span>10 Matrix Builds & Parallel Execution</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="matrix-builds-and-parallel-execution.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Matrix Builds & Parallel Execution</a>
+<div class="sidebar-sub">
+<a href="what-is-a-matrix-testing-versions-and-operating-systems.html" class="sidebar-link"><span class="dot"></span>What is a Matrix? Testing Multiple Versions & OSes</a>
+<a href="matrix-configuration-include-exclude-and-fine-tuning.html" class="sidebar-link"><span class="dot"></span>Matrix Configuration: include, exclude & Fine-Tuning</a>
+<a href="parallel-execution-and-the-performance-challenge.html" class="sidebar-link"><span class="dot"></span>Parallel Execution & the Performance Challenge</a>
+<a href="matrix-with-automation-testing.html" class="sidebar-link"><span class="dot"></span>Matrix + Automation Testing: Playwright, Cross-Browser & Multi-Environment</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4 7h4V5a2 2 0 0 1 4 0v2h4v4h2a2 2 0 0 1 0 4h-2v4H4v-4H2a2 2 0 0 1 0-4h2z"/></svg><span>11 Reusable Workflows & DRY CI/CD</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="reusable-workflows-composite-actions-and-dry-cicd.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Reusable Workflows, Composite Actions & DRY CI/CD</a>
+<div class="sidebar-sub">
+<a href="why-reusability-matters-and-reusable-workflows.html" class="sidebar-link"><span class="dot"></span>Why Reusability Matters & Reusable Workflows</a>
+<a href="calling-a-reusable-workflow-with-inputs-and-outputs.html" class="sidebar-link"><span class="dot"></span>Calling a Reusable Workflow with Inputs & Outputs</a>
+<a href="composite-actions-explained.html" class="sidebar-link"><span class="dot"></span>Composite Actions Explained</a>
+<a href="reusable-workflow-vs-composite-action.html" class="sidebar-link"><span class="dot"></span>Reusable Workflow vs. Composite Action: Choosing the Right One</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg><span>12 Environments Approvals & Deployment</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="environments-approvals-and-deployment.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Environments, Approvals & Deployment</a>
+<div class="sidebar-sub">
+<a href="what-is-a-github-environment-and-the-standard-progression.html" class="sidebar-link"><span class="dot"></span>What is a GitHub Environment? Dev/Test/Staging/Production</a>
+<a href="environment-scoped-variables.html" class="sidebar-link"><span class="dot"></span>Environment-Scoped Variables</a>
+<a href="deployment-approvals-and-protection-rules.html" class="sidebar-link"><span class="dot"></span>Deployment Approvals & Protection Rules</a>
+<a href="environment-based-deployment-the-complete-pipeline.html" class="sidebar-link"><span class="dot"></span>Environment-Based Deployment: The Complete Pipeline</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><span>13 Advanced GitHub Actions & Production CI/CD</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="advanced-github-actions-and-production-cicd.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Advanced GitHub Actions & Production CI/CD</a>
+<div class="sidebar-sub">
+<a href="self-hosted-runners.html" class="sidebar-link"><span class="dot"></span>Self-Hosted Runners</a>
+<a href="containers-and-services-in-github-actions.html" class="sidebar-link"><span class="dot"></span>Containers & Services in GitHub Actions</a>
+<a href="oidc-and-cloud-authentication.html" class="sidebar-link"><span class="dot"></span>OIDC & Cloud Authentication</a>
+<a href="concurrency-timeouts-and-retries.html" class="sidebar-link"><span class="dot"></span>Concurrency, Timeouts & Retries: Building Reliable Workflows</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg><span>14 Production-Ready CI/CD Pipeline</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="production-cicd-pipeline-capstone.html" class="sidebar-link"><span class="dot"></span>Build a Production-Ready CI/CD Pipeline</a>
+</div></details>
+</nav>
+
+    <main class="doc-main">
+      <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="../index.html">Home</a> <span class="crumb-sep">&rsaquo;</span> <a href="index.html">K6</a> <span class="crumb-sep">&rsaquo;</span> <a href="working-with-code-in-ci.html">Working with Code in CI</a> <span class="crumb-sep">&rsaquo;</span> <span class="crumb-current">Building the Application & Running Unit Tests</span></nav>
+
+      <div class="page-header-banner">
+        <header class="page-head">
+          <h1>Building the Application &amp; Running Unit Tests</h1>
+        </header>
+        <div class="meta-row">
+          <span class="tag-pill Beginner">Beginner</span>
+          <span class="read-time">6 min read</span>
+        </div>
+      </div>
+
+      <p class="prereqs"><strong>Prerequisites:</strong> <a href="installing-dependencies-and-caching.html">Installing Dependencies & Caching</a></p>
+
+      <article class="content">
+        <h2 id="what-is-this">What is this?</h2>
+<p>With dependencies installed, the pipeline can finally do something with the actual code — build it, and verify it with unit tests. These are two distinct, sequential questions: does it compile/bundle at all, and does it actually behave correctly?</p>
+
+<h2 id="building-by-ecosystem">Building, By Ecosystem</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># Node.js (e.g., a frontend bundle)
+- run: npm run build
+
+# Java (Maven)
+- run: mvn package
+
+# A statically-typed language might fail here on a type error alone,
+# before any test even runs</code></pre>
+<p>"Building" varies enormously by language and framework — the common thread is that it's the step that turns source code into something runnable or deployable, and it can genuinely fail entirely independently of whether any test would pass or fail.</p>
+
+<h2 id="why-build-and-test-are-separate-sequential-steps">Why Build and Test Are Separate, Sequential Steps</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Question 1: "Does this even compile/bundle?"     → the BUILD step
+Question 2: "Does it actually behave correctly?" → the TEST step</code></pre>
+<p>A build failure means something is fundamentally broken before you'd even get to ask whether behavior is correct — running tests against code that doesn't build wouldn't be meaningful anyway. Keeping these as genuinely separate steps means a build failure is reported clearly as a build problem, not confusingly mixed in with test output.</p>
+
+<h2 id="running-unit-tests">Running Unit Tests</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># Node.js (Jest, for example)
+- run: npm test
+
+# Java (Maven, JUnit)
+- run: mvn test
+
+# Python (pytest)
+- run: pytest</code></pre>
+<p>Unit tests verify individual pieces of logic in isolation — genuinely different in scope from the automation tests (Playwright, RestAssured, k6) covered on the next page, which verify real, end-to-end behavior across a whole running system.</p>
+
+<h2 id="detailed-example-a-complete-build-then-test-sequence">Detailed Example — A Complete Build-Then-Test Sequence</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run build   # fails here if the code doesn't even compile/bundle
+      - run: npm test        # only reached if the build succeeded</code></pre>
+<p>Because steps run strictly in order and a failure stops the rest of the job (covered in Chapter 4), a build failure here correctly prevents the test step from ever running at all — there's no point testing something that doesn't successfully build in the first place.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might a team specifically want the build step to run before the test step, rather than the reverse order? If tests ran first and a test genuinely depends on a successfully built artifact (a compiled binary, a bundled frontend), running tests before the build would either fail for the wrong reason or simply not be possible at all. Build-then-test reflects the actual, real dependency between these two concerns.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Treating "the build succeeded" as if it were equivalent to "the application works correctly." A successful build only confirms the code is syntactically valid and its pieces fit together — it says nothing about whether the actual behavior is correct, which is exactly what the subsequent test step exists to verify.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>Many CI setups don't need an explicit separate "build" step at all — for an interpreted language with no bundling step, "build" might not meaningfully exist as its own distinct action, and tests can run directly against the source. Whether build and test are genuinely separate steps depends entirely on your actual language and toolchain.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Keep build and test as distinct steps whenever your toolchain genuinely has a separate build phase — clearer failure attribution matters.</li>
+  <li>Order steps so a build failure prevents wasted time running tests against code that doesn't even build.</li>
+  <li>Don't treat a passing build as any kind of substitute for actually running tests — they answer genuinely different questions.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Building and testing are two different, sequential questions — does it compile/bundle, and does it behave correctly.</li>
+  <li>A build failure correctly prevents the test step from running at all, given default fail-fast step behavior.</li>
+  <li>Unit tests verify individual logic in isolation — genuinely different in scope from end-to-end automation testing.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>For a language or framework you're personally familiar with, write out the actual build and test commands a real CI job would use, and identify whether "build" is a genuinely separate, meaningful step for that specific toolchain or whether tests could reasonably run directly against the source.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why does a build failure and a test failure represent two genuinely different kinds of problems?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A build failure means the code is fundamentally broken at a structural level — it doesn't compile, bundle, or assemble correctly at all — before any question of correct behavior even applies. A test failure means the code builds successfully but doesn't behave as expected in some specific case. These require genuinely different kinds of investigation and fixes, which is why keeping them as separate pipeline steps produces clearer, more actionable failure information.</div>
+</details>
+<details class="faq-item">
+<summary>Why does it make sense for the build step to run before the test step, rather than the other way around?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Many test suites genuinely depend on a successfully built artifact — a compiled binary, a bundled frontend — to actually run against. Running tests before a build that hasn't happened yet either isn't possible or would fail for reasons unrelated to the actual test logic, so building first reflects the real, practical dependency between these two steps.</div>
+</details>
+<details class="faq-item">
+<summary>Why isn't a successful build enough evidence that an application actually works correctly?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A successful build only confirms the code is syntactically valid and its various pieces fit together well enough to compile or bundle — it says nothing about whether the actual logic produces correct results. Verifying correct behavior is specifically what the subsequent test step is for, and skipping it based on a passing build alone would leave genuine behavioral bugs completely uncaught.</div>
+</details>
+<details class="faq-item">
+<summary>Why might some CI pipelines not have an explicit, separate "build" step at all?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Whether "build" exists as its own distinct, meaningful action depends entirely on the language and toolchain — an interpreted language with no bundling or compilation step may not have anything genuinely separate to call a "build" phase, and tests might run directly against the source code itself. The build-then-test pattern is common, not universal, and should be applied based on what a specific project's toolchain actually requires.</div>
+</details>
+<details class="faq-item">
+<summary>How does the default fail-fast behavior of steps within a job (from Chapter 4) apply specifically to a build-then-test sequence?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Since a failing step stops the rest of that job's remaining steps by default, a failed build step correctly and automatically prevents the subsequent test step from ever running — there's no need for extra logic to explicitly check "did the build succeed" before deciding whether to run tests. This default behavior naturally produces the correct sequential dependency without any additional configuration.</div>
+</details>
+</div>
+      </article>
+
+      <label class="mark-complete-row">
+        <input type="checkbox" class="mark-complete-checkbox" data-page-id="k6:building-the-application-and-running-unit-tests.html" onchange="toggleComplete(this)" />
+        <span>Mark this lesson complete</span>
+      </label>
+
+      <div class="prev-next">
+        <a href="installing-dependencies-and-caching.html"><span class="pn-label">&larr; Previous</span>Installing Dependencies & Caching</a>
+        <a href="running-automation-tests-playwright-restassured-k6.html" class="pn-next"><span class="pn-label">Next &rarr;</span>Running Automation Tests: Playwright, RestAssured & k6</a>
+      </div>
+    </main>
+
+    <aside class="right-rail">
+      <div class="rail-card book-promo-card">
+  <div class="book-promo-badge">&#128218; Recommended Reading</div>
+  <div class="book-carousel">
+    <div class="book-slide active">
+  <a href="https://www.amazon.in/GITHUB-ACTIONS-ACTION-Developers-Automating-ebook/dp/B0GX2YXBN1" target="_blank" rel="nofollow noopener" class="book-cover-mock"><img src="../images/books/book-8-github-actions-in-action.jpg" alt="GitHub Actions in Action book cover" loading="lazy" /></a>
+  <div class="book-info">
+    <h5>GitHub Actions in Action</h5>
+    <p>The Complete Developer's Guide to Automating CI/CD Pipelines</p>
+    <a href="https://www.amazon.in/GITHUB-ACTIONS-ACTION-Developers-Automating-ebook/dp/B0GX2YXBN1" target="_blank" rel="nofollow noopener" class="book-buy-btn">View on Amazon &rarr;</a>
+  </div>
+</div>
+  </div>
+  <div class="book-dots"><span class="book-dot active"></span></div>
+</div>
+
+      <div class="rail-card">
+        <h4>Related Chapters</h4>
+        <div class="related-list">
+          <a href="checking-out-repository-code.html">Checking Out Repository Code<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+<a href="setting-up-programming-languages.html">Setting Up Programming Languages: Java, Node.js & Python<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+<a href="installing-dependencies-and-caching.html">Installing Dependencies & Caching<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+<a href="running-automation-tests-playwright-restassured-k6.html">Running Automation Tests: Playwright, RestAssured & k6<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+<a href="cicd-and-github-actions-fundamentals.html">CI/CD & GitHub Actions Fundamentals<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+        </div>
+      </div>
+
+      <div class="rail-card was-helpful-card">
+        <span>Was this helpful?</span>
+        <button title="Yes">&#128077;</button>
+        <button title="No">&#128078;</button>
+      </div>
+    </aside>
+  </div>
+
+  <nav class="mobile-tabbar">
+  <a href="../index.html"><svg class="icon" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg><span>Home</span></a>
+  <a href="index.html" class="active"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>Tutorials</span></a>
+  <a href="../books.html"><svg class="icon" viewBox="0 0 24 24"><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v16H6.5A2.5 2.5 0 0 0 4 20.5"/><path d="M4 4.5v16"/></svg><span>Books</span></a>
+  <a href="../about.html"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="12" y1="16" x2="12" y2="11.5"/><circle cx="12" cy="8" r="0.8" fill="currentColor" stroke="none"/></svg><span>About</span></a>
+</nav>
+
+  <script>
+  
+  document.querySelectorAll('.book-promo-card').forEach(function(card) {
+    var slides = card.querySelectorAll('.book-slide');
+    var dots = card.querySelectorAll('.book-dot');
+    if (slides.length < 2) return;
+    var idx = 0;
+    setInterval(function() {
+      slides[idx].classList.remove('active');
+      if (dots[idx]) dots[idx].classList.remove('active');
+      idx = (idx + 1) % slides.length;
+      slides[idx].classList.add('active');
+      if (dots[idx]) dots[idx].classList.add('active');
+    }, 5000);
+  });
+
+  function copyCode(btn) {
+    const code = btn.nextElementSibling.innerText;
+    navigator.clipboard.writeText(code).then(function() {
+      btn.textContent = 'Copied';
+      btn.classList.add('copied');
+      setTimeout(function() { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
+    });
+  }
+  function openSidebar() {
+    document.getElementById('doc-sidebar').classList.add('open');
+    document.getElementById('sidebar-backdrop').classList.add('show');
+    document.body.classList.add('no-scroll');
+  }
+  function closeSidebar() {
+    document.getElementById('doc-sidebar').classList.remove('open');
+    document.getElementById('sidebar-backdrop').classList.remove('show');
+    document.body.classList.remove('no-scroll');
+  }
+  function toggleTheme() {
+    var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark');
+    try { localStorage.setItem('assertTrueTheme', isDark ? 'light' : 'dark'); } catch (e) {}
+  }
+  function toggleComplete(checkbox) {
+    var pageId = checkbox.getAttribute('data-page-id');
+    var progress = {};
+    try { progress = JSON.parse(localStorage.getItem('assertTrueProgress') || '{}'); } catch (e) {}
+    if (checkbox.checked) { progress[pageId] = true; } else { delete progress[pageId]; }
+    try { localStorage.setItem('assertTrueProgress', JSON.stringify(progress)); } catch (e) {}
+  }
+  (function() {
+    var progress = {};
+    try { progress = JSON.parse(localStorage.getItem('assertTrueProgress') || '{}'); } catch (e) {}
+    var cb = document.querySelector('.mark-complete-checkbox');
+    if (cb && progress[cb.getAttribute('data-page-id')]) cb.checked = true;
+  })();
+  (function() {
+    var activeLink = document.querySelector('.doc-sidebar a.active');
+    if (activeLink) { activeLink.scrollIntoView({ block: 'center' }); }
+  })();
+  document.addEventListener('click', function(e) {
+    if (e.target.closest('.sidebar-link') && window.matchMedia('(max-width: 860px)').matches) {
+      closeSidebar();
+    }
+  });
+  </script>
+</body>
+</html>
