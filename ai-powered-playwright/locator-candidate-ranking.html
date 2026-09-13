@@ -1,0 +1,628 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <script>try{if(localStorage.getItem('assertTrueTheme')==='dark'){document.documentElement.setAttribute('data-theme','dark');}}catch(e){}</script>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Locator Candidate Ranking</title>
+  <meta name="description" content="Scoring candidates by stability, uniqueness, accessibility, and maintainability — a deterministic ranking function, not another AI judgment call." />
+  <link rel="canonical" href="https://asserttrue.io/ai-powered-playwright/locator-candidate-ranking.html" />
+  <link rel="stylesheet" href="../css/style.css?v=85" />
+</head>
+<body class="theme-aipw">
+  <header class="topnav">
+    <button class="mobile-menu-btn" onclick="openSidebar()">&#9776;</button>
+    <a href="../index.html" class="brand"><svg class="logo-mark" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="40" rx="11" fill="url(#logoGrad)"/><path d="M11 21.5 L17 27.5 L29.5 13" stroke="#ffffff" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/><defs><linearGradient id="logoGrad" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse"><stop stop-color="#22c55e"/><stop offset="1" stop-color="#15803d"/></linearGradient></defs></svg><span class="brand-text">Assert<span class="brand-true">True</span><span class="brand-io">IO</span></span></a>
+    <nav class="topnav-links">
+      <a href="../playwright/index.html">Playwright</a>
+      <a href="../restassured/index.html">RestAssured</a>
+      <a href="../k6/index.html">K6</a>
+      <a href="../github-actions/index.html">GitHub Actions</a>
+      <a href="../agentic-ai-testing/index.html">AI Testing</a>
+      <a href="index.html" class="active">AI Playwright</a>
+      <a href="../about.html">About</a>
+      <a href="../books.html">Books</a>
+    </nav>
+    <div class="topnav-right">
+      <div class="topnav-search-wrap">
+        <input type="text" class="search-box" id="doc-search-input" placeholder="Search tutorials..." autocomplete="off" aria-label="Search tutorials" aria-expanded="false" />
+        <div class="hp-search-results" id="doc-search-results" hidden></div>
+      </div>
+      <button class="icon-btn theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Toggle dark mode"><svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
+    </div>
+  </header>
+
+  <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeSidebar()"></div>
+
+  <div class="app-shell">
+    <nav class="doc-sidebar" id="doc-sidebar">
+<div class="sidebar-mobile-header"><span>Menu</span><button class="sidebar-close-btn" onclick="closeSidebar()">&times;</button></div>
+<a href="index.html" class="sidebar-overview-link"><svg class="icon" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg><span>Roadmap</span></a>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>01 Introduction To AI-Powered Playwright</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="introduction-to-ai-powered-playwright.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Introduction to AI-Powered Playwright</a>
+<div class="sidebar-sub">
+<a href="what-is-ai-powered-test-automation.html" class="sidebar-link"><span class="dot"></span>What is AI-Powered Test Automation?</a>
+<a href="why-combine-ai-with-playwright.html" class="sidebar-link"><span class="dot"></span>Why Combine AI with Playwright?</a>
+<a href="traditional-vs-ai-powered-playwright.html" class="sidebar-link"><span class="dot"></span>Traditional Playwright vs AI-Powered Playwright</a>
+<a href="ai-assisted-vs-ai-driven-vs-autonomous-testing.html" class="sidebar-link"><span class="dot"></span>AI-Assisted vs AI-Driven vs Autonomous Testing</a>
+<a href="what-ai-can-and-cannot-do.html" class="sidebar-link"><span class="dot"></span>What AI Can and Cannot Do</a>
+<a href="what-we-will-build.html" class="sidebar-link"><span class="dot"></span>What We Will Build</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>02 AI & Llm Basics For Playwright Engineers</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="ai-and-llm-basics-for-playwright-engineers.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>AI & LLM Basics for Playwright Engineers</a>
+<div class="sidebar-sub">
+<a href="what-is-generative-ai-and-llms.html" class="sidebar-link"><span class="dot"></span>What is Generative AI? What is an LLM?</a>
+<a href="how-llms-process-testing-instructions.html" class="sidebar-link"><span class="dot"></span>How LLMs Process Testing Instructions</a>
+<a href="prompts-and-context.html" class="sidebar-link"><span class="dot"></span>Prompts and Context</a>
+<a href="structured-ai-responses-and-tool-calling.html" class="sidebar-link"><span class="dot"></span>Structured AI Responses and Tool Calling</a>
+<a href="ai-models-and-model-selection.html" class="sidebar-link"><span class="dot"></span>AI Models and Model Selection</a>
+<a href="deterministic-automation-vs-probabilistic-ai.html" class="sidebar-link"><span class="dot"></span>Deterministic Automation vs Probabilistic AI</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4 7h4V5a2 2 0 0 1 4 0v2h4v4h2a2 2 0 0 1 0 4h-2v4H4v-4H2a2 2 0 0 1 0-4h2z"/></svg><span>03 Setting Up AI + Playwright</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="setting-up-ai-and-playwright.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Setting Up AI + Playwright</a>
+<div class="sidebar-sub">
+<a href="project-setup-and-dependencies.html" class="sidebar-link"><span class="dot"></span>Project Setup and Dependencies</a>
+<a href="configuring-environment-variables.html" class="sidebar-link"><span class="dot"></span>Configuring Environment Variables</a>
+<a href="creating-the-ai-client.html" class="sidebar-link"><span class="dot"></span>Creating the AI Client</a>
+<a href="from-prompt-to-structured-test-scenarios.html" class="sidebar-link"><span class="dot"></span>From Prompt to Structured Test Scenarios</a>
+<a href="generating-playwright-code-from-scenarios.html" class="sidebar-link"><span class="dot"></span>Generating Playwright Code from Scenarios</a>
+<a href="validating-and-executing-generated-tests.html" class="sidebar-link"><span class="dot"></span>Validating and Executing Generated Tests</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>04 AI Test Case Generation</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="ai-test-case-generation.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>AI Test Case Generation</a>
+<div class="sidebar-sub">
+<a href="requirement-to-test-cases.html" class="sidebar-link"><span class="dot"></span>Requirement to Test Cases</a>
+<a href="happy-path-and-negative-generation.html" class="sidebar-link"><span class="dot"></span>Happy Path and Negative Test Generation</a>
+<a href="boundary-and-edge-case-generation.html" class="sidebar-link"><span class="dot"></span>Boundary and Edge Case Generation</a>
+<a href="validation-and-security-test-generation.html" class="sidebar-link"><span class="dot"></span>Validation and Security Test Generation</a>
+<a href="risk-based-test-generation-and-prioritization.html" class="sidebar-link"><span class="dot"></span>Risk-Based Test Generation and Prioritization</a>
+<a href="converting-test-cases-into-playwright-tests.html" class="sidebar-link"><span class="dot"></span>Converting Test Cases into Playwright Tests</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="8 6 2 12 8 18"/><polyline points="16 6 22 12 16 18"/></svg><span>05 Natural Language To Playwright</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="natural-language-to-playwright.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Natural Language to Playwright</a>
+<div class="sidebar-sub">
+<a href="natural-language-testing.html" class="sidebar-link"><span class="dot"></span>Natural Language Testing</a>
+<a href="breaking-instructions-into-steps.html" class="sidebar-link"><span class="dot"></span>Breaking Instructions into Steps</a>
+<a href="ai-action-planning.html" class="sidebar-link"><span class="dot"></span>AI Action Planning</a>
+<a href="mapping-actions-to-playwright.html" class="sidebar-link"><span class="dot"></span>Mapping Actions to Playwright</a>
+<a href="browser-interaction.html" class="sidebar-link"><span class="dot"></span>Browser Interaction</a>
+<a href="handling-ambiguous-instructions.html" class="sidebar-link"><span class="dot"></span>Handling Ambiguous Instructions</a>
+<a href="validating-ai-actions.html" class="sidebar-link"><span class="dot"></span>Validating AI Actions</a>
+<a href="executing-the-plan.html" class="sidebar-link"><span class="dot"></span>Executing the Plan</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>06 AI-Powered Locator Intelligence</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="ai-powered-locator-intelligence.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>AI-Powered Locator Intelligence</a>
+<div class="sidebar-sub">
+<a href="playwright-locator-best-practices.html" class="sidebar-link"><span class="dot"></span>Playwright Locator Best Practices</a>
+<a href="why-locators-break.html" class="sidebar-link"><span class="dot"></span>Why Locators Break</a>
+<a href="ai-locator-suggestions.html" class="sidebar-link"><span class="dot"></span>AI Locator Suggestions</a>
+<a href="locator-candidate-generation.html" class="sidebar-link"><span class="dot"></span>Locator Candidate Generation</a>
+<a href="locator-candidate-ranking.html" class="sidebar-link active"><span class="dot"></span>Locator Candidate Ranking</a>
+<a href="locator-validation.html" class="sidebar-link"><span class="dot"></span>Locator Validation</a>
+<a href="ai-locator-healing.html" class="sidebar-link"><span class="dot"></span>AI Locator Healing</a>
+<a href="when-not-to-use-ai-locators.html" class="sidebar-link"><span class="dot"></span>When NOT to Use AI Locators</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4 7h4V5a2 2 0 0 1 4 0v2h4v4h2a2 2 0 0 1 0 4h-2v4H4v-4H2a2 2 0 0 1 0-4h2z"/></svg><span>07 AI-Powered Assertions</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="ai-powered-assertions.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>AI-Powered Assertions</a>
+<div class="sidebar-sub">
+<a href="traditional-playwright-assertions.html" class="sidebar-link"><span class="dot"></span>Traditional Playwright Assertions</a>
+<a href="ai-assisted-assertion-generation.html" class="sidebar-link"><span class="dot"></span>AI-Assisted Assertion Generation</a>
+<a href="semantic-assertions-and-content-validation.html" class="sidebar-link"><span class="dot"></span>Semantic Assertions and Content Validation</a>
+<a href="ai-based-validation.html" class="sidebar-link"><span class="dot"></span>AI-Based Validation</a>
+<a href="when-ai-assertions-make-sense.html" class="sidebar-link"><span class="dot"></span>When AI Assertions Make Sense</a>
+<a href="when-deterministic-assertions-are-better.html" class="sidebar-link"><span class="dot"></span>When Deterministic Assertions Are Better</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>08 AI-Powered Test Data Generation</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="ai-powered-test-data-generation.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>AI-Powered Test Data Generation</a>
+<div class="sidebar-sub">
+<a href="why-test-data-is-difficult.html" class="sidebar-link"><span class="dot"></span>Why Test Data Is Difficult</a>
+<a href="ai-generated-users-and-addresses.html" class="sidebar-link"><span class="dot"></span>AI-Generated Users and Addresses</a>
+<a href="ai-generated-products.html" class="sidebar-link"><span class="dot"></span>AI-Generated Products</a>
+<a href="invalid-and-boundary-test-data.html" class="sidebar-link"><span class="dot"></span>Invalid and Boundary Test Data</a>
+<a href="context-aware-test-data.html" class="sidebar-link"><span class="dot"></span>Context-Aware Test Data</a>
+<a href="deterministic-ai-test-data.html" class="sidebar-link"><span class="dot"></span>Deterministic AI Test Data</a>
+<a href="data-privacy-and-avoiding-sensitive-leakage.html" class="sidebar-link"><span class="dot"></span>Data Privacy and Avoiding Sensitive Data Leakage</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><span>09 AI-Powered Failure Analysis</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="ai-powered-failure-analysis.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>AI-Powered Failure Analysis</a>
+<div class="sidebar-sub">
+<a href="understanding-playwright-failures.html" class="sidebar-link"><span class="dot"></span>Understanding Playwright Failures</a>
+<a href="capturing-test-evidence.html" class="sidebar-link"><span class="dot"></span>Capturing Test Evidence</a>
+<a href="sending-failure-information-to-ai.html" class="sidebar-link"><span class="dot"></span>Sending Failure Information to AI</a>
+<a href="ai-failure-classification.html" class="sidebar-link"><span class="dot"></span>AI Failure Classification</a>
+<a href="ai-root-cause-analysis.html" class="sidebar-link"><span class="dot"></span>AI Root Cause Analysis</a>
+<a href="evidence-based-failure-analysis.html" class="sidebar-link"><span class="dot"></span>Evidence-Based Failure Analysis</a>
+<a href="ai-generated-failure-reports.html" class="sidebar-link"><span class="dot"></span>AI-Generated Failure Reports</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><span>10 AI + Playwright Trace Analysis</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="ai-and-playwright-trace-analysis.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>AI + Playwright Trace Analysis</a>
+<div class="sidebar-sub">
+<a href="what-is-playwright-trace-and-why-it-matters.html" class="sidebar-link"><span class="dot"></span>What is Playwright Trace, and Why It Matters</a>
+<a href="capturing-traces.html" class="sidebar-link"><span class="dot"></span>Capturing Traces</a>
+<a href="extracting-relevant-information.html" class="sidebar-link"><span class="dot"></span>Extracting Relevant Information</a>
+<a href="ai-trace-analysis.html" class="sidebar-link"><span class="dot"></span>AI Trace Analysis</a>
+<a href="screenshot-and-network-analysis.html" class="sidebar-link"><span class="dot"></span>Screenshot and Network Analysis</a>
+<a href="identifying-the-failed-step.html" class="sidebar-link"><span class="dot"></span>Identifying the Failed Step</a>
+<a href="building-an-ai-trace-analyzer.html" class="sidebar-link"><span class="dot"></span>Building an AI Trace Analyzer</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>11 Self-Healing Playwright Automation</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="self-healing-playwright-automation.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Self-Healing Playwright Automation</a>
+<div class="sidebar-sub">
+<a href="what-is-self-healing.html" class="sidebar-link"><span class="dot"></span>What is Self-Healing?</a>
+<a href="locator-healing.html" class="sidebar-link"><span class="dot"></span>Locator Healing</a>
+<a href="assertion-healing.html" class="sidebar-link"><span class="dot"></span>Assertion Healing</a>
+<a href="handling-ui-changes.html" class="sidebar-link"><span class="dot"></span>Handling UI Changes</a>
+<a href="generating-a-candidate-fix.html" class="sidebar-link"><span class="dot"></span>Generating a Candidate Fix</a>
+<a href="validating-the-candidate-fix.html" class="sidebar-link"><span class="dot"></span>Validating the Candidate Fix</a>
+<a href="regression-validation.html" class="sidebar-link"><span class="dot"></span>Regression Validation</a>
+<a href="human-approval.html" class="sidebar-link"><span class="dot"></span>Human Approval</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4 7h4V5a2 2 0 0 1 4 0v2h4v4h2a2 2 0 0 1 0 4h-2v4H4v-4H2a2 2 0 0 1 0-4h2z"/></svg><span>12 AI-Powered Flaky Test Detection</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="ai-powered-flaky-test-detection.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>AI-Powered Flaky Test Detection</a>
+<div class="sidebar-sub">
+<a href="what-is-a-flaky-test.html" class="sidebar-link"><span class="dot"></span>What is a Flaky Test?</a>
+<a href="common-causes-of-flakiness.html" class="sidebar-link"><span class="dot"></span>Common Causes of Flakiness</a>
+<a href="collecting-test-history.html" class="sidebar-link"><span class="dot"></span>Collecting Test History</a>
+<a href="detecting-failure-patterns.html" class="sidebar-link"><span class="dot"></span>Detecting Failure Patterns</a>
+<a href="ai-flaky-test-classification-and-scoring.html" class="sidebar-link"><span class="dot"></span>AI Flaky Test Classification and Scoring</a>
+<a href="ai-root-cause-analysis-and-recommended-fixes.html" class="sidebar-link"><span class="dot"></span>AI Root Cause Analysis and Recommended Fixes</a>
+<a href="why-flaky-tests-should-not-simply-be-suppressed.html" class="sidebar-link"><span class="dot"></span>Why Flaky Tests Should Not Simply Be Suppressed</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="8 6 2 12 8 18"/><polyline points="16 6 22 12 16 18"/></svg><span>13 AI-Powered Exploratory Testing</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="ai-powered-exploratory-testing.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>AI-Powered Exploratory Testing</a>
+<div class="sidebar-sub">
+<a href="what-is-ai-exploratory-testing.html" class="sidebar-link"><span class="dot"></span>What is AI Exploratory Testing?</a>
+<a href="ai-exploration-strategy.html" class="sidebar-link"><span class="dot"></span>AI Exploration Strategy</a>
+<a href="browser-observation.html" class="sidebar-link"><span class="dot"></span>Browser Observation</a>
+<a href="exploration-limits.html" class="sidebar-link"><span class="dot"></span>Exploration Limits</a>
+<a href="risk-based-exploration.html" class="sidebar-link"><span class="dot"></span>Risk-Based Exploration</a>
+<a href="bug-discovery.html" class="sidebar-link"><span class="dot"></span>Bug Discovery</a>
+<a href="safety-controls.html" class="sidebar-link"><span class="dot"></span>Safety Controls</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>14 Building A Playwright AI Agent</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="building-a-playwright-ai-agent.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Building a Playwright AI Agent</a>
+<div class="sidebar-sub">
+<a href="what-is-a-playwright-ai-agent.html" class="sidebar-link"><span class="dot"></span>What is a Playwright AI Agent?</a>
+<a href="agent-architecture.html" class="sidebar-link"><span class="dot"></span>Agent Architecture</a>
+<a href="browser-tools-and-tool-calling.html" class="sidebar-link"><span class="dot"></span>Browser Tools and Tool Calling</a>
+<a href="agent-state.html" class="sidebar-link"><span class="dot"></span>Agent State</a>
+<a href="planning-and-execution.html" class="sidebar-link"><span class="dot"></span>Planning and Execution</a>
+<a href="observation-and-evaluation.html" class="sidebar-link"><span class="dot"></span>Observation and Evaluation</a>
+<a href="recovery-and-termination-conditions.html" class="sidebar-link"><span class="dot"></span>Recovery and Termination Conditions</a>
+<a href="guardrails.html" class="sidebar-link"><span class="dot"></span>Guardrails</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>15 MCP + Playwright</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<span class="sidebar-link" style="opacity:0.45;cursor:default;"><span class="dot"></span>MCP + Playwright <em style="font-style:normal;font-size:0.68rem;">(soon)</em></span>
+<div class="sidebar-sub">
+<span class="sidebar-link" style="opacity:0.4;cursor:default;"><span class="dot"></span>What is MCP?</span>
+<span class="sidebar-link" style="opacity:0.4;cursor:default;"><span class="dot"></span>Why MCP is Useful for QA</span>
+<span class="sidebar-link" style="opacity:0.4;cursor:default;"><span class="dot"></span>MCP Architecture</span>
+<span class="sidebar-link" style="opacity:0.4;cursor:default;"><span class="dot"></span>MCP Server and Client</span>
+<span class="sidebar-link" style="opacity:0.4;cursor:default;"><span class="dot"></span>Creating Playwright Tools</span>
+<span class="sidebar-link" style="opacity:0.4;cursor:default;"><span class="dot"></span>AI Agent + MCP + Playwright</span>
+<span class="sidebar-link" style="opacity:0.4;cursor:default;"><span class="dot"></span>MCP Security</span>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"/></svg><span>16 AI-Powered Playwright In Ci/Cd</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<span class="sidebar-link" style="opacity:0.45;cursor:default;"><span class="dot"></span>AI-Powered Playwright in CI/CD <em style="font-style:normal;font-size:0.68rem;">(soon)</em></span>
+<div class="sidebar-sub">
+<span class="sidebar-link" style="opacity:0.4;cursor:default;"><span class="dot"></span>Running AI-Powered Tests in CI</span>
+<span class="sidebar-link" style="opacity:0.4;cursor:default;"><span class="dot"></span>AI Test Generation in CI</span>
+<span class="sidebar-link" style="opacity:0.4;cursor:default;"><span class="dot"></span>AI Failure Analysis in CI</span>
+<span class="sidebar-link" style="opacity:0.4;cursor:default;"><span class="dot"></span>AI Pull Request Comments</span>
+<span class="sidebar-link" style="opacity:0.4;cursor:default;"><span class="dot"></span>Intelligent Test Selection</span>
+<span class="sidebar-link" style="opacity:0.4;cursor:default;"><span class="dot"></span>AI Quality Gates</span>
+<span class="sidebar-link" style="opacity:0.4;cursor:default;"><span class="dot"></span>Safe Automated Repair</span>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><span>17 AI-Powered Visual Testing</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<span class="sidebar-link" style="opacity:0.45;cursor:default;"><span class="dot"></span>AI-Powered Visual Testing <em style="font-style:normal;font-size:0.68rem;">(soon)</em></span>
+<div class="sidebar-sub">
+<span class="sidebar-link" style="opacity:0.4;cursor:default;"><span class="dot"></span>Traditional Visual Testing and Playwright Screenshots</span>
+<span class="sidebar-link" style="opacity:0.4;cursor:default;"><span class="dot"></span>AI Image Understanding</span>
+<span class="sidebar-link" style="opacity:0.4;cursor:default;"><span class="dot"></span>Semantic Visual Validation</span>
+<span class="sidebar-link" style="opacity:0.4;cursor:default;"><span class="dot"></span>Detecting Unexpected UI Changes</span>
+<span class="sidebar-link" style="opacity:0.4;cursor:default;"><span class="dot"></span>AI Visual Bug Detection</span>
+<span class="sidebar-link" style="opacity:0.4;cursor:default;"><span class="dot"></span>False Positives and Limitations</span>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg><span>18 Performance, Cost And Reliability</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<span class="sidebar-link" style="opacity:0.45;cursor:default;"><span class="dot"></span>Performance, Cost and Reliability <em style="font-style:normal;font-size:0.68rem;">(soon)</em></span>
+<div class="sidebar-sub">
+<span class="sidebar-link" style="opacity:0.4;cursor:default;"><span class="dot"></span>AI Latency and Token Usage</span>
+<span class="sidebar-link" style="opacity:0.4;cursor:default;"><span class="dot"></span>AI API Costs</span>
+<span class="sidebar-link" style="opacity:0.4;cursor:default;"><span class="dot"></span>Choosing the Right Model</span>
+<span class="sidebar-link" style="opacity:0.4;cursor:default;"><span class="dot"></span>Prompt Optimization</span>
+<span class="sidebar-link" style="opacity:0.4;cursor:default;"><span class="dot"></span>Caching and Reducing AI Calls</span>
+<span class="sidebar-link" style="opacity:0.4;cursor:default;"><span class="dot"></span>Deterministic vs AI Operations</span>
+<span class="sidebar-link" style="opacity:0.4;cursor:default;"><span class="dot"></span>Running AI-Powered Playwright at Scale</span>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><span>19 Security And Responsible AI</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<span class="sidebar-link" style="opacity:0.45;cursor:default;"><span class="dot"></span>Security and Responsible AI <em style="font-style:normal;font-size:0.68rem;">(soon)</em></span>
+<div class="sidebar-sub">
+<span class="sidebar-link" style="opacity:0.4;cursor:default;"><span class="dot"></span>Security Risks Overview</span>
+<span class="sidebar-link" style="opacity:0.4;cursor:default;"><span class="dot"></span>Prompt Injection</span>
+<span class="sidebar-link" style="opacity:0.4;cursor:default;"><span class="dot"></span>Credential Exposure and Sensitive Test Data</span>
+<span class="sidebar-link" style="opacity:0.4;cursor:default;"><span class="dot"></span>Browser and Tool Permissions</span>
+<span class="sidebar-link" style="opacity:0.4;cursor:default;"><span class="dot"></span>Sandboxing</span>
+<span class="sidebar-link" style="opacity:0.4;cursor:default;"><span class="dot"></span>Human-in-the-Loop</span>
+<span class="sidebar-link" style="opacity:0.4;cursor:default;"><span class="dot"></span>Audit Logging</span>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>20 Production Architecture</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<span class="sidebar-link" style="opacity:0.45;cursor:default;"><span class="dot"></span>Production Architecture <em style="font-style:normal;font-size:0.68rem;">(soon)</em></span>
+<div class="sidebar-sub">
+<span class="sidebar-link" style="opacity:0.4;cursor:default;"><span class="dot"></span>Production Architecture Overview</span>
+<span class="sidebar-link" style="opacity:0.4;cursor:default;"><span class="dot"></span>Components and Responsibilities</span>
+<span class="sidebar-link" style="opacity:0.4;cursor:default;"><span class="dot"></span>Security and Scalability</span>
+<span class="sidebar-link" style="opacity:0.4;cursor:default;"><span class="dot"></span>Observability and Cost</span>
+<span class="sidebar-link" style="opacity:0.4;cursor:default;"><span class="dot"></span>Failure Handling and Governance</span>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg><span>21 Capstone: Autonomous Playwright Framework</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<span class="sidebar-link" style="opacity:0.45;cursor:default;"><span class="dot"></span>Capstone: Autonomous Playwright Framework <em style="font-style:normal;font-size:0.68rem;">(soon)</em></span>
+<div class="sidebar-sub">
+<span class="sidebar-link" style="opacity:0.4;cursor:default;"><span class="dot"></span>Capstone Overview</span>
+<span class="sidebar-link" style="opacity:0.4;cursor:default;"><span class="dot"></span>Generating the Test Plan</span>
+<span class="sidebar-link" style="opacity:0.4;cursor:default;"><span class="dot"></span>Executing and Capturing Evidence</span>
+<span class="sidebar-link" style="opacity:0.4;cursor:default;"><span class="dot"></span>Evaluating Results and Detecting Failures</span>
+<span class="sidebar-link" style="opacity:0.4;cursor:default;"><span class="dot"></span>Root Cause and Safe Fixes</span>
+<span class="sidebar-link" style="opacity:0.4;cursor:default;"><span class="dot"></span>Validating Fixes and Re-Running</span>
+<span class="sidebar-link" style="opacity:0.4;cursor:default;"><span class="dot"></span>Final Report and Confidence Scoring</span>
+<span class="sidebar-link" style="opacity:0.4;cursor:default;"><span class="dot"></span>The Complete Framework, End to End</span>
+</div>
+</div></details>
+</nav>
+
+    <main class="doc-main">
+      <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="../index.html">Home</a> <span class="crumb-sep">&rsaquo;</span> <a href="index.html">AI-Powered Playwright</a> <span class="crumb-sep">&rsaquo;</span> <a href="ai-powered-locator-intelligence.html">AI-Powered Locator Intelligence</a> <span class="crumb-sep">&rsaquo;</span> <span class="crumb-current">Locator Candidate Ranking</span></nav>
+
+      <div class="page-header-banner">
+        <header class="page-head">
+          <h1>Locator Candidate Ranking</h1>
+        </header>
+        <div class="meta-row">
+          <span class="tag-pill Beginner">Beginner</span>
+          <span class="read-time">3 min read</span>
+        </div>
+      </div>
+
+      <p class="prereqs"><strong>Prerequisites:</strong> <a href="locator-candidate-generation.html">Locator Candidate Generation</a></p>
+
+      <article class="content">
+        <h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Ranking candidates by four concrete criteria — stability, uniqueness, accessibility, maintainability</li>
+  <li>Why this ranking is deterministic code, not another AI call</li>
+  <li>Scoring the previous page's three real candidates</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>The previous page produced three genuine candidates. This page decides which one is genuinely best — and does it with a deterministic scoring function, directly applying Chapter 5's own lesson that a decision with one correct answer per clear criteria doesn't need another AI call.</p>
+
+<h2 id="step-by-step-implementation">Step-by-Step Implementation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/rank-locator-candidates.ts
+import { LocatorCandidate } from './generate-locator-candidates';
+
+export interface RankedCandidate extends LocatorCandidate {
+  stabilityScore: number;
+  totalScore: number;
+}
+
+const STRATEGY_STABILITY: Record&lt;string, number&gt; = {
+  'testId-based': 4,
+  'role-based': 3,
+  'label-based': 3,
+  'text-based': 1,
+};
+
+export function rankLocatorCandidates(
+  candidates: LocatorCandidate[]
+): RankedCandidate[] {
+  return candidates
+    .map((c) => {
+      const stabilityScore = STRATEGY_STABILITY[c.strategy] ?? 1;
+      // Uniqueness and maintainability both correlate directly
+      // with strategy STABILITY here — a testId is inherently
+      // both more unique AND easier to maintain than free text
+      const totalScore = stabilityScore;
+      return { ...c, stabilityScore, totalScore };
+    })
+    .sort((a, b) => b.totalScore - a.totalScore);
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p><code>STRATEGY_STABILITY</code> directly encodes Chapter 6's opening page's stability ranking — testId highest, text-based lowest — as real, deterministic data, not a judgment made fresh each time. This is exactly the kind of decision Chapter 2's core rule says belongs to code: given a known strategy name, there's one genuinely correct relative ranking, decided once and reused, not reasoned about per call.</p>
+
+<h2 id="example-ranking-the-previous-page-s-three-candidates">Example — Ranking the Previous Page's Three Candidates</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const ranked = rankLocatorCandidates([
+  { strategy: 'role-based', locatorCode: "page.getByRole('button', { name: 'Add ProBook 15 to cart' })" },
+  { strategy: 'testId-based', locatorCode: "page.getByTestId('add-to-cart-btn')" },
+  { strategy: 'text-based', locatorCode: "page.getByText('Add to Cart')" },
+]);
+
+// REAL, deterministic result — testId wins, as it should:
+// [
+//   { strategy: 'testId-based', ..., totalScore: 4 },
+//   { strategy: 'role-based', ..., totalScore: 3 },
+//   { strategy: 'text-based', ..., totalScore: 1 }
+// ]</code></pre>
+
+<h2 id="why-it-matters">Why It Matters</h2>
+<p>This ranking is completely reproducible — the same three candidates always produce the same order, every single time, regardless of which day it runs or which model version generated them. That reliability matters: a healing pipeline whose candidate selection varies unpredictably between runs would be genuinely hard to trust or debug.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Asking AI to rank the candidates it just generated.</strong> Given the same, clear stability criteria every time, ranking is an exact operation — reaching for AI here adds cost and unpredictability for no genuine benefit, the same lesson from Chapter 5's mapping page.</li>
+  <li><strong>Using an arbitrary or undocumented scoring scale.</strong> <code>STRATEGY_STABILITY</code> is deliberately simple and readable — a scoring system nobody can explain is hard to trust or adjust later.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Keep ranking criteria deterministic and code-based whenever the underlying decision has one genuinely correct answer given clear inputs.</li>
+  <li>Document the reasoning behind a scoring table directly in the code, the way this page's comment explains why uniqueness and maintainability track stability here.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Extend <code>STRATEGY_STABILITY</code> with a <code>'label-based'</code> entry reflecting how stable you'd genuinely rank it relative to the other three, and justify your number in a comment, the way this page's own table does.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Ranking known strategies by known criteria is a deterministic operation — plain code, not another AI call, directly applying this tutorial's recurring exact-vs-judgment rule.</li>
+  <li>A reproducible ranking function is what makes a healing pipeline's behavior predictable and debuggable across runs.</li>
+  <li>This page's output — a single, top-ranked candidate — feeds directly into the next page's real validation step.</li>
+</ul>
+      </article>
+
+      <label class="mark-complete-row">
+        <input type="checkbox" class="mark-complete-checkbox" data-page-id="aipw:locator-candidate-ranking.html" onchange="toggleComplete(this)" />
+        <span>Mark this lesson complete</span>
+      </label>
+
+      <div class="prev-next">
+        <a href="locator-candidate-generation.html"><span class="pn-label">&larr; Previous</span>Locator Candidate Generation</a>
+        <a href="locator-validation.html" class="pn-next"><span class="pn-label">Next &rarr;</span>Locator Validation</a>
+      </div>
+    </main>
+
+    <aside class="right-rail">
+      
+
+      <div class="rail-card">
+        <h4>Related Chapters</h4>
+        <div class="related-list">
+          <a href="playwright-locator-best-practices.html">Playwright Locator Best Practices<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+<a href="why-locators-break.html">Why Locators Break<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+<a href="ai-locator-suggestions.html">AI Locator Suggestions<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+<a href="locator-candidate-generation.html">Locator Candidate Generation<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+<a href="locator-validation.html">Locator Validation<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+        </div>
+      </div>
+
+      <div class="rail-card was-helpful-card">
+        <span>Was this helpful?</span>
+        <button title="Yes">&#128077;</button>
+        <button title="No">&#128078;</button>
+      </div>
+    </aside>
+  </div>
+
+  <nav class="mobile-tabbar">
+  <a href="../index.html"><svg class="icon" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg><span>Home</span></a>
+  <a href="index.html" class="active"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>Tutorials</span></a>
+  <a href="../books.html"><svg class="icon" viewBox="0 0 24 24"><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v16H6.5A2.5 2.5 0 0 0 4 20.5"/><path d="M4 4.5v16"/></svg><span>Books</span></a>
+  <a href="../about.html"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="12" y1="16" x2="12" y2="11.5"/><circle cx="12" cy="8" r="0.8" fill="currentColor" stroke="none"/></svg><span>About</span></a>
+</nav>
+
+  <script>
+  
+  document.querySelectorAll('.book-promo-card').forEach(function(card) {
+    var slides = card.querySelectorAll('.book-slide');
+    var dots = card.querySelectorAll('.book-dot');
+    if (slides.length < 2) return;
+    var idx = 0;
+    setInterval(function() {
+      slides[idx].classList.remove('active');
+      if (dots[idx]) dots[idx].classList.remove('active');
+      idx = (idx + 1) % slides.length;
+      slides[idx].classList.add('active');
+      if (dots[idx]) dots[idx].classList.add('active');
+    }, 5000);
+  });
+
+  function copyCode(btn) {
+    const code = btn.nextElementSibling.innerText;
+    navigator.clipboard.writeText(code).then(function() {
+      btn.textContent = 'Copied';
+      btn.classList.add('copied');
+      setTimeout(function() { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
+    });
+  }
+  function openSidebar() {
+    document.getElementById('doc-sidebar').classList.add('open');
+    document.getElementById('sidebar-backdrop').classList.add('show');
+    document.body.classList.add('no-scroll');
+  }
+  function closeSidebar() {
+    document.getElementById('doc-sidebar').classList.remove('open');
+    document.getElementById('sidebar-backdrop').classList.remove('show');
+    document.body.classList.remove('no-scroll');
+  }
+  function toggleTheme() {
+    var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark');
+    try { localStorage.setItem('assertTrueTheme', isDark ? 'light' : 'dark'); } catch (e) {}
+  }
+  var docSearchIndex = null;
+  var docSearchPromise = null;
+  function loadDocSearchIndex() {
+    if (!docSearchPromise) {
+      docSearchPromise = new Promise(function(resolve) {
+        var s = document.createElement('script');
+        s.src = '../search-index.js';
+        s.onload = function() { docSearchIndex = window.SITE_SEARCH_INDEX || []; resolve(docSearchIndex); };
+        s.onerror = function() { docSearchIndex = []; resolve(docSearchIndex); };
+        document.head.appendChild(s);
+      });
+    }
+    return docSearchPromise;
+  }
+  function docEscapeHtml(str) {
+    return str.replace(/[&<>"']/g, function(c) {
+      return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];
+    });
+  }
+  function docHighlight(text, query) {
+    var escaped = docEscapeHtml(text);
+    if (!query) return escaped;
+    var idx = escaped.toLowerCase().indexOf(query.toLowerCase());
+    if (idx === -1) return escaped;
+    return escaped.slice(0, idx) + '<mark>' + escaped.slice(idx, idx + query.length) + '</mark>' + escaped.slice(idx + query.length);
+  }
+  function docSearchFn(query) {
+    query = query.trim().toLowerCase();
+    if (!query || !docSearchIndex) return [];
+    var scored = [];
+    for (var i = 0; i < docSearchIndex.length; i++) {
+      var e = docSearchIndex[i];
+      var titleIdx = e.title.toLowerCase().indexOf(query);
+      var descIdx = e.desc.toLowerCase().indexOf(query);
+      if (titleIdx === -1 && descIdx === -1) continue;
+      var score = titleIdx !== -1 ? (titleIdx === 0 ? 0 : 1) : 2;
+      scored.push({ entry: e, score: score });
+    }
+    scored.sort(function(a, b) { return a.score - b.score; });
+    return scored.slice(0, 8).map(function(s) { return s.entry; });
+  }
+  (function() {
+    var docInput = document.getElementById('doc-search-input');
+    var docResults = document.getElementById('doc-search-results');
+    if (!docInput || !docResults) return;
+    function renderDocSearch(query) {
+      if (!query.trim()) {
+        docResults.hidden = true;
+        docInput.setAttribute('aria-expanded', 'false');
+        return;
+      }
+      if (!docSearchIndex) {
+        docResults.innerHTML = '<div class="hp-search-empty">Loading&hellip;</div>';
+        docResults.hidden = false;
+        loadDocSearchIndex().then(function() { renderDocSearch(docInput.value); });
+        return;
+      }
+      var matches = docSearchFn(query);
+      if (matches.length === 0) {
+        docResults.innerHTML = '<div class="hp-search-empty">No tutorials found for &ldquo;' + docEscapeHtml(query) + '&rdquo;</div>';
+        docResults.hidden = false;
+        docInput.setAttribute('aria-expanded', 'true');
+        return;
+      }
+      var html = '<div class="hp-search-hint">' + matches.length + ' result' + (matches.length === 1 ? '' : 's') + '</div>';
+      matches.forEach(function(e) {
+        var trackClass = e.track === 'Playwright' ? 'pw' : (e.track === 'RestAssured' ? 'ra' : (e.track === 'K6' ? 'k6' : (e.track === 'GitHub Actions' ? 'gh' : (e.track === 'AI-Powered Playwright' ? 'aipw' : 'ai'))));
+        html += '<a class="hp-search-item" href="../' + e.url + '">' +
+          '<div class="hp-search-item-title">' + docHighlight(e.title, query) + '</div>' +
+          '<div class="hp-search-item-desc">' + docEscapeHtml(e.desc) + '</div>' +
+          '<span class="hp-search-item-track ' + trackClass + '">' + e.track + '</span>' +
+          '</a>';
+      });
+      docResults.innerHTML = html;
+      docResults.hidden = false;
+      docInput.setAttribute('aria-expanded', 'true');
+    }
+    docInput.addEventListener('input', function() { renderDocSearch(docInput.value); });
+    docInput.addEventListener('focus', function() { loadDocSearchIndex(); if (docInput.value.trim()) renderDocSearch(docInput.value); });
+    docInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') { docResults.hidden = true; docInput.blur(); }
+      else if (e.key === 'Enter') {
+        var first = docResults.querySelector('.hp-search-item');
+        if (first) window.location.href = first.getAttribute('href');
+      }
+    });
+    document.addEventListener('click', function(e) {
+      if (!e.target.closest('.topnav-search-wrap')) { docResults.hidden = true; }
+    });
+  })();
+
+  function toggleComplete(checkbox) {
+    var pageId = checkbox.getAttribute('data-page-id');
+    var progress = {};
+    try { progress = JSON.parse(localStorage.getItem('assertTrueProgress') || '{}'); } catch (e) {}
+    if (checkbox.checked) { progress[pageId] = true; } else { delete progress[pageId]; }
+    try { localStorage.setItem('assertTrueProgress', JSON.stringify(progress)); } catch (e) {}
+  }
+  (function() {
+    var progress = {};
+    try { progress = JSON.parse(localStorage.getItem('assertTrueProgress') || '{}'); } catch (e) {}
+    var cb = document.querySelector('.mark-complete-checkbox');
+    if (cb && progress[cb.getAttribute('data-page-id')]) cb.checked = true;
+  })();
+  (function() {
+    var activeLink = document.querySelector('.doc-sidebar a.active');
+    if (activeLink) { activeLink.scrollIntoView({ block: 'center' }); }
+  })();
+  document.addEventListener('click', function(e) {
+    if (e.target.closest('.sidebar-link') && window.matchMedia('(max-width: 860px)').matches) {
+      closeSidebar();
+    }
+  });
+  </script>
+</body>
+</html>

@@ -1,0 +1,666 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <script>try{if(localStorage.getItem('assertTrueTheme')==='dark'){document.documentElement.setAttribute('data-theme','dark');}}catch(e){}</script>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>What is a Flaky Test? A Genuine Definition</title>
+  <meta name="description" content="What genuinely counts as flakiness versus a real, consistent bug or a genuine one-off event, and why the definition needs the code, environment, and input to be genuinely unchanged." />
+  <link rel="canonical" href="https://asserttrue.io/agentic-ai-testing/what-is-a-flaky-test.html" />
+  <link rel="stylesheet" href="../css/style.css?v=85" />
+</head>
+<body class="theme-ai">
+  <header class="topnav">
+    <button class="mobile-menu-btn" onclick="openSidebar()">&#9776;</button>
+    <a href="../index.html" class="brand"><svg class="logo-mark" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="40" rx="11" fill="url(#logoGrad)"/><path d="M11 21.5 L17 27.5 L29.5 13" stroke="#ffffff" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/><defs><linearGradient id="logoGrad" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse"><stop stop-color="#22c55e"/><stop offset="1" stop-color="#15803d"/></linearGradient></defs></svg><span class="brand-text">Assert<span class="brand-true">True</span><span class="brand-io">IO</span></span></a>
+    <nav class="topnav-links">
+      <a href="../playwright/index.html">Playwright</a>
+      <a href="../restassured/index.html">RestAssured</a>
+      <a href="../k6/index.html">K6</a>
+      <a href="../github-actions/index.html">GitHub Actions</a>
+      <a href="index.html" class="active">AI Testing</a>
+      <a href="../ai-powered-playwright/index.html">AI Playwright</a>
+      <a href="../about.html">About</a>
+      <a href="../books.html">Books</a>
+    </nav>
+    <div class="topnav-right">
+      <div class="topnav-search-wrap">
+        <input type="text" class="search-box" id="doc-search-input" placeholder="Search tutorials..." autocomplete="off" aria-label="Search tutorials" aria-expanded="false" />
+        <div class="hp-search-results" id="doc-search-results" hidden></div>
+      </div>
+      <button class="icon-btn theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Toggle dark mode"><svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
+    </div>
+  </header>
+
+  <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeSidebar()"></div>
+
+  <div class="app-shell">
+    <nav class="doc-sidebar" id="doc-sidebar">
+<div class="sidebar-mobile-header"><span>Menu</span><button class="sidebar-close-btn" onclick="closeSidebar()">&times;</button></div>
+<a href="index.html" class="sidebar-overview-link"><svg class="icon" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg><span>Roadmap</span></a>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>01 Introduction To Agentic AI Testing</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="introduction-to-agentic-ai-testing.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Introduction to Agentic AI Testing</a>
+<div class="sidebar-sub">
+<a href="what-is-agentic-ai-vs-generative-ai-vs-ai-agents.html" class="sidebar-link"><span class="dot"></span>What is Agentic AI? AI vs. Generative AI vs. AI Agents</a>
+<a href="traditional-test-automation-vs-agentic-testing.html" class="sidebar-link"><span class="dot"></span>Traditional Test Automation vs. Agentic Testing</a>
+<a href="what-is-autonomous-qa-benefits-and-limitations.html" class="sidebar-link"><span class="dot"></span>What is Autonomous QA? Benefits & Limitations</a>
+<a href="real-world-use-cases-and-agentic-qa-architecture.html" class="sidebar-link"><span class="dot"></span>Real-World Use Cases & Agentic QA Architecture</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>02 AI Agent Fundamentals</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="ai-agent-fundamentals.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>AI Agent Fundamentals</a>
+<div class="sidebar-sub">
+<a href="anatomy-of-an-ai-agent.html" class="sidebar-link"><span class="dot"></span>Anatomy of an AI Agent</a>
+<a href="llms-and-ai-agents.html" class="sidebar-link"><span class="dot"></span>LLMs and AI Agents</a>
+<a href="agent-planning.html" class="sidebar-link"><span class="dot"></span>Agent Planning</a>
+<a href="agent-reasoning.html" class="sidebar-link"><span class="dot"></span>Agent Reasoning</a>
+<a href="agent-memory.html" class="sidebar-link"><span class="dot"></span>Agent Memory</a>
+<a href="tools-and-tool-calling.html" class="sidebar-link"><span class="dot"></span>Tools and Tool Calling</a>
+<a href="agent-state.html" class="sidebar-link"><span class="dot"></span>Agent State</a>
+<a href="agent-loops.html" class="sidebar-link"><span class="dot"></span>Agent Loops</a>
+<a href="guardrails-and-permissions.html" class="sidebar-link"><span class="dot"></span>Guardrails and Permissions</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4 7h4V5a2 2 0 0 1 4 0v2h4v4h2a2 2 0 0 1 0 4h-2v4H4v-4H2a2 2 0 0 1 0-4h2z"/></svg><span>03 Building Your First QA Agent</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="building-your-first-qa-agent.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Building Your First QA Agent</a>
+<div class="sidebar-sub">
+<a href="project-setup.html" class="sidebar-link"><span class="dot"></span>Project Setup</a>
+<a href="creating-the-ai-agent.html" class="sidebar-link"><span class="dot"></span>Creating the AI Agent</a>
+<a href="defining-the-testing-objective.html" class="sidebar-link"><span class="dot"></span>Defining the Testing Objective</a>
+<a href="creating-agent-instructions.html" class="sidebar-link"><span class="dot"></span>Creating Agent Instructions</a>
+<a href="tool-calling-in-practice.html" class="sidebar-link"><span class="dot"></span>Tool Calling in Practice</a>
+<a href="agent-execution-loop-in-code.html" class="sidebar-link"><span class="dot"></span>Agent Execution Loop in Code</a>
+<a href="capturing-agent-results.html" class="sidebar-link"><span class="dot"></span>Capturing Agent Results</a>
+<a href="building-a-simple-qa-agent.html" class="sidebar-link"><span class="dot"></span>Building a Simple QA Agent</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>04 AI-Powered Test Generation</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="ai-powered-test-generation.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>AI-Powered Test Generation</a>
+<div class="sidebar-sub">
+<a href="from-requirement-to-test-scenario.html" class="sidebar-link"><span class="dot"></span>From Requirement to Test Scenario: How AI Generation Works</a>
+<a href="positive-test-cases.html" class="sidebar-link"><span class="dot"></span>Positive Test Cases</a>
+<a href="negative-test-cases.html" class="sidebar-link"><span class="dot"></span>Negative Test Cases</a>
+<a href="boundary-testing.html" class="sidebar-link"><span class="dot"></span>Boundary Testing</a>
+<a href="edge-cases.html" class="sidebar-link"><span class="dot"></span>Edge Cases</a>
+<a href="test-data-generation.html" class="sidebar-link"><span class="dot"></span>Test Data Generation</a>
+<a href="converting-ai-generated-scenarios-into-automated-tests.html" class="sidebar-link"><span class="dot"></span>Converting AI-Generated Scenarios into Automated Tests</a>
+<a href="validating-ai-generated-tests.html" class="sidebar-link"><span class="dot"></span>Validating AI-Generated Tests</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="8 6 2 12 8 18"/><polyline points="16 6 22 12 16 18"/></svg><span>05 AI + Playwright</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="ai-and-playwright.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>AI + Playwright</a>
+<div class="sidebar-sub">
+<a href="connecting-an-ai-agent-with-playwright.html" class="sidebar-link"><span class="dot"></span>Connecting an AI Agent with Playwright: Browser Control</a>
+<a href="ai-driven-navigation.html" class="sidebar-link"><span class="dot"></span>AI-Driven Navigation: Natural Language to Browser Actions</a>
+<a href="ai-locator-selection.html" class="sidebar-link"><span class="dot"></span>AI Locator Selection</a>
+<a href="ai-assertions.html" class="sidebar-link"><span class="dot"></span>AI Assertions</a>
+<a href="autonomous-browser-testing.html" class="sidebar-link"><span class="dot"></span>Autonomous Browser Testing</a>
+<a href="ai-generated-playwright-tests.html" class="sidebar-link"><span class="dot"></span>AI-Generated Playwright Tests: From Observation to Code</a>
+<a href="screenshot-and-trace-analysis.html" class="sidebar-link"><span class="dot"></span>Screenshot and Trace Analysis</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>06 AI + Restassured</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="ai-and-restassured.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>AI + RestAssured</a>
+<div class="sidebar-sub">
+<a href="connecting-an-ai-agent-with-restassured.html" class="sidebar-link"><span class="dot"></span>Connecting an AI Agent with RestAssured: API Tools</a>
+<a href="ai-driven-api-exploration.html" class="sidebar-link"><span class="dot"></span>AI-Driven API Exploration</a>
+<a href="ai-request-construction.html" class="sidebar-link"><span class="dot"></span>AI Request Construction</a>
+<a href="ai-response-validation.html" class="sidebar-link"><span class="dot"></span>AI Response Validation</a>
+<a href="autonomous-api-testing.html" class="sidebar-link"><span class="dot"></span>Autonomous API Testing</a>
+<a href="ai-generated-restassured-tests.html" class="sidebar-link"><span class="dot"></span>AI-Generated RestAssured Tests</a>
+<a href="schema-and-contract-analysis.html" class="sidebar-link"><span class="dot"></span>Schema and Contract Analysis</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4 7h4V5a2 2 0 0 1 4 0v2h4v4h2a2 2 0 0 1 0 4h-2v4H4v-4H2a2 2 0 0 1 0-4h2z"/></svg><span>07 AI + K6</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="ai-and-k6.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>AI + K6</a>
+<div class="sidebar-sub">
+<a href="connecting-an-ai-agent-with-k6.html" class="sidebar-link"><span class="dot"></span>Connecting an AI Agent with K6</a>
+<a href="ai-driven-load-test-design.html" class="sidebar-link"><span class="dot"></span>AI-Driven Load Test Design</a>
+<a href="ai-threshold-and-scenario-construction.html" class="sidebar-link"><span class="dot"></span>AI Threshold and Scenario Construction</a>
+<a href="ai-performance-results-analysis.html" class="sidebar-link"><span class="dot"></span>AI Performance Results Analysis</a>
+<a href="autonomous-performance-testing.html" class="sidebar-link"><span class="dot"></span>Autonomous Performance Testing</a>
+<a href="ai-generated-k6-scripts.html" class="sidebar-link"><span class="dot"></span>AI-Generated K6 Scripts</a>
+<a href="anomaly-and-trend-detection.html" class="sidebar-link"><span class="dot"></span>Anomaly and Trend Detection</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>08 AI-Powered Failure Analysis</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="ai-powered-failure-analysis.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>AI-Powered Failure Analysis</a>
+<div class="sidebar-sub">
+<a href="understanding-test-failures.html" class="sidebar-link"><span class="dot"></span>Understanding Test Failures</a>
+<a href="failure-classification.html" class="sidebar-link"><span class="dot"></span>Failure Classification: The Six Categories</a>
+<a href="stack-trace-analysis.html" class="sidebar-link"><span class="dot"></span>Stack Trace Analysis</a>
+<a href="analyzing-screenshots-and-traces-for-failure-diagnosis.html" class="sidebar-link"><span class="dot"></span>Analyzing Screenshots and Traces for Failure Diagnosis</a>
+<a href="log-analysis.html" class="sidebar-link"><span class="dot"></span>Log Analysis</a>
+<a href="root-cause-analysis.html" class="sidebar-link"><span class="dot"></span>Root Cause Analysis</a>
+<a href="ai-generated-failure-reports.html" class="sidebar-link"><span class="dot"></span>AI-Generated Failure Reports</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>09 AI-Powered Flaky Test Detection</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="ai-powered-flaky-test-detection.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>AI-Powered Flaky Test Detection</a>
+<div class="sidebar-sub">
+<a href="what-is-a-flaky-test.html" class="sidebar-link active"><span class="dot"></span>What is a Flaky Test?</a>
+<a href="why-tests-become-flaky.html" class="sidebar-link"><span class="dot"></span>Why Tests Become Flaky</a>
+<a href="historical-test-data.html" class="sidebar-link"><span class="dot"></span>Historical Test Data</a>
+<a href="detecting-failure-patterns.html" class="sidebar-link"><span class="dot"></span>Detecting Failure Patterns</a>
+<a href="ai-flaky-test-detection.html" class="sidebar-link"><span class="dot"></span>AI Flaky Test Detection</a>
+<a href="diagnosing-why-a-test-is-flaky.html" class="sidebar-link"><span class="dot"></span>Diagnosing Why a Test Is Flaky</a>
+<a href="recommended-fixes.html" class="sidebar-link"><span class="dot"></span>Recommended Fixes</a>
+<a href="flaky-test-scoring.html" class="sidebar-link"><span class="dot"></span>Flaky Test Scoring</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="8 6 2 12 8 18"/><polyline points="16 6 22 12 16 18"/></svg><span>10 Autonomous Api Testing</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="autonomous-api-testing-with-openapi.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Autonomous API Testing</a>
+<div class="sidebar-sub">
+<a href="openapi-based-test-generation.html" class="sidebar-link"><span class="dot"></span>OpenAPI-Based Test Generation</a>
+<a href="request-generation.html" class="sidebar-link"><span class="dot"></span>Request Generation</a>
+<a href="api-test-data.html" class="sidebar-link"><span class="dot"></span>API Test Data</a>
+<a href="schema-and-response-validation.html" class="sidebar-link"><span class="dot"></span>Schema and Response Validation</a>
+<a href="negative-api-testing.html" class="sidebar-link"><span class="dot"></span>Negative API Testing</a>
+<a href="api-workflow-testing.html" class="sidebar-link"><span class="dot"></span>API Workflow Testing</a>
+<a href="autonomous-api-test-execution.html" class="sidebar-link"><span class="dot"></span>Autonomous API Test Execution</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4 7h4V5a2 2 0 0 1 4 0v2h4v4h2a2 2 0 0 1 0 4h-2v4H4v-4H2a2 2 0 0 1 0-4h2z"/></svg><span>11 Testing Llm Applications</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="testing-llm-applications.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Testing LLM Applications</a>
+<div class="sidebar-sub">
+<a href="why-llm-applications-are-different.html" class="sidebar-link"><span class="dot"></span>Why LLM Applications Are Different</a>
+<a href="prompt-testing.html" class="sidebar-link"><span class="dot"></span>Prompt Testing</a>
+<a href="response-validation-for-llm-outputs.html" class="sidebar-link"><span class="dot"></span>Response Validation for LLM Outputs</a>
+<a href="evaluation-dimensions.html" class="sidebar-link"><span class="dot"></span>Evaluation Dimensions: Relevance, Correctness, Groundedness, Consistency</a>
+<a href="hallucination-testing.html" class="sidebar-link"><span class="dot"></span>Hallucination Testing</a>
+<a href="llm-evaluation-and-llm-as-a-judge.html" class="sidebar-link"><span class="dot"></span>LLM Evaluation and LLM-as-a-Judge</a>
+<a href="ai-test-metrics.html" class="sidebar-link"><span class="dot"></span>AI Test Metrics</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>12 Testing AI Agents</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="testing-ai-agents.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Testing AI Agents</a>
+<div class="sidebar-sub">
+<a href="why-ai-agents-need-testing.html" class="sidebar-link"><span class="dot"></span>Why AI Agents Need Testing</a>
+<a href="testing-agent-planning.html" class="sidebar-link"><span class="dot"></span>Testing Agent Planning</a>
+<a href="testing-tool-selection-and-parameters.html" class="sidebar-link"><span class="dot"></span>Testing Tool Selection and Parameters</a>
+<a href="testing-agent-memory.html" class="sidebar-link"><span class="dot"></span>Testing Agent Memory</a>
+<a href="testing-agent-state.html" class="sidebar-link"><span class="dot"></span>Testing Agent State</a>
+<a href="testing-agent-recovery.html" class="sidebar-link"><span class="dot"></span>Testing Agent Recovery</a>
+<a href="agent-evaluation-and-performance-metrics.html" class="sidebar-link"><span class="dot"></span>Agent Evaluation and Performance Metrics</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>13 Mcp For QA Automation</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="mcp-for-qa-automation.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>MCP for QA Automation</a>
+<div class="sidebar-sub">
+<a href="what-is-mcp-and-mcp-architecture.html" class="sidebar-link"><span class="dot"></span>What is MCP? MCP Architecture</a>
+<a href="mcp-client-and-server.html" class="sidebar-link"><span class="dot"></span>MCP Client and Server</a>
+<a href="mcp-tools-and-resources.html" class="sidebar-link"><span class="dot"></span>MCP Tools and Resources</a>
+<a href="building-a-qa-mcp-server.html" class="sidebar-link"><span class="dot"></span>Building a QA MCP Server</a>
+<a href="mcp-and-playwright.html" class="sidebar-link"><span class="dot"></span>MCP + Playwright</a>
+<a href="mcp-and-api-testing.html" class="sidebar-link"><span class="dot"></span>MCP + API Testing</a>
+<a href="ai-agent-and-mcp.html" class="sidebar-link"><span class="dot"></span>AI Agent + MCP</a>
+<a href="mcp-security.html" class="sidebar-link"><span class="dot"></span>MCP Security</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4 7h4V5a2 2 0 0 1 4 0v2h4v4h2a2 2 0 0 1 0 4h-2v4H4v-4H2a2 2 0 0 1 0-4h2z"/></svg><span>14 AI + Ci/Cd</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="ai-and-cicd.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>AI + CI/CD</a>
+<div class="sidebar-sub">
+<a href="why-ai-in-cicd.html" class="sidebar-link"><span class="dot"></span>Why AI in CI/CD?</a>
+<a href="ai-powered-pipeline-design.html" class="sidebar-link"><span class="dot"></span>AI-Powered Pipeline Design</a>
+<a href="intelligent-test-selection-and-prioritization.html" class="sidebar-link"><span class="dot"></span>Intelligent Test Selection and Prioritization</a>
+<a href="failure-triage-in-cicd.html" class="sidebar-link"><span class="dot"></span>Failure Triage in CI/CD</a>
+<a href="ai-powered-retry-logic.html" class="sidebar-link"><span class="dot"></span>AI-Powered Retry Logic</a>
+<a href="pipeline-optimization.html" class="sidebar-link"><span class="dot"></span>Pipeline Optimization</a>
+<a href="cicd-metrics-and-insights.html" class="sidebar-link"><span class="dot"></span>CI/CD Metrics and Insights</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="8 6 2 12 8 18"/><polyline points="16 6 22 12 16 18"/></svg><span>15 Observability For Autonomous QA</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="observability-for-autonomous-qa.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Observability for Autonomous QA</a>
+<div class="sidebar-sub">
+<a href="why-observability-matters.html" class="sidebar-link"><span class="dot"></span>Why Observability Matters</a>
+<a href="structured-logging-for-ai-agents.html" class="sidebar-link"><span class="dot"></span>Structured Logging for AI Agents</a>
+<a href="tracing-agent-decisions.html" class="sidebar-link"><span class="dot"></span>Tracing Agent Decisions</a>
+<a href="monitoring-ai-test-systems.html" class="sidebar-link"><span class="dot"></span>Monitoring AI Test Systems</a>
+<a href="alerting-on-ai-test-failures.html" class="sidebar-link"><span class="dot"></span>Alerting on AI Test Failures</a>
+<a href="dashboards-for-qa-automation.html" class="sidebar-link"><span class="dot"></span>Dashboards for QA Automation</a>
+<a href="debugging-with-observability-data.html" class="sidebar-link"><span class="dot"></span>Debugging with Observability Data</a>
+<a href="observability-best-practices.html" class="sidebar-link"><span class="dot"></span>Observability Best Practices</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>16 Security And Governance</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="security-and-governance.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Security and Governance</a>
+<div class="sidebar-sub">
+<a href="ai-security-risks-in-testing.html" class="sidebar-link"><span class="dot"></span>AI Security Risks in Testing</a>
+<a href="prompt-injection-risks.html" class="sidebar-link"><span class="dot"></span>Prompt Injection Risks</a>
+<a href="data-privacy-in-ai-testing.html" class="sidebar-link"><span class="dot"></span>Data Privacy in AI Testing</a>
+<a href="access-control-for-ai-agents.html" class="sidebar-link"><span class="dot"></span>Access Control for AI Agents</a>
+<a href="audit-trails-for-ai-actions.html" class="sidebar-link"><span class="dot"></span>Audit Trails for AI Actions</a>
+<a href="responsible-ai-testing.html" class="sidebar-link"><span class="dot"></span>Responsible AI Testing</a>
+<a href="compliance-and-governance-frameworks.html" class="sidebar-link"><span class="dot"></span>Compliance and Governance Frameworks</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>17 Capstone: Building The Autonomous QA System</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="capstone-building-the-autonomous-qa-system.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Capstone: Building the Autonomous QA System</a>
+<div class="sidebar-sub">
+<a href="capstone-overview-and-architecture.html" class="sidebar-link"><span class="dot"></span>Capstone Overview and Architecture</a>
+<a href="building-the-core-agent.html" class="sidebar-link"><span class="dot"></span>Building the Core Agent</a>
+<a href="integrating-multi-surface-testing.html" class="sidebar-link"><span class="dot"></span>Integrating Multi-Surface Testing</a>
+<a href="adding-failure-intelligence.html" class="sidebar-link"><span class="dot"></span>Adding Failure Intelligence</a>
+<a href="extending-to-autonomous-and-llm-testing.html" class="sidebar-link"><span class="dot"></span>Extending to Autonomous API, LLM, and Agent Testing</a>
+<a href="connecting-mcp-and-cicd.html" class="sidebar-link"><span class="dot"></span>Connecting MCP and CI/CD</a>
+<a href="the-observability-security-and-governance-layer.html" class="sidebar-link"><span class="dot"></span>The Observability, Security, and Governance Layer</a>
+<a href="the-complete-system-end-to-end.html" class="sidebar-link"><span class="dot"></span>The Complete System, End to End</a>
+<a href="retrospective-and-where-to-go-next.html" class="sidebar-link"><span class="dot"></span>Retrospective and Where to Go Next</a>
+</div>
+</div></details>
+</nav>
+
+    <main class="doc-main">
+      <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="../index.html">Home</a> <span class="crumb-sep">&rsaquo;</span> <a href="index.html">Agentic AI Testing</a> <span class="crumb-sep">&rsaquo;</span> <a href="ai-powered-flaky-test-detection.html">AI-Powered Flaky Test Detection</a> <span class="crumb-sep">&rsaquo;</span> <span class="crumb-current">What is a Flaky Test?</span></nav>
+
+      <div class="page-header-banner">
+        <header class="page-head">
+          <h1>What is a Flaky Test?</h1>
+        </header>
+        <div class="meta-row">
+          <span class="tag-pill Beginner">Beginner</span>
+          <span class="read-time">8 min read</span>
+        </div>
+      </div>
+
+      <p class="prereqs"><strong>Prerequisites:</strong> <a href="ai-powered-flaky-test-detection.html">AI-Powered Flaky Test Detection overview</a></p>
+
+      <article class="content">
+        <h2 id="what-is-this">What is this?</h2>
+<p>A flaky test produces genuinely different results — pass or fail — across multiple runs, with the code, environment, and input all genuinely unchanged. Every word in that definition is doing real work, and this page is about why.</p>
+
+<h2 id="why-every-condition-in-the-definition-matters">Why Every Condition in the Definition Matters</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>"CODE genuinely unchanged" — rules out:
+  A test that failed yesterday and passes today because
+  someone ACTUALLY FIXED a real bug in between. That's not
+  flakiness — that's a genuine fix working as intended.
+
+"ENVIRONMENT genuinely unchanged" — rules out:
+  A test that failed once during a staging outage and passes
+  cleanly once staging is healthy again. That's Chapter 8's
+  "environment problem" category, not flakiness — the SAME
+  code, run against a GENUINELY DIFFERENT environment state.
+
+"INPUT genuinely unchanged" — rules out:
+  A test that failed with one set of test data and passes with
+  DIFFERENT test data. Different inputs producing different
+  results is completely expected, ordinary behavior — not
+  flakiness at all.</code></pre>
+
+<h2 id="this-chapter-s-test-meeting-the-genuine-definition">This Chapter's Test, Meeting the Genuine Definition</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('cart total updates after adding an item', ...)
+
+Run 1 (Monday, 10:00am):  PASS
+Run 2 (Monday, 10:15am):  FAIL
+Run 3 (Monday, 10:30am):  PASS
+Run 4 (Monday, 10:45am):  PASS
+Run 5 (Monday, 11:00am):  FAIL
+
+SAME code (no commits between these runs). SAME staging
+environment (confirmed healthy throughout — no Chapter 8-style
+environment issue). SAME test data (identical product, identical
+expected total, every single run). This GENUINELY meets the
+definition — nothing else changed except the outcome itself.</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why does confirming "nothing else changed" matter as much as observing the inconsistent pass/fail pattern itself? Without ruling out code, environment, and input changes between runs, an inconsistent pattern could have several completely different, non-flaky explanations — Chapter 8's environment problem, a series of genuine fixes and regressions, or simply different test data being used run to run. A pattern of inconsistent results alone isn't sufficient evidence of flakiness; it's the COMBINATION of inconsistency AND confirmed sameness of everything else that actually establishes genuine flakiness.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Labeling a test "flaky" the moment it fails once, then passes on a simple retry, without checking whether anything genuinely changed between those two runs. A single retry passing is consistent with genuine flakiness, but it's also consistent with a transient environment blip — Chapter 8's own categories — which needs the same "did anything actually change" check before concluding flakiness specifically.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>A genuinely reliable way to test the "everything else unchanged" condition directly: re-run the identical test back-to-back, in immediate succession, against the same environment, with no commits or deploys in between. If results are STILL inconsistent under these tightly controlled conditions, flakiness is much more confidently established.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Confirm code, environment, and input are genuinely unchanged before concluding a test is flaky, not just observing inconsistent results.</li>
+  <li>Distinguish flakiness from a genuine fix-then-regression cycle, an environment issue, or differing test data — each requires this same "what actually changed" check.</li>
+  <li>Use tightly-controlled, back-to-back re-runs to establish flakiness with real confidence, rather than relying on naturally-occurring runs where more could have changed.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>A flaky test produces genuinely different results across runs with code, environment, and input all confirmed unchanged — every condition in this definition rules out a real, different alternative explanation.</li>
+  <li>Inconsistent results alone aren't sufficient evidence of flakiness without confirming nothing else actually changed between runs.</li>
+  <li>Tightly-controlled, back-to-back re-runs provide the most confident way to establish genuine flakiness.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>For a test that passes on Monday and fails on Tuesday, list three genuinely different explanations consistent with this pattern — only one of which is actual flakiness — and describe what specific check would distinguish between them, following this page's own reasoning.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A test fails on Friday and passes on Monday. A teammate immediately labels it "flaky." What would you want to check before agreeing with this label?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd want to check whether anything genuinely changed over the weekend — code deployed, environment restarted, test data modified — before accepting "flaky" over the several other explanations this page's definition is specifically designed to distinguish.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What to check BEFORE accepting "flaky":
+- Were there any COMMITS or DEPLOYS between Friday and Monday?
+  (if yes, this could be a genuine FIX, not flakiness at all)
+- Was the ENVIRONMENT genuinely stable across the weekend, or
+  was there a known outage or maintenance window? (Chapter 8's
+  environment-problem category, not flakiness)
+- Was the SAME test data used both times? (different inputs
+  producing different results isn't flaky at all)
+
+Only if ALL THREE are confirmed unchanged does "flaky" become
+  the genuinely supported conclusion, rather than a convenient
+  default label for an unexplained pass/fail difference.</code></pre>
+<p>The teammate's instinct isn't unreasonable, but "flaky" specifically requires ruling out these alternatives first — exactly this page's central argument about why every condition in the definition matters.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page argue that a passing retry, on its own, doesn't confidently establish flakiness — even though it's consistent with flakiness being true?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because "consistent with" isn't the same as "confirms" — a single failed-then-passed pair is ALSO consistent with several other explanations this page's definition specifically distinguishes, and a naturally-occurring retry doesn't control for whether something else changed in between.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What a SIMPLE failed-then-passed retry is consistent with:
+- Genuine flakiness (the actual hypothesis being tested)
+- A transient ENVIRONMENT blip that happened to resolve
+  itself between the two attempts (Chapter 8's category)
+- Some OTHER uncontrolled factor changing between attempts
+  that wasn't tracked or noticed
+
+Why a TIGHTLY-CONTROLLED back-to-back re-run (this page's
+"Quick Tip") is more confident:
+Running IMMEDIATELY, with NO time for a deploy, environment
+  change, or anything else to occur between attempts, genuinely
+  narrows the possible explanations down much closer to just
+  flakiness itself — much stronger evidence than a naturally-
+  spaced pair of runs where more could have changed.</code></pre>
+<p>This is a genuinely important, real distinction: a single retry passing is weak, ambiguous evidence; a controlled, immediate, repeated re-run is much stronger evidence — and this page's recommendation specifically pushes toward the latter for genuine confidence.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why "different test data producing different results" is explicitly excluded from the definition of flakiness, even though it also produces inconsistent pass/fail outcomes.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because this is completely expected, correct test behavior — a test SHOULD produce different results for different inputs, and calling this "flaky" would misclassify entirely normal, intended behavior as a genuine problem.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A concrete example of NON-flaky, input-driven inconsistency:
+Run 1: test adds a product WITH SUFFICIENT stock — passes.
+Run 2: test adds a DIFFERENT product that happens to be OUT
+  OF STOCK — correctly fails, since adding an out-of-stock
+  item SHOULD fail.
+
+This ISN'T flakiness — it's the test CORRECTLY producing
+  different results for a GENUINELY different situation. The
+  definition's "input genuinely unchanged" condition
+  specifically excludes this case, since flakiness is
+  SPECIFICALLY about inconsistency DESPITE everything staying
+  the same — not ordinary, expected variation.</code></pre>
+<p>This is exactly why the definition needs all three conditions together — inconsistency alone, without confirming sameness of input (and code, and environment), would incorrectly sweep in completely normal, expected test behavior as if it were a genuine problem worth investigating as flakiness.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you distinguish, using this page's definition, between a test that's genuinely flaky and one that's simply testing a feature with genuinely non-deterministic real-world behavior (like a "recently viewed products" list based on current time)?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This is a genuinely subtle, real edge case worth examining carefully — a feature that's LEGITIMATELY time-dependent or non-deterministic by DESIGN produces different results across runs even with code, environment, and NOMINAL input unchanged, which could superficially look like flakiness.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A genuinely tricky case:
+A "recently viewed" list depends on the CURRENT TIMESTAMP at
+  test-run time — if the test doesn't ACCOUNT for this
+  (e.g., doesn't control or mock the current time), it might
+  produce genuinely different, "inconsistent" results across
+  runs, even with code and environment unchanged.
+
+Is this FLAKINESS, or a TEST DESIGN issue?
+Arguably, the "input" here ISN'T genuinely unchanged — the
+  CURRENT TIME is effectively part of the test's real input,
+  and it GENUINELY differs between runs. A more precise
+  framing: this is a TEST DEFECT (per Chapter 8's own
+  category) — the test should have CONTROLLED for time
+  (using a fixed, mocked timestamp) rather than relying on
+  the genuinely variable real clock.</code></pre>
+<p>This is a genuinely useful, honest edge case to work through: what looks like flakiness sometimes reveals that "input genuinely unchanged" wasn't actually true — time, random values, or other implicit inputs can be easy to overlook, and recognizing this distinction matters for choosing the correct fix (control the hidden input, rather than treating it as flakiness needing a retry).</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might it matter, practically, whether a team correctly distinguishes flakiness from a "fix that hasn't been merged everywhere yet" (a genuinely different, real situation)?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>These need genuinely different responses — flakiness needs the investigation this chapter's remaining pages cover, while an incompletely-deployed fix needs someone to simply finish deploying it, and conflating the two wastes real effort on the wrong solution.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>GENUINE flakiness — needs INVESTIGATION (this chapter's work):
+The test fails inconsistently even though the SAME, fully-
+  deployed code is running everywhere — the actual FIX is
+  understanding and addressing a real race condition or
+  timing issue in the test or application.
+
+A PARTIALLY-DEPLOYED fix, MISTAKEN for flakiness:
+A genuine bug fix was merged and deployed to SOME servers in
+  a load-balanced staging environment, but not YET to all of
+  them — tests hitting different servers get genuinely
+  DIFFERENT (fixed vs. still-buggy) code, despite looking like
+  the "same" deployment from a version-control perspective.
+  The ACTUAL fix here is simply completing the deployment
+  rollout, not investigating flakiness at all.</code></pre>
+<p>Misclassifying the second scenario as flakiness would send a team down this chapter's entire investigative process — looking for race conditions, timing issues — when the real, correct fix was simply "wait for the deployment to finish rolling out," a completely different and much simpler resolution that genuine flakiness investigation would never lead to.</p>
+</div>
+</details>
+</div>
+      </article>
+
+      <label class="mark-complete-row">
+        <input type="checkbox" class="mark-complete-checkbox" data-page-id="ai:what-is-a-flaky-test.html" onchange="toggleComplete(this)" />
+        <span>Mark this lesson complete</span>
+      </label>
+
+      <div class="prev-next">
+        <a href="ai-powered-flaky-test-detection.html"><span class="pn-label">&larr; Previous</span>AI-Powered Flaky Test Detection</a>
+        <a href="why-tests-become-flaky.html" class="pn-next"><span class="pn-label">Next &rarr;</span>Why Tests Become Flaky</a>
+      </div>
+    </main>
+
+    <aside class="right-rail">
+      
+
+      <div class="rail-card">
+        <h4>Related Chapters</h4>
+        <div class="related-list">
+          <a href="why-tests-become-flaky.html">Why Tests Become Flaky<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+<a href="historical-test-data.html">Historical Test Data<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+<a href="detecting-failure-patterns.html">Detecting Failure Patterns<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+<a href="ai-flaky-test-detection.html">AI Flaky Test Detection<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+<a href="diagnosing-why-a-test-is-flaky.html">Diagnosing Why a Test Is Flaky<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+        </div>
+      </div>
+
+      <div class="rail-card was-helpful-card">
+        <span>Was this helpful?</span>
+        <button title="Yes">&#128077;</button>
+        <button title="No">&#128078;</button>
+      </div>
+    </aside>
+  </div>
+
+  <nav class="mobile-tabbar">
+  <a href="../index.html"><svg class="icon" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg><span>Home</span></a>
+  <a href="index.html" class="active"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>Tutorials</span></a>
+  <a href="../books.html"><svg class="icon" viewBox="0 0 24 24"><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v16H6.5A2.5 2.5 0 0 0 4 20.5"/><path d="M4 4.5v16"/></svg><span>Books</span></a>
+  <a href="../about.html"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="12" y1="16" x2="12" y2="11.5"/><circle cx="12" cy="8" r="0.8" fill="currentColor" stroke="none"/></svg><span>About</span></a>
+</nav>
+
+  <script>
+  
+  document.querySelectorAll('.book-promo-card').forEach(function(card) {
+    var slides = card.querySelectorAll('.book-slide');
+    var dots = card.querySelectorAll('.book-dot');
+    if (slides.length < 2) return;
+    var idx = 0;
+    setInterval(function() {
+      slides[idx].classList.remove('active');
+      if (dots[idx]) dots[idx].classList.remove('active');
+      idx = (idx + 1) % slides.length;
+      slides[idx].classList.add('active');
+      if (dots[idx]) dots[idx].classList.add('active');
+    }, 5000);
+  });
+
+  function copyCode(btn) {
+    const code = btn.nextElementSibling.innerText;
+    navigator.clipboard.writeText(code).then(function() {
+      btn.textContent = 'Copied';
+      btn.classList.add('copied');
+      setTimeout(function() { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
+    });
+  }
+  function openSidebar() {
+    document.getElementById('doc-sidebar').classList.add('open');
+    document.getElementById('sidebar-backdrop').classList.add('show');
+    document.body.classList.add('no-scroll');
+  }
+  function closeSidebar() {
+    document.getElementById('doc-sidebar').classList.remove('open');
+    document.getElementById('sidebar-backdrop').classList.remove('show');
+    document.body.classList.remove('no-scroll');
+  }
+  function toggleTheme() {
+    var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark');
+    try { localStorage.setItem('assertTrueTheme', isDark ? 'light' : 'dark'); } catch (e) {}
+  }
+  var docSearchIndex = null;
+  var docSearchPromise = null;
+  function loadDocSearchIndex() {
+    if (!docSearchPromise) {
+      docSearchPromise = new Promise(function(resolve) {
+        var s = document.createElement('script');
+        s.src = '../search-index.js';
+        s.onload = function() { docSearchIndex = window.SITE_SEARCH_INDEX || []; resolve(docSearchIndex); };
+        s.onerror = function() { docSearchIndex = []; resolve(docSearchIndex); };
+        document.head.appendChild(s);
+      });
+    }
+    return docSearchPromise;
+  }
+  function docEscapeHtml(str) {
+    return str.replace(/[&<>"']/g, function(c) {
+      return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];
+    });
+  }
+  function docHighlight(text, query) {
+    var escaped = docEscapeHtml(text);
+    if (!query) return escaped;
+    var idx = escaped.toLowerCase().indexOf(query.toLowerCase());
+    if (idx === -1) return escaped;
+    return escaped.slice(0, idx) + '<mark>' + escaped.slice(idx, idx + query.length) + '</mark>' + escaped.slice(idx + query.length);
+  }
+  function docSearchFn(query) {
+    query = query.trim().toLowerCase();
+    if (!query || !docSearchIndex) return [];
+    var scored = [];
+    for (var i = 0; i < docSearchIndex.length; i++) {
+      var e = docSearchIndex[i];
+      var titleIdx = e.title.toLowerCase().indexOf(query);
+      var descIdx = e.desc.toLowerCase().indexOf(query);
+      if (titleIdx === -1 && descIdx === -1) continue;
+      var score = titleIdx !== -1 ? (titleIdx === 0 ? 0 : 1) : 2;
+      scored.push({ entry: e, score: score });
+    }
+    scored.sort(function(a, b) { return a.score - b.score; });
+    return scored.slice(0, 8).map(function(s) { return s.entry; });
+  }
+  (function() {
+    var docInput = document.getElementById('doc-search-input');
+    var docResults = document.getElementById('doc-search-results');
+    if (!docInput || !docResults) return;
+    function renderDocSearch(query) {
+      if (!query.trim()) {
+        docResults.hidden = true;
+        docInput.setAttribute('aria-expanded', 'false');
+        return;
+      }
+      if (!docSearchIndex) {
+        docResults.innerHTML = '<div class="hp-search-empty">Loading&hellip;</div>';
+        docResults.hidden = false;
+        loadDocSearchIndex().then(function() { renderDocSearch(docInput.value); });
+        return;
+      }
+      var matches = docSearchFn(query);
+      if (matches.length === 0) {
+        docResults.innerHTML = '<div class="hp-search-empty">No tutorials found for &ldquo;' + docEscapeHtml(query) + '&rdquo;</div>';
+        docResults.hidden = false;
+        docInput.setAttribute('aria-expanded', 'true');
+        return;
+      }
+      var html = '<div class="hp-search-hint">' + matches.length + ' result' + (matches.length === 1 ? '' : 's') + '</div>';
+      matches.forEach(function(e) {
+        var trackClass = e.track === 'Playwright' ? 'pw' : (e.track === 'RestAssured' ? 'ra' : (e.track === 'K6' ? 'k6' : (e.track === 'GitHub Actions' ? 'gh' : (e.track === 'AI-Powered Playwright' ? 'aipw' : 'ai'))));
+        html += '<a class="hp-search-item" href="../' + e.url + '">' +
+          '<div class="hp-search-item-title">' + docHighlight(e.title, query) + '</div>' +
+          '<div class="hp-search-item-desc">' + docEscapeHtml(e.desc) + '</div>' +
+          '<span class="hp-search-item-track ' + trackClass + '">' + e.track + '</span>' +
+          '</a>';
+      });
+      docResults.innerHTML = html;
+      docResults.hidden = false;
+      docInput.setAttribute('aria-expanded', 'true');
+    }
+    docInput.addEventListener('input', function() { renderDocSearch(docInput.value); });
+    docInput.addEventListener('focus', function() { loadDocSearchIndex(); if (docInput.value.trim()) renderDocSearch(docInput.value); });
+    docInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') { docResults.hidden = true; docInput.blur(); }
+      else if (e.key === 'Enter') {
+        var first = docResults.querySelector('.hp-search-item');
+        if (first) window.location.href = first.getAttribute('href');
+      }
+    });
+    document.addEventListener('click', function(e) {
+      if (!e.target.closest('.topnav-search-wrap')) { docResults.hidden = true; }
+    });
+  })();
+
+  function toggleComplete(checkbox) {
+    var pageId = checkbox.getAttribute('data-page-id');
+    var progress = {};
+    try { progress = JSON.parse(localStorage.getItem('assertTrueProgress') || '{}'); } catch (e) {}
+    if (checkbox.checked) { progress[pageId] = true; } else { delete progress[pageId]; }
+    try { localStorage.setItem('assertTrueProgress', JSON.stringify(progress)); } catch (e) {}
+  }
+  (function() {
+    var progress = {};
+    try { progress = JSON.parse(localStorage.getItem('assertTrueProgress') || '{}'); } catch (e) {}
+    var cb = document.querySelector('.mark-complete-checkbox');
+    if (cb && progress[cb.getAttribute('data-page-id')]) cb.checked = true;
+  })();
+  (function() {
+    var activeLink = document.querySelector('.doc-sidebar a.active');
+    if (activeLink) { activeLink.scrollIntoView({ block: 'center' }); }
+  })();
+  document.addEventListener('click', function(e) {
+    if (e.target.closest('.sidebar-link') && window.matchMedia('(max-width: 860px)').matches) {
+      closeSidebar();
+    }
+  });
+  </script>
+</body>
+</html>

@@ -1,0 +1,672 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <script>try{if(localStorage.getItem('assertTrueTheme')==='dark'){document.documentElement.setAttribute('data-theme','dark');}}catch(e){}</script>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Agent Reasoning: Deciding the Next Specific Action</title>
+  <meta name="description" content="How an AI agent&amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;#x27;s reasoning step evaluates the current real situation and decides one specific next action, distinct from the broader planning step covered previously." />
+  <link rel="canonical" href="https://asserttrue.io/agentic-ai-testing/agent-reasoning.html" />
+  <link rel="stylesheet" href="../css/style.css?v=85" />
+</head>
+<body class="theme-ai">
+  <header class="topnav">
+    <button class="mobile-menu-btn" onclick="openSidebar()">&#9776;</button>
+    <a href="../index.html" class="brand"><svg class="logo-mark" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="40" rx="11" fill="url(#logoGrad)"/><path d="M11 21.5 L17 27.5 L29.5 13" stroke="#ffffff" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/><defs><linearGradient id="logoGrad" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse"><stop stop-color="#22c55e"/><stop offset="1" stop-color="#15803d"/></linearGradient></defs></svg><span class="brand-text">Assert<span class="brand-true">True</span><span class="brand-io">IO</span></span></a>
+    <nav class="topnav-links">
+      <a href="../playwright/index.html">Playwright</a>
+      <a href="../restassured/index.html">RestAssured</a>
+      <a href="../k6/index.html">K6</a>
+      <a href="../github-actions/index.html">GitHub Actions</a>
+      <a href="index.html" class="active">AI Testing</a>
+      <a href="../ai-powered-playwright/index.html">AI Playwright</a>
+      <a href="../about.html">About</a>
+      <a href="../books.html">Books</a>
+    </nav>
+    <div class="topnav-right">
+      <div class="topnav-search-wrap">
+        <input type="text" class="search-box" id="doc-search-input" placeholder="Search tutorials..." autocomplete="off" aria-label="Search tutorials" aria-expanded="false" />
+        <div class="hp-search-results" id="doc-search-results" hidden></div>
+      </div>
+      <button class="icon-btn theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Toggle dark mode"><svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
+    </div>
+  </header>
+
+  <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeSidebar()"></div>
+
+  <div class="app-shell">
+    <nav class="doc-sidebar" id="doc-sidebar">
+<div class="sidebar-mobile-header"><span>Menu</span><button class="sidebar-close-btn" onclick="closeSidebar()">&times;</button></div>
+<a href="index.html" class="sidebar-overview-link"><svg class="icon" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg><span>Roadmap</span></a>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>01 Introduction To Agentic AI Testing</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="introduction-to-agentic-ai-testing.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Introduction to Agentic AI Testing</a>
+<div class="sidebar-sub">
+<a href="what-is-agentic-ai-vs-generative-ai-vs-ai-agents.html" class="sidebar-link"><span class="dot"></span>What is Agentic AI? AI vs. Generative AI vs. AI Agents</a>
+<a href="traditional-test-automation-vs-agentic-testing.html" class="sidebar-link"><span class="dot"></span>Traditional Test Automation vs. Agentic Testing</a>
+<a href="what-is-autonomous-qa-benefits-and-limitations.html" class="sidebar-link"><span class="dot"></span>What is Autonomous QA? Benefits & Limitations</a>
+<a href="real-world-use-cases-and-agentic-qa-architecture.html" class="sidebar-link"><span class="dot"></span>Real-World Use Cases & Agentic QA Architecture</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>02 AI Agent Fundamentals</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="ai-agent-fundamentals.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>AI Agent Fundamentals</a>
+<div class="sidebar-sub">
+<a href="anatomy-of-an-ai-agent.html" class="sidebar-link"><span class="dot"></span>Anatomy of an AI Agent</a>
+<a href="llms-and-ai-agents.html" class="sidebar-link"><span class="dot"></span>LLMs and AI Agents</a>
+<a href="agent-planning.html" class="sidebar-link"><span class="dot"></span>Agent Planning</a>
+<a href="agent-reasoning.html" class="sidebar-link active"><span class="dot"></span>Agent Reasoning</a>
+<a href="agent-memory.html" class="sidebar-link"><span class="dot"></span>Agent Memory</a>
+<a href="tools-and-tool-calling.html" class="sidebar-link"><span class="dot"></span>Tools and Tool Calling</a>
+<a href="agent-state.html" class="sidebar-link"><span class="dot"></span>Agent State</a>
+<a href="agent-loops.html" class="sidebar-link"><span class="dot"></span>Agent Loops</a>
+<a href="guardrails-and-permissions.html" class="sidebar-link"><span class="dot"></span>Guardrails and Permissions</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4 7h4V5a2 2 0 0 1 4 0v2h4v4h2a2 2 0 0 1 0 4h-2v4H4v-4H2a2 2 0 0 1 0-4h2z"/></svg><span>03 Building Your First QA Agent</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="building-your-first-qa-agent.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Building Your First QA Agent</a>
+<div class="sidebar-sub">
+<a href="project-setup.html" class="sidebar-link"><span class="dot"></span>Project Setup</a>
+<a href="creating-the-ai-agent.html" class="sidebar-link"><span class="dot"></span>Creating the AI Agent</a>
+<a href="defining-the-testing-objective.html" class="sidebar-link"><span class="dot"></span>Defining the Testing Objective</a>
+<a href="creating-agent-instructions.html" class="sidebar-link"><span class="dot"></span>Creating Agent Instructions</a>
+<a href="tool-calling-in-practice.html" class="sidebar-link"><span class="dot"></span>Tool Calling in Practice</a>
+<a href="agent-execution-loop-in-code.html" class="sidebar-link"><span class="dot"></span>Agent Execution Loop in Code</a>
+<a href="capturing-agent-results.html" class="sidebar-link"><span class="dot"></span>Capturing Agent Results</a>
+<a href="building-a-simple-qa-agent.html" class="sidebar-link"><span class="dot"></span>Building a Simple QA Agent</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>04 AI-Powered Test Generation</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="ai-powered-test-generation.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>AI-Powered Test Generation</a>
+<div class="sidebar-sub">
+<a href="from-requirement-to-test-scenario.html" class="sidebar-link"><span class="dot"></span>From Requirement to Test Scenario: How AI Generation Works</a>
+<a href="positive-test-cases.html" class="sidebar-link"><span class="dot"></span>Positive Test Cases</a>
+<a href="negative-test-cases.html" class="sidebar-link"><span class="dot"></span>Negative Test Cases</a>
+<a href="boundary-testing.html" class="sidebar-link"><span class="dot"></span>Boundary Testing</a>
+<a href="edge-cases.html" class="sidebar-link"><span class="dot"></span>Edge Cases</a>
+<a href="test-data-generation.html" class="sidebar-link"><span class="dot"></span>Test Data Generation</a>
+<a href="converting-ai-generated-scenarios-into-automated-tests.html" class="sidebar-link"><span class="dot"></span>Converting AI-Generated Scenarios into Automated Tests</a>
+<a href="validating-ai-generated-tests.html" class="sidebar-link"><span class="dot"></span>Validating AI-Generated Tests</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="8 6 2 12 8 18"/><polyline points="16 6 22 12 16 18"/></svg><span>05 AI + Playwright</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="ai-and-playwright.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>AI + Playwright</a>
+<div class="sidebar-sub">
+<a href="connecting-an-ai-agent-with-playwright.html" class="sidebar-link"><span class="dot"></span>Connecting an AI Agent with Playwright: Browser Control</a>
+<a href="ai-driven-navigation.html" class="sidebar-link"><span class="dot"></span>AI-Driven Navigation: Natural Language to Browser Actions</a>
+<a href="ai-locator-selection.html" class="sidebar-link"><span class="dot"></span>AI Locator Selection</a>
+<a href="ai-assertions.html" class="sidebar-link"><span class="dot"></span>AI Assertions</a>
+<a href="autonomous-browser-testing.html" class="sidebar-link"><span class="dot"></span>Autonomous Browser Testing</a>
+<a href="ai-generated-playwright-tests.html" class="sidebar-link"><span class="dot"></span>AI-Generated Playwright Tests: From Observation to Code</a>
+<a href="screenshot-and-trace-analysis.html" class="sidebar-link"><span class="dot"></span>Screenshot and Trace Analysis</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>06 AI + Restassured</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="ai-and-restassured.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>AI + RestAssured</a>
+<div class="sidebar-sub">
+<a href="connecting-an-ai-agent-with-restassured.html" class="sidebar-link"><span class="dot"></span>Connecting an AI Agent with RestAssured: API Tools</a>
+<a href="ai-driven-api-exploration.html" class="sidebar-link"><span class="dot"></span>AI-Driven API Exploration</a>
+<a href="ai-request-construction.html" class="sidebar-link"><span class="dot"></span>AI Request Construction</a>
+<a href="ai-response-validation.html" class="sidebar-link"><span class="dot"></span>AI Response Validation</a>
+<a href="autonomous-api-testing.html" class="sidebar-link"><span class="dot"></span>Autonomous API Testing</a>
+<a href="ai-generated-restassured-tests.html" class="sidebar-link"><span class="dot"></span>AI-Generated RestAssured Tests</a>
+<a href="schema-and-contract-analysis.html" class="sidebar-link"><span class="dot"></span>Schema and Contract Analysis</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4 7h4V5a2 2 0 0 1 4 0v2h4v4h2a2 2 0 0 1 0 4h-2v4H4v-4H2a2 2 0 0 1 0-4h2z"/></svg><span>07 AI + K6</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="ai-and-k6.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>AI + K6</a>
+<div class="sidebar-sub">
+<a href="connecting-an-ai-agent-with-k6.html" class="sidebar-link"><span class="dot"></span>Connecting an AI Agent with K6</a>
+<a href="ai-driven-load-test-design.html" class="sidebar-link"><span class="dot"></span>AI-Driven Load Test Design</a>
+<a href="ai-threshold-and-scenario-construction.html" class="sidebar-link"><span class="dot"></span>AI Threshold and Scenario Construction</a>
+<a href="ai-performance-results-analysis.html" class="sidebar-link"><span class="dot"></span>AI Performance Results Analysis</a>
+<a href="autonomous-performance-testing.html" class="sidebar-link"><span class="dot"></span>Autonomous Performance Testing</a>
+<a href="ai-generated-k6-scripts.html" class="sidebar-link"><span class="dot"></span>AI-Generated K6 Scripts</a>
+<a href="anomaly-and-trend-detection.html" class="sidebar-link"><span class="dot"></span>Anomaly and Trend Detection</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>08 AI-Powered Failure Analysis</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="ai-powered-failure-analysis.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>AI-Powered Failure Analysis</a>
+<div class="sidebar-sub">
+<a href="understanding-test-failures.html" class="sidebar-link"><span class="dot"></span>Understanding Test Failures</a>
+<a href="failure-classification.html" class="sidebar-link"><span class="dot"></span>Failure Classification: The Six Categories</a>
+<a href="stack-trace-analysis.html" class="sidebar-link"><span class="dot"></span>Stack Trace Analysis</a>
+<a href="analyzing-screenshots-and-traces-for-failure-diagnosis.html" class="sidebar-link"><span class="dot"></span>Analyzing Screenshots and Traces for Failure Diagnosis</a>
+<a href="log-analysis.html" class="sidebar-link"><span class="dot"></span>Log Analysis</a>
+<a href="root-cause-analysis.html" class="sidebar-link"><span class="dot"></span>Root Cause Analysis</a>
+<a href="ai-generated-failure-reports.html" class="sidebar-link"><span class="dot"></span>AI-Generated Failure Reports</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>09 AI-Powered Flaky Test Detection</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="ai-powered-flaky-test-detection.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>AI-Powered Flaky Test Detection</a>
+<div class="sidebar-sub">
+<a href="what-is-a-flaky-test.html" class="sidebar-link"><span class="dot"></span>What is a Flaky Test?</a>
+<a href="why-tests-become-flaky.html" class="sidebar-link"><span class="dot"></span>Why Tests Become Flaky</a>
+<a href="historical-test-data.html" class="sidebar-link"><span class="dot"></span>Historical Test Data</a>
+<a href="detecting-failure-patterns.html" class="sidebar-link"><span class="dot"></span>Detecting Failure Patterns</a>
+<a href="ai-flaky-test-detection.html" class="sidebar-link"><span class="dot"></span>AI Flaky Test Detection</a>
+<a href="diagnosing-why-a-test-is-flaky.html" class="sidebar-link"><span class="dot"></span>Diagnosing Why a Test Is Flaky</a>
+<a href="recommended-fixes.html" class="sidebar-link"><span class="dot"></span>Recommended Fixes</a>
+<a href="flaky-test-scoring.html" class="sidebar-link"><span class="dot"></span>Flaky Test Scoring</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="8 6 2 12 8 18"/><polyline points="16 6 22 12 16 18"/></svg><span>10 Autonomous Api Testing</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="autonomous-api-testing-with-openapi.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Autonomous API Testing</a>
+<div class="sidebar-sub">
+<a href="openapi-based-test-generation.html" class="sidebar-link"><span class="dot"></span>OpenAPI-Based Test Generation</a>
+<a href="request-generation.html" class="sidebar-link"><span class="dot"></span>Request Generation</a>
+<a href="api-test-data.html" class="sidebar-link"><span class="dot"></span>API Test Data</a>
+<a href="schema-and-response-validation.html" class="sidebar-link"><span class="dot"></span>Schema and Response Validation</a>
+<a href="negative-api-testing.html" class="sidebar-link"><span class="dot"></span>Negative API Testing</a>
+<a href="api-workflow-testing.html" class="sidebar-link"><span class="dot"></span>API Workflow Testing</a>
+<a href="autonomous-api-test-execution.html" class="sidebar-link"><span class="dot"></span>Autonomous API Test Execution</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4 7h4V5a2 2 0 0 1 4 0v2h4v4h2a2 2 0 0 1 0 4h-2v4H4v-4H2a2 2 0 0 1 0-4h2z"/></svg><span>11 Testing Llm Applications</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="testing-llm-applications.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Testing LLM Applications</a>
+<div class="sidebar-sub">
+<a href="why-llm-applications-are-different.html" class="sidebar-link"><span class="dot"></span>Why LLM Applications Are Different</a>
+<a href="prompt-testing.html" class="sidebar-link"><span class="dot"></span>Prompt Testing</a>
+<a href="response-validation-for-llm-outputs.html" class="sidebar-link"><span class="dot"></span>Response Validation for LLM Outputs</a>
+<a href="evaluation-dimensions.html" class="sidebar-link"><span class="dot"></span>Evaluation Dimensions: Relevance, Correctness, Groundedness, Consistency</a>
+<a href="hallucination-testing.html" class="sidebar-link"><span class="dot"></span>Hallucination Testing</a>
+<a href="llm-evaluation-and-llm-as-a-judge.html" class="sidebar-link"><span class="dot"></span>LLM Evaluation and LLM-as-a-Judge</a>
+<a href="ai-test-metrics.html" class="sidebar-link"><span class="dot"></span>AI Test Metrics</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>12 Testing AI Agents</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="testing-ai-agents.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Testing AI Agents</a>
+<div class="sidebar-sub">
+<a href="why-ai-agents-need-testing.html" class="sidebar-link"><span class="dot"></span>Why AI Agents Need Testing</a>
+<a href="testing-agent-planning.html" class="sidebar-link"><span class="dot"></span>Testing Agent Planning</a>
+<a href="testing-tool-selection-and-parameters.html" class="sidebar-link"><span class="dot"></span>Testing Tool Selection and Parameters</a>
+<a href="testing-agent-memory.html" class="sidebar-link"><span class="dot"></span>Testing Agent Memory</a>
+<a href="testing-agent-state.html" class="sidebar-link"><span class="dot"></span>Testing Agent State</a>
+<a href="testing-agent-recovery.html" class="sidebar-link"><span class="dot"></span>Testing Agent Recovery</a>
+<a href="agent-evaluation-and-performance-metrics.html" class="sidebar-link"><span class="dot"></span>Agent Evaluation and Performance Metrics</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>13 Mcp For QA Automation</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="mcp-for-qa-automation.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>MCP for QA Automation</a>
+<div class="sidebar-sub">
+<a href="what-is-mcp-and-mcp-architecture.html" class="sidebar-link"><span class="dot"></span>What is MCP? MCP Architecture</a>
+<a href="mcp-client-and-server.html" class="sidebar-link"><span class="dot"></span>MCP Client and Server</a>
+<a href="mcp-tools-and-resources.html" class="sidebar-link"><span class="dot"></span>MCP Tools and Resources</a>
+<a href="building-a-qa-mcp-server.html" class="sidebar-link"><span class="dot"></span>Building a QA MCP Server</a>
+<a href="mcp-and-playwright.html" class="sidebar-link"><span class="dot"></span>MCP + Playwright</a>
+<a href="mcp-and-api-testing.html" class="sidebar-link"><span class="dot"></span>MCP + API Testing</a>
+<a href="ai-agent-and-mcp.html" class="sidebar-link"><span class="dot"></span>AI Agent + MCP</a>
+<a href="mcp-security.html" class="sidebar-link"><span class="dot"></span>MCP Security</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4 7h4V5a2 2 0 0 1 4 0v2h4v4h2a2 2 0 0 1 0 4h-2v4H4v-4H2a2 2 0 0 1 0-4h2z"/></svg><span>14 AI + Ci/Cd</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="ai-and-cicd.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>AI + CI/CD</a>
+<div class="sidebar-sub">
+<a href="why-ai-in-cicd.html" class="sidebar-link"><span class="dot"></span>Why AI in CI/CD?</a>
+<a href="ai-powered-pipeline-design.html" class="sidebar-link"><span class="dot"></span>AI-Powered Pipeline Design</a>
+<a href="intelligent-test-selection-and-prioritization.html" class="sidebar-link"><span class="dot"></span>Intelligent Test Selection and Prioritization</a>
+<a href="failure-triage-in-cicd.html" class="sidebar-link"><span class="dot"></span>Failure Triage in CI/CD</a>
+<a href="ai-powered-retry-logic.html" class="sidebar-link"><span class="dot"></span>AI-Powered Retry Logic</a>
+<a href="pipeline-optimization.html" class="sidebar-link"><span class="dot"></span>Pipeline Optimization</a>
+<a href="cicd-metrics-and-insights.html" class="sidebar-link"><span class="dot"></span>CI/CD Metrics and Insights</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="8 6 2 12 8 18"/><polyline points="16 6 22 12 16 18"/></svg><span>15 Observability For Autonomous QA</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="observability-for-autonomous-qa.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Observability for Autonomous QA</a>
+<div class="sidebar-sub">
+<a href="why-observability-matters.html" class="sidebar-link"><span class="dot"></span>Why Observability Matters</a>
+<a href="structured-logging-for-ai-agents.html" class="sidebar-link"><span class="dot"></span>Structured Logging for AI Agents</a>
+<a href="tracing-agent-decisions.html" class="sidebar-link"><span class="dot"></span>Tracing Agent Decisions</a>
+<a href="monitoring-ai-test-systems.html" class="sidebar-link"><span class="dot"></span>Monitoring AI Test Systems</a>
+<a href="alerting-on-ai-test-failures.html" class="sidebar-link"><span class="dot"></span>Alerting on AI Test Failures</a>
+<a href="dashboards-for-qa-automation.html" class="sidebar-link"><span class="dot"></span>Dashboards for QA Automation</a>
+<a href="debugging-with-observability-data.html" class="sidebar-link"><span class="dot"></span>Debugging with Observability Data</a>
+<a href="observability-best-practices.html" class="sidebar-link"><span class="dot"></span>Observability Best Practices</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>16 Security And Governance</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="security-and-governance.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Security and Governance</a>
+<div class="sidebar-sub">
+<a href="ai-security-risks-in-testing.html" class="sidebar-link"><span class="dot"></span>AI Security Risks in Testing</a>
+<a href="prompt-injection-risks.html" class="sidebar-link"><span class="dot"></span>Prompt Injection Risks</a>
+<a href="data-privacy-in-ai-testing.html" class="sidebar-link"><span class="dot"></span>Data Privacy in AI Testing</a>
+<a href="access-control-for-ai-agents.html" class="sidebar-link"><span class="dot"></span>Access Control for AI Agents</a>
+<a href="audit-trails-for-ai-actions.html" class="sidebar-link"><span class="dot"></span>Audit Trails for AI Actions</a>
+<a href="responsible-ai-testing.html" class="sidebar-link"><span class="dot"></span>Responsible AI Testing</a>
+<a href="compliance-and-governance-frameworks.html" class="sidebar-link"><span class="dot"></span>Compliance and Governance Frameworks</a>
+</div>
+</div></details>
+<details class="sidebar-group-toggle" open>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>17 Capstone: Building The Autonomous QA System</span><span class="chev">&#9662;</span></summary>
+<div class="sidebar-group-body">
+<a href="capstone-building-the-autonomous-qa-system.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Capstone: Building the Autonomous QA System</a>
+<div class="sidebar-sub">
+<a href="capstone-overview-and-architecture.html" class="sidebar-link"><span class="dot"></span>Capstone Overview and Architecture</a>
+<a href="building-the-core-agent.html" class="sidebar-link"><span class="dot"></span>Building the Core Agent</a>
+<a href="integrating-multi-surface-testing.html" class="sidebar-link"><span class="dot"></span>Integrating Multi-Surface Testing</a>
+<a href="adding-failure-intelligence.html" class="sidebar-link"><span class="dot"></span>Adding Failure Intelligence</a>
+<a href="extending-to-autonomous-and-llm-testing.html" class="sidebar-link"><span class="dot"></span>Extending to Autonomous API, LLM, and Agent Testing</a>
+<a href="connecting-mcp-and-cicd.html" class="sidebar-link"><span class="dot"></span>Connecting MCP and CI/CD</a>
+<a href="the-observability-security-and-governance-layer.html" class="sidebar-link"><span class="dot"></span>The Observability, Security, and Governance Layer</a>
+<a href="the-complete-system-end-to-end.html" class="sidebar-link"><span class="dot"></span>The Complete System, End to End</a>
+<a href="retrospective-and-where-to-go-next.html" class="sidebar-link"><span class="dot"></span>Retrospective and Where to Go Next</a>
+</div>
+</div></details>
+</nav>
+
+    <main class="doc-main">
+      <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="../index.html">Home</a> <span class="crumb-sep">&rsaquo;</span> <a href="index.html">Agentic AI Testing</a> <span class="crumb-sep">&rsaquo;</span> <a href="ai-agent-fundamentals.html">AI Agent Fundamentals</a> <span class="crumb-sep">&rsaquo;</span> <span class="crumb-current">Agent Reasoning</span></nav>
+
+      <div class="page-header-banner">
+        <header class="page-head">
+          <h1>Agent Reasoning</h1>
+        </header>
+        <div class="meta-row">
+          <span class="tag-pill Beginner">Beginner</span>
+          <span class="read-time">8 min read</span>
+        </div>
+      </div>
+
+      <p class="prereqs"><strong>Prerequisites:</strong> <a href="agent-planning.html">Agent Planning</a></p>
+
+      <article class="content">
+        <h2 id="what-is-this">What is this?</h2>
+<p>If planning is sketching the route before a trip, reasoning is deciding, right now, how to handle the actual road in front of you. Reasoning takes the current plan step, the real, current observation, and whatever's in memory, and decides one specific, concrete next action.</p>
+
+<h2 id="reasoning-in-action">Reasoning in Action</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Current plan step: "Authenticate with valid test credentials"
+
+Current observation (what the agent actually sees right now):
+  A form with two visible fields, one labeled "Email or username"
+  and one labeled "Password", and a button labeled "Log In".
+  No CAPTCHA, no other visible obstacles.
+
+Reasoning process (the "why" behind the decision):
+  "The plan step is 'authenticate.' I can see a genuine login
+  form with clearly labeled fields. There's nothing blocking
+  me. The specific next action: fill the email field first,
+  since it's positioned above the password field and typically
+  needs to be filled first in a standard login flow."
+
+Resulting SPECIFIC action:
+  fill('Email or username', 'testuser@shopeasy.example.com')</code></pre>
+<p>Notice how much more concrete this is than the plan step it came from — "authenticate" became one specific, executable action, chosen based on what's genuinely, currently true about the page.</p>
+
+<h2 id="reasoning-under-genuine-ambiguity">Reasoning Under Genuine Ambiguity</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A harder, more realistic case — the observation isn't clean:
+
+Current observation: TWO forms are visible on the page — one
+labeled "Sign in" and one labeled "Create an account", both
+with email and password fields, positioned side by side.
+
+Reasoning process:
+  "The plan step is 'authenticate' — this implies an EXISTING
+  account, so the correct form is 'Sign in', not 'Create an
+  account'. I'll target the fields within the 'Sign in' section
+  specifically, not just any email/password field on the page."
+
+This is genuine reasoning, not simple pattern-matching — it
+required understanding what 'authenticate' actually implies
+and applying that understanding to disambiguate two visually
+similar options.</code></pre>
+
+<h2 id="how-reasoning-differs-from-planning-concretely">How Reasoning Differs From Planning, Concretely</h2>
+<table>
+<thead><tr><th>Planning</th><th>Reasoning</th></tr></thead>
+<tbody>
+<tr><td>Happens largely before real observation</td><td>Happens using the current, real observation</td></tr>
+<tr><td>Produces a rough, multi-step sequence</td><td>Produces one specific, immediate action</td></tr>
+<tr><td>Revised occasionally (re-planning)</td><td>Happens fresh at essentially every single step</td></tr>
+<tr><td>"What are the rough phases of this task?"</td><td>"Given what I see right now, what do I do next?"</td></tr>
+</tbody>
+</table>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might an agent with excellent planning but genuinely weak reasoning still fail at real tasks, even on a well-understood application like ShopEasy? A rough plan like "authenticate, then add to cart" is only useful if something can correctly translate "authenticate" into the actual right action given the real page in front of it — including handling exactly the kind of genuine ambiguity in this page's two-forms example. A great plan executed by weak, careless reasoning at each step produces the same poor real-world result as no plan at all.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Building reasoning that only pattern-matches on surface-level text ("see a button labeled 'Log In', click it") without genuinely reasoning about context. This breaks exactly in cases like the two-forms example above, where surface pattern-matching alone can't distinguish "Sign in" from "Create an account" — both have superficially similar-looking form fields.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>When reviewing or debugging an agent's reasoning, it's genuinely useful to ask it (or examine its logged reasoning trace) to explain WHY it chose a specific action, not just what it chose. A reasonable-sounding "why" that's based on a genuine misunderstanding is a very different, more diagnosable problem than reasoning that was actually sound but happened to be executed incorrectly.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Give the reasoning step genuinely sufficient, real observation to work with — vague or incomplete context is a common, real cause of poor decisions.</li>
+  <li>Log an agent's reasoning (its "why"), not just its final action — this makes debugging genuinely tractable later.</li>
+  <li>Test reasoning specifically against cases with real ambiguity, not just clean, unambiguous happy paths.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Reasoning takes the current plan step, real observation, and memory, and decides one specific, immediate action — distinct from planning's broader, rougher sequence.</li>
+  <li>Genuine reasoning handles real ambiguity by understanding context, not just matching surface-level text patterns.</li>
+  <li>Reasoning happens fresh at essentially every step, using the most current, real information available — unlike planning, which is revised only occasionally.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>For the plan step "add the product to the cart," and an observation showing a product page with both a "Add to Cart" button and a separate "Buy Now" button, write out the reasoning process that would correctly choose "Add to Cart" over "Buy Now" — being explicit about what specifically distinguishes them for this particular goal.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>An agent correctly identifies a "Sign in" form among two visually similar forms, but a teammate says this is "just pattern matching, not real reasoning." How would you respond?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd distinguish between matching on SURFACE features (button color, position, generic label text) versus understanding what the actual goal implies and using that understanding to disambiguate — the second is genuine reasoning, even if the final action looks similar to what simple pattern matching might occasionally produce by coincidence.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Surface pattern-matching (NOT genuine reasoning):
+"I see a form with email and password fields — click its
+  submit button." — this would pick RANDOMLY between the two
+  visually similar forms, since both match this shallow pattern
+
+Genuine reasoning (what actually happened):
+"The plan step implies an EXISTING account ('authenticate'),
+  which specifically means 'Sign in', not 'Create an account'
+  — I'll target the fields within that specific section."
+  — this correctly disambiguates BECAUSE it understood what
+  the goal actually implies, not because of surface features</code></pre>
+<p>The test for "is this genuine reasoning": does it correctly handle a case where surface pattern-matching would fail or guess randomly? The two-forms example is specifically designed to make that distinction concrete and testable.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page argue that logging an agent's reasoning (the "why"), not just its final action, matters for real debugging?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because the same final action can result from genuinely different underlying reasoning — some sound, some flawed — and only the "why" reveals which one actually happened, which determines what (if anything) actually needs fixing.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Same action, two very different underlying causes:
+Action taken: clicked the "Create an account" form's submit
+  button instead of "Sign in"
+
+Possible reasoning A (a genuine misunderstanding worth fixing):
+  "I'll use whichever form appears first on the page" — reveals
+  a real reasoning gap that needs a prompt/context fix
+
+Possible reasoning B (a correct decision, wrong INPUT):
+  "The plan explicitly said to create a new test account" —
+  reveals the reasoning was actually FINE; the problem is
+  upstream, in what the plan itself specified</code></pre>
+<p>Without the logged "why," both cases look identical from the outside — the same wrong-seeming action — but they need completely different fixes. This is exactly why reasoning traces, not just action logs, matter for genuinely diagnosing agent behavior.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Give an example of a plan step that would require GENUINELY difficult reasoning to execute correctly, and explain specifically what makes it hard.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A genuinely hard example: plan step "verify the discount was applied correctly," on a checkout page showing a subtotal, a line labeled "Promotional discount: -$5.00," and a total — where the discount code applied was supposed to be 15% off a $40 item.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why this is genuinely hard reasoning, not simple lookup:
+The agent needs to independently CALCULATE what 15% of $40
+  actually is ($6.00), compare that to what's actually shown
+  (-$5.00), and recognize this is a GENUINE DISCREPANCY worth
+  flagging — not just confirm that SOME discount line exists.
+
+A shallow, insufficient version of "reasoning":
+"A line labeled 'discount' is present with a negative dollar
+  amount — checkout looks correct." — this would completely
+  MISS the actual, real bug (wrong discount amount applied),
+  despite superficially looking like it verified something</code></pre>
+<p>This example is deliberately chosen to show reasoning doing genuine verification work — actually checking that a real value is CORRECT, not just present — which is meaningfully harder than simply confirming an element exists on the page.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might giving the reasoning step MORE observation detail than it actually needs be counterproductive, not just harmless?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Excess, irrelevant detail can genuinely dilute an LLM's attention and increase the chance it focuses on something irrelevant to the actual decision at hand — more context isn't free, and isn't always strictly better.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Focused, relevant observation for "find the login form":
+"A form with email and password fields, labeled 'Sign in',
+  and a submit button labeled 'Log In'."
+
+Excessively bloated observation for the SAME decision:
+[the entire page's raw HTML, including unrelated footer links,
+  a cookie consent banner's full legal text, unrelated product
+  recommendations, hidden analytics scripts, etc.]
+
+The bloated version doesn't help the reasoner make a BETTER
+decision about the login form specifically — it genuinely
+risks the reasoning process getting distracted by, or
+mis-weighting, entirely irrelevant surrounding content.</code></pre>
+<p>The practical lesson: constructing what the reasoner actually sees is itself a real design decision worth real care — relevant, focused context tends to produce more reliable reasoning than simply including everything available "just in case."</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you test whether an agent's reasoning is genuinely robust, rather than just happening to work on the happy-path cases you've tried so far?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Deliberately construct cases with real ambiguity or edge conditions — similar to this page's two-forms example — rather than only testing against the clean, expected scenario, and check whether the reasoning's stated "why" genuinely reflects correct understanding, not just a lucky correct guess.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Genuinely useful test cases to construct deliberately:
+- Two visually similar elements where only ONE is semantically
+  correct for the current goal (the two-forms example)
+- A page state that's TECHNICALLY valid but unusual (an empty
+  search results page, a partially-loaded page)
+- Conflicting signals (a button that's visually enabled but
+  has a disabled attribute, or vice versa)
+
+For each, check: did the agent choose correctly, AND does its
+logged reasoning show genuine understanding of WHY, or does it
+look like a coincidentally-correct guess that got lucky?</code></pre>
+<p>Testing only happy-path scenarios can hide reasoning that's actually shallow or coincidentally correct — genuinely robust reasoning needs to be verified specifically against cases designed to distinguish real understanding from surface-level pattern luck.</p>
+</div>
+</details>
+</div>
+      </article>
+
+      <label class="mark-complete-row">
+        <input type="checkbox" class="mark-complete-checkbox" data-page-id="ai:agent-reasoning.html" onchange="toggleComplete(this)" />
+        <span>Mark this lesson complete</span>
+      </label>
+
+      <div class="prev-next">
+        <a href="agent-planning.html"><span class="pn-label">&larr; Previous</span>Agent Planning</a>
+        <a href="agent-memory.html" class="pn-next"><span class="pn-label">Next &rarr;</span>Agent Memory</a>
+      </div>
+    </main>
+
+    <aside class="right-rail">
+      
+
+      <div class="rail-card">
+        <h4>Related Chapters</h4>
+        <div class="related-list">
+          <a href="anatomy-of-an-ai-agent.html">Anatomy of an AI Agent<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+<a href="llms-and-ai-agents.html">LLMs and AI Agents<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+<a href="agent-planning.html">Agent Planning<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+<a href="agent-memory.html">Agent Memory<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+<a href="tools-and-tool-calling.html">Tools and Tool Calling<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+        </div>
+      </div>
+
+      <div class="rail-card was-helpful-card">
+        <span>Was this helpful?</span>
+        <button title="Yes">&#128077;</button>
+        <button title="No">&#128078;</button>
+      </div>
+    </aside>
+  </div>
+
+  <nav class="mobile-tabbar">
+  <a href="../index.html"><svg class="icon" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg><span>Home</span></a>
+  <a href="index.html" class="active"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>Tutorials</span></a>
+  <a href="../books.html"><svg class="icon" viewBox="0 0 24 24"><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v16H6.5A2.5 2.5 0 0 0 4 20.5"/><path d="M4 4.5v16"/></svg><span>Books</span></a>
+  <a href="../about.html"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="12" y1="16" x2="12" y2="11.5"/><circle cx="12" cy="8" r="0.8" fill="currentColor" stroke="none"/></svg><span>About</span></a>
+</nav>
+
+  <script>
+  
+  document.querySelectorAll('.book-promo-card').forEach(function(card) {
+    var slides = card.querySelectorAll('.book-slide');
+    var dots = card.querySelectorAll('.book-dot');
+    if (slides.length < 2) return;
+    var idx = 0;
+    setInterval(function() {
+      slides[idx].classList.remove('active');
+      if (dots[idx]) dots[idx].classList.remove('active');
+      idx = (idx + 1) % slides.length;
+      slides[idx].classList.add('active');
+      if (dots[idx]) dots[idx].classList.add('active');
+    }, 5000);
+  });
+
+  function copyCode(btn) {
+    const code = btn.nextElementSibling.innerText;
+    navigator.clipboard.writeText(code).then(function() {
+      btn.textContent = 'Copied';
+      btn.classList.add('copied');
+      setTimeout(function() { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
+    });
+  }
+  function openSidebar() {
+    document.getElementById('doc-sidebar').classList.add('open');
+    document.getElementById('sidebar-backdrop').classList.add('show');
+    document.body.classList.add('no-scroll');
+  }
+  function closeSidebar() {
+    document.getElementById('doc-sidebar').classList.remove('open');
+    document.getElementById('sidebar-backdrop').classList.remove('show');
+    document.body.classList.remove('no-scroll');
+  }
+  function toggleTheme() {
+    var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark');
+    try { localStorage.setItem('assertTrueTheme', isDark ? 'light' : 'dark'); } catch (e) {}
+  }
+  var docSearchIndex = null;
+  var docSearchPromise = null;
+  function loadDocSearchIndex() {
+    if (!docSearchPromise) {
+      docSearchPromise = new Promise(function(resolve) {
+        var s = document.createElement('script');
+        s.src = '../search-index.js';
+        s.onload = function() { docSearchIndex = window.SITE_SEARCH_INDEX || []; resolve(docSearchIndex); };
+        s.onerror = function() { docSearchIndex = []; resolve(docSearchIndex); };
+        document.head.appendChild(s);
+      });
+    }
+    return docSearchPromise;
+  }
+  function docEscapeHtml(str) {
+    return str.replace(/[&<>"']/g, function(c) {
+      return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];
+    });
+  }
+  function docHighlight(text, query) {
+    var escaped = docEscapeHtml(text);
+    if (!query) return escaped;
+    var idx = escaped.toLowerCase().indexOf(query.toLowerCase());
+    if (idx === -1) return escaped;
+    return escaped.slice(0, idx) + '<mark>' + escaped.slice(idx, idx + query.length) + '</mark>' + escaped.slice(idx + query.length);
+  }
+  function docSearchFn(query) {
+    query = query.trim().toLowerCase();
+    if (!query || !docSearchIndex) return [];
+    var scored = [];
+    for (var i = 0; i < docSearchIndex.length; i++) {
+      var e = docSearchIndex[i];
+      var titleIdx = e.title.toLowerCase().indexOf(query);
+      var descIdx = e.desc.toLowerCase().indexOf(query);
+      if (titleIdx === -1 && descIdx === -1) continue;
+      var score = titleIdx !== -1 ? (titleIdx === 0 ? 0 : 1) : 2;
+      scored.push({ entry: e, score: score });
+    }
+    scored.sort(function(a, b) { return a.score - b.score; });
+    return scored.slice(0, 8).map(function(s) { return s.entry; });
+  }
+  (function() {
+    var docInput = document.getElementById('doc-search-input');
+    var docResults = document.getElementById('doc-search-results');
+    if (!docInput || !docResults) return;
+    function renderDocSearch(query) {
+      if (!query.trim()) {
+        docResults.hidden = true;
+        docInput.setAttribute('aria-expanded', 'false');
+        return;
+      }
+      if (!docSearchIndex) {
+        docResults.innerHTML = '<div class="hp-search-empty">Loading&hellip;</div>';
+        docResults.hidden = false;
+        loadDocSearchIndex().then(function() { renderDocSearch(docInput.value); });
+        return;
+      }
+      var matches = docSearchFn(query);
+      if (matches.length === 0) {
+        docResults.innerHTML = '<div class="hp-search-empty">No tutorials found for &ldquo;' + docEscapeHtml(query) + '&rdquo;</div>';
+        docResults.hidden = false;
+        docInput.setAttribute('aria-expanded', 'true');
+        return;
+      }
+      var html = '<div class="hp-search-hint">' + matches.length + ' result' + (matches.length === 1 ? '' : 's') + '</div>';
+      matches.forEach(function(e) {
+        var trackClass = e.track === 'Playwright' ? 'pw' : (e.track === 'RestAssured' ? 'ra' : (e.track === 'K6' ? 'k6' : (e.track === 'GitHub Actions' ? 'gh' : (e.track === 'AI-Powered Playwright' ? 'aipw' : 'ai'))));
+        html += '<a class="hp-search-item" href="../' + e.url + '">' +
+          '<div class="hp-search-item-title">' + docHighlight(e.title, query) + '</div>' +
+          '<div class="hp-search-item-desc">' + docEscapeHtml(e.desc) + '</div>' +
+          '<span class="hp-search-item-track ' + trackClass + '">' + e.track + '</span>' +
+          '</a>';
+      });
+      docResults.innerHTML = html;
+      docResults.hidden = false;
+      docInput.setAttribute('aria-expanded', 'true');
+    }
+    docInput.addEventListener('input', function() { renderDocSearch(docInput.value); });
+    docInput.addEventListener('focus', function() { loadDocSearchIndex(); if (docInput.value.trim()) renderDocSearch(docInput.value); });
+    docInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') { docResults.hidden = true; docInput.blur(); }
+      else if (e.key === 'Enter') {
+        var first = docResults.querySelector('.hp-search-item');
+        if (first) window.location.href = first.getAttribute('href');
+      }
+    });
+    document.addEventListener('click', function(e) {
+      if (!e.target.closest('.topnav-search-wrap')) { docResults.hidden = true; }
+    });
+  })();
+
+  function toggleComplete(checkbox) {
+    var pageId = checkbox.getAttribute('data-page-id');
+    var progress = {};
+    try { progress = JSON.parse(localStorage.getItem('assertTrueProgress') || '{}'); } catch (e) {}
+    if (checkbox.checked) { progress[pageId] = true; } else { delete progress[pageId]; }
+    try { localStorage.setItem('assertTrueProgress', JSON.stringify(progress)); } catch (e) {}
+  }
+  (function() {
+    var progress = {};
+    try { progress = JSON.parse(localStorage.getItem('assertTrueProgress') || '{}'); } catch (e) {}
+    var cb = document.querySelector('.mark-complete-checkbox');
+    if (cb && progress[cb.getAttribute('data-page-id')]) cb.checked = true;
+  })();
+  (function() {
+    var activeLink = document.querySelector('.doc-sidebar a.active');
+    if (activeLink) { activeLink.scrollIntoView({ block: 'center' }); }
+  })();
+  document.addEventListener('click', function(e) {
+    if (e.target.closest('.sidebar-link') && window.matchMedia('(max-width: 860px)').matches) {
+      closeSidebar();
+    }
+  });
+  </script>
+</body>
+</html>
