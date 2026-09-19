@@ -1,0 +1,103 @@
+<!doctype html>
+<html><head>
+<title>GitHub-Hosted Runners &amp; runs-on Explained</title>
+<meta name="description" content="What a GitHub-hosted runner actually is, the Ubuntu/Windows/macOS options, what&#x27;s pre-installed, the runner lifecycle, and how to select one with runs-on." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/github-hosted-runners-and-runs-on.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>GitHub-Hosted Runners &amp; runs-on</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="jobs-and-steps-the-execution-model-in-depth.html">Jobs & Steps: The Execution Model in Depth</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>A GitHub-hosted runner is a virtual machine that GitHub provisions, runs your job's steps on, and then discards — entirely managed for you, with no infrastructure of your own to maintain. This page covers the actual options and what <code>runs-on</code> is really selecting.</p>
+
+<h2 id="the-three-operating-system-families">The Three Operating System Families</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>runs-on: ubuntu-latest   # Linux — by far the most common choice
+runs-on: windows-latest  # Windows
+runs-on: macos-latest    # macOS</code></pre>
+<p>Each corresponds to a genuinely different operating system, with different pre-installed tools and different typical use cases — <code>ubuntu-latest</code> is the default choice for most web and backend projects; <code>windows-latest</code> matters for Windows-specific software; <code>macos-latest</code> matters specifically for building iOS or macOS applications, which genuinely require Apple's own toolchain.</p>
+
+<h2 id="what-s-actually-pre-installed">What's Actually Pre-Installed</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>ubuntu-latest typically includes (among much more):
+- Git
+- Node.js (multiple versions)
+- Python
+- Java
+- Docker
+- Common build tools</code></pre>
+<p>GitHub-hosted runners come with a genuinely large set of pre-installed software — but it's still finite. A project needing something not pre-installed needs an explicit setup step (covered in the next chapter) to install it.</p>
+
+<h2 id="the-latest-tag-vs-pinning-a-specific-version">The "latest" Tag vs. Pinning a Specific Version</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>runs-on: ubuntu-latest    # always the current latest Ubuntu image
+runs-on: ubuntu-22.04     # a specific, pinned version</code></pre>
+<p><code>ubuntu-latest</code> automatically moves forward as GitHub updates their images over time — convenient, but it means the exact environment can subtly change without you changing anything in your own workflow. Pinning a specific version trades that convenience for stability — genuinely useful once a project has a real dependency on specific tool versions being present.</p>
+
+<h2 id="the-runner-lifecycle">The Runner Lifecycle</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>1. Your job is scheduled to run.
+2. GitHub provisions a fresh virtual machine matching your runs-on choice.
+3. Your job's steps execute on that machine, in order.
+4. The machine is completely destroyed once the job finishes.</code></pre>
+<p>This "fresh every time" lifecycle is exactly why job isolation (covered on the previous page) works the way it does — there's no persistent machine sitting around between runs; every single run starts from a clean, brand-new environment.</p>
+
+<h2 id="detailed-example-choosing-runs-on-for-a-real-decision">Detailed Example — Choosing runs-on for a Real Decision</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>ShopEasy is a Node.js web application, with no Windows- or macOS-specific
+requirements anywhere in the stack.
+
+Correct choice: runs-on: ubuntu-latest
+
+Why: Ubuntu runners are typically the fastest to provision, and Node.js
+     is well-supported out of the box — there's no genuine reason to pay
+     the (real) performance cost of a Windows or macOS runner for a
+     project with no actual dependency on either.</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might a team deliberately choose to pin a specific Ubuntu version instead of using <code>ubuntu-latest</code>, even though it means missing out on automatic updates? If a project depends on a very specific tool version that happens to be present on one particular image but might change on a future "latest" image, pinning trades away convenience for the certainty that the environment won't silently shift under them.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Choosing <code>windows-latest</code> or <code>macos-latest</code> without a genuine, specific need for that operating system. These runners are typically slower to provision and consume CI minutes at a different (often higher) rate than Ubuntu — reaching for them without an actual requirement adds real cost and time for no corresponding benefit.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>GitHub's own documentation maintains a complete, current, and detailed list of exactly what software and versions come pre-installed on each runner image — worth checking directly rather than assuming, especially for a specific tool version your project depends on.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Default to <code>ubuntu-latest</code> unless your project has a genuine, specific reason to need Windows or macOS.</li>
+  <li>Pin a specific runner version deliberately when a project depends on exact tool versions being consistently present — don't pin by default "just in case."</li>
+  <li>Check GitHub's documentation for a runner image's actual pre-installed software rather than assuming.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li><code>runs-on</code> selects which operating system (and specific image) a job's steps execute on.</li>
+  <li>Each runner is a fresh virtual machine, provisioned for that job and destroyed afterward — nothing persists between runs.</li>
+  <li><code>-latest</code> tags move forward automatically; pinning a specific version trades that convenience for environment stability.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>For a hypothetical project that builds both a Node.js backend and an iOS mobile app, sketch out (in plain English, not necessarily full YAML) how many jobs you'd need and which <code>runs-on</code> value each one would use, given the genuinely different platform requirements involved.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>What does runs-on actually determine about a job's execution?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">runs-on selects which operating system, and specifically which runner image, GitHub provisions to execute that job's steps — Ubuntu, Windows, or macOS, with a specific version or the automatically-updating "latest" tag. This choice determines what's pre-installed and available to the job's steps without any additional setup.</div>
+</details>
+<details class="faq-item">
+<summary>Why might a team choose to pin a specific runner version rather than using the "latest" tag?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The "latest" tag automatically moves forward as GitHub updates their runner images, which means the exact environment a workflow runs in can subtly change over time without any change to the workflow file itself. Pinning a specific version trades away that automatic update convenience for a guarantee that the environment stays consistent, which matters for a project with a genuine dependency on specific tool versions being present.</div>
+</details>
+<details class="faq-item">
+<summary>Why would a project typically avoid using windows-latest or macos-latest without a specific need for that operating system?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Windows and macOS runners are generally slower to provision and often consume CI minutes at a different, typically higher rate compared to Ubuntu runners. Choosing one without an actual platform-specific requirement (like building an iOS app, which genuinely needs macOS) adds real, unnecessary cost and time to a pipeline for no corresponding benefit.</div>
+</details>
+<details class="faq-item">
+<summary>What happens to a GitHub-hosted runner's virtual machine once a job finishes?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The virtual machine is completely destroyed after the job completes — it isn't reused, paused, or kept around for a future run. This "provision fresh, then destroy" lifecycle is exactly why each job starts from a genuinely clean environment, with no leftover state from any previous run.</div>
+</details>
+<details class="faq-item">
+<summary>If a project needs a tool that isn't pre-installed on ubuntu-latest, what needs to happen?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The workflow needs an explicit step to install that tool before it's actually needed — GitHub-hosted runners come with a large but genuinely finite set of pre-installed software, and anything beyond that set has to be set up deliberately as part of the job's own steps, which is exactly what the next chapter's coverage of setting up languages and installing dependencies addresses.</div>
+</details>
+</div>
+</article>
+</body></html>

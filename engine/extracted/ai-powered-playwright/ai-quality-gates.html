@@ -1,0 +1,107 @@
+<!doctype html>
+<html><head>
+<title>AI Quality Gates</title>
+<meta name="description" content="Using Chapter 9&#x27;s classification and Chapter 12&#x27;s flaky detection to decide whether a failure should actually block a merge — not every failure deserves the same response." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/ai-quality-gates.html" />
+</head><body>
+<p class="difficulty">Advanced</p>
+<h1>AI Quality Gates</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="intelligent-test-selection.html">Intelligent Test Selection</a></p>
+<article class="content">
+<h2>What You'll Learn</h2>
+<ul>
+  <li>Why blocking a merge on every single failure is a real, costly overreaction</li>
+  <li>Combining Chapter 9's classification and Chapter 12's flaky detection into one real gating decision</li>
+  <li>Building a gate that blocks genuine defects while not blocking on known flakiness</li>
+</ul>
+
+<h2>Introduction — Not Every Failure Deserves the Same Response</h2>
+<p>A traditional CI gate treats every failure identically: any red test blocks the merge. This is safe but genuinely costly — a test failing because of Chapter 12's own flakiness, not a real application problem, blocks a legitimate change for no real reason, training a team to routinely re-run CI rather than trust it.</p>
+
+<h2>Step-by-Step Implementation</h2>
+<pre><code>// src/ai-quality-gate.ts
+import { classifyFailure } from './classify-failure';
+import { detectFlakyCandidates } from './detect-flaky-candidates';
+import { TestRunRecord } from './collect-test-history';
+
+export interface GateDecision {
+  testName: string;
+  shouldBlock: boolean;
+  reason: string;
+}
+
+export async function evaluateGate(
+  failedTests: { testName: string; payload: any }[], history: TestRunRecord[]
+): Promise&lt;GateDecision[]&gt; {
+  const knownFlaky = new Set(
+    detectFlakyCandidates(history).map((c) =&gt; c.testName)
+  );
+
+  const decisions: GateDecision[] = [];
+  for (const { testName, payload } of failedTests) {
+    if (knownFlaky.has(testName)) {
+      decisions.push({
+        testName, shouldBlock: false,
+        reason: 'Known flaky test (Chapter 12) — not blocking, but flagged for investigation',
+      });
+      continue;
+    }
+
+    const classification = await classifyFailure(payload);
+    const shouldBlock = ['Application Defect', 'Test Defect'].includes(classification.category);
+    decisions.push({
+      testName, shouldBlock,
+      reason: `Classified as ${classification.category}: ${classification.reasoning}`,
+    });
+  }
+  return decisions;
+}</code></pre>
+
+<h2>Code Explanation</h2>
+<p>Notice the flaky check happens first, and short-circuits the rest — a test already known to be flaky doesn't need fresh classification to justify not blocking. For everything else, only <code>Application Defect</code> and <code>Test Defect</code> genuinely block; <code>Locator Failure</code>, <code>Timeout</code>, and the other categories from Chapter 9 get flagged without stopping the merge, since they're often about test maintenance rather than a real application problem.</p>
+
+<h2>Example — A Real Gate Decision for ShopSmart</h2>
+<pre><code>const decisions = await evaluateGate(failedTests, history);
+
+// [
+//   { testName: "completes checkout with valid payment",
+//     shouldBlock: false,
+//     reason: "Known flaky test (Chapter 12) — not blocking..." },
+//   { testName: "rejects invalid credit card number",
+//     shouldBlock: true,
+//     reason: "Classified as Application Defect: validation
+//       logic accepts a clearly malformed card number" }
+// ]
+
+const blockers = decisions.filter((d) =&gt; d.shouldBlock);
+if (blockers.length &gt; 0) {
+  console.error('Merge blocked:', blockers);
+  process.exit(1);
+}</code></pre>
+
+<h2>Why It Matters — This Genuinely Changes Team Behavior</h2>
+<p>A gate that blocks on every failure, including known flakiness, teaches a team to distrust CI and re-run it reflexively rather than investigate. A gate that blocks specifically on genuine defects, while still surfacing everything else for visibility, keeps the signal meaningful — a blocked merge genuinely means something worth stopping for.</p>
+
+<h2>Common Mistakes</h2>
+<ul>
+  <li><strong>Never blocking on anything, to avoid false positives entirely.</strong> This defeats the whole purpose of a gate — genuine application defects need to actually stop a merge, not just get logged somewhere.</li>
+  <li><strong>Treating this gate's decisions as final without any human visibility.</strong> Non-blocking failures should still be surfaced clearly, via Chapter 16's own PR comment technique, not silently discarded.</li>
+</ul>
+
+<h2>Best Practices</h2>
+<ul>
+  <li>Check known flakiness first, before spending a classification call on a failure that's already understood.</li>
+  <li>Surface every decision, blocking or not, in the PR — a non-blocking failure is still worth a human's attention, just not a stopped merge.</li>
+</ul>
+
+<h2>Hands-On Exercise</h2>
+<p>Run this page's <code>evaluateGate</code> function against a set of real or simulated failures from your own project, including at least one known-flaky test and one genuine defect. Confirm the gate correctly distinguishes between them.</p>
+
+<h2>Key Takeaways</h2>
+<ul>
+  <li>Blocking every failure identically is safe but genuinely costly — it treats known flakiness the same as a real application defect.</li>
+  <li>Combining Chapter 12's flaky detection with Chapter 9's classification lets a gate block specifically on genuine defects, not on noise.</li>
+  <li>A meaningful gate keeps a blocked merge genuinely significant — the alternative trains a team to distrust and routinely bypass CI.</li>
+</ul>
+</article>
+</body></html>

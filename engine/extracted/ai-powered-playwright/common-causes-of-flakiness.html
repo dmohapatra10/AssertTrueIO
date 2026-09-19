@@ -1,0 +1,88 @@
+<!doctype html>
+<html><head>
+<title>Common Causes of Flakiness</title>
+<meta name="description" content="Five real, recurring causes of Playwright-specific flakiness — race conditions, animation timing, network variance, test order dependence, and shared state." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/common-causes-of-flakiness.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Common Causes of Flakiness</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="what-is-a-flaky-test.html">What is a Flaky Test?</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Five real, recurring causes of flakiness specific to browser automation</li>
+  <li>Why each one produces inconsistent, not consistent, failures</li>
+  <li>How each cause maps to something this chapter's later pages will actually detect</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>Flakiness isn't random in the sense of being uncaused — it has real, recurring, identifiable sources. Knowing them in advance is what makes this chapter's later detection and diagnosis pages recognizable rather than mysterious.</p>
+
+<h2 id="how-it-works-five-real-recurring-causes">How It Works — Five Real, Recurring Causes</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>RACE CONDITIONS
+  An action fires BEFORE the page is GENUINELY ready for it —
+  Playwright's own auto-waiting REDUCES this, but doesn't
+  eliminate it for EVERY possible timing scenario
+
+ANIMATION TIMING
+  A CSS transition or animation MEANS an element is
+  TECHNICALLY present but not yet STABLE — clicking DURING
+  a transition can hit the WRONG coordinates
+
+NETWORK VARIANCE
+  A REAL API call SOMETIMES resolves in 100ms, SOMETIMES in
+  2 seconds — a FIXED timeout that's usually enough OCCASIONALLY
+  isn't
+
+TEST ORDER DEPENDENCE
+  A test PASSES when run AFTER test B, but FAILS run in
+  ISOLATION or after a DIFFERENT test — hidden, SHARED state
+
+SHARED STATE
+  TWO tests modify the SAME database ROW, browser STORAGE, or
+  GLOBAL variable — whichever runs SECOND behaves
+  UNPREDICTABLY depending on TIMING and ORDER</code></pre>
+
+<h2 id="why-it-matters-each-cause-produces-a-genuinely-different-pattern">Why It Matters — Each Cause Produces a Genuinely Different Pattern</h2>
+<p>These aren't just an abstract list — each one leaves a real, different fingerprint in test history and trace data. A race condition tends to fail at the same action, inconsistently. Test order dependence tends to fail specifically when run in a different sequence or in isolation. Recognizing which pattern you're looking at is most of the diagnostic work this chapter's later pages formalize.</p>
+
+<h2 id="example-shopsmart-s-genuine-causes-concretely">Example — ShopSmart's Genuine Causes, Concretely</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>RACE CONDITION: clicking "Add to Cart" before the product
+  page's JavaScript has finished attaching its click handler
+
+ANIMATION TIMING: clicking a menu item while a dropdown is
+  still SLIDING into its final position
+
+NETWORK VARIANCE: ShopSmart's discount-code validation API
+  occasionally takes 3+ seconds under real load, exceeding a
+  test's 2-second wait
+
+TEST ORDER DEPENDENCE: a cart test assumes an EMPTY cart, but
+  FAILS when run after another test that left an item in it
+
+SHARED STATE: two tests both modify the SAME test user's
+  saved address, and whichever runs SECOND sees the WRONG one</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Assuming Playwright's auto-waiting eliminates all timing-related flakiness.</strong> It genuinely helps a great deal, but animation timing and network variance can still slip past it in real, specific ways.</li>
+  <li><strong>Debugging a flaky test without considering test order or shared state.</strong> These causes are easy to miss because the failing test's own code looks completely correct in isolation.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Keep this page's five categories in mind explicitly when investigating a flaky test — they narrow the search meaningfully.</li>
+  <li>Test in isolation and in full-suite order deliberately, to specifically rule test order dependence in or out.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Pick a real or suspected flaky test from your own suite. Run it in isolation, then as part of the full suite, then twice in immediate succession. Note any difference in behavior — this simple experiment often narrows which of this page's five categories is genuinely responsible.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Flakiness has real, identifiable, recurring causes — race conditions, animation timing, network variance, test order dependence, and shared state.</li>
+  <li>Each cause leaves a genuinely different pattern in test history and trace data, which is what makes diagnosis possible rather than guesswork.</li>
+  <li>Simple experiments — running in isolation versus full order — often narrow the likely cause before any deeper analysis is needed.</li>
+</ul>
+</article>
+</body></html>

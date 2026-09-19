@@ -2,12 +2,15 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <script>try{if(localStorage.getItem('assertTrueTheme')==='dark'){document.documentElement.setAttribute('data-theme','dark');}}catch(e){}</script>
+  <script>try{var t=localStorage.getItem('assertTrueColorTheme');if(t&&t!=='forest'){document.documentElement.setAttribute('data-color-theme',t);}}catch(e){}</script>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>RestAssured JsonPath &amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp; extract(): Pulling Data Out of a Response</title>
-  <meta name="description" content="Deep dive into RestAssured&amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;#x27;s JsonPath API and extract() — the tools for reading values out of a response rather than asserting against them." />
+  <title>RestAssured JsonPath &amp; extract(): Pulling Data Out of a Response</title>
+  <meta name="description" content="Deep dive into RestAssured&#x27;s JsonPath API and extract() — the tools for reading values out of a response rather than asserting against them." />
   <link rel="canonical" href="https://asserttrue.io/restassured/jsonpath-and-extraction.html" />
-  <link rel="stylesheet" href="../css/style.css?v=85" />
+  <link rel="stylesheet" href="../css/style.css?v=93" />
+  <link rel="manifest" href="../manifest.json" />
+  <meta name="theme-color" content="#0e6b52" />
+  <link rel="icon" href="../icons/icon-192.png" />
 </head>
 <body class="theme-restassured">
   <header class="topnav">
@@ -28,28 +31,35 @@
         <input type="text" class="search-box" id="doc-search-input" placeholder="Search tutorials..." autocomplete="off" aria-label="Search tutorials" aria-expanded="false" />
         <div class="hp-search-results" id="doc-search-results" hidden></div>
       </div>
-      <button class="icon-btn theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Toggle dark mode"><svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
+      <div class="theme-picker">
+        <button class="icon-btn theme-picker-btn" onclick="toggleThemePicker()" aria-label="Choose color theme" aria-haspopup="true" aria-expanded="false" id="theme-picker-btn">
+          <span style="background:#0e6b52"></span><span style="background:#3e4c8a"></span><span style="background:#723a5e"></span><span style="background:#a85d3b"></span>
+        </button>
+        <div class="theme-picker-popover" id="theme-picker-popover">
+          <button type="button" class="theme-picker-option" data-theme="forest" onclick="setColorTheme('forest')"><span class="theme-picker-swatch" style="background:#0e6b52"></span>Forest<svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;"><polyline points="20 6 9 17 4 12"/></svg></button>
+          <button type="button" class="theme-picker-option" data-theme="ocean" onclick="setColorTheme('ocean')"><span class="theme-picker-swatch" style="background:#3e4c8a"></span>Ocean<svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;"><polyline points="20 6 9 17 4 12"/></svg></button>
+          <button type="button" class="theme-picker-option" data-theme="violet" onclick="setColorTheme('violet')"><span class="theme-picker-swatch" style="background:#723a5e"></span>Violet<svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;"><polyline points="20 6 9 17 4 12"/></svg></button>
+          <button type="button" class="theme-picker-option" data-theme="sunset" onclick="setColorTheme('sunset')"><span class="theme-picker-swatch" style="background:#a85d3b"></span>Sunset<svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;"><polyline points="20 6 9 17 4 12"/></svg></button>
+        </div>
+      </div>
     </div>
   </header>
-
   <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeSidebar()"></div>
-
   <div class="app-shell">
     <nav class="doc-sidebar" id="doc-sidebar">
-<div class="sidebar-mobile-header"><span>Menu</span><button class="sidebar-close-btn" onclick="closeSidebar()">&times;</button></div>
 <a href="index.html" class="sidebar-overview-link"><svg class="icon" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg><span>Roadmap</span></a>
 <details class="sidebar-group-toggle" open>
-<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>01 API & Rest Fundamentals</span><span class="chev">&#9662;</span></summary>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>01 API & REST Fundamentals</span><span class="chev">&#9662;</span></summary>
 <div class="sidebar-group-body">
-<a href="api-rest-fundamentals.html" class="sidebar-link"><span class="dot"></span>API & REST Fundamentals</a>
+<a href="api-rest-fundamentals.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>API & REST Fundamentals</a>
 </div></details>
 <details class="sidebar-group-toggle" open>
-<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"/></svg><span>02 Getting Started</span><span class="chev">&#9662;</span></summary>
+<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>02 Getting Started with Java & RestAssured</span><span class="chev">&#9662;</span></summary>
 <div class="sidebar-group-body">
-<a href="getting-started-java-restassured.html" class="sidebar-link"><span class="dot"></span>Getting Started with Java & RestAssured</a>
+<a href="getting-started-java-restassured.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Getting Started with Java & RestAssured</a>
 </div></details>
 <details class="sidebar-group-toggle" open>
-<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="8 6 2 12 8 18"/><polyline points="16 6 22 12 16 18"/></svg><span>03 Building Http Requests</span><span class="chev">&#9662;</span></summary>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4 7h4V5a2 2 0 0 1 4 0v2h4v4h2a2 2 0 0 1 0 4h-2v4H4v-4H2a2 2 0 0 1 0-4h2z"/></svg><span>03 Building HTTP Requests</span><span class="chev">&#9662;</span></summary>
 <div class="sidebar-group-body">
 <a href="building-http-requests.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Building HTTP Requests</a>
 <div class="sidebar-sub">
@@ -65,7 +75,7 @@
 </div>
 </div></details>
 <details class="sidebar-group-toggle" open>
-<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><span>04 Response Validation</span><span class="chev">&#9662;</span></summary>
+<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="8 6 2 12 8 18"/><polyline points="16 6 22 12 16 18"/></svg><span>04 Response Validation & Assertions</span><span class="chev">&#9662;</span></summary>
 <div class="sidebar-group-body">
 <a href="response-validation-assertions.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Response Validation & Assertions</a>
 <div class="sidebar-sub">
@@ -78,7 +88,7 @@
 </div>
 </div></details>
 <details class="sidebar-group-toggle" open>
-<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4 7h4V5a2 2 0 0 1 4 0v2h4v4h2a2 2 0 0 1 0 4h-2v4H4v-4H2a2 2 0 0 1 0-4h2z"/></svg><span>05 JSON & Serialization</span><span class="chev">&#9662;</span></summary>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>05 JSON, Serialization & Deserialization</span><span class="chev">&#9662;</span></summary>
 <div class="sidebar-group-body">
 <a href="json-serialization-deserialization.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>JSON, Serialization & Deserialization</a>
 <div class="sidebar-sub">
@@ -91,7 +101,7 @@
 </div>
 </div></details>
 <details class="sidebar-group-toggle" open>
-<summary><svg class="icon" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><span>06 Auth & Authorization</span><span class="chev">&#9662;</span></summary>
+<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>06 Authentication & Authorization</span><span class="chev">&#9662;</span></summary>
 <div class="sidebar-group-body">
 <a href="authentication-authorization.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Authentication & Authorization</a>
 <div class="sidebar-sub">
@@ -104,7 +114,7 @@
 </div>
 </div></details>
 <details class="sidebar-group-toggle" open>
-<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><span>07 API Chaining</span><span class="chev">&#9662;</span></summary>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4 7h4V5a2 2 0 0 1 4 0v2h4v4h2a2 2 0 0 1 0 4h-2v4H4v-4H2a2 2 0 0 1 0-4h2z"/></svg><span>07 API Chaining & End-to-End Workflows</span><span class="chev">&#9662;</span></summary>
 <div class="sidebar-group-body">
 <a href="api-chaining-workflows.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>API Chaining & End-to-End Workflows</a>
 <div class="sidebar-sub">
@@ -115,7 +125,7 @@
 </div>
 </div></details>
 <details class="sidebar-group-toggle" open>
-<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><span>08 Logging In Restassured</span><span class="chev">&#9662;</span></summary>
+<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="8 6 2 12 8 18"/><polyline points="16 6 22 12 16 18"/></svg><span>08 Logging in RestAssured</span><span class="chev">&#9662;</span></summary>
 <div class="sidebar-group-body">
 <a href="logging-in-restassured.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Logging in RestAssured</a>
 <div class="sidebar-sub">
@@ -126,7 +136,7 @@
 </div>
 </div></details>
 <details class="sidebar-group-toggle" open>
-<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>09 Specifications</span><span class="chev">&#9662;</span></summary>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>09 Request & Response Specifications</span><span class="chev">&#9662;</span></summary>
 <div class="sidebar-group-body">
 <a href="request-response-specifications.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Request & Response Specifications</a>
 <div class="sidebar-sub">
@@ -137,7 +147,7 @@
 </div>
 </div></details>
 <details class="sidebar-group-toggle" open>
-<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>10 Test Data Management</span><span class="chev">&#9662;</span></summary>
+<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>10 Test Data Management</span><span class="chev">&#9662;</span></summary>
 <div class="sidebar-group-body">
 <a href="test-data-management.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Test Data Management</a>
 <div class="sidebar-sub">
@@ -150,7 +160,7 @@
 </div>
 </div></details>
 <details class="sidebar-group-toggle" open>
-<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="8 6 2 12 8 18"/><polyline points="16 6 22 12 16 18"/></svg><span>11 Advanced Validation</span><span class="chev">&#9662;</span></summary>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4 7h4V5a2 2 0 0 1 4 0v2h4v4h2a2 2 0 0 1 0 4h-2v4H4v-4H2a2 2 0 0 1 0-4h2z"/></svg><span>11 Advanced Response Validation</span><span class="chev">&#9662;</span></summary>
 <div class="sidebar-group-body">
 <a href="advanced-response-validation.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Advanced Response Validation</a>
 <div class="sidebar-sub">
@@ -162,7 +172,7 @@
 </div>
 </div></details>
 <details class="sidebar-group-toggle" open>
-<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><span>12 Negative Testing</span><span class="chev">&#9662;</span></summary>
+<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="8 6 2 12 8 18"/><polyline points="16 6 22 12 16 18"/></svg><span>12 Error Handling & Negative API Testing</span><span class="chev">&#9662;</span></summary>
 <div class="sidebar-group-body">
 <a href="error-handling-negative-testing.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Error Handling & Negative API Testing</a>
 <div class="sidebar-sub">
@@ -175,7 +185,7 @@
 </div>
 </div></details>
 <details class="sidebar-group-toggle" open>
-<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4 7h4V5a2 2 0 0 1 4 0v2h4v4h2a2 2 0 0 1 0 4h-2v4H4v-4H2a2 2 0 0 1 0-4h2z"/></svg><span>13 Framework Architecture</span><span class="chev">&#9662;</span></summary>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>13 Framework Architecture</span><span class="chev">&#9662;</span></summary>
 <div class="sidebar-group-body">
 <a href="framework-architecture.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Framework Architecture</a>
 <div class="sidebar-sub">
@@ -185,7 +195,7 @@
 </div>
 </div></details>
 <details class="sidebar-group-toggle" open>
-<summary><svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg><span>14 Parallel, Reporting & CI/CD</span><span class="chev">&#9662;</span></summary>
+<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>14 Parallel Execution, Reporting & CI/CD</span><span class="chev">&#9662;</span></summary>
 <div class="sidebar-group-body">
 <a href="parallel-execution-reporting-cicd.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Parallel Execution, Reporting & CI/CD</a>
 <div class="sidebar-sub">
@@ -195,14 +205,13 @@
 </div>
 </div></details>
 <details class="sidebar-group-toggle" open>
-<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg><span>15 Production-Style Framework</span><span class="chev">&#9662;</span></summary>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4 7h4V5a2 2 0 0 1 4 0v2h4v4h2a2 2 0 0 1 0 4h-2v4H4v-4H2a2 2 0 0 1 0-4h2z"/></svg><span>15 Building the Framework</span><span class="chev">&#9662;</span></summary>
 <div class="sidebar-group-body">
-<a href="production-restassured-framework.html" class="sidebar-link"><span class="dot"></span>Building the Framework</a>
+<a href="production-restassured-framework.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Building the Framework</a>
 </div></details>
 </nav>
-
     <main class="doc-main">
-      <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="../index.html">Home</a> <span class="crumb-sep">&rsaquo;</span> <a href="index.html">RestAssured</a> <span class="crumb-sep">&rsaquo;</span> <a href="response-validation-assertions.html">Response Validation & Assertions</a> <span class="crumb-sep">&rsaquo;</span> <span class="crumb-current">JsonPath & extract()</span></nav>
+      <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="../index.html">Home</a> <span class="crumb-sep">&rsaquo;</span> <a href="index.html">RestAssured</a> <span class="crumb-sep">&rsaquo;</span> <a href="response-validation-assertions.html">Response Validation & Assertions</a> <span class="crumb-sep">&rsaquo;</span> <span class="crumb-current">JsonPath &amp; extract()</span></nav>
 
       <div class="page-header-banner">
         <header class="page-head">
@@ -210,14 +219,14 @@
         </header>
         <div class="meta-row">
           <span class="tag-pill Beginner">Beginner</span>
-          <span class="read-time">5 min read</span>
+          <span class="read-time">6 min read</span>
         </div>
       </div>
 
       <p class="prereqs"><strong>Prerequisites:</strong> <a href="json-body-validation.html">JSON Body Validation</a></p>
 
       <article class="content">
-        <h2 id="what-is-this">What is this?</h2>
+<h2 id="what-is-this">What is this?</h2>
 <p><strong>JsonPath</strong> is the library RestAssured uses internally to navigate JSON structures — the same dot/array syntax you just used inside <code>.body(...)</code> for validation also works standalone, for reading a value out of a response rather than asserting against it.</p>
 
 <h2 id="basic-example">Basic Example</h2>
@@ -353,10 +362,10 @@ String id = given().body(user).when().post("/users")
 <div class="faq-answer">It matches the getter to the actual JSON type, avoiding subtly wrong implicit conversions that a generic get() might produce for edge cases.</div>
 </details>
 </div>
-      </article>
+</article>
 
       <label class="mark-complete-row">
-        <input type="checkbox" class="mark-complete-checkbox" data-page-id="ra:jsonpath-and-extraction.html" onchange="toggleComplete(this)" />
+        <input type="checkbox" class="mark-complete-checkbox" data-page-id="restassured:jsonpath-and-extraction.html" onchange="toggleComplete(this)" />
         <span>Mark this lesson complete</span>
       </label>
 
@@ -368,38 +377,41 @@ String id = given().body(user).when().post("/users")
 
     <aside class="right-rail">
       <div class="rail-card book-promo-card">
-  <div class="book-promo-badge">&#128218; Recommended Reading</div>
-  <div class="book-carousel">
-    <div class="book-slide active">
+  <div class="book-promo-inner">
+    <div class="book-promo-badge">&#128218; Recommended Reading</div><span class="book-promo-counter"><span class="book-counter-current">1</span> / 2</span>
+    <div class="book-carousel">
+  <button type="button" class="book-nav-arrow book-nav-prev" data-dir="-1" aria-label="Previous book"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg></button>
+  <button type="button" class="book-nav-arrow book-nav-next" data-dir="1" aria-label="Next book"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></button>
+    <div class="book-slide active" data-index="0">
   <a href="https://www.amazon.in/Complete-Rest-Assured-Testing-Guide/dp/B0FYXTD7Z7" target="_blank" rel="nofollow noopener" class="book-cover-mock"><img src="../images/books/book-5-complete-restassured-testing-guide.jpg" alt="The Complete RestAssured Testing Guide book cover" loading="lazy" /></a>
   <div class="book-info">
     <h5>The Complete RestAssured Testing Guide</h5>
     <p>Mastering API Testing with Java</p>
-    <a href="https://www.amazon.in/Complete-Rest-Assured-Testing-Guide/dp/B0FYXTD7Z7" target="_blank" rel="nofollow noopener" class="book-buy-btn">View on Amazon &rarr;</a>
+    <a href="https://www.amazon.in/Complete-Rest-Assured-Testing-Guide/dp/B0FYXTD7Z7" target="_blank" rel="nofollow noopener" class="book-buy-btn">View on Amazon <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></a>
   </div>
-</div><div class="book-slide">
+</div><div class="book-slide" data-index="1">
   <a href="https://www.amazon.in/CRACKING-RESTASSURED-INTERVIEW-Automation-Real-World-ebook/dp/B0GX38K64W" target="_blank" rel="nofollow noopener" class="book-cover-mock"><img src="../images/books/book-6-cracking-restassured-interview.webp" alt="Cracking the RestAssured Interview book cover" loading="lazy" /></a>
   <div class="book-info">
     <h5>Cracking the RestAssured Interview</h5>
     <p>A Practical Guide to Mastering REST API Testing with RestAssured</p>
-    <a href="https://www.amazon.in/CRACKING-RESTASSURED-INTERVIEW-Automation-Real-World-ebook/dp/B0GX38K64W" target="_blank" rel="nofollow noopener" class="book-buy-btn">View on Amazon &rarr;</a>
+    <a href="https://www.amazon.in/CRACKING-RESTASSURED-INTERVIEW-Automation-Real-World-ebook/dp/B0GX38K64W" target="_blank" rel="nofollow noopener" class="book-buy-btn">View on Amazon <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></a>
   </div>
 </div>
+    </div>
+    <div class="book-dots"><button type="button" class="book-dot active" data-goto="0" aria-label="Book 1"></button><button type="button" class="book-dot" data-goto="1" aria-label="Book 2"></button></div>
+    <div class="book-progress-track"><div class="book-progress-fill running"></div></div>
   </div>
-  <div class="book-dots"><span class="book-dot active"></span><span class="book-dot"></span></div>
 </div>
-
       <div class="rail-card">
         <h4>Related Chapters</h4>
         <div class="related-list">
-          <a href="status-code-validation.html">Status Code Validation<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+          <a href="response-validation-assertions.html">Response Validation & Assertions<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
+<a href="status-code-validation.html">Status Code Validation<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
 <a href="response-header-validation.html">Response Header Validation<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
 <a href="json-body-validation.html">JSON Body Validation<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
 <a href="validate-vs-extract.html">Validate vs. Extract<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
-<a href="xml-response-validation.html">XML Response Validation<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></a>
         </div>
       </div>
-
       <div class="rail-card was-helpful-card">
         <span>Was this helpful?</span>
         <button title="Yes">&#128077;</button>
@@ -415,20 +427,60 @@ String id = given().body(user).when().post("/users")
   <a href="../about.html"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="12" y1="16" x2="12" y2="11.5"/><circle cx="12" cy="8" r="0.8" fill="currentColor" stroke="none"/></svg><span>About</span></a>
 </nav>
 
+
   <script>
-  
   document.querySelectorAll('.book-promo-card').forEach(function(card) {
     var slides = card.querySelectorAll('.book-slide');
     var dots = card.querySelectorAll('.book-dot');
+    var counter = card.querySelector('.book-counter-current');
+    var progressFill = card.querySelector('.book-progress-fill');
+    var carousel = card.querySelector('.book-carousel');
     if (slides.length < 2) return;
-    var idx = 0;
-    setInterval(function() {
+    var idx = 0, timer = null, paused = false;
+
+    function goTo(newIdx) {
       slides[idx].classList.remove('active');
       if (dots[idx]) dots[idx].classList.remove('active');
-      idx = (idx + 1) % slides.length;
+      idx = (newIdx + slides.length) % slides.length;
       slides[idx].classList.add('active');
       if (dots[idx]) dots[idx].classList.add('active');
-    }, 5000);
+      if (counter) counter.textContent = idx + 1;
+      restartProgress();
+    }
+    function restartProgress() {
+      if (!progressFill) return;
+      progressFill.classList.remove('running');
+      void progressFill.offsetWidth;
+      if (!paused) progressFill.classList.add('running');
+    }
+    function restartTimer() {
+      if (timer) clearInterval(timer);
+      timer = setInterval(function() { if (!paused) goTo(idx + 1); }, 5000);
+    }
+
+    dots.forEach(function(dot) {
+      dot.addEventListener('click', function() { goTo(parseInt(dot.getAttribute('data-goto'), 10)); restartTimer(); });
+    });
+    card.querySelectorAll('.book-nav-arrow').forEach(function(arrow) {
+      arrow.addEventListener('click', function() { goTo(idx + parseInt(arrow.getAttribute('data-dir'), 10)); restartTimer(); });
+    });
+    card.addEventListener('mouseenter', function() { paused = true; if (progressFill) progressFill.classList.remove('running'); });
+    card.addEventListener('mouseleave', function() { paused = false; restartProgress(); });
+
+    var touchStartX = null;
+    if (carousel) {
+      carousel.addEventListener('touchstart', function(e) { touchStartX = e.touches[0].clientX; paused = true; }, { passive: true });
+      carousel.addEventListener('touchend', function(e) {
+        if (touchStartX === null) return;
+        var dx = e.changedTouches[0].clientX - touchStartX;
+        if (Math.abs(dx) > 35) { goTo(idx + (dx < 0 ? 1 : -1)); restartTimer(); }
+        touchStartX = null;
+        paused = false; restartProgress();
+      }, { passive: true });
+    }
+
+    restartProgress();
+    restartTimer();
   });
 
   function copyCode(btn) {
@@ -449,11 +501,49 @@ String id = given().body(user).when().post("/users")
     document.getElementById('sidebar-backdrop').classList.remove('show');
     document.body.classList.remove('no-scroll');
   }
-  function toggleTheme() {
-    var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-    document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark');
-    try { localStorage.setItem('assertTrueTheme', isDark ? 'light' : 'dark'); } catch (e) {}
+  function toggleThemePicker() {
+    var popover = document.getElementById('theme-picker-popover');
+    var btn = document.getElementById('theme-picker-btn');
+    var isOpen = popover.classList.toggle('open');
+    btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
   }
+  function setColorTheme(theme) {
+    if (theme === 'forest') {
+      document.documentElement.removeAttribute('data-color-theme');
+    } else {
+      document.documentElement.setAttribute('data-color-theme', theme);
+    }
+    try { localStorage.setItem('assertTrueColorTheme', theme); } catch (e) {}
+    document.querySelectorAll('.theme-picker-option').forEach(function(opt) {
+      opt.classList.toggle('active', opt.getAttribute('data-theme') === theme);
+    });
+    var popover = document.getElementById('theme-picker-popover');
+    var btn = document.getElementById('theme-picker-btn');
+    if (popover) popover.classList.remove('open');
+    if (btn) btn.setAttribute('aria-expanded', 'false');
+  }
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.theme-picker')) {
+      var popover = document.getElementById('theme-picker-popover');
+      if (popover) popover.classList.remove('open');
+    }
+  });
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      var popover = document.getElementById('theme-picker-popover');
+      var btn = document.getElementById('theme-picker-btn');
+      if (popover && popover.classList.contains('open')) {
+        popover.classList.remove('open');
+        if (btn) { btn.setAttribute('aria-expanded', 'false'); btn.focus(); }
+      }
+    }
+  });
+  (function() {
+    var current = 'forest';
+    try { current = localStorage.getItem('assertTrueColorTheme') || 'forest'; } catch (e) {}
+    var opt = document.querySelector('.theme-picker-option[data-theme="' + current + '"]');
+    if (opt) opt.classList.add('active');
+  })();
   var docSearchIndex = null;
   var docSearchPromise = null;
   function loadDocSearchIndex() {
@@ -500,11 +590,7 @@ String id = given().body(user).when().post("/users")
     var docResults = document.getElementById('doc-search-results');
     if (!docInput || !docResults) return;
     function renderDocSearch(query) {
-      if (!query.trim()) {
-        docResults.hidden = true;
-        docInput.setAttribute('aria-expanded', 'false');
-        return;
-      }
+      if (!query.trim()) { docResults.hidden = true; docInput.setAttribute('aria-expanded', 'false'); return; }
       if (!docSearchIndex) {
         docResults.innerHTML = '<div class="hp-search-empty">Loading&hellip;</div>';
         docResults.hidden = false;
@@ -535,14 +621,44 @@ String id = given().body(user).when().post("/users")
     docInput.addEventListener('focus', function() { loadDocSearchIndex(); if (docInput.value.trim()) renderDocSearch(docInput.value); });
     docInput.addEventListener('keydown', function(e) {
       if (e.key === 'Escape') { docResults.hidden = true; docInput.blur(); }
-      else if (e.key === 'Enter') {
-        var first = docResults.querySelector('.hp-search-item');
-        if (first) window.location.href = first.getAttribute('href');
+      else if (e.key === 'Enter') { var first = docResults.querySelector('.hp-search-item'); if (first) window.location.href = first.getAttribute('href'); }
+    });
+    document.addEventListener('click', function(e) { if (!e.target.closest('.topnav-search-wrap')) { docResults.hidden = true; } });
+  })();
+
+  (function() {
+    var deferredInstallPrompt = null;
+    function getInstallBanner() { return document.getElementById('install-banner'); }
+    window.addEventListener('beforeinstallprompt', function(e) {
+      e.preventDefault();
+      if (localStorage.getItem('assertTrueInstallDismissed') === '1') return;
+      deferredInstallPrompt = e;
+      var banner = getInstallBanner();
+      if (banner) banner.classList.add('show');
+    });
+    window.handleInstallClick = function() {
+      if (!deferredInstallPrompt) return;
+      deferredInstallPrompt.prompt();
+      deferredInstallPrompt.userChoice.then(function() {
+        deferredInstallPrompt = null;
+        var banner = getInstallBanner();
+        if (banner) banner.classList.remove('show');
+      });
+    };
+    window.dismissInstallBanner = function() {
+      var banner = getInstallBanner();
+      if (banner) banner.classList.remove('show');
+      try { localStorage.setItem('assertTrueInstallDismissed', '1'); } catch (e) {}
+    };
+    window.addEventListener('appinstalled', function() {
+      var banner = getInstallBanner();
+      if (banner) banner.classList.remove('show');
+    });
+    try {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('../sw.js').catch(function() {});
       }
-    });
-    document.addEventListener('click', function(e) {
-      if (!e.target.closest('.topnav-search-wrap')) { docResults.hidden = true; }
-    });
+    } catch (e) {}
   })();
 
   function toggleComplete(checkbox) {
@@ -563,10 +679,20 @@ String id = given().body(user).when().post("/users")
     if (activeLink) { activeLink.scrollIntoView({ block: 'center' }); }
   })();
   document.addEventListener('click', function(e) {
-    if (e.target.closest('.sidebar-link') && window.matchMedia('(max-width: 860px)').matches) {
-      closeSidebar();
-    }
+    if (e.target.closest('.sidebar-link') && window.matchMedia('(max-width: 860px)').matches) { closeSidebar(); }
   });
   </script>
+
+    <div class="install-banner" id="install-banner">
+      <img src="../icons/icon-192.png" alt="" class="install-banner-icon" />
+      <div class="install-banner-text">
+        <strong>Install AssertTrueIO</strong>
+        <span>Add to your home screen for quick, offline access</span>
+      </div>
+      <button type="button" class="install-banner-btn" onclick="handleInstallClick()">Install</button>
+      <button type="button" class="install-banner-dismiss" onclick="dismissInstallBanner()" aria-label="Dismiss">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width:16px;height:16px;"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
 </body>
 </html>

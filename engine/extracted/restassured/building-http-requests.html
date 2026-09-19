@@ -1,0 +1,103 @@
+<!doctype html>
+<html><head>
+<title>Building HTTP Requests with RestAssured: Headers, Parameters, and Request Bodies</title>
+<meta name="description" content="How to construct RestAssured requests properly — headers, query parameters, path parameters, and request bodies (String, JSON, POJO, Map) — with the reasoning behind each approach." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/building-http-requests.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Building HTTP Requests</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="getting-started-java-restassured.html">Getting Started with Java & RestAssured</a></p>
+<article class="content">
+<h2 id="building-a-request-piece-by-piece">Building a Request, Piece by Piece</h2>
+<p>Every RestAssured test starts with the same job: describe exactly what request you want to send — which method, which resource, what headers, what data. That's the <code>given()</code> half of the given/when/then structure from Chapter 2, and it's genuinely rich enough to deserve real depth of its own, covered across nine focused pages:</p>
+<ol>
+  <li><a href="get-requests.html">GET Requests</a> — fetching, filtering, and pagination correctness</li>
+  <li><a href="post-requests.html">POST Requests</a> — creating resources and validating what got generated</li>
+  <li><a href="put-requests.html">PUT Requests</a> — full resource replacement, and the data-loss bug it causes if misused</li>
+  <li><a href="patch-requests.html">PATCH Requests</a> — partial updates, and when they are (and aren't) idempotent</li>
+  <li><a href="delete-requests.html">DELETE Requests</a> — verifying removal, and resilient cleanup patterns</li>
+  <li><a href="headers-in-requests.html">Headers</a> — Content-Type, Accept, and custom headers</li>
+  <li><a href="query-parameters.html">Query Parameters</a> — filtering and shaping a request against a collection</li>
+  <li><a href="path-parameters.html">Path Parameters</a> — identifying which specific resource a request addresses</li>
+  <li><a href="request-body-construction.html">Request Body Construction</a> — raw String, Map, and POJO approaches, and when to use each</li>
+</ol>
+<p>The first five pages cover each HTTP method in depth — the scenarios, edge cases, and real bugs specific to that method. The last four cover the mechanics of constructing any request, regardless of which method you're using.</p>
+
+<h2 id="why-getting-this-right-matters">Why Getting This Right Matters</h2>
+<p>A poorly constructed request produces a confusing failure that has nothing to do with what you're actually trying to test — a 400 because a required header is missing, a 404 because a path parameter was used where a query parameter belonged, a rejected body because the wrong Content-Type was set. None of these failures tell you anything about your application's business logic; they're purely artifacts of the request being built incorrectly. Getting comfortable with every piece covered here means your test failures actually mean something when they happen.</p>
+
+<h2 id="request-methods">Request Methods</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>given().when().get("/users");
+given().when().post("/users");
+given().when().put("/users/{id}");
+given().when().patch("/users/{id}");
+given().when().delete("/users/{id}");</code></pre>
+<p>Which method you call determines what RestAssured actually sends on the wire — the choice isn't cosmetic. Calling <code>.post()</code> instead of <code>.get()</code> against the same URL sends a fundamentally different HTTP request, and a real API will very likely respond differently (or reject it outright) depending on which method it receives. Chapter 1 covered what each method <em>means</em> conceptually — the five method pages that open this chapter (GET, POST, PUT, PATCH, DELETE) each go deep on that specific method's real testing scenarios: pagination correctness for GET, validating generated fields for POST, the data-loss bug PUT causes when misused, idempotence for PATCH, and resilient cleanup for DELETE.</p>
+
+<h2 id="the-anatomy-of-a-given-block">The Anatomy of a given() Block</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>given()
+    .header("Authorization", "Bearer " + token)   // ← Headers page
+    .queryParam("include", "profile")               // ← Query Parameters page
+    .pathParam("id", 42)                             // ← Path Parameters page
+    .body(newUser)                                   // ← Request Body Construction page
+.when()
+    .post("/users/{id}/update");</code></pre>
+<p>Every one of these four building blocks can appear in the same request, in any order — RestAssured collects them all before actually sending anything when <code>.when()</code> fires. Reading a real <code>given()</code> block, you should be able to identify at a glance which category each line belongs to: is this metadata about the request (header), a filter on a collection (query param), an identifier for a specific resource (path param), or the actual payload (body)?</p>
+
+<h2 id="query-parameter-vs-path-parameter-a-quick-reminder">Query Parameter vs. Path Parameter — A Quick Reminder</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Path parameter — identifies WHICH resource:
+GET /users/42
+
+Query parameter — filters, sorts, or paginates WITHIN a resource collection:
+GET /users?status=active&page=2</code></pre>
+<p>This distinction from Chapter 1 gets revisited in real code on the dedicated Query Parameters and Path Parameters pages — getting it wrong is one of the more common early RestAssured mistakes, since both "just go in the URL" at a glance. A useful test: if the value changes <em>which</em> resource you're even talking about, it's a path parameter; if it just narrows or shapes a request against a resource collection that exists independent of it, it's a query parameter.</p>
+
+<h2 id="real-world-example-combining-everything">Real-World Example — Combining Everything</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>OrderRequest order = new OrderRequest("Wireless Mouse", 2);
+
+given()
+    .contentType(ContentType.JSON)
+    .header("X-Request-ID", UUID.randomUUID().toString())
+    .pathParam("customerId", 42)
+    .body(order)
+.when()
+    .post("/customers/{customerId}/orders")
+.then()
+    .statusCode(201);</code></pre>
+<p>Every piece from this chapter shows up in one realistic request: a header for request tracing, a path parameter identifying which customer the order belongs to, and a POJO body describing what to create — exactly the shape a real e-commerce API test would take.</p>
+
+<h2 id="common-mistakes-to-watch-for">Common Mistakes to Watch For</h2>
+<ul>
+  <li><strong>Hand-building URLs and JSON strings</strong> instead of using RestAssured's dedicated methods for each piece — loses encoding safety, type safety, and readability all at once.</li>
+  <li><strong>Confusing which of the four building blocks a value belongs to</strong> — a resource identifier in a query parameter, or a filter value in a path parameter, both produce requests that don't match what the API's routing actually expects.</li>
+  <li><strong>Skipping Content-Type on a request with a body</strong> — some servers infer it correctly regardless, but relying on that inconsistently across different APIs is fragile.</li>
+</ul>
+
+<h2 id="what-you-ll-be-able-to-do">What You'll Be Able to Do</h2>
+<p>By the end of the nine pages that follow, you should be able to look at any REST API's documentation and correctly identify: which HTTP method to use for a given scenario, the real testing pitfalls specific to that method, and how to construct the request correctly — headers, query params, path params, and body. Start with GET Requests below, and work through the pages in order; each one builds on ideas from the last.</p>
+      
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why does calling .post() instead of .get() against the same URL matter beyond just different Java syntax?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It sends a fundamentally different HTTP request — the server's routing and business logic branch based on the method, so the same URL can behave completely differently depending on which method actually hits it.</div>
+</details>
+<details class="faq-item">
+<summary>What determines whether a value belongs in a path parameter or a query parameter?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Whether the value changes WHICH resource you're talking about (path parameter) or just filters/shapes a request against a resource collection that exists independent of it (query parameter).</div>
+</details>
+<details class="faq-item">
+<summary>Why might a POJO be the wrong tool for testing malformed JSON specifically?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A POJO is a real Java object, and JSON libraries only ever serialize valid Java objects into syntactically valid JSON — there's no way to make a POJO produce a trailing comma or unquoted key, since Java's own type system doesn't have a representation for broken JSON.</div>
+</details>
+<details class="faq-item">
+<summary>What's the risk of forgetting Content-Type on a request with a body?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Some servers infer it correctly regardless, but relying on that inconsistently across different APIs means a perfectly valid JSON body can be rejected because the server never attempted to parse it as JSON in the first place.</div>
+</details>
+<details class="faq-item">
+<summary>Why does this chapter open with five dedicated method pages before covering headers, params, and body construction?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Which method you use determines what's actually sent on the wire — understanding that distinction first makes the mechanics of constructing a request around a given method easier to reason about.</div>
+</details>
+</div>
+</article>
+</body></html>

@@ -1,0 +1,94 @@
+<!doctype html>
+<html><head>
+<title>Root Cause and Safe Fixes</title>
+<meta name="description" content="Stage four — Chapter 9&#x27;s root cause analysis into Chapter 11&#x27;s candidate fix generation, for the confirmed discount-stacking defect." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/root-cause-and-safe-fixes.html" />
+</head><body>
+<p class="difficulty">Advanced</p>
+<h1>Root Cause and Safe Fixes</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="evaluating-results-and-detecting-failures.html">Evaluating Results and Detecting Failures</a></p>
+<article class="content">
+<h2>What You'll Learn</h2>
+<ul>
+  <li>Running Chapter 9's root cause analysis on the confirmed discount-stacking defect</li>
+  <li>Generating a real candidate fix using Chapter 11's own pipeline</li>
+  <li>Why this stage still produces only a proposal, never an applied change</li>
+</ul>
+
+<h2>Introduction</h2>
+<p>The previous stage confirmed this is a genuine defect. This stage asks the harder question — why — and proposes a real, concrete fix, using exactly the two chapters built for this.</p>
+
+<h2>Step-by-Step Implementation</h2>
+<pre><code>// src/capstone-pipeline.ts (stage 4)
+import { analyzeRootCause } from './root-cause-analysis';
+import { proposeAssertionFix } from './generate-assertion-fix';
+import { buildCandidatePatch, formatAsDiff } from './build-candidate-diff';
+
+export async function findRootCauseAndProposeFix(
+  payload: AnalysisPayload, classification: Classification
+) {
+  const rootCause = await analyzeRootCause(payload, classification);
+
+  // THIS is a genuine APPLICATION bug, not an assertion that
+  // needs updating — Chapter 11'S own assertion-healing page
+  // exists PRECISELY to distinguish this from a legitimate
+  // business CHANGE, and the evidence here points CLEARLY to
+  // a real DEFECT, not a business RULE update
+  const patch = buildCandidatePatch(
+    [], // no LOCATOR fix needed here
+    [], // this is NOT an assertion-healing case — it's a REAL
+        // application code fix, handled by the DEVELOPMENT
+        // team, not this FRAMEWORK
+    'src/discount-calculator.ts'
+  );
+
+  return { rootCause, patch: formatAsDiff(patch) };
+}</code></pre>
+
+<h2>Code Explanation</h2>
+<p>Notice this stage's honest limit: Chapter 11's self-healing pipeline was built for test-file fixes — locators and assertions — not application source code. The discount-stacking bug lives in ShopSmart's own <code>discount-calculator.ts</code>, genuinely outside this framework's real, intended scope. This stage's real, honest output is a complete diagnosis and a clear report for the development team, not an automatic application-code patch this framework was never built to safely generate.</p>
+
+<h2>Example — The Real, Complete Diagnosis</h2>
+<pre><code>console.log(rootCause);
+
+// {
+//   likelyCause: "The discount calculation logic doesn't
+//     check whether a code has already been applied before
+//     applying it again, allowing the same percentage
+//     discount to stack",
+//   supportingEvidence: "The cart total after two applications
+//     of a 10% code shows a 20% reduction, consistent with
+//     additive rather than validated application",
+//   alternativeExplanations: [
+//     "A display-only bug — ruled out: the actual charged
+//       total, not just the displayed one, reflects the
+//       doubled discount"
+//   ]
+// }</code></pre>
+
+<h2>Why It Matters — An Honest Boundary, Not a Limitation to Hide</h2>
+<p>This capstone could have pretended to generate an automatic application-code fix, the way Chapter 11's pipeline does for test files. Being honest about this real boundary — this framework diagnoses and reports application defects, it doesn't autonomously patch application source code — is exactly the same honesty this track has practiced since Chapter 1's treatment of what AI can and cannot do.</p>
+
+<h2>Common Mistakes</h2>
+<ul>
+  <li><strong>Extending Chapter 11's self-healing pipeline to autonomously patch application source code.</strong> This chapter's own boundary is deliberate — application logic fixes belong to the development team, with this framework's real, honest job being diagnosis and clear reporting.</li>
+  <li><strong>Treating a thorough root cause analysis as equivalent to an actual fix.</strong> The diagnosis is genuinely valuable on its own — it doesn't need to pretend to be more than that.</li>
+</ul>
+
+<h2>Best Practices</h2>
+<ul>
+  <li>Be explicit about what an autonomous framework can and cannot safely fix — test-file issues versus application source code are genuinely different scopes.</li>
+  <li>Deliver a complete, evidence-grounded diagnosis even when an automatic fix isn't appropriate — this is real, valuable output on its own.</li>
+</ul>
+
+<h2>Hands-On Exercise</h2>
+<p>Run this page's <code>findRootCauseAndProposeFix</code> function against the confirmed classification from the previous stage. Review the resulting root cause analysis, and consider what a development team would actually need from this report to fix the real, underlying bug themselves.</p>
+
+<h2>Key Takeaways</h2>
+<ul>
+  <li>This stage reuses Chapter 9's root cause analysis directly, producing a real, evidence-grounded diagnosis of the discount-stacking bug.</li>
+  <li>Chapter 11's self-healing pipeline was built for test-file fixes, not application source code — this stage is honest about that real boundary rather than overreaching.</li>
+  <li>A thorough, honest diagnosis is genuinely valuable output on its own, even without an automatic application-code fix attached to it.</li>
+</ul>
+</article>
+</body></html>

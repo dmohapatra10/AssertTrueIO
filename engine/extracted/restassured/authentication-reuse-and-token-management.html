@@ -1,0 +1,167 @@
+<!doctype html>
+<html><head>
+<title>RestAssured Authentication Reuse &amp; Token Management</title>
+<meta name="description" content="How to avoid re-authenticating on every single RestAssured test — building a token manager, caching tokens across a test class or suite, and handling expiration." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/authentication-reuse-and-token-management.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Authentication Reuse &amp; Token Management</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="jwt-authentication.html">JWT Authentication</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Every authentication mechanism covered so far in this chapter shares the same inefficiency if used naively: logging in (or exchanging credentials for a token) fresh, in every single test, adds up fast across a suite with hundreds of tests. This page is about avoiding that.</p>
+
+<h2 id="why-it-matters">Why it matters</h2>
+<p>If logging in takes even 200 milliseconds and your suite has 500 tests each doing it independently, that's an extra 100 seconds added to every single run for zero additional test value — the login itself typically isn't what most of those tests are actually about. Reusing a token across many tests, rather than obtaining it fresh each time, is one of the highest-value, lowest-effort optimizations available to a slow test suite.</p>
+
+<h2 id="basic-example-token-obtained-once-per-test-class">Basic Example — Token Obtained Once Per Test Class</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>public class OrderApiTest {
+    private static String authToken;
+
+    @BeforeAll
+    static void authenticateOnce() {
+        authToken =
+            given()
+                .body(Map.of("email", "test@example.com", "password", "secret"))
+            .when()
+                .post("/login")
+            .then()
+                .statusCode(200)
+            .extract()
+                .path("token");
+    }
+
+    @Test
+    void getOrders() {
+        given().header("Authorization", "Bearer " + authToken)
+            .when().get("/orders").then().statusCode(200);
+    }
+
+    @Test
+    void createOrder() {
+        given().header("Authorization", "Bearer " + authToken)
+            .body(newOrder)
+            .when().post("/orders").then().statusCode(201);
+    }
+}</code></pre>
+<p><code>@BeforeAll</code> runs exactly once for the whole test class, regardless of how many <code>@Test</code> methods it contains — the same one-time-setup pattern covered for JUnit hooks generally, applied specifically to authentication here.</p>
+
+<h2 id="detailed-example-a-reusable-token-manager-across-multiple-test-classes">Detailed Example — A Reusable Token Manager Across Multiple Test Classes</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>public class TokenManager {
+    private static String cachedToken;
+    private static long expiresAtMillis;
+
+    public static synchronized String getToken() {
+        if (cachedToken == null || System.currentTimeMillis() &gt; expiresAtMillis) {
+            refreshToken();
+        }
+        return cachedToken;
+    }
+
+    private static void refreshToken() {
+        Response response =
+            given()
+                .body(Map.of("email", System.getenv("TEST_USER_EMAIL"),
+                              "password", System.getenv("TEST_USER_PASSWORD")))
+            .when()
+                .post("/login");
+
+        cachedToken = response.jsonPath().getString("token");
+        long expiresInSeconds = response.jsonPath().getLong("expires_in");
+        expiresAtMillis = System.currentTimeMillis() + (expiresInSeconds * 1000) - 5000; // 5s safety margin
+    }
+}
+
+// Usage anywhere in the suite:
+given().header("Authorization", "Bearer " + TokenManager.getToken()).when().get("/profile");</code></pre>
+<p>This is a genuine step up from per-class caching: a single shared token manager, used across every test class in the entire suite, that automatically re-authenticates only when the cached token has actually expired (with a small safety margin to avoid a race where the token expires mid-request). This is the kind of utility class the Framework Architecture chapter's <code>auth/</code> folder is specifically designed to hold.</p>
+
+<h2 id="real-world-example-caching-tokens-per-role">Real-World Example — Caching Tokens Per Role</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>public class TokenManager {
+    private static final Map&lt;String, String&gt; tokensByRole = new ConcurrentHashMap&lt;&gt;();
+
+    public static String getTokenForRole(String role) {
+        return tokensByRole.computeIfAbsent(role, TokenManager::authenticateAs);
+    }
+
+    private static String authenticateAs(String role) {
+        Map&lt;String, String&gt; credentials = CREDENTIALS_BY_ROLE.get(role);
+        return given().body(credentials).when().post("/login")
+            .then().statusCode(200).extract().path("token");
+    }
+}
+
+// Usage:
+given().header("Authorization", "Bearer " + TokenManager.getTokenForRole("admin")).when().get("/admin/dashboard");
+given().header("Authorization", "Bearer " + TokenManager.getTokenForRole("customer")).when().get("/profile");</code></pre>
+<p>A suite that needs to test multiple roles (covered fully on the next page) needs multiple cached tokens, not just one — this pattern caches a token per role, authenticating fresh only the first time each specific role is needed, then reusing it for every subsequent test that needs that same role.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Every single test independently logs in from scratch
+@Test void testA() {
+    String token = given().body(creds).when().post("/login").jsonPath().getString("token");
+    given().header("Authorization", "Bearer " + token).when().get("/orders").then().statusCode(200);
+}
+// ...repeated identically in every other test method
+
+// ✅ Authenticate once, reuse everywhere
+private static String token = TokenManager.getToken();
+@Test void testA() {
+    given().header("Authorization", "Bearer " + token).when().get("/orders").then().statusCode(200);
+}</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Logging in fresh in every single test</strong> instead of caching and reusing a token — the single biggest, easiest-to-fix source of unnecessary slowness in a naive test suite.</li>
+  <li><strong>Caching a token with no expiration awareness</strong> — a cached token that's since expired produces confusing 401s across an entire suite, all stemming from one stale cached value.</li>
+  <li><strong>Not making a shared token cache thread-safe</strong> — a problem specifically once tests run in parallel (covered in Chapter 14), where multiple threads could race to refresh the same cached token simultaneously.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Very short-lived tokens</strong> (a few minutes) — caching still helps within that window, but a long-running suite may need to refresh mid-run; the expiration-aware pattern shown above handles this correctly.</li>
+  <li><strong>Tests that specifically need to test authentication itself</strong> (a login test, a token-refresh test) — these should NOT use the cached/shared token; they're testing the authentication mechanism directly and need their own independent login flow.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If tests start failing with 401s partway through a long-running suite, suspect an expired cached token first — check whether the token manager's expiration tracking is actually correct, or whether tests are sharing a token that's simply outlived its validity window.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Cache and reuse tokens at the broadest scope that's actually safe — a whole suite if all tests can share one identity, per-role if multiple identities are needed.</li>
+  <li>Build expiration awareness into any token cache, refreshing automatically rather than assuming a token stays valid forever.</li>
+  <li>Make shared caches thread-safe once tests run in parallel.</li>
+  <li>Exclude tests that are specifically about authentication itself from using the shared cache.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Build a simple token manager class that caches a token and re-authenticates automatically once it detects the cached token has expired (using a mocked or artificially short expiration for testing purposes), and use it across at least two separate test classes to confirm the login only happens once.</p>
+
+<h2 id="summary">Summary</h2>
+<p>Re-authenticating in every single test is one of the most common, most fixable sources of a slow test suite. A shared, expiration-aware token manager — cached per suite or per role as needed — authenticates once and reuses the result everywhere, cutting significant time off a large suite's run while keeping every test's authentication genuinely valid.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why does a shared token cache need to be aware of token expiration, rather than just caching the token once and reusing it forever?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Most authentication tokens (Bearer tokens, JWTs, OAuth access tokens) are intentionally short-lived for security reasons — they expire after some window, often minutes to hours. A cache with no expiration awareness would keep returning an increasingly stale token past its actual validity window, causing every subsequent test using it to fail with 401 errors that have nothing to do with the actual feature being tested. An expiration-aware cache checks whether the cached token is still valid before returning it, automatically re-authenticating only when it's actually needed — keeping the efficiency benefit of caching without the correctness risk of using an expired credential.</div>
+</details>
+<details class="faq-item">
+<summary>Why is re-authenticating on every single test one of the most impactful things to fix in a slow suite?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Even a 200ms login, repeated across 500 independent tests, adds up to significant unnecessary time — the login itself typically isn't what most of those tests are actually about.</div>
+</details>
+<details class="faq-item">
+<summary>Why does a shared token cache need expiration awareness rather than just caching once?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Most tokens are intentionally short-lived; a cache with no expiration check keeps returning an increasingly stale token past its validity window, causing every dependent test to fail with 401s unrelated to the actual feature.</div>
+</details>
+<details class="faq-item">
+<summary>Why does a role-based token cache need a separate cached value per role, not just one shared token?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A suite testing multiple roles (admin, user, read-only) genuinely needs multiple distinct identities available — caching only one token would make it impossible to test more than one role without re-authenticating constantly.</div>
+</details>
+<details class="faq-item">
+<summary>Why does a shared token cache need to be thread-safe?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Once tests run in parallel, multiple threads could race to refresh the same expired cached token simultaneously — synchronized (or equivalent) access prevents that race from producing inconsistent state.</div>
+</details>
+</div>
+</article>
+</body></html>

@@ -1,0 +1,83 @@
+<!doctype html>
+<html><head>
+<title>Prompt Optimization</title>
+<meta name="description" content="Real, before-and-after prompt trimming from this track&#x27;s own code — generalizing Chapter 9&#x27;s selective-evidence lesson into a repeatable technique." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/prompt-optimization.html" />
+</head><body>
+<p class="difficulty">Advanced</p>
+<h1>Prompt Optimization</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="choosing-the-right-model.html">Choosing the Right Model</a></p>
+<article class="content">
+<h2>What You'll Learn</h2>
+<ul>
+  <li>Generalizing Chapter 9's selective-evidence lesson into a repeatable technique</li>
+  <li>Real, concrete before-and-after prompt trimming</li>
+  <li>Why shorter isn't automatically better — the real balance this page argues for</li>
+</ul>
+
+<h2>Introduction</h2>
+<p>Chapter 9 trimmed evidence for one specific reason, in one specific context. This page generalizes that same real discipline into something applicable to every prompt this track has built.</p>
+
+<h2>How It Works — Three Real, Repeatable Techniques</h2>
+<pre><code>1. TRIM verbose, unused CONTEXT — Chapter 9'S own lesson,
+   generalized: don't send the FULL stack trace when the
+   FIRST few frames genuinely suffice
+
+2. AVOID repeating INSTRUCTIONS the model already SATISFIES
+   reliably — if a JSON-shape instruction has NEVER produced
+   a malformed RESPONSE in practice, extensive REPETITION of
+   the SAME instruction adds tokens without adding real
+   RELIABILITY
+
+3. SUMMARIZE structured data instead of DUMPING it raw —
+   Chapter 10'S OWN trace-analysis page already did this,
+   stripping VERBOSE selector strings before sending a FULL
+   action timeline</code></pre>
+
+<h2>Example — A Real Before-and-After From Chapter 9's Own Code</h2>
+<pre><code>// BEFORE (genuinely wasteful):
+const prompt = `A Playwright test failed.
+
+Here is the COMPLETE error message: ${payload.errorMessage}
+Here is the COMPLETE stack trace, every single frame,
+including deep framework internals: ${payload.fullStackTrace}
+Here is the COMPLETE console log history for this ENTIRE
+test run, every single message: ${JSON.stringify(payload.allConsoleLogs)}
+...`;
+
+// AFTER (Chapter 9'S actual, real approach):
+const prompt = `A Playwright test failed.
+Error: ${payload.errorMessage}
+Relevant stack frames: ${payload.relevantStackFrames}
+Recent console errors: ${JSON.stringify(payload.recentConsoleErrors)}
+...`;</code></pre>
+
+<h2>Why It Matters — This Isn't Just About Saving Money</h2>
+<p>A shorter, more focused prompt is often genuinely more reliable too — a model reasoning over a smaller, more relevant context has less irrelevant material to potentially get confused by. Trimming here isn't purely a cost optimization; it's frequently a quality improvement as well, the same real insight behind Chapter 9's original trimming decision.</p>
+
+<h2>Why It Matters — Shorter Isn't Automatically Better</h2>
+<p>Trimming too aggressively risks removing genuinely relevant context the model actually needs — Chapter 9's own <code>relevantStackFrames</code> keeps the first several frames specifically because that's usually where the real problem lives, not zero frames. The real skill is trimming what's genuinely irrelevant, not trimming for its own sake.</p>
+
+<h2>Common Mistakes</h2>
+<ul>
+  <li><strong>Sending complete, raw data "just in case it's needed."</strong> This page's before-and-after example shows the real cost of this instinct — most of that raw data goes unused for a typical case.</li>
+  <li><strong>Trimming so aggressively that genuinely relevant context gets removed.</strong> This can make a prompt cheaper while making its actual output meaningfully worse — the real goal is relevance, not minimalism for its own sake.</li>
+</ul>
+
+<h2>Best Practices</h2>
+<ul>
+  <li>Apply this page's three techniques to every prompt in your own project, using Chapter 9's own before-and-after as a concrete model.</li>
+  <li>Test trimmed prompts against real cases to confirm output quality holds — trimming that degrades results isn't genuinely optimization.</li>
+</ul>
+
+<h2>Hands-On Exercise</h2>
+<p>Review a real prompt from your own project, or an earlier exercise in this track. Identify anything sent that's genuinely unused by the actual task, following this page's three techniques, and measure the real token reduction using the previous chapter pages' usage-logging technique.</p>
+
+<h2>Key Takeaways</h2>
+<ul>
+  <li>Chapter 9's evidence-trimming lesson generalizes into three real, repeatable techniques — trim unused context, avoid redundant instruction repetition, summarize rather than dump raw data.</li>
+  <li>A more focused prompt is often more reliable, not just cheaper — irrelevant material genuinely risks confusing a model's reasoning.</li>
+  <li>The real skill is trimming what's genuinely irrelevant, not minimizing length for its own sake — over-trimming can degrade output quality.</li>
+</ul>
+</article>
+</body></html>

@@ -1,0 +1,147 @@
+<!doctype html>
+<html><head>
+<title>RestAssured POST Requests: Creating Resources and Validating Payloads</title>
+<meta name="description" content="A deep guide to POST requests in RestAssured — creating resources, validating response shape, testing validation errors, and why POST isn&#x27;t idempotent." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/post-requests.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>POST Requests</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="get-requests.html">GET Requests</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>given()
+    .contentType(ContentType.JSON)
+    .body(newUser)
+.when()
+    .post("/users")
+.then()
+    .statusCode(201);</code></pre>
+<p>POST creates a new resource (or triggers a non-idempotent action) by sending a request body. This is the most common method for test data setup — creating a user, an order, a comment — the pattern behind almost every "arrange" step in a larger test scenario.</p>
+
+<h2 id="why-it-s-important">Why it's important</h2>
+<p>Almost every multi-step API test uses POST somewhere for setup. Getting the payload shape and validation right here is what makes that whole pattern reliable rather than a source of confusing, hard-to-debug setup failures downstream.</p>
+
+<h2 id="basic-example">Basic Example</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>User newUser = new User("John", "john@example.com");
+
+Response response =
+    given()
+        .contentType(ContentType.JSON)
+        .body(newUser)
+    .when()
+        .post("/users");
+
+response.then()
+    .statusCode(201) // 201 Created, not 200 — worth being deliberate about
+    .body("id", notNullValue());</code></pre>
+<p>Checking specifically for <code>201</code> rather than a looser "any success" check is worth being deliberate about — a well-behaved creation endpoint should specifically return <code>201 Created</code>, and asserting the exact code catches an API that's technically succeeding but not following its own contract.</p>
+
+<h2 id="detailed-example-validating-the-full-response-shape">Detailed Example — Validating the Full Response Shape</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void creatingAnOrderReturnsFullExpectedShape() {
+    OrderRequest order = new OrderRequest("Wireless Mouse", 2);
+
+    given()
+        .contentType(ContentType.JSON)
+        .body(order)
+    .when()
+        .post("/orders")
+    .then()
+        .statusCode(201)
+        .body("item", equalTo("Wireless Mouse"))
+        .body("quantity", equalTo(2))
+        .body("status", equalTo("pending"))
+        .body("id", matchesPattern("^ORD-\\\\d+$"))
+        .body("createdAt", notNullValue());
+}</code></pre>
+<p>A thorough creation test validates both the fields you sent (echoed back correctly) and the fields the server generated (an ID matching an expected pattern, a timestamp) — the second category is often skipped, but it's exactly where a server-side bug in ID generation or timestamping would actually show up.</p>
+
+<h2 id="real-world-example-testing-a-validation-error">Real-World Example — Testing a Validation Error</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void missingRequiredFieldReturns400() {
+    Map&lt;String, Object&gt; incompleteOrder = new HashMap&lt;&gt;();
+    incompleteOrder.put("item", "Wireless Mouse");
+    // "quantity" deliberately omitted — a required field
+
+    given()
+        .contentType(ContentType.JSON)
+        .body(incompleteOrder)
+    .when()
+        .post("/orders")
+    .then()
+        .statusCode(400)
+        .body("error", containsString("quantity"));
+}</code></pre>
+<p>Testing that POST correctly rejects invalid input is just as important as testing successful creation — a suite that only ever exercises the happy path has never verified the API's validation logic actually works, covered more fully in the Negative Testing chapter later in this course.</p>
+
+<h2 id="why-post-isn-t-idempotent">Why POST Isn't Idempotent</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Calling this twice creates TWO separate orders — POST has no built-in
+// protection against duplicate submission
+given().contentType(ContentType.JSON).body(order).when().post("/orders");
+given().contentType(ContentType.JSON).body(order).when().post("/orders"); // a second, distinct order</code></pre>
+<p>This matters directly for test design: if a test retries a POST after a timeout without knowing whether the first attempt actually succeeded, it risks creating duplicate data. Some APIs support an idempotency key header for exactly this scenario — worth checking your API's documentation if retry-safety around POST is a genuine concern.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Only checking response.getStatusCode() &lt; 300, missing that the API
+// returned the wrong specific status
+Response response = given().body(order).when().post("/orders");
+assertThat(response.getStatusCode(), lessThan(300)); // true for 200 OR 201 — imprecise
+
+// ✅ Assert the specific expected status for a creation endpoint
+.then().statusCode(201);</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Using a loose "any success" check</strong> instead of an exact status assertion when the specific code (201 vs. 200) actually matters to the contract being tested.</li>
+  <li><strong>Not validating server-generated fields</strong> (ID, timestamp) after creation, only the fields you sent.</li>
+  <li><strong>Only testing successful creation</strong>, never a validation-error path with intentionally invalid or incomplete data.</li>
+  <li><strong>Assuming POST requests are safe to blindly retry</strong> without considering duplicate-creation risk.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Creating a resource that already exists</strong> (a duplicate email during user registration) — should return a 409 Conflict, worth testing explicitly.</li>
+  <li><strong>Large payloads</strong> — some APIs cap request body size; intentionally exceeding it can verify the API rejects it gracefully rather than crashing.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a POST unexpectedly fails, log both the status code and the full response body — a 400 response almost always includes a useful validation error message that immediately explains what was wrong with the payload.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Assert the specific expected status code for creation endpoints, not just "any success."</li>
+  <li>Validate both echoed-back fields and server-generated fields (ID, timestamp) after creation.</li>
+  <li>Test validation-error paths (missing/invalid fields) alongside the happy path.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Write a test that POSTs an order with a missing required field and asserts the API returns a 400 with a validation error message naming the missing field, then write a second test confirming a valid POST returns 201 with a correctly-formatted generated ID.</p>
+
+<h2 id="summary">Summary</h2>
+<p>POST creates resources via a request body. Assert the specific expected status code (usually 201) rather than a loose success check, validate both echoed and server-generated fields, and remember POST has no built-in protection against duplicate creation on retry.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why might it be risky to automatically retry a failed POST request in a test, and what's a safer approach?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">POST isn't idempotent — if the first request actually succeeded on the server but the response was lost (a timeout, a network blip), retrying creates a second, duplicate resource. A safer approach is to first check whether the resource already exists (a GET by some natural key) before retrying, or to rely on an idempotency key if the API supports one, rather than blindly resubmitting the same POST.</div>
+</details>
+<details class="faq-item">
+<summary>Why assert response.getStatusCode() == 201 specifically instead of just checking ok()?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">ok() is true for any 2xx status; asserting the exact code catches an API that's technically succeeding but not following its own documented contract (returning 200 when 201 Created is the correct convention).</div>
+</details>
+<details class="faq-item">
+<summary>What should a thorough POST creation test validate beyond the fields that were sent?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Server-generated fields too — an ID matching an expected pattern, a creation timestamp — since that's exactly where a bug in ID generation or timestamping would actually show up.</div>
+</details>
+<details class="faq-item">
+<summary>Why is retrying a failed POST request risky?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">POST isn't idempotent — if the first request actually succeeded but the response was lost, retrying creates a second, duplicate resource; a safer approach checks for existing data first or relies on an idempotency key.</div>
+</details>
+<details class="faq-item">
+<summary>What does the multipart option handle that .body() can't?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">File uploads via API — .body() serializes structured data like JSON, while .multiPart() sends the raw multipart/form-data encoding files actually require.</div>
+</details>
+</div>
+</article>
+</body></html>

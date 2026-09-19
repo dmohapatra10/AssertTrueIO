@@ -1,0 +1,116 @@
+<!doctype html>
+<html><head>
+<title>Artifact vs. Cache in GitHub Actions: A Real Decision Guide</title>
+<meta name="description" content="Why artifacts and caches solve genuinely different problems despite both storing files, and a real decision guide for choosing correctly between them." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/artifact-vs-cache-choosing-the-right-one.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Artifact vs. Cache: Choosing the Right One</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="test-reports-screenshots-and-videos-in-ci.html">Test Reports, Screenshots & Videos in CI</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Caching was covered in depth back in Chapter 5, specifically for speeding up dependency installation. This page isn't re-teaching that mechanic — it's addressing the genuine, common confusion between an artifact and a cache, since both technically "store files," but for completely different purposes.</p>
+
+<h2 id="the-genuine-distinction">The Genuine Distinction</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Cache    — a PERFORMANCE optimization; might or might not be there next time;
+           never guaranteed; purely about speeding up repeated work
+Artifact — a DELIBERATE OUTPUT; genuinely expected to be there; the actual
+           point of a step, not just an optimization</code></pre>
+
+<h2 id="why-this-distinction-genuinely-matters">Why This Distinction Genuinely Matters</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>❌ Using a cache to pass a build's output to a deployment job:
+   A cache is never guaranteed to exist — GitHub can evict it at any time
+   for various reasons. Depending on it for something you genuinely NEED
+   (not just want, for speed) is fragile and can fail unpredictably.
+
+✅ Using an artifact to pass a build's output to a deployment job:
+   Explicit, deliberate, and guaranteed to exist for as long as its
+   retention period — exactly the reliability a real dependency needs.</code></pre>
+
+<h2 id="a-real-decision-guide">A Real Decision Guide</h2>
+<table>
+<thead><tr><th>Use a Cache when</th><th>Use an Artifact when</th></tr></thead>
+<tbody>
+<tr><td>The goal is speeding up a repeated, otherwise-redoable step</td><td>The content is a genuine, deliberate output someone needs</td></tr>
+<tr><td>It would be fine (just slower) if the cache didn't exist this time</td><td>The workflow would genuinely break if this content were missing</td></tr>
+<tr><td>Dependencies, build tool caches, downloaded packages</td><td>Build output, test reports, screenshots, logs, release files</td></tr>
+<tr><td>Automatically keyed and invalidated based on file hashes</td><td>Explicitly named, explicitly uploaded, explicitly downloaded</td></tr>
+</tbody>
+</table>
+
+<h2 id="detailed-example-both-correctly-in-the-same-pipeline">Detailed Example — Both, Correctly, in the Same Pipeline</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'              # CACHE — speeds up npm ci, not critical if missed
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/upload-artifact@v4    # ARTIFACT — the actual deliverable
+        with:
+          name: shopeasy-build
+          path: dist/
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4   # retrieving the DELIBERATE output
+        with:
+          name: shopeasy-build
+          path: dist/
+      - run: echo "Deploying the actual build"</code></pre>
+<p>The <code>cache: 'npm'</code> setting speeds up dependency installation — if it were somehow missed, <code>npm ci</code> would just take longer, nothing breaks. The artifact carrying <code>dist/</code> to the <code>deploy</code> job is genuinely load-bearing — without it, <code>deploy</code> has nothing to actually deploy at all.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why is "would this workflow still function correctly (just maybe slower) if this were missing" a genuinely useful test for distinguishing the two? A cache miss is a performance cost, not a correctness problem — the underlying work (like <code>npm ci</code>) still happens, just without the speedup. An artifact that's missing when expected is a genuine failure — there's no fallback "just redo the work" path for something like a specific build's exact output.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Trying to use <code>actions/cache</code> to pass data between jobs that a later job genuinely, critically needs. Caches are never guaranteed — GitHub can evict a cache for space, or a cache key might simply not match — meaning a workflow relying on this for something load-bearing can fail unpredictably, in a way that's genuinely confusing to debug since "the cache just wasn't there this time" isn't an obvious failure mode.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>A useful shortcut: if you'd be genuinely upset (not just mildly inconvenienced) that something was missing, it belongs in an artifact. If you'd just shrug and let the step redo its work a bit slower, a cache is the right tool.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Use caching specifically for speeding up genuinely re-doable work — dependency installs, build tool caches.</li>
+  <li>Use artifacts for anything a later job or a human genuinely, critically needs — never treat a cache as a reliable data-passing mechanism.</li>
+  <li>When in doubt, ask whether missing the data would be a performance cost or an actual correctness failure — that answer decides which tool is correct.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>A cache is a performance optimization, never guaranteed to persist — appropriate for genuinely redoable work.</li>
+  <li>An artifact is a deliberate, genuinely expected output — appropriate for anything a later job or person actually needs.</li>
+  <li>Never use a cache as a substitute for an artifact when something load-bearing needs to move between jobs.</li>
+</ul>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>What's the fundamental difference between a cache and an artifact, given that both technically store files?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A cache is purely a performance optimization — it might or might not be present on any given run, and its absence just means slightly slower execution as the underlying work gets redone. An artifact is a deliberate, genuinely expected output that a later job or person actually needs — its absence represents a real failure, not just a performance cost.</div>
+</details>
+<details class="faq-item">
+<summary>Why is using actions/cache to pass a build's output to a deployment job considered a genuine mistake?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Caches are never guaranteed to exist — GitHub can evict them, or a cache key might simply not match on a given run — meaning a deployment job relying on a cache for its actual build output could fail unpredictably, in a way that's confusing to diagnose. An artifact provides the explicit, deliberate guarantee that load-bearing data genuinely needs.</div>
+</details>
+<details class="faq-item">
+<summary>What's a practical test for deciding whether something belongs in a cache or an artifact?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Asking whether the workflow would still function correctly, just somewhat slower, if this specific content were missing on a given run. If the answer is yes — the step would simply redo its work — a cache is appropriate. If missing content would mean the workflow genuinely can't continue correctly, it belongs in an artifact instead.</div>
+</details>
+<details class="faq-item">
+<summary>In a pipeline using both a dependency cache and a build-output artifact, why does only one of them being missing actually matter?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">If the dependency cache is missing, npm ci (or an equivalent) simply takes longer, since it has to genuinely download everything instead of reusing cached files — a performance cost, not a failure. If the build-output artifact is missing, a downstream deployment job has nothing to actually deploy, which is a genuine, blocking failure with no fallback.</div>
+</details>
+<details class="faq-item">
+<summary>Why does the automatic, hash-based invalidation of a cache make it unsuitable for carrying deliberate, versioned output between jobs?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A cache's automatic invalidation is designed around detecting when underlying dependencies have changed, not around guaranteeing a specific, exact piece of content is available for a specific run. An artifact, by contrast, is explicitly named and uploaded for that exact run, with no ambiguity about whether it corresponds precisely to that run's actual output — exactly the guarantee genuinely deliberate output requires.</div>
+</details>
+</div>
+</article>
+</body></html>

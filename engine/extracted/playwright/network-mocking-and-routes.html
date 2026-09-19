@@ -1,0 +1,144 @@
+<!doctype html>
+<html><head>
+<title>Playwright Network Mocking: route(), fulfill(), continue(), abort()</title>
+<meta name="description" content="How to intercept and mock network requests in Playwright with page.route(), when mocking helps versus when it creates unrealistic tests, and how to modify real responses." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/network-mocking-and-routes.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Network Mocking</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="api-testing-with-playwright.html">API Testing</a>, <a href="wait-for-request-and-response.html">waitForRequest() & waitForResponse()</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+  <p><code>page.route()</code> intercepts network requests before they reach the real server, letting a test fulfill them with custom data, modify them, or block them entirely. This is a different tool from <code>waitForResponse()</code> (which observes real traffic) — <code>route()</code> actively controls what the page receives.</p>
+
+  <h2 id="why-it-s-important">Why it's important</h2>
+  <p>Mocking lets you test UI states that are hard or slow to produce with a real backend — an empty state, an error state, a specific edge-case payload — without needing the actual server to cooperate. It's also essential for isolating a UI test from a flaky or slow third-party dependency.</p>
+
+  <h2 id="basic-example-mocking-a-response">Basic Example — Mocking a Response</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>await page.route('**/api/orders', (route) =&gt; {
+  route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify([{ id: 1, item: 'Wireless Mouse', status: 'shipped' }]),
+  });
+});
+
+await page.goto('/orders');
+await expect(page.getByText('Wireless Mouse')).toBeVisible();</code></pre>
+  <p>The route handler must be registered before the navigation/action that triggers the request — the same before-not-after ordering rule covered for <code>waitForResponse()</code> and dialogs earlier in this course.</p>
+
+  <h2 id="route-continue-modifying-a-real-request">route.continue() — Modifying a Real Request</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Let the request go to the real server, but modify it first —
+// e.g., inject a header every request needs during testing
+await page.route('**/api/**', (route) =&gt; {
+  route.continue({
+    headers: { ...route.request().headers(), 'X-Test-Session': 'true' },
+  });
+});</code></pre>
+  <p>Unlike <code>fulfill()</code> (which fully replaces the response), <code>continue()</code> lets the real request proceed with modifications — useful for injecting headers or altering a request without faking the entire response.</p>
+
+  <h2 id="route-abort-simulating-network-failure">route.abort() — Simulating Network Failure</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('shows an error state when the orders API fails', async ({ page }) =&gt; {
+  await page.route('**/api/orders', (route) =&gt; route.abort('failed'));
+
+  await page.goto('/orders');
+  await expect(page.getByText('Failed to load orders')).toBeVisible();
+});</code></pre>
+  <p>This tests a UI state that's genuinely difficult to reliably produce with a real backend — the network literally failing — and it's one of the more valuable, otherwise-hard-to-reach cases mocking unlocks.</p>
+
+  <h2 id="detailed-example-testing-an-empty-state">Detailed Example — Testing an Empty State</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('shows an empty state when there are no orders', async ({ page }) =&gt; {
+  await page.route('**/api/orders', (route) =&gt;
+    route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
+  );
+
+  await page.goto('/orders');
+  await expect(page.getByText('No orders yet')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Browse products' })).toBeVisible();
+});</code></pre>
+  <p>Getting a real backend into a genuinely empty state for a test can require careful, fragile setup (deleting all existing data) — mocking sidesteps that entirely and makes the empty-state test trivially reliable.</p>
+
+  <h2 id="real-world-example-modifying-part-of-a-real-response">Real-World Example — Modifying Part of a Real Response</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('discount banner appears when a promo is active', async ({ page }) =&gt; {
+  await page.route('**/api/promotions/active', async (route) =&gt; {
+    const response = await route.fetch(); // get the real response first
+    const json = await response.json();
+    json.discountPercent = 25; // override just this one field
+    await route.fulfill({ response, json });
+  });
+
+  await page.goto('/');
+  await expect(page.getByText('25% off today only!')).toBeVisible();
+});</code></pre>
+  <p><code>route.fetch()</code> retrieves the real response so you can modify part of it rather than fully fabricating the whole payload — useful when most of a response is realistic and only one field needs to be forced to a specific test value.</p>
+
+  <h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Mocking everything, including flows the test is actually meant to verify end-to-end
+await page.route('**/api/**', (route) =&gt; route.fulfill({ /* fake everything */ }));
+// This "checkout" test no longer proves checkout actually works against a real backend
+
+// ✅ Mock only what's needed to reach a specific hard-to-produce state;
+// keep genuine end-to-end tests hitting the real API
+await page.route('**/api/inventory/wireless-mouse', (route) =&gt;
+  route.fulfill({ status: 200, body: JSON.stringify({ stock: 0 }) })
+);</code></pre>
+
+  <h2 id="when-mocking-is-the-wrong-choice">When Mocking Is the Wrong Choice</h2>
+  <p>Mocking is powerful, but a suite that mocks everything stops verifying that the frontend and backend actually work together — it only proves the frontend renders correctly for data shapes you assumed were correct. Keep a meaningful set of genuine end-to-end tests hitting the real API alongside targeted mocked tests for states that are otherwise hard to reach.</p>
+
+  <h2 id="common-mistakes">Common Mistakes</h2>
+  <ul>
+    <li><strong>Mocking core happy-path flows</strong> that should be verified against the real backend, losing genuine end-to-end confidence.</li>
+    <li><strong>Registering the route handler after the triggering navigation</strong> — like other event-based patterns in this course, this must happen first.</li>
+    <li><strong>Hardcoding a mocked response shape that drifts from the real API</strong> over time, silently passing tests against data the backend no longer actually returns.</li>
+    <li><strong>Using an overly broad route pattern</strong> (<code>'**/*'</code>) when a narrower one would avoid accidentally intercepting unrelated requests.</li>
+  </ul>
+
+  <h2 id="edge-cases">Edge Cases</h2>
+  <ul>
+    <li><strong>Multiple route handlers matching the same request</strong> — the most recently registered matching handler takes precedence; be deliberate about registration order if a test needs layered behavior.</li>
+    <li><strong>Requests that should sometimes pass through and sometimes be mocked</strong> — call <code>route.continue()</code> conditionally inside the handler based on request properties, rather than registering/unregistering separate handlers.</li>
+  </ul>
+
+  <h2 id="debugging">Debugging</h2>
+  <p>If a route handler doesn't seem to fire, double-check the glob pattern actually matches the real request URL — Trace Viewer's Network tab (Chapter 15) shows the exact URLs requested, which is the fastest way to spot a pattern mismatch.</p>
+
+  <h2 id="best-practices">Best Practices</h2>
+  <ul>
+    <li>Reserve mocking for states that are genuinely hard to produce with a real backend — errors, empty states, edge-case payloads — not as a default for all tests.</li>
+    <li>Keep a core set of unmocked, real end-to-end tests to catch actual frontend/backend integration issues.</li>
+    <li>Use narrow, specific route patterns rather than broad catch-alls, to avoid accidentally intercepting unrelated traffic.</li>
+    <li>Prefer <code>route.fetch()</code> plus a partial override over fully fabricating a response, when most of the real data is fine and only one part needs to be forced.</li>
+  </ul>
+
+  <h2 id="practice-exercise">Practice Exercise</h2>
+  <p>Write a test that mocks a slow-loading API (using <code>route.fulfill()</code> with a deliberate delay before responding) and verifies a loading spinner appears while the request is pending, then disappears once it resolves.</p>
+
+  <h2 id="summary">Summary</h2>
+  <p><code>page.route()</code> intercepts requests before they reach the real server — <code>fulfill()</code> fakes a response entirely, <code>continue()</code> modifies a real request in flight, and <code>abort()</code> simulates network failure. Mocking is valuable for otherwise-hard-to-reach UI states, but should complement, not replace, genuine end-to-end tests against the real backend.</p>
+
+  <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>What's the risk of mocking every API call in your entire test suite?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A fully mocked suite only proves the frontend renders correctly for the specific data shapes you assumed — it stops verifying that the frontend and backend actually agree on their contract. A backend change that alters a response shape could break production while every mocked test keeps passing, since the mocks were never updated to reflect the real change. A healthy suite mixes targeted mocking for hard-to-reach states with genuine end-to-end coverage against the real API.</div>
+</details>
+<details class="faq-item">
+<summary>What's the difference between route.fulfill() and route.continue()?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">fulfill() fully replaces the response with fake data; continue() lets the real request proceed, optionally with modifications like extra headers.</div>
+</details>
+<details class="faq-item">
+<summary>Why must a route handler be registered before the action that triggers the request?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Same ordering rule as dialogs and network waits — the request could fire before a handler registered afterward starts intercepting it.</div>
+</details>
+<details class="faq-item">
+<summary>What's the risk of mocking every API call in a test suite?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It stops verifying the frontend and backend actually agree on their contract — a backend change could break production while every mocked test keeps passing.</div>
+</details>
+<details class="faq-item">
+<summary>How do you modify just one field of an otherwise-real API response?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Use route.fetch() to get the real response, edit the parsed JSON, then pass it back into route.fulfill({ response, json }).</div>
+</details>
+</div>
+</article>
+</body></html>

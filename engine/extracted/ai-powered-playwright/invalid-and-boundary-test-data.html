@@ -1,0 +1,117 @@
+<!doctype html>
+<html><head>
+<title>Invalid and Boundary Test Data</title>
+<meta name="description" content="Generating the actual malformed and extreme-valid data values Chapter 4&#x27;s negative and boundary scenarios need — genuinely different from generating the scenarios themselves." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/invalid-and-boundary-test-data.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Invalid and Boundary Test Data</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="ai-generated-products.html">AI-Generated Products</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Generating real, concrete invalid and boundary values — not the scenarios that use them</li>
+  <li>Why this is genuinely distinct from Chapter 4's negative and boundary scenario generation</li>
+  <li>Feeding these values directly into a real, data-driven test</li>
+</ul>
+
+<h2 id="introduction-how-this-differs-from-chapter-4">Introduction — How This Differs From Chapter 4</h2>
+<p>Chapter 4 generated a negative test CASE: "Attempt registration with an invalid email," complete with steps and an expected result. This page generates the actual invalid VALUE that case would use — a real, concrete string like <code>"not-an-email"</code> or <code>"missing@domain"</code>. Chapter 4 answers "what should we test"; this page answers "what data makes that test real."</p>
+
+<h2 id="step-by-step-implementation">Step-by-Step Implementation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/generate-invalid-data.ts
+import { askClaude } from './ai-client';
+
+export async function generateInvalidValues(
+  fieldName: string, validationRules: string, count: number
+): Promise&lt;string[]&gt; {
+  const prompt = `Field: "${fieldName}"
+Validation rules: ${validationRules}
+
+Generate ${count} genuinely DIFFERENT invalid values for this
+field — different KINDS of invalidity (wrong format, missing
+required part, wrong length), not minor variations of the
+SAME mistake.
+
+Respond with ONLY valid JSON: {"values": [string, ...]}`;
+
+  const raw = await askClaude(prompt);
+  const parsed = JSON.parse(raw);
+  if (!Array.isArray(parsed.values)) {
+    throw new Error(`Expected {"values": [...]} but got: ${raw.slice(0, 200)}`);
+  }
+  return parsed.values;
+}
+
+export async function generateBoundaryValues(
+  fieldName: string, validRange: string
+): Promise&lt;{ atMin: number; belowMin: number; atMax: number; aboveMax: number }&gt; {
+  const prompt = `Field: "${fieldName}", valid range: ${validRange}
+
+Give the EXACT minimum valid value, ONE below it, the EXACT
+maximum valid value, and ONE above it.
+
+Respond with ONLY valid JSON:
+{"atMin": number, "belowMin": number, "atMax": number, "aboveMax": number}`;
+
+  const raw = await askClaude(prompt);
+  return JSON.parse(raw);
+}</code></pre>
+
+<h2 id="example-real-values-for-shopsmart-s-registration-email">Example — Real Values for ShopSmart's Registration Email</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const invalidEmails = await generateInvalidValues(
+  'registration email',
+  'Must contain @ and a domain with a dot; max 254 characters.',
+  4
+);
+
+// REAL, genuinely different invalid VALUES — not scenarios:
+// ["missing-at-sign.com", "no-domain@", "@no-local-part.com",
+//  "a".repeat(255) + "@example.com"]</code></pre>
+
+<h2 id="using-this-data-in-a-real-data-driven-test">Using This Data in a Real, Data-Driven Test</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import { test, expect } from '@playwright/test';
+import { generateInvalidValues } from './generate-invalid-data';
+
+test('registration rejects genuinely varied invalid emails', async ({ page }) => {
+  const invalidEmails = await generateInvalidValues(
+    'registration email', 'Must contain @ and a domain with a dot', 4
+  );
+
+  for (const email of invalidEmails) {
+    await page.goto('/register');
+    await page.getByLabel('Email').fill(email);
+    await page.getByRole('button', { name: 'Register' }).click();
+    await expect(page.getByRole('alert')).toBeVisible();
+    // ONE test, looping over MULTIPLE real, DIFFERENT invalid
+    // values — genuinely more coverage than ONE hardcoded
+    // "not-an-email" string, checked ONCE
+  }
+});</code></pre>
+
+<h2 id="why-it-matters">Why It Matters</h2>
+<p>A single hardcoded invalid email tests exactly one kind of malformation, forever. This page's generated values genuinely cover different failure modes — missing the @ symbol, missing the domain, an empty local part, an over-length address — catching a validation bug specific to one of those cases that a single fixed value would never reveal.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Confusing this page's data generation with Chapter 4's scenario generation.</strong> They're genuinely complementary — Chapter 4 decides to test invalid emails at all; this page provides the actual, varied values.</li>
+  <li><strong>Generating invalid values that are all minor variations of the same mistake.</strong> Four emails all missing just the @ symbol don't provide the genuine coverage four DIFFERENT kinds of invalidity would.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Request genuinely different kinds of invalidity explicitly, the same variety discipline this chapter has applied since its second page.</li>
+  <li>Loop a data-driven test over several generated values, rather than writing one test per hardcoded invalid string.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Generate boundary values for ShopSmart's cart quantity field (1 to 99) using this page's <code>generateBoundaryValues</code>, then write a real, data-driven test asserting the minimum and maximum succeed while one-below and one-above are rejected.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>This page generates real, concrete data values — genuinely distinct from Chapter 4's test case generation, which decides what to test rather than what data to use.</li>
+  <li>Different kinds of invalidity, not minor variations of one mistake, is what makes generated invalid data genuinely useful.</li>
+  <li>Looping a single, data-driven test over several generated values provides real coverage a single hardcoded value can't.</li>
+</ul>
+</article>
+</body></html>

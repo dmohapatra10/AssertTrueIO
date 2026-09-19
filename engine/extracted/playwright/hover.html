@@ -1,0 +1,110 @@
+<!doctype html>
+<html><head>
+<title>Playwright hover(): Testing Hover States and Menus</title>
+<meta name="description" content="How Playwright&#x27;s hover() action works, testing CSS hover states and hover-triggered menus, and why hover interactions are inherently harder to test reliably." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/hover.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1><code class="api-name">hover()</code></h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="actions.html">Actions overview</a>, <a href="click-and-dblclick.html">click() and dblclick()</a></p>
+<article class="content">
+<h2 id="what-is-hover">What is <code>hover()</code>?</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>locator.hover(options?: { force?: boolean, position?: { x: number, y: number }, timeout?: number })</code></pre>
+      <p><code>hover()</code> moves the (virtual) mouse over an element's center, triggering any CSS <code>:hover</code> styles and JavaScript <code>mouseover</code>/<code>mouseenter</code> listeners — without clicking.</p>
+
+      <h2 id="why-it-s-important-and-why-it-s-inherently-trickier">Why it's important, and why it's inherently trickier</h2>
+      <p>Hover-triggered UI (tooltips, dropdown menus, "reveal on hover" action buttons) is common, but genuinely harder to test than click-based UI for a structural reason: hover has no persistent "state" the way a checked checkbox does — the moment the virtual mouse moves elsewhere (including as a side effect of a subsequent action), the hover state can disappear. Tests involving hover need to assert on the hover-triggered UI immediately, before doing anything else that might move focus or the mouse.</p>
+
+      <h2 id="basic-example">Basic Example</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>await page.getByText('Wireless Mouse').hover();
+await expect(page.getByRole('tooltip')).toBeVisible();</code></pre>
+
+      <h2 id="detailed-example-reveal-on-hover-action-buttons">Detailed Example — Reveal-on-Hover Action Buttons</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('hovering a table row reveals its action buttons', async ({ page }) =&gt; {
+  await page.goto('/inventory');
+
+  const row = page.getByRole('row').filter({ hasText: 'Wireless Mouse' });
+
+  // Action buttons are visually hidden until the row is hovered
+  await expect(row.getByRole('button', { name: 'Edit' })).toBeHidden();
+  await row.hover();
+  await expect(row.getByRole('button', { name: 'Edit' })).toBeVisible();
+
+  await row.getByRole('button', { name: 'Edit' }).click();
+});</code></pre>
+      <p>Note the click at the end happens immediately after the hover reveals the button, within the same locator chain scope — minimizing the chance of the hover state being lost between steps.</p>
+
+      <h2 id="real-world-example-navigation-mega-menu">Real-World Example — Navigation Mega-Menu</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('hovering the Products nav item opens the mega menu', async ({ page }) =&gt; {
+  await page.goto('/');
+
+  await page.getByRole('link', { name: 'Products' }).hover();
+  await expect(page.getByRole('navigation', { name: 'Products menu' })).toBeVisible();
+
+  await page.getByRole('link', { name: 'Wireless Mice' }).click();
+  await expect(page).toHaveURL(/\/products\/wireless-mice/);
+});</code></pre>
+
+      <h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Forcing a click on a hover-revealed button without hovering first —
+// works only if the button happens to already be interactable despite being visually hidden
+await row.getByRole('button', { name: 'Edit' }).click({ force: true });
+
+// ✅ Actually trigger the hover state the feature depends on
+await row.hover();
+await row.getByRole('button', { name: 'Edit' }).click();</code></pre>
+
+      <h2 id="common-mistakes">Common Mistakes</h2>
+      <ul>
+        <li><strong>Reaching for <code>{ force: true }</code> to click a hover-hidden element</strong> instead of hovering first — this bypasses the actual interaction being tested, and can pass even if the real hover mechanism is broken.</li>
+        <li><strong>Assuming hover state persists across unrelated subsequent actions</strong> — navigating, clicking elsewhere, or even some assertions can implicitly move focus and dismiss a hover-triggered element; act on hover-revealed UI promptly.</li>
+        <li><strong>Testing hover-only interactions without a keyboard-accessible equivalent</strong> in the app itself — if a feature is genuinely only reachable via mouse hover, that's often an accessibility gap worth raising, independent of the test.</li>
+      </ul>
+
+      <h2 id="edge-cases">Edge Cases</h2>
+      <ul>
+        <li><strong>Touch devices/mobile emulation</strong> — hover has no real equivalent on touch interfaces; if a project's mobile project (Chapter 10) tests the same UI, hover-dependent features need a documented alternative interaction, or should be explicitly skipped for mobile projects.</li>
+        <li><strong>Nested hover targets</strong> (a submenu that appears on hovering a menu item, which itself has further hoverable items) — chain <code>hover()</code> calls in sequence, verifying each level's UI appears before hovering the next.</li>
+      </ul>
+
+      <h2 id="debugging">Debugging</h2>
+      <p>If a hover-triggered assertion fails intermittently, check whether the hover-revealed element has a CSS transition delay — Playwright's actionability/assertion auto-waiting handles the wait, but a very long intentional delay (for UX polish) may need the assertion's timeout extended rather than treating it as a flaky test.</p>
+
+      <h2 id="best-practices">Best Practices</h2>
+      <ul>
+        <li>Assert on hover-revealed UI immediately after the <code>hover()</code> call, before any other action that might shift focus.</li>
+        <li>Avoid <code>{ force: true }</code> as a substitute for actually triggering the hover state — it tests a different thing than what the feature requires.</li>
+        <li>Flag hover-only, keyboard-inaccessible interactions as a product concern, not just something to work around in tests.</li>
+      </ul>
+
+      <h2 id="practice-exercise">Practice Exercise</h2>
+      <p>A product card shows a "Quick view" button only on hover. Write a test that hovers the card, clicks "Quick view," and asserts a modal with the product's details opens.</p>
+
+      <h2 id="summary">Summary</h2>
+      <p><code>hover()</code> simulates moving the mouse over an element to trigger CSS <code>:hover</code> and JS mouse-enter behavior. Because hover state isn't persistent the way a checked box or a URL is, tests should act on hover-revealed UI promptly rather than relying on it surviving unrelated subsequent steps.</p>
+
+      <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why is testing hover-triggered UI generally trickier than testing click-triggered UI?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A click typically produces a persistent state change (a class toggled, a URL changed, a value set) that stays true until something explicitly changes it again. Hover produces a transient state tied to the mouse's current position — it can disappear the instant the mouse conceptually "moves" elsewhere, including as a side effect of another action — so hover-dependent assertions need to happen immediately after the hover, not later in the test.</div>
+</details>
+<details class="faq-item">
+<summary>Why is hover state described as more fragile to test than a checked checkbox?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A checked box is a persistent state; hover is tied to the mouse's current position and can disappear the instant focus conceptually moves elsewhere.</div>
+</details>
+<details class="faq-item">
+<summary>What's wrong with using { force: true } to click a hover-hidden button instead of hovering first?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It bypasses the actual interaction being tested and can pass even if the real hover mechanism is broken.</div>
+</details>
+<details class="faq-item">
+<summary>Does hover() have a meaningful equivalent on touch/mobile devices?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Not really — hover has no true touch equivalent, so hover-dependent features need a documented alternative for mobile projects.</div>
+</details>
+<details class="faq-item">
+<summary>Why should assertions on hover-revealed content happen immediately after hover()?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Because subsequent actions or even some assertions can implicitly shift focus and dismiss the hover state before you get to check it.</div>
+</details>
+</div>
+</article>
+</body></html>

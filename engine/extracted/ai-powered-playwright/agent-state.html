@@ -1,0 +1,98 @@
+<!doctype html>
+<html><head>
+<title>Agent State</title>
+<meta name="description" content="The real, persistent memory that turns separate function calls into one continuous agent — conversation history, explored areas, and collected evidence, all in one place." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/agent-state.html" />
+</head><body>
+<p class="difficulty">Advanced</p>
+<h1>Agent State</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="browser-tools-and-tool-calling.html">Browser Tools and Tool Calling</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Building the real, persistent state this chapter's opening page identified as genuinely missing before</li>
+  <li>Combining conversation history, explored areas, and evidence into one coherent object</li>
+  <li>Why persistence, not any single capability, is what makes this genuinely an agent</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>Chapter 14's opening page named persistence as one of three properties a genuine agent needs. This page builds it for real — a single, structured object that survives across every step of a run, not scattered local variables inside one function.</p>
+
+<h2 id="step-by-step-implementation">Step-by-Step Implementation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/agent-state.ts
+import Anthropic from '@anthropic-ai/sdk';
+import { ExploredArea } from './exploration-strategy';
+import { EvidenceBundle } from './capture-evidence';
+
+export interface AgentState {
+  objective: string;
+  conversationHistory: Anthropic.MessageParam[];
+  exploredAreas: ExploredArea[];
+  collectedEvidence: EvidenceBundle[];
+  stepCount: number;
+  startTime: number;
+  objectiveComplete: boolean;
+}
+
+export function createInitialState(objective: string): AgentState {
+  return {
+    objective,
+    conversationHistory: [{ role: 'user', content: objective }],
+    exploredAreas: [],
+    collectedEvidence: [],
+    stepCount: 0,
+    startTime: Date.now(),
+    objectiveComplete: false,
+  };
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p>Every field here is reused directly from an earlier chapter's own type — <code>exploredAreas</code> from Chapter 13, <code>collectedEvidence</code> from Chapter 9 — assembled into one coherent object rather than living as separate parameters passed manually between function calls. <code>conversationHistory</code> is genuinely new to this chapter: it's what lets tool calling maintain real context across many steps, the actual mechanism the previous page's tool calls depend on.</p>
+
+<h2 id="example-state-evolving-across-real-steps">Example — State Evolving Across Real Steps</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>let state = createInitialState(
+  'Verify checkout completes correctly, report anything unexpected.'
+);
+
+// AFTER step 1 (navigate):
+state.stepCount = 1;
+state.conversationHistory.push(
+  { role: 'assistant', content: [toolUseBlock] },
+  { role: 'user', content: [toolResultBlock] }
+);
+
+// AFTER discovering an unexpected discount field mid-run:
+state.exploredAreas.push({
+  pageUrl: 'https://shopsmart.example.com/cart',
+  actionsAttempted: ['observed discount field'],
+});
+
+// The SAME state object carries ALL of this forward into
+// EVERY subsequent step's reasoning</code></pre>
+
+<h2 id="why-it-matters">Why It Matters</h2>
+<p>Without this single, persistent object, the agent's tool calls would have no real memory of earlier steps — every call would need the full context re-explained, and Chapter 13's exploration strategy (which depends on knowing what's already been explored) simply wouldn't work across multiple, separate calls. This state object is what makes "continuous run," not "sequence of unrelated calls," an accurate description of what's happening.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Passing state pieces as separate function parameters instead of one coherent object.</strong> This makes it easy to forget updating one piece (like <code>exploredAreas</code>) while updating another, leading to state that's subtly inconsistent with itself.</li>
+  <li><strong>Not appending to <code>conversationHistory</code> after every tool call and result.</strong> Without this, the model loses real context about what it already tried, risking exactly the repetition Chapter 13's strategy page worked to prevent.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Keep all agent state in one object, updated consistently after every step — never split across separate, independently-managed variables.</li>
+  <li>Append every tool call and its result to <code>conversationHistory</code> immediately, so the model's next reasoning step has complete, accurate context.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Trace through this page's <code>AgentState</code> interface and identify which earlier chapter defined each field's underlying type. For any field you can't immediately place, review that chapter's page before continuing.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Agent state combines conversation history, explored areas, and evidence into one coherent, persistent object, most of it reused directly from earlier chapters' own types.</li>
+  <li><code>conversationHistory</code> is what makes real, multi-step tool calling possible — without it, each call would have no memory of what came before.</li>
+  <li>This single object is what makes a run genuinely continuous, rather than a sequence of independent, unrelated function calls.</li>
+</ul>
+</article>
+</body></html>

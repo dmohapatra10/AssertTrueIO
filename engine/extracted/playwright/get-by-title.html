@@ -1,0 +1,93 @@
+<!doctype html>
+<html><head>
+<title>Playwright getByTitle(): Complete Guide with Real-World Examples</title>
+<meta name="description" content="How Playwright&#x27;s getByTitle() locator finds elements by their title attribute, why it&#x27;s a niche locator, and when tooltips make it useful." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/get-by-title.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1><code class="api-name">getByTitle()</code></h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="locators.html">Locators overview</a></p>
+<article class="content">
+<h2 id="what-is-getbytitle">What is <code>getByTitle()</code>?</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>page.getByTitle(text: string | RegExp, options?: { exact?: boolean })</code></pre>
+      <p><code>getByTitle()</code> finds an element by its <code>title</code> attribute — the text shown in the small native tooltip that appears after hovering for a moment.</p>
+
+      <h2 id="why-it-s-a-niche-locator">Why it's a niche locator</h2>
+      <p>The <code>title</code> attribute is used sparingly in modern web apps — most custom tooltips today are built with JavaScript/CSS (a styled <code>&lt;div&gt;</code>, not the native <code>title</code> attribute), which <code>getByTitle()</code> cannot see at all. This locator is mainly useful for icon buttons or status indicators that specifically rely on the native title tooltip, or third-party widgets/charting libraries that still set it.</p>
+
+      <h2 id="basic-example">Basic Example</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>await page.getByTitle('Close dialog').click();</code></pre>
+
+      <h2 id="detailed-example">Detailed Example</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// An icon-only close button relying on the native tooltip for its accessible name
+&lt;button title="Close dialog"&gt;&lt;svg .../&gt;&lt;/button&gt;
+
+await page.getByTitle('Close dialog').click();
+await expect(page.getByRole('dialog')).toBeHidden();</code></pre>
+
+      <h2 id="real-world-example-chart-data-points">Real-World Example — Chart Data Points</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('hovering a chart bar reveals its tooltip title', async ({ page }) =&gt; {
+  await page.goto('/analytics');
+  const bar = page.getByTitle(/Revenue: \$[\d,]+/);
+  await expect(bar).toBeVisible();
+});</code></pre>
+      <p>Some charting libraries render each data point as an SVG element with a native <code>title</code> — this is one of the more realistic places <code>getByTitle()</code> shows up in production test suites.</p>
+
+      <h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Assuming a custom-styled tooltip is a native title attribute
+await page.getByTitle('Delete item').click(); // fails — this tooltip is a styled &lt;div&gt;, not title=""
+
+// ✅ Verify first, then use the matching locator for how it's actually built
+await page.getByRole('button', { name: 'Delete item' }).click(); // native aria-label instead</code></pre>
+
+      <h2 id="common-mistakes">Common Mistakes</h2>
+      <ul>
+        <li><strong>Assuming a visible tooltip means a <code>title</code> attribute exists</strong> — most modern custom tooltips are separate DOM elements, not the native browser tooltip; inspect the DOM before reaching for this locator.</li>
+        <li><strong>Using <code>title</code> as the sole accessible name for a critical interactive element</strong> — <code>title</code> tooltips are not reliably announced by all screen readers and aren't keyboard-accessible on their own; <code>aria-label</code> with <code>getByRole()</code> is the more robust pattern in the app itself.</li>
+      </ul>
+
+      <h2 id="edge-cases">Edge Cases</h2>
+      <ul>
+        <li><strong>SVG <code>&lt;title&gt;</code> elements</strong> (not attributes) — some icon libraries use a nested <code>&lt;title&gt;</code> tag inside an <code>&lt;svg&gt;</code> rather than a <code>title=""</code> attribute; Playwright's <code>getByTitle()</code> handles both, but confirm which one you're looking at when debugging.</li>
+      </ul>
+
+      <h2 id="debugging">Debugging</h2>
+      <p>Before writing a <code>getByTitle()</code> locator, hover the element in DevTools and check the Elements panel for a literal <code>title</code> attribute — if the tooltip is instead a sibling <code>&lt;div class="tooltip"&gt;</code> that appears on hover via CSS/JS, this locator will never match it.</p>
+
+      <h2 id="best-practices">Best Practices</h2>
+      <ul>
+        <li>Confirm the element genuinely has a <code>title</code> attribute before reaching for this locator — don't assume from visual tooltip behavior alone.</li>
+        <li>Prefer <code>getByRole()</code> with <code>aria-label</code> for interactive elements where possible; reserve <code>getByTitle()</code> for elements that specifically rely on the native attribute.</li>
+      </ul>
+
+      <h2 id="practice-exercise">Practice Exercise</h2>
+      <p>Given an icon button with both <code>aria-label="Download report"</code> and <code>title="Download report"</code>, write both a <code>getByRole()</code> and a <code>getByTitle()</code> locator for it, and explain which one you'd choose for a real test suite and why.</p>
+
+      <h2 id="summary">Summary</h2>
+      <p><code>getByTitle()</code> matches the native <code>title</code> attribute — genuinely useful, but only for the shrinking set of elements that still use it instead of a custom-built tooltip. Always verify the attribute exists before relying on this locator.</p>
+
+      <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why might getByTitle() fail on an element that clearly shows a tooltip on hover?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Most modern tooltips are custom components built from a separate DOM element shown/hidden via JavaScript or CSS, not the native <code>title</code> attribute — <code>getByTitle()</code> only matches the literal HTML attribute, so a custom tooltip needs a different locator strategy, like <code>getByText()</code> scoped to the tooltip container.</div>
+</details>
+<details class="faq-item">
+<summary>Why is getByTitle() considered a niche locator today?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Most modern tooltips are custom-built with JavaScript/CSS rather than the native title attribute, so this locator only matches the shrinking set of elements that still use it.</div>
+</details>
+<details class="faq-item">
+<summary>How would you check whether an element genuinely uses the title attribute?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Inspect it in DevTools for a literal title="..." attribute — a visible hover tooltip doesn't guarantee one exists.</div>
+</details>
+<details class="faq-item">
+<summary>What's a realistic place getByTitle() still shows up in production suites?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Charting libraries that render data points as SVG elements with native title tags for tooltips.</div>
+</details>
+<details class="faq-item">
+<summary>Why shouldn't title be the sole accessible name for a critical interactive element?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Native title tooltips aren't reliably announced by all screen readers and aren't keyboard-accessible on their own.</div>
+</details>
+</div>
+</article>
+</body></html>

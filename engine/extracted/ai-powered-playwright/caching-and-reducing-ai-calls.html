@@ -1,0 +1,93 @@
+<!doctype html>
+<html><head>
+<title>Caching and Reducing AI Calls</title>
+<meta name="description" content="Real code caching AI classification results — genuinely different from Chapter 8&#x27;s test-data cache — plus recognizing calls that don&#x27;t need AI at all." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/caching-and-reducing-ai-calls.html" />
+</head><body>
+<p class="difficulty">Advanced</p>
+<h1>Caching and Reducing AI Calls</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="prompt-optimization.html">Prompt Optimization</a></p>
+<article class="content">
+<h2>What You'll Learn</h2>
+<ul>
+  <li>Caching AI classification results — genuinely different from Chapter 8's data cache</li>
+  <li>Recognizing when the cheapest call is the one never made at all</li>
+  <li>A real cache-key strategy that avoids stale, misleading results</li>
+</ul>
+
+<h2>Introduction — A Genuinely Different Cache Than Chapter 8's</h2>
+<p>Chapter 8 cached generated test data for reproducibility — the same data, reused deliberately across runs. This page caches something different: the result of an AI judgment call, reused specifically when the same real input would produce the same real answer.</p>
+
+<h2>Step-by-Step Implementation</h2>
+<pre><code>// src/cache-ai-results.ts
+import { createHash } from 'crypto';
+import { readFileSync, writeFileSync, existsSync } from 'fs';
+
+const CACHE_PATH = 'test-data/ai-result-cache.json';
+
+function hashInput(input: string): string {
+  return createHash('sha256').update(input).digest('hex');
+}
+
+export function getCachedOrCompute&lt;T&gt;(
+  cacheKeyInput: string, compute: () =&gt; Promise&lt;T&gt;
+): Promise&lt;T&gt; {
+  const cache: Record&lt;string, T&gt; = existsSync(CACHE_PATH)
+    ? JSON.parse(readFileSync(CACHE_PATH, 'utf-8'))
+    : {};
+
+  const key = hashInput(cacheKeyInput);
+  if (key in cache) {
+    return Promise.resolve(cache[key]);
+  }
+
+  return compute().then((result) =&gt; {
+    cache[key] = result;
+    writeFileSync(CACHE_PATH, JSON.stringify(cache, null, 2), 'utf-8');
+    return result;
+  });
+}</code></pre>
+
+<h2>Code Explanation</h2>
+<p>The cache key is a hash of the actual input — meaning the cache is only ever reused when the exact same evidence produces the exact same classification request, never a stale answer applied to genuinely different evidence. This is the real, important guard against the risk this technique introduces: a wrong or outdated cached result being silently reused.</p>
+
+<h2>Example — Caching Chapter 9's Classification, Concretely</h2>
+<pre><code>import { classifyFailure } from './classify-failure';
+import { getCachedOrCompute } from './cache-ai-results';
+
+async function classifyWithCache(payload: AnalysisPayload) {
+  const cacheKeyInput = JSON.stringify(payload);
+  return getCachedOrCompute(cacheKeyInput, () =&gt; classifyFailure(payload));
+}
+
+// A test that FAILS the SAME way twice in a row — same
+// error, same stack, same evidence — genuinely REUSES the
+// FIRST classification, SKIPPING a real, redundant AI call
+// the SECOND time</code></pre>
+
+<h2>Why It Matters — Recognizing When the Cheapest Call Is No Call</h2>
+<p>A flaky test failing the same way repeatedly, before Chapter 12's healing gets applied, is a real, concrete case where this cache genuinely helps — the same evidence, classified identically each time, doesn't need a fresh AI call for every single occurrence. This is a real cost reduction that costs nothing in accuracy, since the cache key guarantees identical input before ever reusing a result.</p>
+
+<h2>Common Mistakes</h2>
+<ul>
+  <li><strong>Caching based on a loose or partial key, like just the test name.</strong> This risks returning a stale classification for genuinely different evidence — the hash-of-full-input approach this page uses exists specifically to prevent this.</li>
+  <li><strong>Caching results that should never be reused, like exploratory hypothesis generation.</strong> Chapter 13's exploration deliberately wants genuine variety across runs — caching there would defeat its actual purpose.</li>
+</ul>
+
+<h2>Best Practices</h2>
+<ul>
+  <li>Cache based on a hash of the complete, real input — never a partial key that could collide across genuinely different cases.</li>
+  <li>Reserve caching for calls where identical input should genuinely produce identical, reusable output — not for calls that deliberately want variety, like exploration.</li>
+</ul>
+
+<h2>Hands-On Exercise</h2>
+<p>Wrap Chapter 9's <code>classifyFailure</code> with this page's caching function in your own project. Deliberately trigger the same failure twice and confirm, using the usage-logging technique from earlier in this chapter, that the second call genuinely skips the AI request entirely.</p>
+
+<h2>Key Takeaways</h2>
+<ul>
+  <li>This caches AI judgment results for identical input — genuinely different from Chapter 8's deliberate test-data reproducibility cache.</li>
+  <li>A full-input hash as the cache key is what prevents a stale result from being silently reused for genuinely different evidence.</li>
+  <li>Not every call should be cached — calls that deliberately want variety, like Chapter 13's exploration, are the wrong fit for this technique.</li>
+</ul>
+</article>
+</body></html>

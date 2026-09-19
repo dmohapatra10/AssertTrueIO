@@ -1,0 +1,184 @@
+<!doctype html>
+<html><head>
+<title>Negative Test Cases: Confirming Things Correctly Fail</title>
+<meta name="description" content="How to generate genuine negative test cases with AI — confirming a feature correctly rejects invalid input, and why &#x27;correctly fails&#x27; needs as much precision as &#x27;correctly succeeds.&#x27;" />
+<link rel="canonical" href="https://asserttrue.io/TRACK/negative-test-cases.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Negative Test Cases</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="positive-test-cases.html">Positive Test Cases</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>A negative test case confirms a feature correctly rejects or handles invalid input — genuinely as important as positive coverage, and just as prone to a shallow, incomplete first pass if not approached deliberately.</p>
+
+<h2 id="beyond-it-shows-an-error">Beyond "It Shows an Error"</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>❌ A single, vague negative case:
+  "Invalid code shows an error."
+
+✅ Genuinely specific negative coverage, for the SAME requirement:
+  1. Apply a code that doesn't EXIST at all — clear "code not
+     found" error, discount not applied
+  2. Apply a code that's EXPIRED — clear "code expired" error,
+     specifically distinct from "not found"
+  3. Apply a code below its MINIMUM order value — clear error
+     stating the minimum threshold, discount not applied
+  4. Attempt to apply a SECOND code after one is already
+     applied — clear error that only one code is allowed,
+     first code remains applied and unaffected</code></pre>
+<p>Notice each negative case specifies not just "shows an error" but WHICH error, and — just as importantly — confirms the system's actual state afterward (discount not applied, first code remains intact), not just that some error text appeared somewhere.</p>
+
+<h2 id="why-correctly-fails-needs-real-precision">Why "Correctly Fails" Needs Real Precision</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A genuinely common, real bug this precision catches:
+
+Requirement implies THREE distinct failure reasons: code not
+found, code expired, order below minimum. A shallow
+implementation might show the SAME generic "Invalid code"
+message for all three — technically "showing an error," but
+genuinely unhelpful to a real user trying to understand what
+actually went wrong.
+
+A negative test case that only checks "AN error appears" would
+MISS this real problem entirely. A negative test case that
+checks for the SPECIFIC, correct error message catches it.</code></pre>
+
+<h2 id="a-genuinely-useful-prompt-for-negative-coverage">A Genuinely Useful Prompt for Negative Coverage</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def generate_negative_cases(requirement, client):
+    prompt = f"""Given this requirement, identify every distinct
+way a user could provide INVALID input or attempt something the
+requirement doesn't allow. For each one, write a negative test
+case that states the SPECIFIC expected error or rejection —
+not just 'shows an error', but what the error should actually
+communicate, and what the system's state should be afterward.
+
+Requirement:
+{requirement}
+"""
+    response = client.messages.create(
+        model="claude-sonnet-4-6", max_tokens=1024,
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return response.content[0].text</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might confirming the system's STATE after a failure (like "the first code remains applied and unaffected" in the second-code example) matter as much as confirming the error message itself appeared? A feature could correctly show an error message while ALSO incorrectly corrupting some other part of its state — for instance, accidentally removing the first valid code when rejecting the second one. A negative case that only checks for an error message would miss this second, genuinely real bug entirely; checking state afterward catches problems the error message alone doesn't reveal.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Writing negative cases that only check "an error occurs," without specifying WHICH error or what the system's state should be afterward. This page's discount-code example shows why: a system that shows an error but shows the WRONG error (or worse, the right error while silently corrupting other state) would incorrectly pass a negative case written this vaguely.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>For any negative case, it's genuinely useful to ask "what SHOULD the system's state be immediately after this failure?" — not just "does an error appear." A discount code that fails to apply should leave the order exactly as it was before the attempt; explicitly stating this expectation makes the negative case meaningfully more precise.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Specify the exact expected error or rejection reason for each negative case, not just "an error occurs."</li>
+  <li>Confirm the system's state after a failure, not just that an error message appeared.</li>
+  <li>Systematically identify every distinct way input could be invalid, rather than a single generic "bad input" case.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Negative test cases confirm a feature correctly rejects invalid input — genuinely requiring the same specificity as positive cases, not a vague "shows an error."</li>
+  <li>A precise negative case specifies both the exact expected error and the system's correct state afterward.</li>
+  <li>Checking system state after a failure catches real bugs (like corrupted unrelated state) that checking only for an error message would miss.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Write two additional negative cases for the discount-code requirement not covered by this page's four examples, being specific about both the exact expected error and the system's state afterward, matching this page's own level of precision.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A generated negative case says "applying an invalid code shows an error." A reviewer marks this as needing revision. What specifically is missing, and how would you rewrite it?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>It's missing exactly the two things this page argues every negative case needs: which SPECIFIC error should appear, and what the system's state should be afterward — "an error" alone doesn't distinguish between several genuinely different failure reasons the requirement actually describes.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Original, insufficiently specific:
+"Applying an invalid code shows an error."
+
+Revised, matching this page's actual standard:
+"Applying a code that does not exist shows the specific error
+  'Code not found', and the order's discount remains unapplied
+  — distinct from the error shown for an EXPIRED code, which
+  should read 'Code expired' rather than the same generic text."</code></pre>
+<p>The revision does two genuinely important things: it specifies exactly WHICH invalid-code scenario is being tested (not found, vs. expired, vs. below-minimum are all distinct), and it states the precise expected error text plus the resulting system state — turning a vague, unhelpfully generic case into something a reviewer can actually verify against a real implementation.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page argue that showing the SAME generic error message for three distinct failure reasons (not found, expired, below minimum) is a genuine bug worth a dedicated test case, not just a minor UX nitpick?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because a generic, undifferentiated error message genuinely fails the user in a concrete, practical way — someone whose code is simply expired has no way to know that from a generic "Invalid code" message, and might reasonably conclude they mistyped it, when the actual fix (get a new, valid code) is completely different.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Real, concrete user impact:
+User's code EXPIRED yesterday. Generic error: "Invalid code."
+  User assumes they TYPED it wrong, tries retyping the exact
+  same expired code several times, genuinely confused about
+  why it keeps failing — when the actual issue (expiration)
+  was never communicated at all.
+
+With the SPECIFIC error the requirement implies:
+"Code expired" — immediately, correctly tells the user the
+  actual problem, letting them seek a new, valid code instead
+  of repeatedly retrying something that will never work.</code></pre>
+<p>This is a genuine, real usability failure with a concrete negative consequence for actual users — exactly why this page insists on testing for the SPECIFIC error, not just the presence of some error, since the difference has real, practical impact beyond a cosmetic UX preference.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why confirming "the first code remains applied and unaffected" is a genuinely important part of the second-code-attempt negative case, beyond just checking that a rejection error appears.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because a system could correctly reject the second code while ALSO incorrectly disturbing the first, already-valid code's state — two genuinely separate things that both need to be correct, and checking only the rejection message would miss a real bug in the second part.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A realistic, real bug this specific check catches:
+System correctly shows "Only one code per order" when a second
+  code is attempted — the REJECTION itself works correctly.
+  But the buggy implementation ALSO accidentally clears the
+  FIRST, already-validly-applied code as a side effect of
+  processing the second (rejected) attempt.
+
+A negative case checking ONLY for the rejection message:
+Would PASS here — the correct error appeared. But the order
+  now incorrectly has NO discount applied at all, a genuine,
+  real bug that this shallow check completely misses.
+
+This page's more complete check — confirming the FIRST code's
+  state explicitly — catches exactly this kind of bug.</code></pre>
+<p>This is a direct, concrete illustration of why negative cases need to verify system state, not just the presence of an expected error message — the error being correct doesn't guarantee everything ELSE about the system's state is also correct.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you distinguish, in your own words, between a negative test case and a boundary test case that also happens to produce a failure (like "order value one cent below the minimum")?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Similar to the positive/boundary overlap from the previous page, these describe different dimensions — "negative vs. positive" is about the expected outcome (should this fail or succeed), while "boundary" is about where the input sits relative to a valid range. A single scenario can genuinely be both.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>"Order value one cent below the minimum threshold":
+
+As a NEGATIVE case: the EXPECTED OUTCOME is failure — the
+  discount should correctly NOT apply, with an appropriate
+  error explaining the order doesn't meet the minimum.
+
+As a BOUNDARY case: the specific INPUT VALUE was deliberately
+  chosen at the EDGE of the valid range (just below the
+  minimum) rather than a comfortably invalid value like "an
+  order of $0" — this precise, edge-adjacent choice is what
+  makes it a genuine boundary test specifically.</code></pre>
+<p>Just like the earlier positive/boundary overlap example, this isn't a classification problem needing a single correct answer — a scenario can genuinely be characterized as negative (by outcome) AND boundary (by where the input sits) at the same time, and a thorough test list should recognize this rather than forcing an artificial single category.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might it be worth explicitly prompting AI to identify "every distinct way input could be invalid" rather than just asking for "negative test cases" broadly?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This mirrors the exact same reasoning from the positive-cases page — a vague request leaves the LLM to decide its own scope, often converging on the single most obvious invalid-input scenario, while an explicit "enumerate every distinct way" instruction forces genuinely systematic coverage.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Vague prompt: "generate negative test cases"
+Likely result: one or two obvious cases, like "empty input" or
+  "wrong format" — genuinely useful, but likely MISSING the
+  requirement-specific failure modes (expired, below-minimum,
+  second-code-attempt) that are actually specific to THIS
+  particular feature, not generic to any input field.
+
+Explicit, systematic prompt (this page's actual approach):
+"Identify every distinct way a user could provide invalid
+  input or attempt something the requirement doesn't allow" —
+  this explicitly directs attention to the REQUIREMENT'S OWN
+  specific rules (one code per order, expiration, minimum
+  threshold), not just generic invalid-input patterns.</code></pre>
+<p>The deeper principle, consistent across this entire chapter: an explicit, systematic instruction tied directly to the actual requirement's own specific rules produces genuinely more complete, more relevant coverage than a generic request that could apply to any feature at all.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

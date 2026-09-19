@@ -1,0 +1,98 @@
+<!doctype html>
+<html><head>
+<title>AI-Generated Products</title>
+<meta name="description" content="Generating realistic product catalog data for ShopSmart, with the same variety discipline as the previous page, applied to a genuinely different data shape." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/ai-generated-products.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>AI-Generated Products</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="ai-generated-users-and-addresses.html">AI-Generated Users and Addresses</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Generating realistic product catalog data for ShopSmart</li>
+  <li>Why product data needs different variety dimensions than user data</li>
+  <li>Fixtures that generate a whole, coherent catalog, not isolated records</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>The previous page's approach transfers directly here, with one real difference worth being explicit about: products need to feel coherent as a catalog, not just individually realistic — prices in a believable range for the category, names that sound like real products, not just varied words.</p>
+
+<h2 id="step-by-step-implementation">Step-by-Step Implementation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/generate-product-data.ts
+import { askClaude } from './ai-client';
+
+export interface GeneratedProduct {
+  name: string;
+  category: string;
+  price: number;
+  inStock: boolean;
+  description: string;
+}
+
+export async function generateProducts(
+  category: string, count: number
+): Promise&lt;GeneratedProduct[]&gt; {
+  const prompt = `Generate ${count} realistic products for an
+e-commerce category: "${category}"
+
+Prices should be believable for this category — not
+suspiciously round numbers. Include a genuine mix of inStock
+true and false. Product names should sound like real products
+in this category, not generic placeholders.
+
+Respond with ONLY valid JSON:
+{"products": [{"name": string, "category": string,
+"price": number, "inStock": boolean, "description": string}]}`;
+
+  const raw = await askClaude(prompt);
+  const parsed = JSON.parse(raw);
+  if (!Array.isArray(parsed.products)) {
+    throw new Error(`Expected {"products": [...]} but got: ${raw.slice(0, 200)}`);
+  }
+  return parsed.products;
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p>"Not suspiciously round numbers" is a small but genuinely useful instruction — <code>$99.99</code> and <code>$847.50</code> read as real prices; <code>$100.00</code> and <code>$500.00</code> repeated across every generated product reads as obviously synthetic, undermining the entire point of realistic test data.</p>
+
+<h2 id="example-generating-shopsmart-s-laptop-category">Example — Generating ShopSmart's Laptop Category</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const products = await generateProducts('Laptops', 5);
+
+// REAL, believable output:
+// [
+//   { name: "ProBook 15 Laptop", category: "Laptops",
+//     price: 899.00, inStock: true, ... },
+//   { name: "UltraLight 13 Laptop", category: "Laptops",
+//     price: 1249.99, inStock: false, ... },
+//   { name: "Gaming Laptop X200", category: "Laptops",
+//     price: 1799.50, inStock: true, ... }
+//   ...
+// ]</code></pre>
+
+<h2 id="why-it-matters-testing-both-stock-states-genuinely">Why It Matters — Testing Both Stock States Genuinely</h2>
+<p>ShopSmart's "Add to Cart" button should behave differently for in-stock versus out-of-stock products — this is exactly the kind of behavior three hardcoded, always-in-stock products would never exercise. Generating a genuine mix, as this page's prompt explicitly requests, is what makes both code paths actually testable without writing separate, manual fixtures for each state.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Not requesting a mix of stock states explicitly.</strong> Without it, generated products tend to default toward "in stock," leaving the out-of-stock path untested.</li>
+  <li><strong>Accepting suspiciously round prices without noticing.</strong> These are a real, visible sign that generated data reads as synthetic — worth reviewing by eye before trusting a batch.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Request explicit state variety (stock status, price range) the same way the previous page requested demographic variety for users.</li>
+  <li>Spot-check generated prices for believability — a quick eye check catches the round-number problem immediately.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Generate products for two genuinely different ShopSmart categories — say, "Laptops" and "Phone Cases" — and compare the price ranges. Confirm they're believably different for each category, not the same generic range applied everywhere.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Product data needs its own, category-appropriate variety dimensions — believable pricing and a genuine mix of stock states, not just varied names.</li>
+  <li>A genuine mix of stock states is what makes both the in-stock and out-of-stock code paths actually testable.</li>
+  <li>The same generation discipline from the previous page — explicit variety requests — transfers directly, applied to a different real data shape.</li>
+</ul>
+</article>
+</body></html>

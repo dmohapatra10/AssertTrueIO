@@ -1,0 +1,118 @@
+<!doctype html>
+<html><head>
+<title>Screenshot and Network Analysis</title>
+<meta name="description" content="Using trace screenshots across the whole timeline, not just the single failure moment, and extracting the full network log a trace captures that Chapter 9 only sampled." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/screenshot-and-network-analysis.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Screenshot and Network Analysis</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="ai-trace-analysis.html">AI Trace Analysis</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Extracting screenshots from multiple points across a trace, not just the failure moment</li>
+  <li>Extracting the full network log from <code>trace.network</code></li>
+  <li>Correlating network failures with specific actions in the timeline</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>Chapter 9 captured one screenshot, at the moment of failure, and recent network failures from live listeners. A trace genuinely offers more of both — screenshots throughout the run, and the complete network log, not just the last several entries.</p>
+
+<h2 id="step-by-step-implementation-extracting-timeline-screenshots">Step-by-Step Implementation — Extracting Timeline Screenshots</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/extract-trace-screenshots.ts
+import AdmZip from 'adm-zip';
+
+export interface TimelineScreenshot {
+  actionIndex: number;
+  imagePath: string;
+}
+
+export function extractScreenshots(
+  traceZipPath: string, outputDir: string
+): TimelineScreenshot[] {
+  const zip = new AdmZip(traceZipPath);
+  const screenshots: TimelineScreenshot[] = [];
+
+  const entries = zip.getEntries().filter((e) =>
+    e.entryName.startsWith('resources/') && e.entryName.endsWith('.jpeg')
+  );
+
+  entries.forEach((entry, i) => {
+    const outputPath = `${outputDir}/step-${i}.jpeg`;
+    zip.extractEntryTo(entry, outputDir, false, true, false, `step-${i}.jpeg`);
+    screenshots.push({ actionIndex: i, imagePath: outputPath });
+  });
+
+  return screenshots;
+}</code></pre>
+
+<h2 id="step-by-step-implementation-extracting-the-full-network-log">Step-by-Step Implementation — Extracting the Full Network Log</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/extract-trace-network.ts
+import AdmZip from 'adm-zip';
+
+export interface NetworkEvent {
+  url: string;
+  method: string;
+  status?: number;
+  failed: boolean;
+  timestamp: number;
+}
+
+export function extractNetworkEvents(traceZipPath: string): NetworkEvent[] {
+  const zip = new AdmZip(traceZipPath);
+  const networkEntry = zip.getEntry('trace.network');
+  if (!networkEntry) return [];
+
+  const lines = zip.readAsText(networkEntry).split('\n').filter(Boolean);
+  return lines.map((line) => {
+    const event = JSON.parse(line);
+    return {
+      url: event.url,
+      method: event.method,
+      status: event.status,
+      failed: !event.status || event.status &gt;= 400,
+      timestamp: event.timestamp,
+    };
+  });
+}</code></pre>
+
+<h2 id="why-it-matters-correlating-network-failures-with-actions">Why It Matters — Correlating Network Failures With Actions</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>function correlateNetworkWithActions(
+  actions: TraceAction[], networkEvents: NetworkEvent[]
+) {
+  return actions.map((action) =&gt; ({
+    ...action,
+    concurrentFailures: networkEvents.filter(
+      (n) =&gt; n.failed &amp;&amp; Math.abs(n.timestamp - action.timestamp) &lt; 500
+    ),
+  }));
+}
+
+// A REAL, useful finding: the "click Checkout" action at
+// timestamp 460 had a CONCURRENT, failed network request to
+// /api/cart/validate — a GENUINE, likely candidate for WHY the
+// next action's confirmation page never LOADED correctly</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Only looking at the final screenshot, ignoring earlier ones in the timeline.</strong> An earlier screenshot showing an unexpected modal or loading state often explains a later failure more directly than the final image alone.</li>
+  <li><strong>Treating network and action data as unrelated evidence.</strong> This page's correlation function shows real, genuine value in connecting them — a failed request near a specific action is a strong, concrete lead.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Extract screenshots across the whole timeline when investigating a genuinely confusing failure, not just the final one.</li>
+  <li>Correlate network failures with nearby actions by timestamp — this connection is often more informative than either evidence source alone.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Run <code>extractNetworkEvents</code> against a real trace and use <code>correlateNetworkWithActions</code> to check whether any action in your timeline had a concurrent network failure. If one exists, investigate whether it's genuinely related to your test's actual failure.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>A trace's screenshots span the whole timeline, not just the failure moment — genuinely more than Chapter 9's single capture.</li>
+  <li>The full network log, extracted from <code>trace.network</code>, goes beyond Chapter 9's live-listener sample of recent failures.</li>
+  <li>Correlating network events with nearby actions by timestamp often reveals connections neither evidence source shows clearly on its own.</li>
+</ul>
+</article>
+</body></html>

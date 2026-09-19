@@ -1,0 +1,181 @@
+<!doctype html>
+<html><head>
+<title>playwright.config.ts Explained: The Options That Actually Matter</title>
+<meta name="description" content="A practical walkthrough of the playwright.config.ts options that matter most in real projects — timeouts, retries, workers, reporters, and the use block." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/playwright-config-options.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Configuration Options</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="getting-started.html">Getting Started</a>, <a href="network-mocking-and-routes.html">Network Mocking</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+  <p><code>playwright.config.ts</code> has been referenced throughout this course — <code>baseURL</code>, <code>storageState</code>, <code>trace</code>, <code>testIdAttribute</code>. This chapter is the consolidated, dedicated look at the config file itself: the options that matter for almost every real project, in one place.</p>
+
+  <h2 id="why-it-s-important">Why it's important</h2>
+  <p>Scattering environment-specific values (base URLs, timeouts, credentials) through individual test files means changing environments requires editing many files. Centralizing them in config means switching environments, tuning reliability, or adjusting reporting is a one-line change.</p>
+
+  <h2 id="the-options-that-matter-most">The Options That Matter Most</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import { defineConfig, devices } from '@playwright/test';
+
+export default defineConfig({
+  testDir: './tests',
+  timeout: 30_000,               // per-test timeout
+  expect: { timeout: 5_000 },    // per-assertion timeout
+  retries: process.env.CI ? 2 : 0,
+  workers: process.env.CI ? 4 : undefined, // undefined = auto-detect based on CPU cores
+  fullyParallel: true,
+  reporter: [['html'], ['junit', { outputFile: 'results.xml' }]],
+  outputDir: 'test-results',
+
+  use: {
+    baseURL: process.env.BASE_URL || 'http://localhost:3000',
+    trace: 'on-first-retry',
+    screenshot: 'only-on-failure',
+    video: 'retain-on-failure',
+  },
+
+  projects: [
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
+  ],
+});</code></pre>
+
+  <h2 id="timeout-vs-expect-timeout">timeout vs. expect.timeout</h2>
+  <p>These are easy to confuse because they sound similar but apply at different scopes:</p>
+  <table>
+    <thead><tr><th>Option</th><th>Applies to</th><th>Default</th></tr></thead>
+    <tbody>
+      <tr><td><code>timeout</code></td><td>The whole test — everything it does, combined</td><td>30 seconds</td></tr>
+      <tr><td><code>expect.timeout</code></td><td>Each individual web-first assertion's retry window</td><td>5 seconds</td></tr>
+    </tbody>
+  </table>
+  <p>A test can have a 30-second overall timeout while each assertion within it only gets 5 seconds to resolve before that specific assertion fails — raising the global <code>timeout</code> doesn't extend how long any single assertion waits.</p>
+
+  <h2 id="the-remaining-options-testmatch-fullyparallel-outputdir-browsername-webserver-reporter">The Remaining Options: testMatch, fullyParallel, outputDir, browserName, webServer, reporter</h2>
+  <p>Six more options round out the set that matters for almost every project — each shown above in passing, each worth its own explanation:</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export default defineConfig({
+  testMatch: '**/*.spec.ts',      // which files count as tests (this is the default pattern)
+  fullyParallel: true,             // parallelize individual tests within a file, not just whole files
+  outputDir: 'test-results',       // where screenshots/videos/traces get written
+  reporter: 'html',                // which reporter(s) to use — see the Reporting chapter for the full set
+
+  use: {
+    browserName: 'chromium',       // explicit engine choice, when not using the projects array
+  },
+
+  webServer: {
+    command: 'npm run start',      // start the app under test automatically before running tests
+    url: 'http://localhost:3000',
+    reuseExistingServer: !process.env.CI,
+  },
+});</code></pre>
+  <ul>
+    <li><strong><code>testMatch</code></strong> — the glob or regex pattern deciding which files the runner treats as tests. The default (<code>**/*.spec.ts</code>) is usually fine; it becomes useful to override when splitting test categories into different projects, as the Projects chapter shows for a smoke-vs-regression split.</li>
+    <li><strong><code>fullyParallel</code></strong> — by default, Playwright parallelizes at the file level, running whole files concurrently across workers but tests <em>within</em> one file sequentially. Setting this to <code>true</code> parallelizes individual tests too, which is usually faster but places a stricter demand on true test isolation within a file (covered in the Parallelism chapter).</li>
+    <li><strong><code>outputDir</code></strong> — where Playwright writes artifacts a test run produces: failure screenshots, videos, and traces. Rarely needs changing from its default, but worth knowing about before a screenshot path in an error message looks unfamiliar.</li>
+    <li><strong><code>browserName</code></strong> — sets the browser engine directly inside <code>use</code>, as an alternative to defining a full <code>projects</code> array. Fine for a single-browser setup; once more than one browser or device target is needed, the <code>projects</code> array (Projects chapter) is the better tool, since <code>browserName</code> alone can't express "run this suite against three different browsers."</li>
+    <li><strong><code>webServer</code></strong> — tells Playwright to start (and wait for) the application under test itself before running any tests, instead of assuming it's already running. <code>reuseExistingServer: !process.env.CI</code> is the standard pattern: locally, reuse a dev server you likely already have running; in CI, always start a fresh one.</li>
+    <li><strong><code>reporter</code></strong> — which output format(s) to generate; accepts a single reporter name or an array of several at once. The full comparison of <code>html</code>, <code>junit</code>, <code>json</code>, <code>github</code>, and <code>list</code> — and when to use which — is covered in depth in the Reporting chapter.</li>
+  </ul>
+  <p><code>webServer</code> is worth calling out specifically: without it, every engineer and every CI job needs to remember to start the app manually before running tests, which is exactly the kind of easy-to-forget manual step that <code>playwright.config.ts</code> centralizing config is meant to eliminate — <code>npx playwright test</code> alone becomes enough to run the whole suite from a clean checkout.</p>
+
+  <h2 id="basic-example-environment-aware-retries-and-workers">Basic Example — Environment-Aware Retries and Workers</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export default defineConfig({
+  retries: process.env.CI ? 2 : 0,
+  workers: process.env.CI ? 4 : undefined,
+});</code></pre>
+  <p>Retries are usually enabled only in CI, not locally — locally, a failing test should surface immediately for debugging, not silently retry and mask a real, reproducible problem. Workers default to <code>undefined</code> locally (auto-detected from CPU cores) but are often pinned to a specific number in CI, where the runner's actual available cores may differ from what auto-detection assumes.</p>
+
+  <h2 id="detailed-example-per-test-overrides">Detailed Example — Per-Test Overrides</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// A specific test needs more time than the global default —
+// override locally rather than raising the timeout for the whole suite
+test('generates a large PDF export', async ({ page }) =&gt; {
+  test.setTimeout(90_000);
+  // ...
+});
+
+// Or override use-block options just for one file
+test.use({ viewport: { width: 390, height: 844 } });</code></pre>
+  <p>Prefer scoped overrides like these over raising a global default — a single genuinely slow test shouldn't force every test in the suite to wait longer before Playwright considers it hung.</p>
+
+  <h2 id="real-world-example-a-config-tuned-for-ci-reliability">Real-World Example — A Config Tuned for CI Reliability</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export default defineConfig({
+  testDir: './tests',
+  fullyParallel: true,
+  forbidOnly: !!process.env.CI, // fail the build if test.only() was accidentally committed
+  retries: process.env.CI ? 2 : 0,
+  workers: process.env.CI ? 4 : undefined,
+  reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'list',
+
+  use: {
+    baseURL: process.env.BASE_URL,
+    trace: 'on-first-retry',
+    screenshot: 'only-on-failure',
+  },
+});</code></pre>
+  <p><code>forbidOnly</code> is a small but valuable safeguard from the Test Runner chapter's common mistakes — it turns an accidentally committed <code>test.only()</code> into a hard CI failure instead of a silently disabled suite.</p>
+
+  <h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Hardcoded, environment-specific values scattered across test files
+await page.goto('https://staging.example.com/login');
+
+// ✅ Centralized in config, referenced via environment variable
+// use: { baseURL: process.env.BASE_URL }
+await page.goto('/login');</code></pre>
+
+  <h2 id="common-mistakes">Common Mistakes</h2>
+  <ul>
+    <li><strong>Confusing <code>timeout</code> and <code>expect.timeout</code></strong>, raising the wrong one when a specific assertion needs more time.</li>
+    <li><strong>Enabling retries locally</strong>, which can mask a genuinely flaky test that should be investigated, not silently passed on a second attempt.</li>
+    <li><strong>Hardcoding a fixed worker count</strong> that doesn't match the actual CI runner's available cores, either under- or over-subscribing it.</li>
+    <li><strong>Not setting <code>forbidOnly</code> for CI</strong>, allowing an accidentally committed <code>test.only()</code> to silently skip the rest of the suite in production CI runs.</li>
+  </ul>
+
+  <h2 id="edge-cases">Edge Cases</h2>
+  <ul>
+    <li><strong>Different timeout needs per project</strong> (e.g., mobile Safari genuinely slower than desktop Chrome) — timeouts can be set per-project, not just globally, when one browser/device target consistently needs more headroom.</li>
+    <li><strong>CI environments with variable, shared CPU availability</strong> — a fixed <code>workers</code> count is often safer than auto-detection on shared CI infrastructure, where the reported core count may not reflect actually available capacity.</li>
+  </ul>
+
+  <h2 id="debugging">Debugging</h2>
+  <p>If a test times out and it's unclear whether it's the overall <code>timeout</code> or a specific <code>expect.timeout</code>, the error message names which one was exceeded — read it before adjusting either value, since raising the wrong one won't fix the actual issue.</p>
+
+  <h2 id="best-practices">Best Practices</h2>
+  <ul>
+    <li>Centralize every environment-specific value in config, referenced via environment variables — never hardcode a base URL or credential in a test file.</li>
+    <li>Keep retries off locally, on in CI.</li>
+    <li>Set <code>forbidOnly: !!process.env.CI</code> as a standing safeguard.</li>
+    <li>Override timeouts locally, per-test or per-project, rather than raising global defaults for the whole suite.</li>
+  </ul>
+
+  <h2 id="practice-exercise">Practice Exercise</h2>
+  <p>Write a <code>playwright.config.ts</code> that uses a different <code>baseURL</code> depending on an environment variable, enables retries and a fixed worker count only in CI, and sets <code>forbidOnly</code> appropriately.</p>
+
+  <h2 id="summary">Summary</h2>
+  <p><code>playwright.config.ts</code> centralizes everything environment- and reliability-related — base URL, timeouts (both global and per-assertion), retries, workers, and reporters — so switching environments or tuning CI behavior is a config change, not a multi-file edit. Environment variables plus conditional config values (like <code>process.env.CI</code>) are the standard way to make one config file serve both local and CI runs correctly.</p>
+
+  <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why would a team typically enable retries in CI but not locally?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Locally, a developer wants immediate, clear feedback when a test fails so they can debug it right away — a silent retry that happens to pass the second time could mask a real, reproducible bug. In CI, some flakiness genuinely comes from environment variance (slower shared runners, network jitter) that isn't worth blocking a build over, so a bounded retry count there absorbs that noise while still surfacing consistently failing tests as real failures.</div>
+</details>
+<details class="faq-item">
+<summary>Why doesn't raising the global timeout fix an assertion that keeps timing out?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">timeout and expect.timeout are separate scopes — the global one covers the whole test, while each assertion has its own independent retry window.</div>
+</details>
+<details class="faq-item">
+<summary>Why is enabling retries locally usually discouraged?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A silent retry that happens to pass on a second attempt can mask a real, reproducible bug a developer would otherwise catch immediately.</div>
+</details>
+<details class="faq-item">
+<summary>What does forbidOnly actually protect against?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">An accidentally committed test.only() silently disabling the rest of the suite in CI — forbidOnly turns it into a hard build failure instead.</div>
+</details>
+<details class="faq-item">
+<summary>Why is webServer valuable beyond just convenience?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It removes an easy-to-forget manual step (starting the app) so a clean checkout can run the whole suite with just npx playwright test.</div>
+</details>
+</div>
+</article>
+</body></html>

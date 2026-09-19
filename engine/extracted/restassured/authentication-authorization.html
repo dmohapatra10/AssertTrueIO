@@ -1,0 +1,76 @@
+<!doctype html>
+<html><head>
+<title>Authentication &amp; Authorization in RestAssured: A Complete Guide</title>
+<meta name="description" content="Every authentication mechanism you&#x27;ll encounter testing real APIs with RestAssured — Basic, Bearer, API keys, OAuth 2.0, JWT — plus token reuse and role-based testing." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/authentication-authorization.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Authentication & Authorization</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="json-serialization-deserialization.html">JSON, Serialization & Deserialization</a></p>
+<article class="content">
+<h2 id="proving-who-you-are-and-what-you-re-allowed-to-do">Proving Who You Are, and What You're Allowed to Do</h2>
+<p>Almost no real-world API is fully open — nearly everything you test in a real job sits behind some form of authentication. Here's every mechanism you're likely to encounter, across six pages:</p>
+<ol>
+  <li><a href="basic-and-bearer-authentication.html">Basic & Bearer Authentication</a> — the two simplest, most common mechanisms</li>
+  <li><a href="api-key-authentication.html">API Key Authentication</a> — header-based and query-parameter-based approaches</li>
+  <li><a href="oauth2-authentication.html">OAuth 2.0 Authentication</a> — access tokens, refresh tokens, client credentials</li>
+  <li><a href="jwt-authentication.html">JWT Authentication</a> — structure, validation, and what's actually inside a token</li>
+  <li><a href="authentication-reuse-and-token-management.html">Authentication Reuse & Token Management</a> — avoiding a fresh login on every single test</li>
+  <li><a href="role-based-api-testing.html">Role-Based API Testing</a> — testing what different user roles can and can't do</li>
+</ol>
+
+<h2 id="authentication-vs-authorization-a-reminder">Authentication vs. Authorization — A Reminder</h2>
+<p>An earlier page introduced this distinction conceptually: <strong>authentication</strong> answers "who are you?"; <strong>authorization</strong> answers "what are you allowed to do?" The first four pages here are almost entirely about authentication — proving identity, in various mechanisms. The sixth page, Role-Based API Testing, is where authorization becomes the real focus — testing that an authenticated-but-insufficiently-privileged user correctly gets blocked.</p>
+
+<h2 id="why-authentication-testing-is-its-own-skill">Why Authentication Testing Is Its Own Skill</h2>
+<p>It's tempting to treat authentication as a one-time setup detail — log in once, get a token, move on to "the real testing." In practice, authentication logic is itself a frequent source of real bugs: tokens that don't expire when they should, permission checks that are inconsistent across endpoints, refresh flows that silently fail. Treating authentication as worth testing in its own right, not just a precondition to get past, is what the pages ahead are really about.</p>
+
+<h2 id="a-quick-preview-the-same-protected-endpoint-four-ways">A Quick Preview — The Same Protected Endpoint, Four Ways</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Basic Auth
+given().auth().basic("username", "password").when().get("/profile");
+
+// Bearer Token
+given().header("Authorization", "Bearer " + token).when().get("/profile");
+
+// API Key
+given().header("X-API-Key", apiKey).when().get("/profile");
+
+// OAuth 2.0 (conceptually — the token itself is still sent as a Bearer token)
+given().auth().oauth2(accessToken).when().get("/profile");</code></pre>
+<p>Notice how similar these look in code — most of the real complexity in authentication testing isn't in the RestAssured syntax itself (which is often a single line), it's in correctly <em>obtaining</em> the credential in the first place, and reusing it efficiently across a whole test suite. That's where this chapter spends most of its depth.</p>
+
+<h2 id="common-mistakes-to-watch-for">Common Mistakes to Watch For</h2>
+<ul>
+  <li><strong>Logging in fresh for every single test</strong> instead of reusing a token — covered fully on the Token Management page, and one of the most impactful performance fixes available to a slow test suite.</li>
+  <li><strong>Only testing the authenticated-success path</strong>, never a missing/invalid/expired token, or a valid-but-insufficiently-privileged user.</li>
+  <li><strong>Hardcoding real credentials directly in test code</strong> instead of reading them from environment variables or a secrets manager — never acceptable, even for a test environment.</li>
+</ul>
+
+<h2 id="what-you-ll-be-able-to-do">What You'll Be Able to Do</h2>
+<p>By the end of the six pages that follow, you should be able to implement and test any of the four major authentication mechanisms, build a reusable token manager so your suite isn't re-authenticating on every test, and design tests that verify not just "can this user log in" but "does this user have exactly the permissions they should, and not more." Start with Basic & Bearer Authentication below.</p>
+      
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>What's the practical difference between authentication and authorization in test terms?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Authentication tests answer 'who are you' — missing/invalid/expired credentials; authorization tests answer 'what are you allowed to do' — a genuinely valid identity attempting something outside its permissions, which is a 403, not a 401.</div>
+</details>
+<details class="faq-item">
+<summary>Why treat authentication as worth testing in its own right, not just a precondition to get past?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Authentication logic itself is a frequent source of real bugs — tokens that don't expire correctly, inconsistent permission checks, silently broken refresh flows — all invisible if auth is only ever treated as setup boilerplate.</div>
+</details>
+<details class="faq-item">
+<summary>What do Basic, Bearer, API Key, and OAuth all reduce to once a credential is actually obtained?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">In code, most look nearly identical — typically a single header. The real complexity in authentication testing is in correctly OBTAINING and reusing the credential efficiently, not in the syntax of attaching it to a request.</div>
+</details>
+<details class="faq-item">
+<summary>Why never hardcode credentials, even for a dedicated test-only account?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Hardcoded credentials in source code are a real exposure risk regardless of whether the account is 'just for testing' — reading from environment variables or a secrets manager is the only acceptable pattern.</div>
+</details>
+<details class="faq-item">
+<summary>Why is authentication described as a discipline worth testing in its own right, not just a precondition?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Authentication logic is itself a frequent source of real bugs — tokens that don't expire correctly, inconsistent permission checks — treating it as mere setup boilerplate means those bugs go untested.</div>
+</details>
+</div>
+</article>
+</body></html>

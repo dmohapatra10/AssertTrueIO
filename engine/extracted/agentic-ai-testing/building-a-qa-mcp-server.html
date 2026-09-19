@@ -1,0 +1,206 @@
+<!doctype html>
+<html><head>
+<title>Building a QA MCP Server: A Real, Working Server From Scratch</title>
+<meta name="description" content="A genuine, complete QA MCP server exposing multiple tools and a resource together, plus the practical setup and running details this chapter&#x27;s earlier snippets left out." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/building-a-qa-mcp-server.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Building a QA MCP Server</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="mcp-tools-and-resources.html">MCP Tools and Resources</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>The previous two pages showed individual tool and resource snippets. This page puts them together into one genuine, complete, runnable server — the actual artifact you'd build, not fragments.</p>
+
+<h2 id="a-complete-real-qa-mcp-server">A Complete, Real QA MCP Server</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># qa_server.py
+from mcp.server.fastmcp import FastMCP
+import json
+
+mcp = FastMCP("shopeasy-qa-server")
+
+@mcp.tool()
+def check_status_code(url: str) -> dict:
+    """Makes a GET request to the given URL and returns its
+    HTTP status code and response time in milliseconds."""
+    import requests, time
+    start = time.time()
+    response = requests.get(url, timeout=10)
+    elapsed_ms = round((time.time() - start) * 1000, 1)
+    return {"status_code": response.status_code, "elapsed_ms": elapsed_ms}
+
+@mcp.tool()
+def run_smoke_test(environment: str) -> dict:
+    """Runs the ShopEasy smoke test suite against 'staging' or
+    'production' and returns pass/fail counts."""
+    if environment not in ("staging", "production"):
+        return {"error": f"Unknown environment: {environment}"}
+    # ... actual test execution would go here ...
+    result = {"passed": 42, "failed": 1, "environment": environment}
+    with open("last_smoke_test_result.json", "w") as f:
+        json.dump(result, f)
+    return result
+
+@mcp.resource("shopeasy://qa/last-smoke-test-result")
+def get_last_smoke_test_result() -> dict:
+    """The most recent smoke test result on record. May be
+    stale — does not run a new test."""
+    with open("last_smoke_test_result.json") as f:
+        return json.load(f)
+
+if __name__ == "__main__":
+    mcp.run()</code></pre>
+
+<h2 id="running-it">Running It</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># Install the SDK
+pip install mcp
+
+# Run the server directly (uses stdio transport by default)
+python qa_server.py</code></pre>
+<p>This is genuinely all it takes to have a working MCP server — the SDK handles the JSON-RPC protocol details from earlier pages; the actual work is writing genuinely well-described tools and resources, exactly this page's real content.</p>
+
+<h2 id="why-the-environment-check-belongs-in-the-tool-itself">Why the Environment Check Belongs in the Tool Itself</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Notice run_smoke_test validates its OWN environment parameter
+(rejecting anything besides "staging" or "production") RATHER
+THAN trusting whatever the CLIENT happens to send. This is
+EXACTLY the same tool-level guardrail principle from Chapter
+2 — a tool should be DEFENSIVE about its OWN inputs, since it
+has NO real control over what a CLIENT'S reasoning might
+decide to send, correctly or not.</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why does <code>run_smoke_test</code> also write its result to a file that <code>get_last_smoke_test_result</code> then reads? This connects the tool and resource together deliberately — running a fresh test genuinely updates what "most recent" means for the resource, so a client checking the resource after calling the tool gets a result that reflects reality, not a stale value from before the tool call. Without this connection, the tool and resource would be two disconnected capabilities that happen to share a similar name, rather than a genuinely coherent pair.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Trusting that a client will only ever send well-formed, expected parameter values to a tool, skipping input validation inside the tool itself. This page's own <code>run_smoke_test</code> validates its environment parameter directly — a tool has no control over what a client's reasoning decides to send.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>When a tool and a resource are genuinely related — like this page's smoke-test tool and its last-result resource — deliberately connecting them (the tool updates what the resource reads) makes the server's overall behavior more coherent and predictable for any client using both.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Validate tool inputs defensively inside the tool itself, never trusting a client to only send well-formed values.</li>
+  <li>Connect genuinely related tools and resources deliberately, so calling one meaningfully affects what the other reports.</li>
+  <li>Keep a server's actual runnable setup simple and documented — the SDK handles protocol details; your real work is well-described, well-validated capabilities.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>A complete MCP server combines multiple genuinely well-described tools and resources, connected where they're meaningfully related.</li>
+  <li>Tool-level input validation is a genuine guardrail responsibility, since a server has no control over what a client's reasoning sends.</li>
+  <li>Running an MCP server built with the official SDK is genuinely simple — the real engineering effort goes into designing the capabilities themselves, not the protocol plumbing.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Add a third tool to this page's server, <code>check_broken_links(url: str) -> list</code>, that fetches a page and returns any links that return a non-200 status — following this page's pattern of defensive input handling and a genuinely specific docstring.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A teammate removes the environment validation from run_smoke_test, arguing "the client's reasoning should already only send valid values." Why is this a genuine risk, using this page's own reasoning?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This directly repeats a mistake this course has warned against since Chapter 2 — trusting a REASONING process to always produce well-formed input is a GENUINE risk, since an LLM's reasoning, however GOOD, isn't PERFECTLY reliable, and the TOOL is the LAST line of DEFENSE against a MALFORMED call.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why "the client SHOULD only send VALID values" is GENUINELY
+insufficient:
+An LLM's reasoning, EVEN when GENERALLY reliable, can STILL
+  occasionally MISINTERPRET a situation or HALLUCINATE a
+  PLAUSIBLE-but-WRONG parameter value (exactly Chapter 12's
+  OWN concern about TOOL parameter accuracy) — "should" is NOT
+  a GUARANTEE, and the TOOL itself is the ONLY thing that
+  ACTUALLY controls what happens WHEN a malformed value
+  ARRIVES regardless.
+
+What REMOVING this check GENUINELY risks:
+If a CLIENT'S reasoning SOMEHOW sends environment="prod" (a
+  PLAUSIBLE but INCORRECT value, NOT matching the EXPECTED
+  "production"), WITHOUT the check, this could SILENTLY
+  proceed with UNDEFINED or INCORRECT behavior, rather than
+  FAILING CLEARLY and IMMEDIATELY with a HELPFUL error message.</code></pre>
+<p>This is EXACTLY the SAME defensive-tool-design PRINCIPLE this course established in Chapter 2 — a TOOL'S OWN validation is GENUINELY necessary PRECISELY because it CANNOT fully TRUST the REASONING process CALLING it, REGARDLESS of how GOOD that reasoning USUALLY is.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page connect run_smoke_test and get_last_smoke_test_result through a shared file, rather than keeping them completely independent?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Keeping them INDEPENDENT would mean the RESOURCE could report a GENUINELY stale result even IMMEDIATELY after a client RUNS a fresh test through the TOOL — CONNECTING them ensures the RESOURCE'S "most recent" claim is ACTUALLY, GENUINELY accurate.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What would happen WITHOUT the connection:
+A client calls run_smoke_test("staging"), gets a FRESH result
+  showing 42 passed. It THEN calls get_last_smoke_test_result,
+  expecting to see THAT SAME fresh result — but WITHOUT the
+  shared FILE connecting them, the RESOURCE might STILL be
+  reading from an OLD, STALE result file from DAYS ago,
+  GENUINELY misleading the CLIENT about what "MOST RECENT"
+  actually MEANS.
+
+What the SHARED file connection GUARANTEES INSTEAD:
+The TOOL'S execution DIRECTLY updates the SAME file the
+  RESOURCE reads FROM — ensuring the RESOURCE'S claim of being
+  the "MOST recent" result is ACTUALLY, GENUINELY true,
+  REGARDLESS of WHEN or HOW it's subsequently QUERIED.</code></pre>
+<p>This is a GENUINELY important design consideration for ANY server exposing RELATED tools and resources — WITHOUT deliberate connection, a "MOST recent" claim can SILENTLY become FALSE, undermining a CLIENT'S ability to TRUST what the RESOURCE actually reports.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why check_status_code returns BOTH status_code AND elapsed_ms, rather than JUST the status code alone.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>These SERVE genuinely DIFFERENT diagnostic purposes — status_code confirms WHETHER the request SUCCEEDED at the PROTOCOL level, while elapsed_ms provides GENUINELY useful PERFORMANCE context a CLIENT'S reasoning might NEED to make a WELL-INFORMED decision about WHAT to do NEXT.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why status_code ALONE would be GENUINELY less useful:
+A 200 status ALONE doesn't tell a CLIENT whether the request
+  was GENUINELY fast or CONCERNINGLY slow — a CLIENT REASONING
+  about WHETHER to flag a POTENTIAL performance issue (exactly
+  Chapter 7's OWN concern) would have NO way to make THAT
+  determination from the STATUS CODE alone.
+
+Why INCLUDING elapsed_ms GENUINELY adds VALUE:
+A CLIENT'S reasoning can NOW directly OBSERVE "this request
+  SUCCEEDED (200) but took 4200ms" — POTENTIALLY prompting
+  FURTHER investigation, EXACTLY the kind of RICH, USEFUL
+  signal a WELL-DESIGNED tool should PROVIDE rather than
+  FORCING a client to make a SEPARATE call JUST to get TIMING
+  information.</code></pre>
+<p>This is a genuinely GOOD design choice worth NOTICING — a WELL-DESIGNED tool RETURNS the INFORMATION a client's REASONING is LIKELY to actually NEED, not just the MINIMAL, BARE answer to the MOST OBVIOUS question, saving the CLIENT from needing MULTIPLE, SEPARATE calls to GATHER genuinely RELATED context.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might it be a mistake to add MORE tools to this server WITHOUT also updating its OVERALL documentation or organization, even if EACH INDIVIDUAL tool has a GOOD docstring?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A server with MANY WELL-DOCUMENTED but UNORGANIZED tools can STILL become GENUINELY hard for a CLIENT to reason ABOUT effectively — connecting to Chapter 2's OWN point that TOOL SCOPE and CLARITY matter at the SYSTEM level, not JUST for EACH individual tool in ISOLATION.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why INDIVIDUALLY good docstrings AREN'T automatically
+sufficient AT SCALE:
+A server with FIFTEEN TOOLS, EACH individually well-described,
+  can STILL present a GENUINELY confusing CHOICE for a client's
+  REASONING if there's NO clear ORGANIZATION or GROUPING —
+  "WHICH of these FIFTEEN tools is GENUINELY relevant RIGHT
+  NOW" becomes a HARDER question as the NUMBER of TOOLS grows,
+  REGARDLESS of how GOOD each INDIVIDUAL description is.
+
+Why THOUGHTFUL organization GENUINELY matters AT SCALE:
+GROUPING related tools (perhaps ALL smoke-test-related tools
+  TOGETHER, ALL performance-related tools SEPARATELY), and
+  MAINTAINING a CLEAR, OVERALL description of the SERVER'S
+  PURPOSE, helps a CLIENT'S reasoning NAVIGATE a LARGER tool
+  set EFFECTIVELY, rather than TREATING every tool as an
+  EQUALLY-weighted, UNDIFFERENTIATED option.</code></pre>
+<p>This is a GENUINELY practical, FORWARD-LOOKING concern — THIS page's THREE-tool example is SMALL enough that ORGANIZATION isn't YET a PRESSING issue, but a REAL, GROWING QA server WOULD genuinely benefit from THINKING about this EARLY, rather than LETTING it become an UNMANAGEABLE PROBLEM only AFTER dozens of TOOLS have ACCUMULATED.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you extend this page's server to expose a genuine capability from Chapter 9 — flaky test detection — as either a tool or a resource, and which would you choose?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This genuinely belongs as a TOOL, not a resource — applying this chapter's OWN "ten times in a row" test, running Chapter 9's OWN <code>detect_flaky_tests</code> function against FRESH historical data each time involves GENUINE computation, not a SIMPLE, static READ.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@mcp.tool()
+def detect_flaky_tests_for_environment(environment: str) -&gt; list:
+    """Analyzes recent test run history for the given
+    environment and returns a list of tests showing genuine
+    flakiness (inconsistent results under identical conditions),
+    using the same detection logic from Chapter 9."""
+    if environment not in ("staging", "production"):
+        return [{"error": f"Unknown environment: {environment}"}]
+    historical_runs = load_recent_test_history(environment)
+    # reuses Chapter 9's OWN detect_flaky_tests function directly:
+    return detect_flaky_tests(historical_runs)</code></pre>
+<p>Applying THIS page's OWN "ten TIMES in a ROW" test CONFIRMS the TOOL choice — running THIS AGAINST FRESH, CURRENT historical DATA each TIME involves REAL computation (GROUPING, statistical ANALYSIS) that could GENUINELY produce DIFFERENT results as NEW test runs ACCUMULATE over TIME, CLEARLY distinguishing it from a SIMPLE, STATIC resource LOOKUP — exactly the kind of PRACTICAL application of THIS page's OWN tool-vs-resource REASONING to a GENUINELY new, REAL capability drawn FROM earlier IN this COURSE.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

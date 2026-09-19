@@ -1,0 +1,140 @@
+<!doctype html>
+<html><head>
+<title>Playwright Architecture Explained: Browsers, Contexts, and Pages</title>
+<meta name="description" content="Understand how Playwright actually works under the hood — browser servers, browser contexts, pages, and the WebSocket protocol that makes it fast and reliable." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/architecture.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Chapter 3: Playwright Architecture</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="introduction.html">Introduction to Playwright</a>, <a href="getting-started.html">Getting Started</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+      <p>This chapter explains the layers Playwright is built from — Browser, BrowserContext, and Page — and how they relate to each other. Understanding this model isn't optional trivia: it's what explains why Playwright tests are fast, isolated, and able to simulate multiple users without opening multiple browsers.</p>
+
+      <h2 id="why-is-it-important">Why is it important?</h2>
+      <p>Almost every confusing Playwright bug traces back to a misunderstanding of this hierarchy — state leaking between tests, cookies persisting when they shouldn't, or slow tests from launching a fresh browser too often. Once the model clicks, those problems mostly stop happening.</p>
+
+      <h2 id="the-three-layers">The three layers</h2>
+      <p><strong>Browser</strong> — a single running instance of Chromium, Firefox, or WebKit. Launching a browser is relatively expensive (hundreds of milliseconds), so Playwright is designed to launch it once and reuse it across many tests.</p>
+      <p><strong>BrowserContext</strong> — an isolated, incognito-like session within that browser. Each context has its own cookies, local storage, cache, and permissions, completely separate from every other context — even though they all share the same underlying browser process. Creating a new context is cheap (a few milliseconds), unlike launching a new browser.</p>
+      <p><strong>Page</strong> — a single tab or window within a context. A context can hold multiple pages, which is exactly how Playwright tests multi-tab flows (e.g., a link that opens a new tab).</p>
+
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Browser
+   │
+   ├── BrowserContext
+   │       │
+   │       ├── Page
+   │       ├── Page
+   │       └── Page
+   │
+   └── BrowserContext
+           │
+           └── Page</code></pre>
+      <p>One <code>Browser</code> process at the root. Any number of isolated <code>BrowserContext</code>s inside it — the diagram shows two, but there can be as many as a test needs. Each context holds any number of <code>Page</code>s — the first context above has three tabs open simultaneously, the second has just one. Every branch is independent: closing, navigating, or setting a cookie in one context's pages has zero effect on the other context or its pages.</p>
+
+      <h2 id="why-this-matters-test-isolation">Why this matters: test isolation</h2>
+      <p>The Playwright Test Runner gives every single test a brand-new <code>BrowserContext</code> (and by extension, a fresh <code>page</code>) by default — while reusing the same underlying <code>Browser</code> process across the whole run. That's what makes parallel, isolated tests fast: you get the isolation of "one browser per test" without the cost of actually launching one browser per test.</p>
+
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import { test, expect } from '@playwright/test';
+
+// Each test below automatically gets its own isolated context + page.
+// Cookies set in one test never leak into another.
+test('user A sees empty cart', async ({ page }) =&gt; {
+  await page.goto('/cart');
+  await expect(page.getByText('Your cart is empty')).toBeVisible();
+});
+
+test('user B logs in independently', async ({ page }) =&gt; {
+  await page.goto('/login');
+  // no session state from the test above exists here
+});</code></pre>
+
+      <h2 id="simulating-multiple-users-in-one-test">Simulating multiple users in one test</h2>
+      <p>Because contexts are cheap and isolated, you can create several inside a single test to simulate multiple simultaneous users — useful for chat apps, collaborative editors, or admin/customer role-based flows.</p>
+
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import { test, expect, chromium } from '@playwright/test';
+
+test('admin approves a request submitted by a customer', async () =&gt; {
+  const browser = await chromium.launch();
+
+  const customerContext = await browser.newContext();
+  const adminContext = await browser.newContext();
+
+  const customerPage = await customerContext.newPage();
+  const adminPage = await adminContext.newPage();
+
+  await customerPage.goto('/requests/new');
+  await customerPage.getByLabel('Reason').fill('Refund request');
+  await customerPage.getByRole('button', { name: 'Submit' }).click();
+
+  await adminPage.goto('/admin/requests');
+  await adminPage.getByRole('button', { name: 'Approve' }).click();
+  await expect(adminPage.getByText('Approved')).toBeVisible();
+
+  await browser.close();
+});</code></pre>
+      <p>Each context has completely independent cookies and login state, so <code>customerPage</code> and <code>adminPage</code> behave like two different people on two different computers — without spinning up two actual browser processes.</p>
+
+      <h2 id="how-playwright-talks-to-the-browser">How Playwright talks to the browser</h2>
+      <p>Playwright doesn't automate browsers through the W3C WebDriver protocol the way Selenium does. Instead, each browser is patched with a small out-of-process driver that exposes a bidirectional WebSocket connection. Commands and events flow over that single persistent connection, which is why Playwright can push instructions and receive events (console logs, network requests, page navigations) with very low latency, instead of the request/response-per-command overhead WebDriver has.</p>
+
+      <h2 id="browser-vs-browsercontext-vs-page-vs-locator">Browser vs. BrowserContext vs. Page vs. Locator</h2>
+      <p>There's a fourth layer worth placing explicitly alongside the three above, because it's a fundamentally different <em>kind</em> of thing, not just a smaller version of a Page: a <strong>Locator</strong>. The first three are all real, live objects — a running process, an open session, an open tab, each of which exists whether or not you're doing anything with it right now. A Locator is not that. It's a lazy, re-usable <em>description</em> of how to find something — it doesn't need a matching element to exist at the moment you create it, and every time you act on it, Playwright re-resolves it fresh against the live page rather than holding onto a stale reference.</p>
+      <table>
+        <thead><tr><th>Concept</th><th>What it actually is</th></tr></thead>
+        <tbody>
+          <tr><td><code>Browser</code></td><td>A running process — expensive, reused across many tests</td></tr>
+          <tr><td><code>BrowserContext</code></td><td>An open, isolated session inside that process — cheap, one per test</td></tr>
+          <tr><td><code>Page</code></td><td>An open tab inside that session — exists as long as the tab is open</td></tr>
+          <tr><td><code>Locator</code></td><td>Not a live object at all — a re-resolvable description of how to find an element, created instantly, valid even before the element exists</td></tr>
+        </tbody>
+      </table>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Creating this locator does NOT require the button to exist yet —
+// nothing is "found" until an action or assertion actually uses it
+const submitButton = page.getByRole('button', { name: 'Submit' });
+
+await page.goto('/checkout'); // the button doesn't exist until this navigation completes
+await submitButton.click();    // only NOW does Playwright resolve the locator against the live DOM</code></pre>
+      <p>This is why a locator can be declared once (in a Page Object constructor, for instance — see the Page Objects chapter) long before the page it targets has even loaded: it's inert until used, and re-resolves from scratch on every single interaction, which is also the underlying reason actionability and auto-waiting (Actions and Waiting chapters) work at all — there's no stale reference that could go out of date.</p>
+
+      <h2 id="common-mistakes">Common mistakes</h2>
+      <ul>
+        <li>Creating a new <code>Browser</code> for every test instead of a new <code>BrowserContext</code> — this works but is unnecessarily slow.</li>
+        <li>Assuming <code>page.context().clearCookies()</code> is needed between tests — the test runner already isolates you by giving each test its own context.</li>
+        <li>Sharing one page across unrelated tests to "save time," which reintroduces the state-leakage bugs isolation exists to prevent.</li>
+      </ul>
+
+      <h2 id="best-practices">Best practices</h2>
+      <ul>
+        <li>Let the Test Runner manage contexts for you via the <code>page</code> fixture — reach for manual <code>browser.newContext()</code> only for multi-actor scenarios like the admin/customer example above.</li>
+        <li>Use <code>storageState</code> (covered in the Authentication chapter) to reuse a logged-in session across contexts without re-running login every test.</li>
+      </ul>
+
+      <h2 id="summary">Summary</h2>
+      <p>Playwright's architecture has three layers: one <code>Browser</code> process, many cheap and isolated <code>BrowserContext</code>s inside it, and one or more <code>Page</code>s inside each context. The Test Runner uses this to give every test full isolation without the cost of launching a new browser each time, and the same model lets you simulate multiple simultaneous users within a single test.</p>
+
+      <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>What's the difference between a Browser and a BrowserContext in Playwright, and why does that distinction matter for test performance?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A <code>Browser</code> is one running browser process — expensive to start. A <code>BrowserContext</code> is an isolated, cookie/storage-separated session inside that browser — cheap to create. Reusing one <code>Browser</code> across many tests while giving each test its own <code>BrowserContext</code> gives full test isolation at a fraction of the cost of launching a fresh browser per test.</div>
+</details>
+<details class="faq-item">
+<summary>Why is a new BrowserContext per test cheaper than a new Browser per test?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A Browser is a full process, expensive to start; a BrowserContext is just an isolated session inside an already-running process, created in milliseconds.</div>
+</details>
+<details class="faq-item">
+<summary>What are the three layers in Playwright's architecture, from largest to smallest?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Browser (the process) → BrowserContext (isolated session) → Page (a tab within that session).</div>
+</details>
+<details class="faq-item">
+<summary>Why is a Locator a fundamentally different kind of thing than a Page?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A Page is a real, live object that exists whether or not you act on it; a Locator is a lazy, re-resolvable description that doesn't require a matching element to exist yet.</div>
+</details>
+<details class="faq-item">
+<summary>How does Playwright communicate with the browser under the hood?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Over a persistent, bidirectional WebSocket connection to a small out-of-process driver, not the W3C WebDriver protocol Selenium uses.</div>
+</details>
+</div>
+</article>
+</body></html>

@@ -1,0 +1,76 @@
+<!doctype html>
+<html><head>
+<title>Understanding Playwright Failures</title>
+<meta name="description" content="The real anatomy of a Playwright failure — what TestInfo actually gives you when a test fails, and why most of it goes underused without a deliberate process." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/understanding-playwright-failures.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Understanding Playwright Failures</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="ai-powered-failure-analysis.html">AI-Powered Failure Analysis overview</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>What Playwright's <code>TestInfo</code> object genuinely gives you when a test fails</li>
+  <li>Why most of this real, available information typically goes underused</li>
+  <li>What this chapter's remaining pages exist to fix</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>Before building anything, it's worth being honest about what Playwright already hands you on a failure — considerably more than most teams actually use.</p>
+
+<h2 id="how-it-works-what-testinfo-actually-contains">How It Works — What TestInfo Actually Contains</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('checkout completes successfully', async ({ page }, testInfo) => {
+  // ... test steps ...
+
+  // WHEN this test FAILS, testInfo genuinely contains:
+  console.log(testInfo.status);       // 'failed'
+  console.log(testInfo.error);        // the REAL error object,
+                                        // with message AND stack
+  console.log(testInfo.attachments);  // screenshot, video, and
+                                        // trace file PATHS, if
+                                        // configured to capture them
+  console.log(testInfo.duration);     // how LONG it ran before
+                                        // failing
+});</code></pre>
+
+<h2 id="why-it-matters-most-of-this-goes-unread">Why It Matters — Most of This Goes Unread</h2>
+<p>In everyday practice, a failing test's error message gets read, and everything else — the video, the trace, the full attachment list — often goes unopened unless the failure is confusing enough to justify the extra effort. That's a real, understandable habit under time pressure, and it's also exactly why genuinely useful evidence sits unused on most failures, not just the hard ones.</p>
+
+<h2 id="example-a-failure-with-more-available-than-used">Example — A Failure With More Available Than Used</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// A REAL, typical failure log:
+// Error: expect(locator).toBeVisible() failed
+//   Locator: getByRole('heading', { name: 'Order Confirmed' })
+//   Expected: visible
+//   Received: &lt;element not found&gt;
+
+// What TYPICALLY gets read: this message, ALONE
+// What's ALSO available, genuinely, but often UNUSED:
+//   - the FULL stack trace (which test STEP, exactly)
+//   - a SCREENSHOT at the moment of failure
+//   - a VIDEO of the ENTIRE test run leading up to it
+//   - a TRACE file with EVERY action and network REQUEST
+//   - console LOGS from the page itself</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Reading only the error message and moving on, even for a confusing failure.</strong> This page's example shows real, additional evidence usually sits one click away, genuinely available every time.</li>
+  <li><strong>Assuming richer evidence collection requires new tooling.</strong> Playwright's config already supports capturing all of this — the next page covers exactly how to configure and collect it.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Treat every failure as having genuinely more available evidence than the error message alone — the habit of stopping there is worth deliberately resisting.</li>
+  <li>Configure comprehensive evidence capture by default, covered on the next page — cheap to collect, valuable when genuinely needed.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Pick a recent test failure from your own project. Open every piece of evidence Playwright captured for it — not just the error message — and note anything the video or trace revealed that the error message alone didn't make clear.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Playwright's TestInfo object already contains considerably more evidence than most teams use day to day.</li>
+  <li>Reading only the error message is an understandable habit under time pressure, not a limitation of what's actually available.</li>
+  <li>This chapter's remaining pages turn this already-available evidence into something systematically captured, analyzed, and reported — not new data Playwright doesn't already provide.</li>
+</ul>
+</article>
+</body></html>

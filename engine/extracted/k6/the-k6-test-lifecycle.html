@@ -1,0 +1,161 @@
+<!doctype html>
+<html><head>
+<title>The k6 Test Lifecycle: init, setup, VU Code, and teardown Explained</title>
+<meta name="description" content="k6&#x27;s execution model in depth — the init stage, setup(), the main VU function, and teardown() — what runs once versus what runs per iteration, and why the distinction matters." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/the-k6-test-lifecycle.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>The k6 Test Lifecycle</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="installing-k6-and-your-first-test.html">Installing k6 & Your First Test</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Every k6 script executes through four distinct stages, each with a genuinely different purpose and a different rule about how many times it runs. Understanding this model precisely — not just vaguely — is what prevents a whole category of subtle, hard-to-diagnose bugs in later, more complex scripts.</p>
+
+<h2 id="the-four-stages">The Four Stages</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>init code (runs once, before anything else)
+        ↓
+setup() (runs once, before the test starts)
+        ↓
+Default function / VU code (runs repeatedly — once per iteration, per virtual user)
+        ↓
+teardown() (runs once, after the test completes)</code></pre>
+
+<h2 id="init-code">Init Code</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import http from 'k6/http'; // this import statement IS init code
+
+const BASE_URL = 'https://test-api.example.com'; // this constant declaration too
+
+export default function () {
+  http.get(`${BASE_URL}/products`);
+}</code></pre>
+<p>Init code is anything at the top level of your script, outside any function — imports, constant declarations, configuration setup. This runs once per virtual user when that VU is initialized, not once per iteration — a subtlety that matters once you have many VUs, each running their own init code exactly once as they spin up.</p>
+
+<h2 id="setup-runs-once-before-the-test-starts">setup() — Runs Once, Before the Test Starts</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export function setup() {
+  const response = http.post('https://test-api.example.com/login', {
+    username: 'testuser', password: 'secret',
+  });
+  return { token: response.json('token') };
+}
+
+export default function (data) {
+  http.get('https://test-api.example.com/profile', {
+    headers: { Authorization: `Bearer ${data.token}` },
+  });
+}</code></pre>
+<p><code>setup()</code> runs exactly once, before any virtual user begins executing the main test function — regardless of how many VUs the test eventually runs. Whatever it returns is passed as an argument (conventionally named <code>data</code>) into every VU's execution of the default function. This is the correct place for one-time setup work — like authenticating once and sharing that token — rather than repeating it inside every single iteration.</p>
+
+<h2 id="the-default-function-runs-per-iteration-per-vu">The Default Function — Runs Per Iteration, Per VU</h2>
+<p>This is the code that actually gets repeated — every virtual user runs this function, and each individual execution of it is one "iteration." If you configure 50 VUs each running 10 iterations, this function executes 500 times total, while <code>setup()</code> still only ran once, at the very beginning.</p>
+
+<h2 id="teardown-runs-once-after-the-test-completes">teardown() — Runs Once, After the Test Completes</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export function teardown(data) {
+  http.post('https://test-api.example.com/logout', {
+    headers: { Authorization: `Bearer ${data.token}` },
+  });
+}</code></pre>
+<p><code>teardown()</code> runs exactly once, after every VU has finished — it receives the same data <code>setup()</code> returned, making it the natural place for cleanup that corresponds to whatever <code>setup()</code> established (logging out a session that was created once at the start, for instance).</p>
+
+<h2 id="detailed-example-why-putting-setup-logic-in-the-wrong-place-is-a-real-bug">Detailed Example — Why Putting Setup Logic in the Wrong Place Is a Real Bug</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Authenticating inside the default function — repeated on EVERY iteration
+export default function () {
+  const response = http.post('https://test-api.example.com/login', {
+    username: 'testuser', password: 'secret',
+  });
+  const token = response.json('token');
+  http.get('https://test-api.example.com/profile', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}</code></pre>
+<p>With 50 VUs running 10 iterations each, this logs in 500 separate times — creating 500 real sessions, generating unnecessary load against the login endpoint itself, and actively distorting your test's results, since you're now measuring login performance mixed into every single iteration's timing rather than just the profile endpoint you actually meant to test.</p>
+
+<h2 id="real-world-example-the-corrected-version-using-setup">Real-World Example — The Corrected Version Using setup()</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export function setup() {
+  const response = http.post('https://test-api.example.com/login', {
+    username: 'testuser', password: 'secret',
+  });
+  return { token: response.json('token') };
+}
+
+export default function (data) {
+  http.get('https://test-api.example.com/profile', {
+    headers: { Authorization: `Bearer ${data.token}` },
+  });
+}
+
+export function teardown(data) {
+  http.post('https://test-api.example.com/logout', {
+    headers: { Authorization: `Bearer ${data.token}` },
+  });
+}</code></pre>
+<p>Now login happens exactly once, the token is shared across every VU and iteration, and logout happens exactly once at the end — this is both more correct (matching what a real single authenticated session would look like) and dramatically lighter load against the login endpoint itself, which usually isn't what you're actually trying to test in a profile-endpoint performance test.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Expensive one-time work repeated in the default function
+export default function () {
+  const config = fetchExpensiveConfiguration(); // repeated every single iteration
+  // ...
+}
+
+// ✅ One-time work in setup(), shared via the returned data
+export function setup() {
+  return { config: fetchExpensiveConfiguration() }; // runs exactly once
+}
+export default function (data) {
+  // use data.config
+}</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Putting one-time setup logic (like authentication) inside the default function</strong> instead of <code>setup()</code> — gets repeated unnecessarily on every single iteration.</li>
+  <li><strong>Assuming init code runs once total</strong> — it actually runs once <em>per virtual user</em>, not once for the entire test, which matters once you're running many VUs.</li>
+  <li><strong>Forgetting that <code>setup()</code>'s return value is how data reaches the default function</strong> — trying to use a variable declared inside <code>setup()</code> directly inside the default function won't work; it has to be passed through the return value and the <code>data</code> parameter.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong><code>setup()</code> itself failing</strong> — if setup throws an error, the entire test typically won't run at all, since every VU depends on its result; this is different from a single iteration failing during the main test.</li>
+  <li><strong>Needing per-VU (not per-test) one-time setup</strong> — <code>setup()</code> runs once for the whole test, not once per VU; if you genuinely need distinct one-time setup per virtual user, that requires a different pattern than a single global <code>setup()</code>.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a test seems to be generating far more load against one specific endpoint than you intended (like a login endpoint in a test meant to measure a different feature), check whether that endpoint is being called inside the default function when it should be inside <code>setup()</code> instead — this is one of the most common lifecycle-related bugs.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Put anything that should happen exactly once — authentication, expensive configuration lookups — inside <code>setup()</code>, never inside the default function.</li>
+  <li>Use <code>teardown()</code> for cleanup that corresponds to what <code>setup()</code> established, keeping the two conceptually paired.</li>
+  <li>Remember init code runs once per VU, not once total — keep it lightweight, since it's still repeated across however many virtual users your test configures.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Take the flawed example from this page (authentication happening inside the default function) and rewrite it correctly using <code>setup()</code> and <code>teardown()</code>, then explain in one sentence why the corrected version produces more accurate performance results for testing the profile endpoint specifically.</p>
+
+<h2 id="summary">Summary</h2>
+<p>Every k6 script moves through four stages: init code (once per VU), <code>setup()</code> (once, total, before the test), the default function (repeated per iteration, per VU — this is the actual load being generated), and <code>teardown()</code> (once, total, after the test). Misplacing one-time work — most commonly authentication — inside the default function is one of the most common and most distorting mistakes in real k6 scripts, since it both wastes load-generation capacity and skews the very metrics you're trying to measure.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why is authenticating inside the default function considered a real bug, not just a style preference?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It gets repeated on every single iteration across every virtual user — with 50 VUs running 10 iterations each, that's 500 separate login attempts instead of one. This both generates unnecessary, unintended load against the login endpoint and distorts the actual metric you're trying to measure, since login time gets mixed into every iteration's timing rather than being isolated to a one-time setup cost.</div>
+</details>
+<details class="faq-item">
+<summary>How does data get from setup() into the default function?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Whatever setup() returns is automatically passed as an argument (conventionally named data) into every execution of the default function, across every virtual user and every iteration. There's no other mechanism to share a variable declared inside setup() with the default function — it must flow through this return value and parameter.</div>
+</details>
+<details class="faq-item">
+<summary>Does init code run once for the entire test, or once per virtual user?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Once per virtual user, not once total — each VU runs its own copy of the init code as it initializes. This matters because init code that seems lightweight for one VU can add up meaningfully once a test scales to hundreds or thousands of virtual users, each independently executing that same init code.</div>
+</details>
+<details class="faq-item">
+<summary>What happens to a k6 test if setup() itself throws an error?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Since every virtual user's execution of the default function depends on setup()'s return value, a failure in setup() typically prevents the entire test from running at all — it's not treated like a single failed iteration during the main test, since there's no valid data to pass into any VU's execution yet.</div>
+</details>
+<details class="faq-item">
+<summary>Why is teardown() typically paired conceptually with setup(), rather than being an independent, optional add-on?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">teardown() receives the same data setup() returned, which makes it the natural place to reverse or clean up whatever setup() established — like logging out a session that was created once at the start. Treating the two as a matched pair (whatever setup() creates, teardown() cleans up) keeps a test's one-time setup and cleanup logically connected, rather than leaving cleanup as an afterthought that might not actually correspond to what was set up.</div>
+</details>
+</div>
+</article>
+</body></html>

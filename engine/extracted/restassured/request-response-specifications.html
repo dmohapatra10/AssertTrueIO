@@ -1,0 +1,99 @@
+<!doctype html>
+<html><head>
+<title>Request &amp; Response Specifications in RestAssured</title>
+<meta name="description" content="How to build reusable RequestSpecification and ResponseSpecification objects in RestAssured, eliminating duplicated setup across a growing test suite." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/request-response-specifications.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Request &amp; Response Specifications</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="logging-in-restassured.html">Logging in RestAssured</a></p>
+<article class="content">
+<h2 id="eliminating-repeated-setup">Eliminating Repeated Setup</h2>
+<p>Earlier pages have repeated the same setup — a base URI, a Content-Type, an Authorization header — inside individual <code>given()</code> blocks. Reusable specifications are the tool that eliminates that repetition, across four pages:</p>
+<ol>
+  <li><a href="request-specification-deep-dive.html">RequestSpecification Deep Dive</a> — building and applying a shared request setup</li>
+  <li><a href="response-specification-deep-dive.html">ResponseSpecification Deep Dive</a> — shared, reusable response validation</li>
+  <li><a href="multiple-specifications-for-different-apis.html">Multiple Specifications for Different APIs</a> — managing more than one spec at once</li>
+  <li><a href="specifications-vs-utility-methods.html">Specifications vs. Utility Methods</a> — the comparison that decides which tool fits a given situation</li>
+</ol>
+
+<h2 id="why-this-comes-where-it-does">Why This Comes Where It Does</h2>
+<p>Everything built so far — request construction (Chapter 3), authentication (Chapter 6), logging (Chapter 8) — has been shown per-test, deliberately, so each concept could be understood in isolation. Specifications are where all of that gets consolidated into something reusable across an entire project, which is exactly why this sits right before Test Data Management and the deeper framework material: specs are the connective tissue a real framework relies on.</p>
+
+<h2 id="the-problem-to-solve">The Problem to Solve</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Without specifications — repeated across every single test file
+given()
+    .baseUri("https://api.example.com")
+    .header("Authorization", "Bearer " + token)
+    .contentType(ContentType.JSON)
+.when()
+    .get("/orders");
+
+// ...the same four lines, repeated identically, in every other test</code></pre>
+<p>This works, but it's exactly the kind of duplication that makes a suite painful to maintain — if the base URI or auth header logic ever needs to change, it means updating dozens or hundreds of near-identical blocks scattered across the codebase.</p>
+
+<h2 id="the-two-specification-types-at-a-glance">The Two Specification Types, at a Glance</h2>
+<table>
+  <thead><tr><th></th><th>RequestSpecification</th><th>ResponseSpecification</th></tr></thead>
+  <tbody>
+    <tr><td>Applies to</td><td>The outgoing request</td><td>The incoming response, in <code>.then()</code></td></tr>
+    <tr><td>Typical contents</td><td>Base URI, headers, content type, auth</td><td>Status code, content type, universal error shapes</td></tr>
+    <tr><td>How broadly it applies</td><td>Almost universally, across nearly every request to an API</td><td>Narrower — most response content is endpoint-specific</td></tr>
+  </tbody>
+</table>
+<p>This asymmetry — request specs applying almost everywhere, response specs applying more narrowly — is worth keeping in mind going in, since it shapes how much of each you'll actually end up using in a real project.</p>
+
+<h2 id="a-quick-preview">A Quick Preview</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>RequestSpecification requestSpec =
+    new RequestSpecBuilder()
+        .setBaseUri("https://api.example.com")
+        .setContentType(ContentType.JSON)
+        .build();
+
+ResponseSpecification responseSpec =
+    new ResponseSpecBuilder()
+        .expectStatusCode(200)
+        .expectContentType(ContentType.JSON)
+        .build();
+
+// Now every test just references the shared specs:
+given().spec(requestSpec).header("Authorization", "Bearer " + token)
+    .when().get("/orders")
+    .then().spec(responseSpec);</code></pre>
+<p>Two shared objects, each defined once, referenced everywhere — this is the core shift this chapter is about.</p>
+
+<h2 id="common-mistakes-to-watch-for">Common Mistakes to Watch For</h2>
+<ul>
+  <li><strong>Introducing specs before genuine duplication exists</strong> — for a tiny suite, plain repetition is often fine; let real, repeated duplication be the signal.</li>
+  <li><strong>Trying to make one spec serve two genuinely different APIs or roles</strong> by mutating it between tests, instead of building separate, purpose-specific specs.</li>
+  <li><strong>Confusing "this needs a spec" with "this needs a utility method"</strong> — the final page in this chapter draws that distinction precisely.</li>
+</ul>
+
+<h2 id="what-you-ll-be-able-to-do">What You'll Be Able to Do</h2>
+<p>By the end of the four pages that follow, you should be able to build and apply both specification types, manage multiple specs cleanly across different APIs and authenticated roles, and know precisely when a spec is the right tool versus when a plain utility method is what a given situation actually calls for. Start with RequestSpecification Deep Dive below.</p>
+      
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why is a shared RequestSpecification generally more broadly applicable than a shared ResponseSpecification?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A request's setup (base URI, headers, content type, auth) is genuinely the same across nearly every call to an API; a response's actual content is inherently different per endpoint, so what's shareable on the response side is narrower — mostly conventions, not specific body content.</div>
+</details>
+<details class="faq-item">
+<summary>What's the core duplication problem specifications solve?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Without them, base URI, headers, and content type get repeated identically across every test file — a change to any of them means updating dozens or hundreds of near-identical blocks.</div>
+</details>
+<details class="faq-item">
+<summary>Why does this chapter sit right before Test Data Management and the deeper framework chapters?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Specs are the connective tissue a real framework relies on — they're where the individually-introduced techniques from earlier chapters (auth, request construction, logging) get consolidated into something reusable project-wide.</div>
+</details>
+<details class="faq-item">
+<summary>Can a RequestSpecification and a ResponseSpecification be used together in the same chain?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Yes — .spec(requestSpec) in given() and .spec(responseSpec) in .then() compose naturally in the same request, each handling its own half of the given/when/then structure.</div>
+</details>
+<details class="faq-item">
+<summary>Why is a RequestSpecification generally more broadly useful than a ResponseSpecification?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A request's setup (base URI, headers, auth) is genuinely the same across nearly every call to an API; a response's actual content is inherently different per endpoint, so what's shareable on the response side is narrower by nature.</div>
+</details>
+</div>
+</article>
+</body></html>

@@ -1,0 +1,79 @@
+<!doctype html>
+<html><head>
+<title>Traditional Visual Testing and Playwright Screenshots</title>
+<meta name="description" content="A no-AI refresher on Playwright&#x27;s own pixel-diff screenshot comparison — genuinely reliable for what it checks, and honest about exactly what it can&#x27;t." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/traditional-visual-testing-and-playwright-screenshots.html" />
+</head><body>
+<p class="difficulty">Advanced</p>
+<h1>Traditional Visual Testing and Playwright Screenshots</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="ai-powered-visual-testing.html">AI-Powered Visual Testing overview</a></p>
+<article class="content">
+<h2>What You'll Learn</h2>
+<ul>
+  <li>Playwright's own pixel-diff screenshot comparison, with no AI involved</li>
+  <li>Why exact pixel matching is genuinely reliable for what it checks</li>
+  <li>The real, specific gap this leaves — setting up why this chapter exists at all</li>
+</ul>
+
+<h2>Introduction</h2>
+<p>Before reaching for AI, it's worth being clear about what Playwright's own visual testing already does — no model involved, genuinely reliable, and worth understanding on its own terms first.</p>
+
+<h2>How It Works — Real, Deterministic Pixel Comparison</h2>
+<pre><code>import { test, expect } from '@playwright/test';
+
+test('product page matches baseline', async ({ page }) => {
+  await page.goto('/products/probook-15');
+  await expect(page).toHaveScreenshot('product-page.png', {
+    maxDiffPixels: 100,
+  });
+});
+
+// FIRST run: SAVES a baseline image
+// EVERY later run: compares PIXEL BY pixel against that
+// baseline — EXACTLY reproducible, EXACTLY deterministic</code></pre>
+
+<h2>Why It Matters — Genuinely Reliable for What It Checks</h2>
+<p>A pixel diff either matches within the allowed tolerance or it doesn't — there's no judgment call, no possibility of the check itself being wrong about whether two images are pixel-identical. This is exactly the kind of exact, deterministic question this track has valued since Chapter 2 — and it's a genuinely strong foundation worth keeping regardless of anything this chapter adds.</p>
+
+<h2>Example — What This Genuinely Catches</h2>
+<pre><code>// A REAL, deterministic pixel diff correctly catches:
+//   - a button that SHIFTED position by 20 pixels
+//   - a color that changed from #22c55e to #16a34a
+//   - a font that RENDERED differently after a CSS change
+//   - ANY visual regression where the BASELINE and the
+//     CURRENT page genuinely differ, pixel for pixel</code></pre>
+
+<h2>Why It Matters — The Real, Specific Gap</h2>
+<pre><code>What a PIXEL diff CANNOT tell you:
+  - WHY two images differ — only THAT they do
+  - whether a DIFFERENT-but-still-CORRECT layout (a genuinely
+    intentional REDESIGN) is a REAL bug or an EXPECTED change
+  - whether the PAGE, despite matching its BASELINE exactly,
+    is showing something GENUINELY wrong that was ALSO wrong
+    in the baseline — a bug BAKED into the reference image
+    itself</code></pre>
+<p>A pixel diff is honest about exactly one thing: whether two images are identical. It has no opinion about whether either one is actually correct — that judgment has always belonged to whoever approved the baseline in the first place.</p>
+
+<h2>Common Mistakes</h2>
+<ul>
+  <li><strong>Assuming a passing pixel-diff test means the page is genuinely correct.</strong> It only means the page matches its baseline — if the baseline itself contained a bug, the test will keep passing forever.</li>
+  <li><strong>Treating every pixel-diff failure as a genuine bug.</strong> An intentional redesign fails a pixel diff exactly as loudly as a real regression — the diff alone can't distinguish them.</li>
+</ul>
+
+<h2>Best Practices</h2>
+<ul>
+  <li>Keep pixel-diff testing as your default for catching unintentional visual regressions — it's genuinely reliable and deserves to remain the foundation.</li>
+  <li>Review baseline images carefully when first approving them — a pixel diff can only ever be as correct as the baseline it's compared against.</li>
+</ul>
+
+<h2>Hands-On Exercise</h2>
+<p>Set up a real <code>toHaveScreenshot</code> test against a page in your own application. Deliberately approve a baseline, then make a small, genuine visual change and confirm the test correctly fails — then consider: would this same test have caught a bug that already existed when you approved the baseline?</p>
+
+<h2>Key Takeaways</h2>
+<ul>
+  <li>Playwright's pixel-diff comparison is genuinely reliable and deterministic — no AI needed for exact, reproducible visual matching.</li>
+  <li>It answers "did this change" honestly, but has no way to answer "is this correct" — that judgment lives entirely in whoever approved the baseline.</li>
+  <li>This real, specific gap — distinguishing intentional change from genuine regression, and catching bugs baked into an approved baseline — is exactly what this chapter's remaining pages address.</li>
+</ul>
+</article>
+</body></html>

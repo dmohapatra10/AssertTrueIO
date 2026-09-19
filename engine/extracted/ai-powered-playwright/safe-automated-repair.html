@@ -1,0 +1,126 @@
+<!doctype html>
+<html><head>
+<title>Safe Automated Repair</title>
+<meta name="description" content="Running Chapter 11&#x27;s self-healing pipeline automatically when the quality gate blocks a genuine defect — with Chapter 11&#x27;s human-approval rule carrying into CI completely unchanged." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/safe-automated-repair.html" />
+</head><body>
+<p class="difficulty">Advanced</p>
+<h1>Safe Automated Repair</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="ai-quality-gates.html">AI Quality Gates</a></p>
+<article class="content">
+<h2>What You'll Learn</h2>
+<ul>
+  <li>Triggering Chapter 11's self-healing pipeline automatically from a blocked CI run</li>
+  <li>Why Chapter 11's human-approval rule applies in CI exactly as strictly as it did locally</li>
+  <li>Chapter 16's closing interview questions</li>
+</ul>
+
+<h2>Introduction — The Rule Does Not Relax in CI</h2>
+<p>It might seem like CI, being automated by nature, is where self-healing could finally skip the human-approval step Chapter 11 insisted on. This page argues the exact opposite: CI is precisely where that rule matters most, since a silent, automatic merge here would affect every single person who pulls the branch next.</p>
+
+<h2>Step-by-Step Implementation — Triggering Healing From a Blocked Gate</h2>
+<pre><code># .github/workflows/ai-playwright-tests.yml (final extension)
+      - name: Attempt automated repair for blocked failures
+        if: steps.run_tests.outcome == 'failure'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/attempt-repair.js</code></pre>
+
+<h2>Step-by-Step Implementation — The Repair Script, Reusing Chapter 11 Entirely</h2>
+<pre><code>// scripts/attempt-repair.js
+import { generateLocatorFix } from '../src/generate-locator-fix';
+import { buildCandidatePatch, formatAsDiff } from '../src/build-candidate-diff';
+import { validatePatchInIsolation } from '../src/validate-candidate-patch';
+import { findAffectedTests, runRegressionCheck } from '../src/run-regression-check';
+import { createApprovalPullRequest } from '../src/create-approval-request';
+import { evaluateGate } from './ai-quality-gate';
+
+const gateDecisions = await evaluateGate(failedTests, history);
+const blockers = gateDecisions.filter((d) =&gt; d.shouldBlock);
+
+for (const blocker of blockers) {
+  const fix = generateLocatorFix(blocker.testFile, blocker.brokenCode, healedCode);
+  if (!fix) continue;
+
+  const patch = buildCandidatePatch([fix], [], blocker.testFile);
+  const validation = validatePatchInIsolation(patch, blocker.testName);
+  if (!validation.passed) continue;
+
+  const affected = findAffectedTests(patch, 'tests/');
+  const regressionResults = runRegressionCheck(affected);
+
+  // EXACTLY Chapter 11'S own function — a DRAFT PR, NEVER an
+  // automatic merge, REGARDLESS of running inside CI
+  await createApprovalPullRequest(patch, validation, regressionResults);
+}</code></pre>
+
+<h2>Code Explanation</h2>
+<p>Every function this script calls is Chapter 11's own, completely unchanged — generation, validation, regression checking, and the approval request that opens a draft PR. Nothing about running inside a CI workflow modifies any of this behavior. The script's only real job is triggering this existing pipeline automatically when the quality gate identifies a genuine, blocking defect.</p>
+
+<h2>Why It Matters — CI Is Where the Rule Matters Most</h2>
+<p>A human running Chapter 11's pipeline locally sees the draft PR immediately, in their own terminal and browser, as part of work they're already doing. In CI, the exact same draft PR appears asynchronously — nobody may be watching the run happen at all. This makes the rule's protection more important, not less: without it, a fully automated pipeline could merge a plausible-but-wrong fix while literally nobody was looking, exactly the scenario Chapter 11's rule exists to prevent.</p>
+
+<h2>Common Mistakes</h2>
+<ul>
+  <li><strong>Adding an auto-merge step once a repair PR's own CI checks pass.</strong> This is exactly the silent-modification pattern Chapter 11 warned against, made worse by happening with nobody watching — the repair PR still needs genuine, deliberate human review.</li>
+  <li><strong>Assuming CI's automated nature justifies skipping validation or regression checking to save time.</strong> These stages exist specifically because a plausible-looking patch can still be wrong — CI running unattended is a reason for more rigor, not less.</li>
+</ul>
+
+<h2>Best Practices</h2>
+<ul>
+  <li>Keep Chapter 11's complete pipeline — generation, validation, regression, approval — fully intact when triggering it from CI, changing nothing about its actual safeguards.</li>
+  <li>Notify the team explicitly when an automated repair PR opens — Chapter 16's own PR-comment technique is a reasonable way to make sure it doesn't go unnoticed.</li>
+</ul>
+
+<h2>Hands-On Exercise</h2>
+<p>Trigger this page's repair script from a real, deliberately broken CI run. Confirm the resulting draft PR contains everything Chapter 11's pipeline produces — the diff, validation result, and regression summary — and review it as if you were the human approver before considering the exercise complete.</p>
+
+<h2>Key Takeaways</h2>
+<ul>
+  <li>Automated repair in CI reuses Chapter 11's complete pipeline unchanged — this page's only real contribution is the trigger.</li>
+  <li>Chapter 11's human-approval rule applies in CI exactly as strictly as it did locally — arguably more importantly, since nobody may be watching the run happen.</li>
+  <li>A repair PR opening automatically is not the same as a repair merging automatically — the distinction is the entire point of Chapter 11's rule, and it holds regardless of environment.</li>
+</ul>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Beginner: Why does this chapter store API keys as GitHub Actions secrets rather than as plain workflow inputs?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>GitHub's secrets mechanism ensures the real key value never appears in logs, even if a step accidentally tries to print it, and it's never visible to anyone with only read access to the repository's code. A plain workflow input or a hardcoded value would expose the actual key to anyone who can view the workflow file or its logs — secrets are the CI-scale equivalent of the local .gitignore discipline Chapter 3 established for .env files.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Beginner: Why does this chapter recommend routing AI-generated tests and repairs through a pull request rather than committing them directly?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This follows Chapter 11's own rule directly: never silently modify the codebase and declare success. A pull request means a human reviews the change before it becomes part of the real codebase, regardless of whether that change is a newly generated test or a self-healing repair. Committing directly would bypass this review entirely, exactly the pattern Chapter 11 warned against.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Intermediate: Explain why the quality gate in this chapter checks known flakiness before running a fresh classification.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A test already identified as flaky by Chapter 12's history-based detection doesn't need a new classification call to justify not blocking the merge — that determination already exists, grounded in real, accumulated evidence across many runs. Checking this first avoids an unnecessary AI call and lets the gate respond immediately for a failure type it already understands, reserving fresh classification for failures that genuinely need it.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Intermediate: Why does this chapter argue that intelligent test selection is appropriate for pull-request feedback but not for a release-gating run?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Intelligent selection trades some safety for speed and cost — a wrong selection could miss a test that would have caught a genuine regression, since it relies on AI judgment about which files relate to which tests rather than running everything unconditionally. For fast, per-push feedback, this tradeoff is reasonable, since the cost of an occasional miss is bounded and other checks still exist downstream. A release gate is the last check before shipping, where the cost of missing something is much higher — the full, safer suite is worth the extra time and cost specifically because there's no further gate to catch what selection might have missed.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Advanced: Why does this chapter argue that Chapter 11's human-approval rule matters more in CI than it did during local development, rather than less?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>During local development, a human is actively present, running the pipeline as part of work they're already doing, and sees the resulting draft PR immediately in their own environment. In CI, the same pipeline can run asynchronously, triggered by an event, with potentially nobody watching the run happen at all. This absence of an inherently present human is exactly the condition under which a fully automated system could silently merge a plausible-but-wrong fix — the rule's protection becomes more load-bearing precisely because CI removes the natural human presence that local development provided almost by accident.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Scenario-based: A teammate proposes adding an auto-merge step for repair PRs that pass their own CI checks, reasoning "if the fix passes tests, it's proven safe." How would you respond, using this chapter's own reasoning?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd point to the same distinction Chapter 11 drew for its own pipeline: passing validation and regression checks proves a fix doesn't break anything currently measurable — it doesn't prove the fix is the correct, intentional decision. Chapter 11's own assertion-healing example is the clearest illustration — a new value can pass every automated check while still reflecting a genuine bug rather than a legitimate change, because no automated check has the business context to tell the difference. Auto-merging here would repeat exactly the mistake this track has warned against since Chapter 11, made worse by happening in CI, where nobody may notice the merge happened at all until something breaks downstream. The repair PR passing its own checks is precisely the point where it's ready for human review, not the point where review becomes unnecessary.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

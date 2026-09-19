@@ -1,0 +1,100 @@
+<!doctype html>
+<html><head>
+<title>AI Exploration Strategy</title>
+<meta name="description" content="Real, working code that decides what to explore next — tracking what&#x27;s already been tried, so exploration genuinely spreads rather than repeating itself." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/ai-exploration-strategy.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>AI Exploration Strategy</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="what-is-ai-exploratory-testing.html">What is AI Exploratory Testing?</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Deciding what to explore next, given genuine freedom to choose</li>
+  <li>Why tracking what's already been tried is essential to real progress</li>
+  <li>A working strategy function that genuinely spreads exploration, rather than circling the same area</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>Without real structure, an exploring agent can easily click the same button repeatedly, or drift toward whatever seems most interesting in the moment while leaving genuinely unexplored areas untouched. This page builds the strategy layer that prevents that.</p>
+
+<h2 id="step-by-step-implementation">Step-by-Step Implementation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/exploration-strategy.ts
+import { askClaude } from './ai-client';
+import { PageObservation } from './observe-page';
+
+export interface ExploredArea {
+  pageUrl: string;
+  actionsAttempted: string[];
+}
+
+export interface NextExplorationChoice {
+  action: string;
+  target: string;
+  reasoning: string;
+}
+
+export async function chooseNextExploration(
+  objective: string, currentObservation: PageObservation,
+  alreadyExplored: ExploredArea[]
+): Promise&lt;NextExplorationChoice&gt; {
+  const prompt = `Exploration objective: "${objective}"
+
+Current page: ${JSON.stringify(currentObservation)}
+Already explored (do NOT simply repeat these):
+${JSON.stringify(alreadyExplored)}
+
+Choose ONE next action that explores something GENUINELY new
+relative to what's already been tried — not a minor variation.
+
+Respond with ONLY valid JSON:
+{"action": string, "target": string, "reasoning": string}`;
+
+  const raw = await askClaude(prompt);
+  return JSON.parse(raw);
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p><code>alreadyExplored</code> is the genuinely important addition beyond Chapter 5's simpler loop — without real memory of what's been tried, an agent has no way to recognize it's repeating itself. The prompt's explicit instruction against "minor variation" matters too: trying <code>getByRole('button', {name: 'Checkout'})</code> and then a nearly-identical variant isn't genuine new exploration, even though it's technically a different action.</p>
+
+<h2 id="example-real-exploration-choices-across-several-steps">Example — Real Exploration Choices Across Several Steps</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Step 1: nothing explored yet
+{ action: "click", target: "Discount code field",
+  reasoning: "Starting with an unexplored input on the cart page" }
+
+// Step 4, with 3 areas already explored:
+{ action: "click", target: "Apply discount code twice in succession",
+  reasoning: "The discount field and single-application flow are
+  already explored — trying a genuinely new combination" }
+
+// Step 9, exploration BROADENING to a different page:
+{ action: "navigate", target: "Order history page",
+  reasoning: "Checkout's own immediate flow is now well-explored;
+  checking whether an incomplete order appears here is a new area" }</code></pre>
+
+<h2 id="why-it-matters-real-spread-not-just-real-depth">Why It Matters — Real Spread, Not Just Real Depth</h2>
+<p>Notice the third example choosing to navigate somewhere entirely different, rather than continuing to probe checkout more narrowly. Good exploration strategy balances depth (trying several variations on one area) against spread (moving to genuinely different areas once one seems well-covered) — tracking <code>alreadyExplored</code> explicitly is what makes this balance possible to reason about at all.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Not tracking already-explored areas at all.</strong> Without this, an agent has no way to recognize repetition, and exploration can circle the same few actions indefinitely.</li>
+  <li><strong>Only ever going deeper, never broader.</strong> An agent that only refines its current area misses genuinely different, unexplored parts of the application entirely.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Always pass the full history of already-explored areas into each new choice — this is what makes each decision genuinely informed, not memoryless.</li>
+  <li>Periodically favor broadening to a new area once a specific one has been reasonably well covered, rather than exploring only ever deeper.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Run this page's function for several consecutive steps against a real ShopSmart-like feature, updating <code>alreadyExplored</code> after each one. Review the sequence of choices and confirm it genuinely spreads across the feature rather than repeating similar actions.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Choosing what to explore next requires genuine memory of what's already been tried — without it, repetition is difficult to avoid.</li>
+  <li>Good exploration balances depth and spread, using the explored-areas history to decide when each is appropriate.</li>
+  <li>This strategy layer is what turns open-ended freedom into productive, non-repetitive exploration, rather than aimless wandering.</li>
+</ul>
+</article>
+</body></html>

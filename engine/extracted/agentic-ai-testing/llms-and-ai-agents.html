@@ -1,0 +1,180 @@
+<!doctype html>
+<html><head>
+<title>LLMs and AI Agents: What the Model Actually Contributes</title>
+<meta name="description" content="What a large language model genuinely provides to an AI agent, what it doesn&#x27;t, and why &#x27;the LLM&#x27; and &#x27;the agent&#x27; are related but distinctly different things." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/llms-and-ai-agents.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>LLMs and AI Agents</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="anatomy-of-an-ai-agent.html">Anatomy of an AI Agent</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>The previous page showed the LLM powering exactly two boxes — the planner and reasoner. This page goes deeper on what that actually means: what an LLM genuinely contributes to an agent, and — just as importantly — what it doesn't, since the gap is exactly what the rest of an agent's architecture exists to fill.</p>
+
+<h2 id="what-an-llm-genuinely-provides">What an LLM Genuinely Provides</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Given TEXT describing a situation, an LLM can:
+- Understand a goal written in plain language
+- Reason about an unfamiliar situation it wasn't explicitly
+  programmed to handle
+- Choose between several plausible next actions, with a
+  genuine (if imperfect) justification
+- Turn a real observation into a clear, human-readable summary
+
+Example — a genuinely novel situation an LLM can reason about
+even without being specifically programmed for it:
+  Observation: "Checkout button is present but page shows a
+  banner: 'Payment provider temporarily unavailable.'"
+  LLM reasoning: "This isn't a bug in the traditional sense —
+  it's an external dependency issue. Clicking checkout right
+  now would predictably fail for reasons outside this app's
+  own code. Worth reporting as a distinct finding, not a
+  generic 'checkout is broken' bug."</code></pre>
+
+<h2 id="what-an-llm-does-not-provide-by-itself">What an LLM Does NOT Provide, By Itself</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>An LLM, on its own, CANNOT:
+- Actually click a button or send a real HTTP request — it can
+  only produce TEXT describing what it thinks should happen next
+- Remember anything between separate calls, unless something
+  outside the LLM explicitly saves and re-supplies that context
+- Guarantee it won't do something harmful or out of scope —
+  it has no built-in concept of YOUR specific safety boundaries
+- Verify its own reasoning is actually correct — it can be
+  confidently, fluently wrong</code></pre>
+<p>This is precisely why "AI agent" refers to the LLM <em>plus</em> everything wrapped around it — tools to actually act, memory to actually persist, guardrails to actually enforce boundaries. The LLM is the reasoning engine; it is genuinely not the whole car.</p>
+
+<h2 id="detailed-example-tracing-one-full-round-trip">Detailed Example — Tracing One Full Round Trip</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>1. Agent's surrounding code builds a PROMPT for the LLM:
+   "Goal: verify checkout works. Here's the current page's
+   visible content: [actual page text/structure]. Here's what
+   you've already tried: [memory]. What should you do next?"
+
+2. LLM receives this TEXT, produces TEXT back:
+   "Click the button labeled 'Add to Cart'."
+
+3. Agent's surrounding code PARSES this text response into an
+   actual, executable tool call:
+   tools.click({ role: 'button', name: 'Add to Cart' })
+
+4. Tool actually performs the click in a real browser
+
+5. Agent's surrounding code captures what happened, builds the
+   NEXT prompt including this new observation, and the cycle
+   repeats from step 1</code></pre>
+<p>Notice: the LLM itself never touched a browser. Every single "action" was the LLM producing text, which the surrounding agent code then interpreted and actually executed. This round trip — text in, text out, code translates and executes — happens at every single step of every agent interaction covered in this course.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might it matter, practically, that an LLM "can be confidently, fluently wrong"? An LLM's text output for an incorrect decision often reads exactly as clear and well-reasoned as its output for a correct one — there's no built-in signal distinguishing genuine confidence from a plausible-sounding mistake. This is exactly why verification steps, guardrails, and human review checkpoints (covered throughout this course) matter as much as they do — you can't simply trust that fluent-sounding output is also correct output.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Assuming a more capable or larger LLM automatically solves problems that are actually architectural — like an agent that can't remember what it already tried. A better LLM might reason more capably about a given situation, but if the surrounding code never captures and re-supplies memory between calls, no amount of LLM capability fixes that specific gap; it's not the LLM's job to solve.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>When something in a real agent's behavior seems wrong, a genuinely useful first question is: "was this actually the LLM's reasoning, or was it how the surrounding code built the prompt or parsed the response?" A surprising number of "AI got it wrong" bugs turn out to be the prompt not including information the LLM actually needed, or the parsing code misinterpreting a genuinely reasonable text response.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Treat the LLM specifically as the reasoning component — plan for what surrounds it (tools, memory, guardrails) as equally important engineering, not afterthoughts.</li>
+  <li>When debugging unexpected agent behavior, check what the LLM was actually given before assuming its reasoning itself is at fault.</li>
+  <li>Never treat fluent, confident-sounding LLM output as a substitute for actual verification of correctness.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>An LLM provides genuine reasoning over text — understanding goals, evaluating situations, choosing between options — but produces only text, not real-world actions.</li>
+  <li>Everything an agent needs beyond reasoning — actually acting, remembering, staying within safe bounds — comes from the surrounding system built around the LLM, not the LLM itself.</li>
+  <li>Every agent step is a round trip: build a prompt from real context, get text back, parse and execute it, capture the result, repeat.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>For the observation "Search returned 0 results for 'wireles mouse' (note the typo)," write out what you'd expect a reasonable LLM response to look like, then describe specifically what the surrounding agent code would need to do to turn that text response into an actual next action.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A teammate says "the LLM decided to click the wrong button" after a test failure. Why might this framing be misleading, and how would you investigate more precisely?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>The framing conflates several genuinely different possible failure points into one vague statement. "The LLM decided" could mean the LLM's actual reasoning was wrong given accurate information, or it could mean the LLM reasoned perfectly well given information that was itself wrong or incomplete — two very different problems with different fixes.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Investigation steps, in order:
+1. What EXACT prompt/context was the LLM actually given at
+   that step? (often logged — check first)
+2. Given THAT specific context, was clicking the wrong button
+   actually a reasonable interpretation? (sometimes yes — the
+   context itself was ambiguous or incomplete)
+3. If the context was clearly sufficient and the decision was
+   still wrong, THEN it's genuinely a reasoning issue worth
+   investigating on the LLM/prompt side specifically</code></pre>
+<p>"The LLM decided wrong" without checking what it was actually given is roughly equivalent to blaming a person for a bad decision without checking what information they actually had available — the more precise question is always "was this a reasoning failure or an information failure."</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why can't an LLM, by itself, remember what it did in a previous test run, even with the exact same underlying model?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>An LLM processes each request independently — it has no persistent storage of its own between separate calls unless the calling system explicitly captures information from one call and includes it in the prompt of the next.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What actually happens between two separate agent runs:
+Run 1: LLM receives a prompt, produces a response — done.
+       Nothing about this exchange is automatically retained
+       anywhere unless the AGENT'S OWN CODE saved it.
+
+Run 2 (later): LLM receives a NEW prompt. Unless that new
+       prompt explicitly INCLUDES relevant information from
+       run 1 (built by the agent's memory system), the LLM
+       has genuinely no way to know run 1 ever happened.</code></pre>
+<p>This is exactly why the "Agent Memory" page later in this chapter matters as its own, real architectural piece — persistence is something the surrounding system has to deliberately build and maintain, not a capability the underlying model provides on its own.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain, in your own words, why "the LLM clicked the button" is technically inaccurate, and why that inaccuracy actually matters for debugging.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>The LLM produced TEXT describing an intended action — it never touched a browser, sent a request, or executed anything real. The agent's surrounding code parsed that text and performed the actual click. This distinction matters because it identifies two genuinely separate places a failure could occur.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Failure mode 1 — LLM reasoning problem:
+  LLM's text output: "Click the 'Add to Cart' button" —
+  but there IS no such button on the current page. The
+  reasoning itself was wrong about what's actually there.
+
+Failure mode 2 — parsing/execution problem:
+  LLM's text output: "Click the 'Add to Cart' button" —
+  correct and reasonable. But the surrounding code's PARSER
+  misread this and generated a click on the wrong element,
+  or the TOOL itself failed to execute the click correctly.</code></pre>
+<p>These need genuinely different fixes — improving the LLM's prompt or context for failure mode 1, versus fixing the parsing/execution code for failure mode 2. Saying "the LLM clicked wrong" collapses these into one vague, less actionable diagnosis.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might upgrading to a more capable, more expensive LLM fail to fix an agent that keeps repeating the same failed action over and over?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>If the agent is repeating a failed action, the most likely cause is that it genuinely doesn't know it already tried — a memory problem, not a reasoning-capability problem. A more capable LLM reasons better given the SAME information, but if that information (its own history) is missing from every prompt, better reasoning capability doesn't help.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>The actual bug, most likely:
+Each prompt to the LLM is built FRESH, without including what
+was tried in previous steps. From the LLM's perspective, EVERY
+call looks like the first attempt — because, given what it was
+actually shown, it effectively was.
+
+What would genuinely fix this:
+Ensuring the agent's memory system correctly captures "already
+tried X, it failed because Y" and includes that in EVERY
+subsequent prompt — an architecture fix, not a model upgrade.</code></pre>
+<p>This is a genuinely common, real mistake: assuming a "smarter" model fixes a behavior that's actually caused by what information the model is or isn't being given — the fix belongs in the surrounding system's design, not in swapping the underlying model.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page emphasize that an LLM "can be confidently, fluently wrong" as a genuinely important practical concern, rather than a minor caveat?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because it directly undermines a natural but genuinely risky instinct: trusting output based on how clear and confident it sounds. A human expert who's uncertain often signals that uncertainty in their tone; an LLM's fluent, well-structured response gives no such reliable signal about whether it's actually correct.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Genuinely risky pattern to avoid:
+"The agent's report reads clearly and confidently, so it's
+  probably right" — this reasoning would apply EQUALLY to a
+  fluent, confident, and WRONG report as to a correct one,
+  since fluency doesn't correlate with correctness here.
+
+Better practice:
+Build verification into the agent's own process (does the
+  observation actually support the conclusion?), and keep
+  human review on consequential findings — exactly the
+  guardrails-and-approval pattern covered throughout this
+  entire course, precisely because of this specific risk.</code></pre>
+<p>Internalizing this specifically changes how you evaluate an agent's output — reading FOR fluency and confidence is the wrong signal; checking whether the actual evidence genuinely supports the stated conclusion is the right one.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

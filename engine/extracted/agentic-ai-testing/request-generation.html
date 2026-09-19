@@ -1,0 +1,188 @@
+<!doctype html>
+<html><head>
+<title>Request Generation: Building Requests That Genuinely Satisfy the Spec</title>
+<meta name="description" content="Constructing request payloads directly from an OpenAPI schema&#x27;s declared required fields and types — genuinely different from Chapter 6&#x27;s confirm-from-an-existing-example approach." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/request-generation.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Request Generation</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="openapi-based-test-generation.html">OpenAPI-Based Test Generation</a></p>
+<article class="content">
+<h2 id="what-is-this-and-how-it-differs-from-chapter-6">What is this, and how it differs from Chapter 6</h2>
+<p>Chapter 6's Request Construction page confirmed a schema by finding one real, existing example and matching its shape. This page starts from the spec's OWN declared schema directly — genuinely more reliable, since it doesn't depend on a convenient example record already existing.</p>
+
+<h2 id="generating-a-request-directly-from-the-declared-schema">Generating a Request Directly From the Declared Schema</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def generate_request_body(schema):
+    body = {}
+    for field, definition in schema["properties"].items():
+        is_required = field in schema.get("required", [])
+        if not is_required:
+            continue  # start with a MINIMAL, genuinely valid request
+        field_type = definition["type"]
+        if field_type == "integer":
+            body[field] = 1
+        elif field_type == "string":
+            body[field] = definition.get("example", "test-value")
+        elif field_type == "array":
+            body[field] = []
+        elif field_type == "object":
+            body[field] = generate_request_body(definition)
+    return body</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># Applied to a genuine order-creation schema:
+schema = {
+    "type": "object",
+    "required": ["customer_id", "items"],
+    "properties": {
+        "customer_id": {"type": "integer"},
+        "items": {"type": "array"},
+        "notes": {"type": "string"}  # NOT required — correctly
+                                        # excluded from the
+                                        # minimal generated body
+    }
+}
+generate_request_body(schema)
+# → {"customer_id": 1, "items": []}</code></pre>
+
+<h2 id="why-this-is-more-reliable-than-chapter-6-s-example-based-approach">Why This Is More Reliable Than Chapter 6's Example-Based Approach</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Chapter 6's approach GENUINELY depended on an existing record:
+  "Confirm a real schema first — from an existing order's GET
+  response" — this WORKS, but only if a CONVENIENT existing
+  example happens to be available to look at.
+
+THIS page's approach works even with ZERO existing records:
+  The spec ITSELF declares the required fields and their
+  types — genuinely sufficient to construct a VALID minimal
+  request with NOTHING else needed, directly addressing the
+  exact gap Chapter 6's own "Try It Yourself" exercise
+  flagged: "what if NO existing order records were available?"</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why does this page's function deliberately generate a MINIMAL request — only required fields — rather than including every declared field, required or not? A minimal request tests the SPEC'S OWN stated minimum requirement directly — does the endpoint genuinely accept a request with ONLY what's declared as required? Including every optional field too would conflate "does the minimum required set work" with "does a more complete request work," two genuinely different, both-worth-testing questions that a single generated request can't cleanly separate.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Generating request values that satisfy a field's declared TYPE but ignore other declared constraints, like a string field's declared <code>enum</code> values or a number field's declared <code>minimum</code>. Type-correctness alone doesn't guarantee spec-compliance if the schema declares more specific constraints this simplified function doesn't yet account for.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>Generating both a MINIMAL request (required fields only, this page's example) and a MAXIMAL request (every declared field populated) from the same schema is genuinely useful — they test different, real questions about the endpoint's actual behavior at each end of what the spec allows.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Generate requests directly from the spec's declared schema, rather than depending on a convenient existing example being available.</li>
+  <li>Distinguish minimal (required-only) and maximal (fully-populated) generated requests as testing genuinely different questions.</li>
+  <li>Account for declared constraints beyond bare type — enums, minimums, formats — not just whether a value technically matches the right type.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Generating requests directly from a declared OpenAPI schema is genuinely more reliable than Chapter 6's example-based confirmation, since it doesn't depend on a convenient existing record.</li>
+  <li>A minimal, required-fields-only request specifically tests the spec's own stated minimum requirement, a genuinely distinct question from testing a fully-populated request.</li>
+  <li>Type-correctness alone doesn't guarantee full spec-compliance — enums, minimums, and other declared constraints need their own handling too.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Extend this page's <code>generate_request_body</code> function to also respect a declared <code>enum</code> constraint (using the first listed enum value) and a declared <code>minimum</code> constraint for numeric fields (using exactly that minimum value) — connecting directly to Chapter 4's boundary-testing principle.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A teammate asks why this chapter needs its own request-generation approach when Chapter 6 already covered constructing valid requests. What's the genuine difference in what problem each one solves?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Chapter 6's approach solves "how do I avoid guessing at field names when NO formal spec exists, only real examples" — this page solves a genuinely different problem: "given a formal spec DOES exist, how do I generate requests DIRECTLY from it, without needing an example at all."</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Chapter 6's genuine problem and solution:
+NO formal spec available — the only reliable source of truth
+  is an EXISTING, real record. Confirm structure by OBSERVING
+  a genuine example before constructing new requests.
+
+THIS page's genuinely different problem and solution:
+A formal spec ALREADY EXISTS — no need to find or depend on
+  an existing example at all; the SPEC ITSELF is the reliable
+  source of truth, and requests can be generated DIRECTLY from
+  its declared schema, even for a BRAND NEW endpoint with zero
+  existing records.</code></pre>
+<p>These aren't competing solutions to the SAME problem — they're solutions to genuinely different starting situations (no spec vs. formal spec available), exactly the distinction this chapter's own hub page establishes as its core differentiator from Chapter 6.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page's generated request deliberately EXCLUDE the optional 'notes' field, rather than including it with some placeholder value?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because the whole point of the MINIMAL request is testing whether the endpoint genuinely accepts the spec's stated MINIMUM — including an optional field, even with a placeholder, would test something subtly different (does it work with SOME optional data present) rather than the specific, narrower question this generated request is meant to answer.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What including 'notes' with a placeholder would ACTUALLY test:
+"Does the endpoint work when customer_id, items, AND notes are
+  ALL provided?" — a GENUINELY different, less precise question
+  than what the MINIMAL request is specifically designed to
+  isolate.
+
+What EXCLUDING it (this page's actual approach) genuinely
+tests:
+"Does the endpoint work with ONLY the fields the spec
+  EXPLICITLY marks as required, and NOTHING else?" — precisely
+  answering whether the spec's OWN 'required' declaration is
+  accurate and sufficient, isolated from any optional-field
+  behavior.</code></pre>
+<p>This precision matters for genuine diagnosis: if this MINIMAL request fails, the problem is very likely to lie specifically with the REQUIRED fields; if a request WITH 'notes' included also happens to fail differently, that's a genuinely separate finding about OPTIONAL field handling — conflating them into one request would make distinguishing these two possibilities much harder.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why respecting a declared enum constraint (from this page's "Try It Yourself") matters beyond simply respecting the field's declared type.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Type-correctness (is this a valid string) and enum-correctness (is this ONE OF THE SPECIFIC ALLOWED VALUES) are genuinely different, independent constraints — a value can satisfy one while completely violating the other, producing a request that LOOKS type-correct but is actually invalid per the spec.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A CONCRETE example of type-correct but enum-INVALID:
+Schema declares: "status": {"type": "string", "enum":
+  ["pending", "shipped", "delivered", "cancelled"]}
+
+A NAIVE generator satisfying ONLY the type constraint:
+body["status"] = "test-value"  — this IS technically a valid
+  STRING, satisfying the type check, but "test-value" is NOT
+  one of the four DECLARED, allowed enum values — the request
+  would likely be REJECTED by a spec-compliant API, for
+  reasons that have NOTHING to do with what's actually being
+  tested.
+
+The CORRECT approach (this page's "Try It Yourself" goal):
+Check for an "enum" key specifically, and if present, use ONE
+  of ITS declared values (like the first one) rather than a
+  generic type-appropriate placeholder.</code></pre>
+<p>This is a genuinely important, real gap in the simplified function shown in this page's main example — a production-quality version needs to handle MULTIPLE kinds of declared constraints (type, enum, minimum, format, and others), not just the single, broadest one (type), which is exactly why this page's own exercise asks you to extend it further.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might generating BOTH a minimal and a maximal request (per this page's "Quick Tip") reveal something neither one alone would show?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Comparing their results directly can reveal whether OPTIONAL fields genuinely behave as optional — a real, subtle bug class where a field the spec DECLARES as optional turns out to actually be REQUIRED (or vice versa) in the real, deployed implementation.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A genuinely realistic bug THIS comparison would catch:
+MINIMAL request (customer_id, items only) → SUCCEEDS (201)
+MAXIMAL request (customer_id, items, AND notes populated) →
+  FAILS (400, "invalid notes format")
+
+This reveals a REAL, concrete problem: the OPTIONAL 'notes'
+  field has some VALIDATION issue that ONLY surfaces when it's
+  actually PROVIDED — something NEITHER request alone would
+  have revealed: the minimal request never EXERCISES notes at
+  all, and if you'd ONLY tested the maximal request, you might
+  have WRONGLY concluded the entire endpoint was broken, rather
+  than correctly isolating the issue to this ONE optional field.</code></pre>
+<p>This is a genuinely useful diagnostic technique — running BOTH extremes and comparing results is a real, practical way to isolate WHICH specific fields might have issues, rather than testing only one request shape and getting a less precise, less actionable signal about what's actually wrong.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you handle a schema field with type "string" and format "date-time" specifically, given that this page's basic function only checks the bare type?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A genuinely correct generator needs to check for a declared <code>format</code> alongside the bare <code>type</code>, since "any string" and "a specifically-formatted date-time string" are very different constraints that a naive type-only check would conflate.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def generate_field_value(definition):
+    field_type = definition["type"]
+    field_format = definition.get("format")
+
+    if field_type == "string" and field_format == "date-time":
+        from datetime import datetime, timezone
+        return datetime.now(timezone.utc).isoformat()
+    elif field_type == "string" and field_format == "email":
+        return "test@example.com"
+    elif field_type == "string":
+        return definition.get("example", "test-value")
+    # ... other types unchanged ...</code></pre>
+<p>This directly extends the principle from the enum discussion earlier in this page's FAQ — a schema's <code>type</code> is only ONE of potentially SEVERAL declared constraints, and a genuinely robust request generator needs to check for format, enum, minimum/maximum, and other constraints the spec might declare, rather than treating bare type as the only thing worth satisfying.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

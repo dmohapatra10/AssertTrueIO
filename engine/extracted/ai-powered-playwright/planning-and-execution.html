@@ -1,0 +1,90 @@
+<!doctype html>
+<html><head>
+<title>Planning and Execution</title>
+<meta name="description" content="Unifying Chapter 5&#x27;s known-sequence planning and Chapter 13&#x27;s open-ended exploration strategy into one Planner, now expressed as a real tool call rather than parsed JSON." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/planning-and-execution.html" />
+</head><body>
+<p class="difficulty">Advanced</p>
+<h1>Planning and Execution</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="agent-state.html">Agent State</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Unifying Chapter 5's known-sequence planning and Chapter 13's open-ended strategy into one real Planner</li>
+  <li>Expressing planning as a real tool call, consuming the state object from the previous page</li>
+  <li>Executing the model's chosen tool using Chapter 5's own, unchanged execution logic</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>Chapter 5's planning assumed a known sequence; Chapter 13's assumed genuine open-endedness. This chapter's agent needs to handle both, since a real objective can start with known structure and drift into open-ended territory the moment something unexpected appears — exactly as this chapter's opening page's checkout-with-discount-field example showed.</p>
+
+<h2 id="step-by-step-implementation-the-unified-planner">Step-by-Step Implementation — The Unified Planner</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/agent-planner.ts
+import { getNextToolCall } from './call-with-tools';
+import { AgentState } from './agent-state';
+
+const AGENT_SYSTEM_PROMPT = `You are a QA agent testing
+ShopSmart. You have tools to navigate, click, and fill fields.
+Plan your next action based on the objective and everything
+you've already tried. If you notice something worth
+investigating beyond the literal objective, you may explore
+it — but stay focused on genuinely relevant findings. Call
+report_objective_complete only when you're genuinely confident
+the objective has been achieved.`;
+
+export async function planNextStep(state: AgentState) {
+  return getNextToolCall(AGENT_SYSTEM_PROMPT, state.conversationHistory);
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p>Notice this function is genuinely simple — it doesn't separately implement Chapter 5's logic and Chapter 13's logic as two different code paths. Instead, the system prompt itself tells the model it may plan a known step OR explore something unexpected, and the model's own reasoning, given the full conversation history, decides which applies at each moment. This is a real, deliberate simplification: rather than the code deciding "are we in planning mode or exploration mode," the model reasons about it directly, informed by everything in <code>state.conversationHistory</code>.</p>
+
+<h2 id="step-by-step-implementation-execution-reusing-chapter-5-directly">Step-by-Step Implementation — Execution, Reusing Chapter 5 Directly</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/agent-execute.ts
+import { Page } from '@playwright/test';
+import { SHOPSMART_LOCATORS } from './map-to-playwright';
+
+export async function executeAgentTool(
+  toolName: string, toolInput: any, page: Page
+): Promise&lt;string&gt; {
+  switch (toolName) {
+    case 'navigate':
+      await page.goto(toolInput.url);
+      return `Navigated to ${toolInput.url}`;
+    case 'click_element':
+      await page.getByRole(toolInput.role, { name: toolInput.name }).click();
+      return `Clicked ${toolInput.role} "${toolInput.name}"`;
+    case 'fill_field':
+      await page.getByLabel(toolInput.label).fill(toolInput.value);
+      return `Filled "${toolInput.label}"`;
+    default:
+      throw new Error(`Unrecognized tool: ${toolName}`);
+  }
+}</code></pre>
+
+<h2 id="why-it-matters-this-is-almost-entirely-chapter-5-and-6-s-own-logic">Why It Matters — This Is Almost Entirely Chapter 5 and 6's Own Logic</h2>
+<p>Compare <code>executeAgentTool</code> against Chapter 5's <code>executeAction</code> — they're doing the same real work, mapping a structured intent to a real Playwright call. The genuine difference is the input's origin: a real tool call from Anthropic's API, rather than a manually-parsed JSON object. This confirms Chapter 14's opening claim directly — execution didn't need to change; only how the model's choice reaches this function did.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Writing separate planning code paths for "known sequence" versus "exploration."</strong> This page's whole point is that one system prompt, combined with the full conversation history, lets the model itself decide which mode applies — no separate code branches needed.</li>
+  <li><strong>Rewriting execution logic instead of reusing Chapter 5's mapping.</strong> The mapping from structured intent to Playwright call hasn't genuinely changed — only the source of that structured intent has.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Let the system prompt, not separate code paths, carry the responsibility for choosing between known-sequence planning and open-ended exploration.</li>
+  <li>Reuse execution logic from earlier chapters unchanged wherever the underlying mapping (intent to Playwright call) hasn't genuinely changed.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Extend <code>AGENT_SYSTEM_PROMPT</code> with an explicit reference to Chapter 6's locator healing, instructing the agent to note (but not automatically fix) any locator that appears to have changed. Run <code>planNextStep</code> against a state where a previous tool call's result mentions an element not found, and observe how the model's next choice responds.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Unifying known-sequence planning and open-ended exploration doesn't require separate code paths — a well-written system prompt, combined with full conversation history, lets the model reason about which applies.</li>
+  <li>Execution logic barely changes from Chapter 5 — the same mapping from structured intent to Playwright call, now fed by a real tool call instead of parsed JSON.</li>
+  <li>This confirms the pattern this entire chapter has followed: assembly and a small amount of genuinely new glue code, not wholesale rewriting.</li>
+</ul>
+</article>
+</body></html>

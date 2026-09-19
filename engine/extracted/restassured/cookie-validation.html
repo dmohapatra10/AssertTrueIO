@@ -1,0 +1,132 @@
+<!doctype html>
+<html><head>
+<title>RestAssured Cookie Validation: Reading, Setting, and Asserting on Cookies</title>
+<meta name="description" content="A complete guide to cookies in RestAssured — reading response cookies, sending request cookies, validating cookie attributes, and cookie-based session testing." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/cookie-validation.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Cookie Validation</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="response-size-and-time-validation.html">Response Size & Time Validation</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Chapter 1 mentioned cookies briefly as a mechanism sometimes used for session-based authentication. This page gives them the full treatment — reading, setting, and validating cookies in RestAssured, which matters for any API sitting behind a cookie-based session (common in APIs that share infrastructure with a traditional server-rendered web app).</p>
+
+<h2 id="reading-cookies-from-a-response">Reading Cookies From a Response</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Response response = given().body(credentials).when().post("/login");
+
+String sessionId = response.getCookie("SESSION_ID");
+Map&lt;String, String&gt; allCookies = response.getCookies();</code></pre>
+<p><code>.getCookie()</code> reads a single cookie's value by name; <code>.getCookies()</code> returns all of them as a map — the same extraction-not-validation distinction from Chapter 4 applies here, both are reads with no pass/fail judgment attached.</p>
+
+<h2 id="validating-a-cookie-was-set">Validating a Cookie Was Set</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>.then()
+    .cookie("SESSION_ID", notNullValue())
+    .cookie("SESSION_ID", matchesPattern("^[a-zA-Z0-9]{32}$")); // format validation</code></pre>
+<p>Just like headers and body fields, cookies support the full range of Hamcrest matchers — presence checks, exact values, or pattern matching against an expected format.</p>
+
+<h2 id="sending-cookies-on-a-request">Sending Cookies on a Request</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>given()
+    .cookie("SESSION_ID", sessionId)
+.when()
+    .get("/profile")
+.then()
+    .statusCode(200);</code></pre>
+<p>This is the request-side counterpart — attaching a cookie (typically one extracted from an earlier login response) to a subsequent request, the cookie-based equivalent of the Bearer token reuse pattern from Chapter 6.</p>
+
+<h2 id="detailed-example-cookie-attributes-not-just-the-value">Detailed Example — Cookie Attributes (Not Just the Value)</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Response response = given().body(credentials).when().post("/login");
+
+Cookie sessionCookie = response.getDetailedCookie("SESSION_ID");
+
+assertThat(sessionCookie.isHttpOnly(), is(true));   // not accessible via client-side JavaScript
+assertThat(sessionCookie.isSecure(), is(true));      // only sent over HTTPS
+assertThat(sessionCookie.getSameSite(), equalTo("Strict"));
+assertThat(sessionCookie.getMaxAge(), greaterThan(0));</code></pre>
+<p>A cookie's <em>value</em> is often less security-relevant than its <em>attributes</em>. <code>HttpOnly</code>, <code>Secure</code>, and <code>SameSite</code> are real security controls — testing that a session cookie actually has them set correctly is a legitimate, valuable security-adjacent test, not just a functional nicety. <code>getDetailedCookie()</code> (as opposed to the plain <code>getCookie()</code> shown earlier) is what exposes these attributes, not just the raw value.</p>
+
+<h2 id="real-world-example-a-full-cookie-based-session-lifecycle-test">Real-World Example — A Full Cookie-Based Session Lifecycle Test</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void cookieBasedSessionWorksEndToEnd() {
+    // 1. Login — capture the session cookie
+    Response loginResponse = given().body(credentials).when().post("/login");
+    loginResponse.then().statusCode(200);
+    String sessionId = loginResponse.getCookie("SESSION_ID");
+    assertThat(sessionId, is(notNullValue()));
+
+    // 2. Use the cookie on a subsequent authenticated request
+    given().cookie("SESSION_ID", sessionId).when().get("/profile")
+        .then().statusCode(200);
+
+    // 3. Logout — confirm the session is actually invalidated server-side
+    given().cookie("SESSION_ID", sessionId).when().post("/logout")
+        .then().statusCode(200);
+
+    // 4. The SAME cookie should no longer work after logout
+    given().cookie("SESSION_ID", sessionId).when().get("/profile")
+        .then().statusCode(401);
+}</code></pre>
+<p>Step 4 is the test most suites skip — confirming that logout genuinely invalidates the session server-side, not just that the client discards the cookie locally. A session that's still technically valid after "logout" (if an attacker somehow retained the cookie value) is a real, meaningful security gap this specific test is designed to catch.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Only testing that login sets SOME cookie, never its security attributes
+.then().cookie("SESSION_ID", notNullValue());
+
+// ✅ Testing the attributes that actually matter for session security
+Cookie sessionCookie = response.getDetailedCookie("SESSION_ID");
+assertThat(sessionCookie.isHttpOnly(), is(true));
+assertThat(sessionCookie.isSecure(), is(true));</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Only checking a session cookie's presence and value</strong>, never its security attributes (<code>HttpOnly</code>, <code>Secure</code>, <code>SameSite</code>) — misses a real, testable security concern.</li>
+  <li><strong>Not testing that logout actually invalidates the session server-side</strong>, only that the login/cookie mechanism works in the forward direction.</li>
+  <li><strong>Confusing <code>getCookie()</code> and <code>getDetailedCookie()</code></strong> — the former only gives you the raw value; the latter is what you need for attribute-level assertions.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Cookies with an expiration set in the past or a very short max-age</strong> — worth testing that an expired session cookie is correctly rejected, similar to token expiration testing from Chapter 6.</li>
+  <li><strong>Multiple cookies with related but distinct purposes</strong> (a session cookie and a separate CSRF token cookie) — test each independently rather than assuming one cookie's presence implies the other is also correctly configured.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a cookie-dependent request unexpectedly fails, log the request (Chapter 8) to confirm the cookie is actually being sent, and check whether it matches the exact name and value the server set — a cookie name typo produces the same practical failure as a missing cookie, but looks different if you're specifically checking for it.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Test both a session cookie's value/presence and its security attributes (HttpOnly, Secure, SameSite).</li>
+  <li>Explicitly test that logout invalidates a session server-side, not just that the login flow works.</li>
+  <li>Use <code>getDetailedCookie()</code> whenever attribute-level validation matters, not just the raw value.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Write the full four-step cookie session lifecycle test shown on this page against a real or sandbox API with cookie-based auth, and add an assertion confirming the session cookie is marked <code>HttpOnly</code> and <code>Secure</code>.</p>
+
+<h2 id="summary">Summary</h2>
+<p>Cookie validation in RestAssured covers reading (<code>.getCookie()</code>/<code>.getDetailedCookie()</code>), sending (<code>.cookie()</code> on a request), and asserting (<code>.then().cookie(...)</code>) — with the security-relevant attributes (HttpOnly, Secure, SameSite) deserving explicit testing, not just the raw cookie value. A full session lifecycle test — login, use, logout, and confirm the old session no longer works — catches a real security gap that a login-only test would miss entirely.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why is testing that a logout request actually invalidates the session server-side more important than just confirming the login flow sets a valid cookie?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A client can always simply discard a cookie locally, but that alone doesn't prove the server has actually invalidated the underlying session — if an old cookie value is somehow retained or intercepted (a security concern in its own right), it might still work against the API even after the user believes they've logged out. Testing that the exact same cookie value is rejected with a 401 after a logout request confirms the server genuinely invalidated the session, not just that the client-side flow completed — a meaningfully stronger and more security-relevant guarantee.</div>
+</details>
+<details class="faq-item">
+<summary>Why is testing a session cookie's attributes as important as testing its value?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">HttpOnly, Secure, and SameSite are real security controls, not just metadata — a cookie's value being present says nothing about whether it's actually protected against the specific threats those attributes exist to mitigate.</div>
+</details>
+<details class="faq-item">
+<summary>What's the difference between getCookie() and getDetailedCookie()?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">getCookie() returns only the raw value; getDetailedCookie() exposes the full Cookie object including its security attributes (HttpOnly, Secure, SameSite, max-age) — needed for attribute-level assertions.</div>
+</details>
+<details class="faq-item">
+<summary>Why is confirming logout actually invalidates a session server-side a meaningful test, not just a nice-to-have?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A client can always discard a cookie locally regardless of server state — proving the exact same cookie value is rejected with 401 AFTER logout confirms the server genuinely invalidated the session, a real security guarantee a login-only test wouldn't verify.</div>
+</details>
+<details class="faq-item">
+<summary>Why might sending a cookie on a request be considered the request-side counterpart to Bearer token reuse?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Both patterns extract a credential from an earlier response (login) and attach it to subsequent requests — the same underlying reuse pattern, just carried via a cookie instead of an Authorization header.</div>
+</details>
+</div>
+</article>
+</body></html>

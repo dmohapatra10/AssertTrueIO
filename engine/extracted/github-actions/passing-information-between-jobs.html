@@ -1,0 +1,113 @@
+<!doctype html>
+<html><head>
+<title>Passing Information Between Jobs in GitHub Actions: Job-Level Outputs</title>
+<meta name="description" content="How to pass a small value from one job to another using job-level outputs, and why this is a genuinely different tool from an artifact." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/passing-information-between-jobs.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Passing Information Between Jobs</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="passing-information-between-steps.html">Passing Information Between Steps</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>The previous page covered passing a value between steps within one job. This page covers the genuinely different mechanism for passing a small value between two entirely separate jobs — distinct from artifacts (Chapter 8), which are for files, not simple values.</p>
+
+<h2 id="why-do-we-need-it">Why do we need it?</h2>
+<p>Job isolation (Chapter 4) means nothing automatically carries from one job to another. A file needs an artifact. A small computed value — a version number, a decision flag — has its own, lighter mechanism: job-level outputs.</p>
+
+<h2 id="defining-a-job-output">Defining a Job Output</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+    steps:
+      - id: get_version
+        run: echo "version=1.2.3" >> $GITHUB_OUTPUT</code></pre>
+<p>A job's <code>outputs:</code> block maps a job-level output name to a step-level output from within that same job — this is genuinely the bridge between the previous page's mechanism and this one: a job output is built <em>from</em> a step output.</p>
+
+<h2 id="reading-a-job-output-from-a-different-job">Reading a Job Output From a Different Job</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  build:
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+    steps: [...]
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Deploying version ${{ needs.build.outputs.version }}"</code></pre>
+<p><code>needs.build.outputs.version</code> retrieves the value — note that <code>needs:</code> is required here too, for the same reason it's required for artifact downloads: without it, there's no guarantee <code>build</code> has even finished (and produced its output) before <code>deploy</code> tries to read it.</p>
+
+<h2 id="detailed-example-a-genuinely-useful-real-scenario">Detailed Example — A Genuinely Useful Real Scenario</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+      should_deploy: ${{ steps.check.outputs.should_deploy }}
+    steps:
+      - id: get_version
+        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+      - id: check
+        run: echo "should_deploy=${{ github.ref == 'refs/heads/main' }}" >> $GITHUB_OUTPUT
+
+  deploy:
+    needs: build
+    if: needs.build.outputs.should_deploy == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Deploying version ${{ needs.build.outputs.version }}"</code></pre>
+<p>Here, <code>build</code> computes both a version number and a decision (whether this run is actually on <code>main</code>) once, and <code>deploy</code> reads both — the decision even feeds directly into <code>deploy</code>'s own <code>if:</code> condition. This is a genuinely different, complementary tool to what Chapter 6 covered — that chapter's conditional used <code>github.ref</code> directly; this shows a job's own computed decision flowing into a later job's condition instead.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why use a job output for something like <code>should_deploy</code> rather than just repeating the same <code>github.ref == 'refs/heads/main'</code> check directly in the <code>deploy</code> job's own <code>if:</code>? If the actual decision logic is more complex than a single simple comparison — checking several conditions together, or something computed rather than a direct context lookup — computing it once in <code>build</code> and passing the result keeps that logic in exactly one place, rather than duplicating potentially complex logic across every job that needs to make the same decision.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Trying to use a job output for something that's genuinely a file rather than a small value — job outputs have real size limitations and are meant for simple strings, not file content. A build's actual output files still need an artifact (Chapter 8); a job output is for something like that build's version number or a computed decision, not the files themselves.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>Like step outputs, job outputs are always strings — a boolean-looking value like <code>true</code> passed this way is genuinely the string <code>"true"</code>, which is why the example above compares it with <code>== 'true'</code> rather than treating it as a native boolean.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Use job outputs for small, simple values — a version, a flag, a computed decision — never for file content.</li>
+  <li>Always pair a job output read with an explicit <code>needs:</code> dependency on the producing job.</li>
+  <li>Compute a decision once in a job output when the same logic would otherwise need to be duplicated across multiple dependent jobs.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>A job's <code>outputs:</code> block exposes a value (typically built from one of its own step outputs) to jobs that depend on it.</li>
+  <li><code>needs.&lt;job&gt;.outputs.&lt;name&gt;</code> retrieves it — requiring the same <code>needs:</code> dependency as artifact downloads, for the same underlying reason.</li>
+  <li>Job outputs are for small values, not files — artifacts remain the right tool for actual file content.</li>
+</ul>
+
+<h2 id="challenge">🏆 Challenge</h2>
+<p>Extend the example above with a third job, <code>notify</code>, that needs both <code>build</code> and <code>deploy</code>, and prints a message including the version number from <code>build</code>'s output — regardless of whether <code>deploy</code> actually ran (since <code>should_deploy</code> might have been false).</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why does a job's outputs: block typically reference a step output rather than defining a value directly?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A job itself doesn't run commands directly — its steps do. A job output is genuinely built from something one of its own steps already computed and exposed via $GITHUB_OUTPUT, with the job's outputs: block simply exposing that same value one level up, making it accessible to other jobs that depend on this one.</div>
+</details>
+<details class="faq-item">
+<summary>Why does reading needs.build.outputs.version in a different job still require an explicit needs: dependency?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Without needs:, jobs run in parallel by default, meaning the job trying to read the output could execute before the producing job has even finished computing and exposing that value. needs: guarantees the producing job has genuinely completed — and its outputs are actually available — before the dependent job starts.</div>
+</details>
+<details class="faq-item">
+<summary>Why is a job output the wrong tool for passing an actual build artifact like a compiled binary between jobs?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Job outputs are designed for small, simple string values, with real practical size limitations, not for transferring file content. An actual build artifact — a binary, a bundled application, a folder of files — needs the artifact upload/download mechanism from an earlier chapter, which is specifically built to handle real file content, unlike job outputs.</div>
+</details>
+<details class="faq-item">
+<summary>Why does the example workflow compare needs.build.outputs.should_deploy to the string 'true' rather than treating it as a native boolean?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Like step outputs, job outputs are always strings regardless of what the original value looked like — a boolean-looking value written as true is transmitted and read back as the literal string "true", not a native boolean type. Comparing it explicitly against the string 'true' correctly matches how the value is actually represented once passed through this mechanism.</div>
+</details>
+<details class="faq-item">
+<summary>Why might computing a deployment decision once in a build job's output be preferable to repeating the same condition logic in every job that needs it?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">If the actual decision involves more than a single simple comparison, duplicating that logic across multiple jobs risks it drifting out of sync if one copy is updated but another is missed. Computing the decision once and passing the result via a job output keeps that logic in exactly one place, which every dependent job can then simply read rather than needing to reimplement independently.</div>
+</details>
+</div>
+</article>
+</body></html>

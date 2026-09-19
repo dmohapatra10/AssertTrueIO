@@ -1,0 +1,155 @@
+<!doctype html>
+<html><head>
+<title>k6 Custom Metrics: Counter, Gauge, Rate, and Trend Explained</title>
+<meta name="description" content="k6&#x27;s four custom metric types explained with real use cases — Counter, Gauge, Rate, and Trend — for measuring something the built-in HTTP metrics don&#x27;t capture." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/custom-metrics-counter-gauge-rate-trend.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Custom Metrics: Counter, Gauge, Rate, Trend</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="built-in-http-metrics-explained.html">Built-in HTTP Metrics Explained</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>The built-in metrics from the previous page cover HTTP requests thoroughly, but they can't capture something specific to your own test's business logic — like how many times a particular business rule was triggered, or the size of a shopping cart at checkout. Custom metrics fill that gap, and k6 provides four distinct types, each suited to a different kind of measurement.</p>
+
+<h2 id="counter-a-running-total">Counter — A Running Total</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import { Counter } from 'k6/metrics';
+
+const ordersCreated = new Counter('orders_created');
+
+export default function () {
+  const response = http.post(ordersUrl, orderPayload);
+  if (response.status === 201) {
+    ordersCreated.add(1);
+  }
+}</code></pre>
+<p>A <code>Counter</code> tracks a running total that only increases — useful for counting occurrences of something across the whole test, like how many orders were successfully created, or how many times a specific business rule was actually triggered.</p>
+
+<h2 id="gauge-the-current-value">Gauge — The Current Value</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import { Gauge } from 'k6/metrics';
+
+const cartSize = new Gauge('current_cart_size');
+
+export default function () {
+  const response = http.get(cartUrl);
+  cartSize.add(response.json('items').length);
+}</code></pre>
+<p>A <code>Gauge</code> tracks the most recently reported value — unlike a Counter, it can go up or down, and it represents a current state rather than an accumulating total. Useful for something like the current size of a cart, the current queue depth, or any value that genuinely fluctuates rather than only accumulating.</p>
+
+<h2 id="rate-percentage-of-true-false-occurrences">Rate — Percentage of True/False Occurrences</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import { Rate } from 'k6/metrics';
+
+const businessRuleViolations = new Rate('business_rule_violations');
+
+export default function () {
+  const response = http.post(orderUrl, orderPayload);
+  businessRuleViolations.add(response.json('discountApplied') && response.json('total') < 0);
+}</code></pre>
+<p>A <code>Rate</code> tracks the percentage of true values out of everything added to it — <code>http_req_failed</code> is actually implemented internally using this same concept. Useful for tracking the frequency of any specific condition, like how often a particular (potentially problematic) business outcome occurs.</p>
+
+<h2 id="trend-statistical-distribution-of-a-custom-value">Trend — Statistical Distribution of a Custom Value</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import { Trend } from 'k6/metrics';
+
+const cartCalculationTime = new Trend('cart_calculation_time', true);
+
+export default function () {
+  const start = Date.now();
+  const response = http.get(cartUrl);
+  cartCalculationTime.add(Date.now() - start);
+}</code></pre>
+<p>A <code>Trend</code> tracks a full statistical distribution of a custom value — reporting min, max, average, median, and percentiles, exactly like <code>http_req_duration</code> does automatically for HTTP requests. Useful when you need percentile-level insight into something that isn't itself an HTTP request duration — like the time spent client-side processing a response, or any other custom-measured duration.</p>
+
+<h2 id="detailed-example-choosing-the-right-type-for-a-real-scenario">Detailed Example — Choosing the Right Type for a Real Scenario</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Need: "How many times did a checkout attempt fail due to insufficient stock,
+       specifically (not any other kind of failure)?"
+→ Counter — this is a running total of a specific occurrence
+
+Need: "What's the current number of items in the average active cart?"
+→ Gauge — this is a current, fluctuating value, not an accumulating total
+
+Need: "What percentage of checkout attempts triggered a specific discount
+       calculation edge case?"
+→ Rate — this is a percentage of true/false occurrences
+
+Need: "What's the p95 time for a specific client-side calculation step
+       that isn't itself an HTTP request?"
+→ Trend — this needs full percentile-level statistical detail</code></pre>
+<p>Each of these four questions genuinely needs a different metric type to answer correctly — using a Counter where a Trend's percentile detail was actually needed, for instance, would give you a total count but nothing about the distribution, missing exactly the kind of tail-latency insight Chapter 1 established as critical.</p>
+
+<h2 id="real-world-example-a-custom-metric-revealing-a-business-logic-problem">Real-World Example — A Custom Metric Revealing a Business-Logic Problem</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const failedDiscountCalculations = new Rate('failed_discount_calculations');
+
+export default function () {
+  const response = http.post(checkoutUrl, cartPayload);
+  const discountCorrect = response.json('discount') === expectedDiscount(cartPayload);
+  failedDiscountCalculations.add(!discountCorrect);
+}</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Result: failed_discount_calculations: 3.2%</code></pre>
+<p>This is a genuinely business-specific correctness metric that no built-in k6 metric could ever capture — it's tracking whether a particular business calculation is correct, not anything about HTTP request timing or status codes. A 3.2% failure rate here is a real, concrete finding worth investigating, made visible specifically because a custom Rate metric was defined for it.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ No custom metrics — only built-in HTTP metrics, missing business-specific insight
+export default function () {
+  http.post(checkoutUrl, cartPayload); // no visibility into discount correctness at all
+}
+
+// ✅ A custom metric capturing exactly what matters for this specific test's goal
+const failedDiscountCalculations = new Rate('failed_discount_calculations');
+export default function () {
+  const response = http.post(checkoutUrl, cartPayload);
+  failedDiscountCalculations.add(response.json('discount') !== expectedDiscount(cartPayload));
+}</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Using a Counter when a Trend's percentile detail is actually needed</strong> — a total count alone hides the same tail-latency problems an average would.</li>
+  <li><strong>Using a Gauge for something that should accumulate</strong> — a Gauge only reflects the most recent value, losing history a Counter or Trend would have preserved.</li>
+  <li><strong>Never defining any custom metrics at all</strong>, relying purely on built-in HTTP metrics for a test whose actual goal is measuring something business-specific those metrics were never designed to capture.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>A Trend metric with a very low sample count</strong> — like percentiles generally, a Trend's percentile values need a meaningfully large number of data points to be statistically trustworthy; a Trend fed only a handful of values produces unreliable percentile figures.</li>
+  <li><strong>Multiple custom metrics needed to fully capture one business scenario</strong> — a genuinely complex scenario might need a Counter (how many times something happened) alongside a Trend (how long it took when it did) to tell the complete story; don't force everything into a single metric type if the real question has multiple genuinely distinct dimensions.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a test's built-in metrics all look healthy but a known business-logic issue isn't showing up anywhere in the results, check whether a custom metric was actually defined to capture it — built-in HTTP metrics were never designed to know anything about your application's specific business rules, only about the HTTP mechanics of each request.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Choose the metric type that matches the actual shape of what you're measuring — accumulating total (Counter), current fluctuating value (Gauge), percentage of occurrences (Rate), or full statistical distribution (Trend).</li>
+  <li>Define custom metrics for anything business-specific the built-in HTTP metrics structurally can't capture.</li>
+  <li>Give custom metrics clear, descriptive names — they'll appear in the summary output exactly as named, and a vague name undermines the whole point of adding custom visibility.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>For a hotel booking system, design custom metrics to track: (1) how many booking attempts failed due to a room already being taken, (2) the current number of rooms being actively viewed at any moment, and (3) the percentile distribution of how long the price-calculation step takes. Identify which of the four custom metric types fits each.</p>
+
+<h2 id="summary">Summary</h2>
+<p>k6's four custom metric types each fit a genuinely different shape of measurement: <code>Counter</code> for an accumulating total, <code>Gauge</code> for a current, fluctuating value, <code>Rate</code> for a percentage of true/false occurrences, and <code>Trend</code> for full percentile-level statistical detail on a custom value. Defining the right custom metric is what makes business-specific correctness and behavior visible in a test's results — something the built-in HTTP metrics, by design, were never able to capture on their own.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>What's the key difference between a Counter and a Gauge?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A Counter only ever accumulates — it tracks a running total that increases over the test, suitable for counting occurrences of something. A Gauge instead tracks only the most recently reported value, which can go up or down, suitable for representing a current, fluctuating state like queue depth or cart size rather than an accumulating count.</div>
+</details>
+<details class="faq-item">
+<summary>Why would you use a Trend instead of a Counter to measure how long a custom operation takes?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A Counter can only tell you how many times something happened, not how long each occurrence took or how that duration was distributed. A Trend captures the full statistical distribution — min, max, average, median, and percentiles — of a custom value, which is essential for spotting the same kind of tail-latency issues (a healthy average hiding a bad p99) that matter for any duration-based measurement, not just HTTP request timing.</div>
+</details>
+<details class="faq-item">
+<summary>Which built-in k6 metric is conceptually implemented using the same idea as a custom Rate metric?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">http_req_failed — it reports the percentage of requests that failed out of the total, which is exactly the same concept a Rate metric captures for any custom true/false condition. Understanding this connection makes it clearer when a Rate is the right custom metric type: whenever you're tracking what percentage of something meets a specific condition.</div>
+</details>
+<details class="faq-item">
+<summary>Why can't built-in k6 HTTP metrics capture whether a business calculation (like a discount) was correct?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Built-in HTTP metrics only know about the mechanics of a request and response — status codes, timing, size — they have no knowledge of your application's specific business logic or what a "correct" response should actually contain. Verifying business-specific correctness requires comparing the actual response against an expected value, which is exactly what a custom metric (often paired with a check()) is designed to capture, since no built-in metric could ever know what counts as correct for your specific business rules.</div>
+</details>
+<details class="faq-item">
+<summary>Why might a Trend metric's reported percentiles be unreliable if it's only fed a handful of data points?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">This is the same statistical principle covered for percentiles generally — a percentile calculated from a very small sample size is unstable and not genuinely representative, since a single unusual value can swing the reported percentile dramatically. A Trend metric needs a meaningfully large number of recorded values before its percentile output can be trusted the same way http_req_duration's percentiles need a meaningful request volume to be trustworthy.</div>
+</details>
+</div>
+</article>
+</body></html>

@@ -1,0 +1,92 @@
+<!doctype html>
+<html><head>
+<title>MCP Server and Client</title>
+<meta name="description" content="Real, minimal server and client setup code — the actual protocol plumbing, kept deliberately simple since the interesting work happens in the tools themselves." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/mcp-server-and-client.html" />
+</head><body>
+<p class="difficulty">Advanced</p>
+<h1>MCP Server and Client</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="mcp-architecture.html">MCP Architecture</a></p>
+<article class="content">
+<h2>What You'll Learn</h2>
+<ul>
+  <li>Setting up a real, minimal MCP server</li>
+  <li>Connecting a real client from within an agent-like host</li>
+  <li>Why this plumbing code is deliberately simple and short</li>
+</ul>
+
+<h2>Introduction</h2>
+<p>This page builds the real, working server and client shell from the previous page's architecture. It's deliberately minimal — the genuinely interesting work, wrapping Chapter 14's actual browser tools, happens on the next page.</p>
+
+<h2>Step-by-Step Implementation — A Real, Minimal Server</h2>
+<pre><code>// src/mcp-server.ts
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+
+export const server = new McpServer({
+  name: 'shopsmart-playwright-tools',
+  version: '1.0.0',
+});
+
+export async function startServer() {
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+}</code></pre>
+
+<h2>Code Explanation</h2>
+<p>This is the entire server shell — genuinely just a few lines. <code>StdioServerTransport</code> is the simplest real transport, communicating over standard input and output, which is exactly enough for a server running locally alongside the agent that connects to it. Nothing here defines any actual tools yet — that's deliberately the next page's job, kept separate so this plumbing stays easy to follow.</p>
+
+<h2>Step-by-Step Implementation — A Real, Minimal Client</h2>
+<pre><code>// src/mcp-client.ts
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+
+export async function connectToPlaywrightServer() {
+  const transport = new StdioClientTransport({
+    command: 'node',
+    args: ['dist/mcp-server.js'],
+  });
+
+  const client = new Client({ name: 'shopsmart-qa-agent', version: '1.0.0' });
+  await client.connect(transport);
+  return client;
+}</code></pre>
+
+<h2>Code Explanation</h2>
+<p>The client's job here is equally simple — connect to the server process and hand back a real, usable client object. Notice this client lives inside whatever process needs to use the tools — in this chapter's case, that's Chapter 14's agent, which becomes the genuine MCP host once this client is embedded inside it.</p>
+
+<h2>Example — Discovering Available Tools</h2>
+<pre><code>const client = await connectToPlaywrightServer();
+const { tools } = await client.listTools();
+
+console.log(tools.map((t) =&gt; t.name));
+// Once the NEXT page defines them:
+// ["navigate", "click_element", "fill_field", "read_page",
+//  "screenshot", "run_test", "get_test_result", "read_trace"]</code></pre>
+
+<h2>Why It Matters — Discovery Is a Real, Genuine Capability</h2>
+<p>Notice <code>listTools()</code> requires nothing hardcoded on the client side — it genuinely asks the server what's available, at runtime. This is meaningfully different from Chapter 14's <code>BROWSER_TOOLS</code> constant, which any client had to already know about in advance. A new client connecting to this server for the first time discovers the complete tool set without any prior knowledge of what exists.</p>
+
+<h2>Common Mistakes</h2>
+<ul>
+  <li><strong>Defining tools directly in this server/client setup code.</strong> Keeping tool definitions separate, as the next page does, is what keeps this plumbing genuinely minimal and easy to reason about on its own.</li>
+  <li><strong>Assuming the client needs to know tool names in advance.</strong> Real discovery via <code>listTools()</code> is one of MCP's genuine advantages over Chapter 14's hardcoded constant — it's worth actually using, not working around.</li>
+</ul>
+
+<h2>Best Practices</h2>
+<ul>
+  <li>Keep server setup, tool definitions, and client connection logic in separate files — exactly as this page and the next demonstrate.</li>
+  <li>Use real tool discovery via <code>listTools()</code> rather than hardcoding a client's expectations about what a server exposes.</li>
+</ul>
+
+<h2>Hands-On Exercise</h2>
+<p>Run this page's server and client code locally (with an empty tool list for now), and confirm <code>listTools()</code> returns successfully with an empty array. This confirms the real protocol connection works before the next page adds any actual tools.</p>
+
+<h2>Key Takeaways</h2>
+<ul>
+  <li>Server and client setup code is deliberately minimal — a few lines each — with the genuinely interesting work reserved for actual tool definitions.</li>
+  <li>Real tool discovery via <code>listTools()</code> is a genuine capability beyond Chapter 14's hardcoded constant, letting any client learn what's available at runtime.</li>
+  <li>Keeping plumbing and tool definitions in separate files is what keeps each piece easy to reason about independently.</li>
+</ul>
+</article>
+</body></html>

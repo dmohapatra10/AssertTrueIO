@@ -1,0 +1,125 @@
+<!doctype html>
+<html><head>
+<title>Containers &amp; Services in GitHub Actions: Running Jobs With a Real Database</title>
+<meta name="description" content="Running a job&#x27;s steps inside a container, and adding real service containers like a database or Redis alongside it for genuine integration testing." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/containers-and-services-in-github-actions.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Containers &amp; Services in GitHub Actions</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="self-hosted-runners.html">Self-Hosted Runners</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>A job can run its steps inside a specific container image rather than directly on the runner's own OS, and can additionally have real service containers — a database, a cache — running alongside it, genuinely reachable during the job.</p>
+
+<h2 id="running-a-job-in-a-container">Running a Job in a Container</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: node:20-alpine
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci
+      - run: npm test</code></pre>
+<p>Every step in this job runs inside the <code>node:20-alpine</code> container, rather than directly on the Ubuntu runner's own environment. Genuinely useful for guaranteeing an exact, specific environment — a particular OS version, particular pre-installed tools — regardless of what the underlying runner happens to provide by default.</p>
+
+<h2 id="adding-a-service-container">Adding a Service Container</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: testpass
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci
+      - run: npm test
+        env:
+          DATABASE_URL: postgresql://postgres:testpass@localhost:5432/postgres</code></pre>
+<p>The <code>services:</code> block starts a genuine, real PostgreSQL container alongside the job — not a mock, not an in-memory substitute, an actual running database the test suite connects to over <code>localhost:5432</code>.</p>
+
+<h2 id="why-this-matters-for-integration-testing">Why This Matters for Integration Testing</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Unit tests (Chapter 5): mock or fake dependencies, isolated logic
+Integration tests: need something REAL to actually integrate with
+
+A service container provides that real thing — a genuine database,
+a genuine cache — without needing to install and configure it
+manually on the runner itself.</code></pre>
+
+<h2 id="detailed-example-application-database-redis-together">Detailed Example — Application + Database + Redis, Together</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  integration-tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env: { POSTGRES_PASSWORD: testpass }
+        ports: ['5432:5432']
+      redis:
+        image: redis:7
+        ports: ['6379:6379']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm ci
+      - run: npm run test:integration
+        env:
+          DATABASE_URL: postgresql://postgres:testpass@localhost:5432/postgres
+          REDIS_URL: redis://localhost:6379</code></pre>
+<p>This is exactly the "Application + Database + Redis, for integration testing" scenario from the original spec's own real-world examples — the application code (checked out and installed normally) runs its integration test suite against two genuinely real services, both started and torn down automatically as part of the job's own lifecycle.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might a team specifically prefer a real database service container over mocking database calls entirely, for a genuine integration test suite? A mock only verifies that your code calls the database library correctly according to your own assumptions about how it behaves — it can't catch a real SQL syntax error, an actual constraint violation, or a genuine behavior difference in how the real database handles a specific query. A real service container catches problems a mock structurally cannot.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Forgetting that a service container's data doesn't persist between separate job runs — each run gets a completely fresh instance, matching the exact same "fresh runner every time" principle from Chapter 4. A test suite that assumes some specific pre-existing data from a previous run will fail unpredictably; the test's own setup needs to create whatever data it actually needs.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>The port mapping (<code>ports: ['5432:5432']</code>) makes the service reachable at <code>localhost</code> from the job's own steps — this exact port number is a convention matching PostgreSQL's own default, not something GitHub Actions requires specifically; a different service would use its own appropriate default port.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Use service containers for genuine integration testing against real dependencies, not as a substitute for the mocking already appropriate in unit tests.</li>
+  <li>Never assume any data persists in a service container between separate job runs — each run's test setup needs to create what it actually needs.</li>
+  <li>Use <code>container:</code> specifically when a job genuinely needs a guaranteed, exact environment beyond what the runner's own default OS provides.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li><code>container:</code> runs a job's own steps inside a specific container image, rather than directly on the runner's OS.</li>
+  <li><code>services:</code> starts genuine, real service containers (a database, a cache) alongside the job, reachable via <code>localhost</code>.</li>
+  <li>Service containers are ideal for real integration testing — verifying against actual dependencies, not mocked substitutes.</li>
+</ul>
+
+<h2 id="challenge">🏆 Challenge</h2>
+<p>Extend the integration test example with a third service, a MySQL container instead of PostgreSQL, running on its own default port — write the complete <code>services:</code> block including the correct default MySQL port and a reasonable environment variable for its root password.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why might a job specify container: node:20-alpine rather than relying on whatever Node.js version the runner happens to have pre-installed?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Specifying a container guarantees an exact, specific environment — a particular Node.js version, a particular base OS, specific pre-installed tools — regardless of what a GitHub-hosted runner's own default environment happens to provide or how it might change over time. This provides stronger environment consistency than relying on a setup action against whatever the runner's underlying OS already has.</div>
+</details>
+<details class="faq-item">
+<summary>Why is a real database service container generally better for integration testing than mocking database calls entirely?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A mock only verifies that code calls a database library correctly according to assumptions about its behavior — it can't catch a real SQL syntax error, an actual database constraint violation, or a genuine behavioral difference in how the real database handles a specific query. A real service container exposes the application to the database's actual, genuine behavior, catching a category of problem a mock structurally cannot.</div>
+</details>
+<details class="faq-item">
+<summary>Does data written to a service container's database persist between two separate workflow runs?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">No — each workflow run gets a completely fresh service container instance, with no data carried over from a previous run, following the same "fresh runner every time" principle covered when jobs and runners were first introduced. A test suite needs to create whatever data it actually requires as part of its own setup, rather than assuming any prior state exists.</div>
+</details>
+<details class="faq-item">
+<summary>How does a job's steps actually connect to a service container like PostgreSQL running alongside it?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Through the port mapping configured in the services: block, the service becomes reachable at localhost on the specified port from within the job's own steps — for PostgreSQL, conventionally port 5432. The job's test code then connects using a standard connection string pointing at localhost and that port, exactly as it would connect to a database running on a real local machine.</div>
+</details>
+<details class="faq-item">
+<summary>Why does the "Application + Database + Redis" pattern shown here specifically represent integration testing rather than unit testing?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Unit tests, as covered in an earlier chapter, verify individual pieces of logic in isolation, typically using mocks or fakes for external dependencies. This pattern instead runs the application's code against genuinely real, running services — an actual database, an actual cache — verifying real, end-to-end interaction with actual dependencies, which is exactly the definition of integration testing rather than isolated unit testing.</div>
+</details>
+</div>
+</article>
+</body></html>

@@ -1,0 +1,139 @@
+<!doctype html>
+<html><head>
+<title>RestAssured Test Reporting: JUnit, TestNG, and Allure</title>
+<meta name="description" content="Comparing test reporting options for RestAssured — JUnit&#x27;s built-in reports, TestNG reports, and Allure — and how request/response logging feeds into failure diagnostics." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/test-reporting-junit-testng-allure.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Test Reporting: JUnit, TestNG, Allure</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="parallel-execution-and-thread-safety.html">Parallel Execution & Thread Safety</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>A test that fails silently, with no clear record of what happened, is nearly as unhelpful as no test at all — someone still has to manually re-run it locally to understand the failure. Reporting is about making test results genuinely useful without that extra step, especially in CI where nobody's watching the run live.</p>
+
+<h2 id="junit-s-built-in-reports">JUnit's Built-In Reports</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># Generated automatically by Maven's Surefire plugin
+target/surefire-reports/
+├── com.example.api.tests.UserCreationTest.txt
+└── com.example.api.tests.UserCreationTest.xml</code></pre>
+<p>Every Maven project running JUnit tests gets this for free, with zero configuration — an XML report (the format most CI systems, including GitHub Actions, know how to parse and display natively) and a plain-text summary. This is the baseline every project has automatically, before adding anything else.</p>
+
+<h2 id="testng-reports-if-your-project-uses-testng">TestNG Reports (If Your Project Uses TestNG)</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test-output/
+├── index.html      ← a browsable HTML report
+├── emailable-report.html
+└── testng-results.xml</code></pre>
+<p>TestNG's built-in HTML report is more immediately readable than JUnit's raw XML — a real advantage if a human is going to browse results directly rather than relying entirely on CI's own XML parsing. Recall from Chapter 2 that this course recommends JUnit 5 as the default, but if your project already uses TestNG, its native reporting is a reasonable, ready-made option.</p>
+
+<h2 id="allure-rich-detailed-reporting">Allure — Rich, Detailed Reporting</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>&lt;dependency&gt;
+    &lt;groupId&gt;io.qameta.allure&lt;/groupId&gt;
+    &lt;artifactId&gt;allure-junit5&lt;/artifactId&gt;
+    &lt;version&gt;2.29.0&lt;/version&gt;
+&lt;/dependency&gt;</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+@Description("Verifies a user can be created with valid data")
+@Severity(SeverityLevel.CRITICAL)
+void validUserCreationSucceeds() {
+    Allure.step("Create user with valid data", () -&gt; {
+        given().body(validUser).when().post("/users").then().statusCode(201);
+    });
+}</code></pre>
+<p>Allure produces a genuinely rich, interactive HTML report — step-by-step breakdowns (via <code>Allure.step()</code>, similar in spirit to RestAssured's own request logging), severity levels, historical trend graphs across multiple runs, and screenshots/attachments where relevant. It requires more setup than JUnit's free default, but is worth it for a project where reporting quality genuinely matters to stakeholders beyond just the engineering team — a QA lead or a product manager who wants to browse results without reading raw XML.</p>
+
+<h2 id="attaching-request-response-details-to-allure-reports">Attaching Request/Response Details to Allure Reports</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void createOrderWithFullRequestResponseLogging() {
+    Response response = given().body(newOrder).when().post("/orders");
+
+    Allure.addAttachment("Request Body", "application/json",
+        new ObjectMapper().writeValueAsString(newOrder));
+    Allure.addAttachment("Response Body", "application/json",
+        response.getBody().asPrettyString());
+
+    response.then().statusCode(201);
+}</code></pre>
+<p>This combines Chapter 8's logging concepts with Allure's attachment mechanism — instead of (or alongside) console-based logging, the actual request and response get embedded directly into the report itself, viewable later without needing to re-run the test or dig through CI console logs.</p>
+
+<h2 id="real-world-example-layering-conditional-logging-into-reporting">Real-World Example — Layering Conditional Logging Into Reporting</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>public class ReportingUtils {
+    public static void attachOnFailure(Response response, String testName) {
+        if (response.getStatusCode() &gt;= 400) {
+            Allure.addAttachment(testName + " - Failure Response",
+                "application/json", response.getBody().asPrettyString());
+        }
+    }
+}</code></pre>
+<p>This is Chapter 8's <code>.log().ifValidationFails()</code> pattern, reimplemented for report attachments instead of console output — attaching full response detail to the report specifically on failure keeps successful test reports clean while still capturing everything needed to diagnose a failure, without anyone needing to re-run anything.</p>
+
+<h2 id="failure-diagnostics-what-a-good-report-actually-needs">Failure Diagnostics — What a Good Report Actually Needs</h2>
+<ul>
+  <li><strong>What was being tested</strong> — a clear test name/description, ideally readable without opening the source code.</li>
+  <li><strong>What was sent</strong> — the actual request (Chapter 8's request logging, or an Allure attachment).</li>
+  <li><strong>What came back</strong> — the actual response, especially for a failure.</li>
+  <li><strong>What was expected vs. actual</strong> — the specific assertion that failed and why.</li>
+</ul>
+<p>A report missing any of these four forces someone to reproduce the failure locally just to understand what happened — exactly the extra step good reporting exists to eliminate.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ A failure report with only "AssertionError: expected 200 but was 400" —
+// no idea WHICH request, WHAT was sent, or WHY it failed
+.then().statusCode(200);
+
+// ✅ Enough context that the failure is diagnosable from the report alone
+Allure.addAttachment("Request", "application/json", requestBodyJson);
+.then().log().ifValidationFails().statusCode(200);</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Relying on a bare assertion failure message alone</strong> with no request/response context attached — forces a local re-run to actually diagnose the failure.</li>
+  <li><strong>Choosing a reporting tool based on features alone</strong> without considering setup cost relative to the project's actual needs — Allure is powerful but genuinely more setup than a small project may need.</li>
+  <li><strong>Not making reports accessible to non-engineers</strong> who might need to review results — raw XML output is fine for CI parsing, but a human-readable HTML report matters if anyone outside engineering needs to look at results.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Very large reports from a suite with hundreds of tests</strong> — consider whether attaching full request/response detail to every single test (not just failures) is sustainable at that scale, or whether the conditional/failure-only pattern is the more practical default.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a CI failure's report doesn't provide enough detail to diagnose without a local re-run, that's a signal the reporting setup itself needs improvement — add request/response attachments (or conditional logging output) rather than accepting "just re-run it locally" as a normal workflow.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Ensure every report includes enough context (request, response, expected vs. actual) to diagnose a failure without re-running locally.</li>
+  <li>Use conditional attachment/logging (failure-only) to keep reports clean for passing tests while thorough for failing ones.</li>
+  <li>Choose a reporting tool proportional to the project's actual needs — JUnit's free default for a small project, Allure once richer reporting genuinely adds value.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Add Allure to a sample project, annotate a few tests with <code>@Description</code> and <code>@Severity</code>, and implement a conditional attachment helper that only attaches the full response body to the report when a test actually fails.</p>
+
+<h2 id="summary">Summary</h2>
+<p>JUnit's built-in reports are free and CI-friendly out of the box; TestNG's native HTML reports are a solid option if that's your existing framework; Allure offers genuinely rich, interactive reporting worth the extra setup once a project's reporting needs go beyond CI parsing alone. Whatever the tool, a good report needs enough context — what was tested, what was sent, what came back — to diagnose a failure without a local re-run.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why is attaching request/response details specifically on failure (not on every test) usually the better default?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Attaching full request/response detail to every single test, including hundreds of passing ones, produces a large, noisy report where the signal (the handful of actual failures) gets buried in detail nobody needs for a passing test. Conditional attachment — only capturing the detail when a test actually fails — mirrors the same principle behind Chapter 8's <code>.log().ifValidationFails()</code>: stay clean and quiet when everything's fine, but automatically capture everything needed the moment something actually goes wrong, which is precisely when that detail becomes valuable.</div>
+</details>
+<details class="faq-item">
+<summary>What does a good test report need beyond a bare assertion failure message?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">What was being tested, what was actually sent, what came back, and what was expected vs. actual — missing any of these forces someone to reproduce the failure locally just to understand what happened.</div>
+</details>
+<details class="faq-item">
+<summary>Why is JUnit's built-in Surefire report the reasonable default baseline?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Every Maven project running JUnit tests gets it automatically with zero configuration, and its XML format is what most CI systems (including GitHub Actions) already know how to parse and display natively.</div>
+</details>
+<details class="faq-item">
+<summary>When does Allure's extra setup cost genuinely pay off over JUnit's free default?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Once a project's reporting needs go beyond CI parsing alone — rich interactive reports, historical trend graphs, or when non-engineers (a QA lead, a product manager) need to browse results without reading raw XML.</div>
+</details>
+<details class="faq-item">
+<summary>Why attach full request/response detail conditionally (only on failure) rather than for every test?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Attaching it to every test, including hundreds of passing ones, buries the real signal (actual failures) in noise nobody needs — mirroring the same principle behind Chapter 8's .log().ifValidationFails().</div>
+</details>
+</div>
+</article>
+</body></html>

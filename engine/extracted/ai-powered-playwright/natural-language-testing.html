@@ -1,0 +1,61 @@
+<!doctype html>
+<html><head>
+<title>Natural Language Testing</title>
+<meta name="description" content="What genuinely changes when a single instruction spans multiple, interdependent actions rather than describing one requirement to generate a test from." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/natural-language-testing.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Natural Language Testing</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="natural-language-to-playwright.html">Natural Language to Playwright overview</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>What genuinely changes when an instruction spans multiple, dependent actions</li>
+  <li>Why this chapter's one instruction can't be handled the way Chapters 3 and 4 handled a requirement</li>
+  <li>The real shape of the problem this chapter's remaining seven pages solve</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>Chapter 3's requirement — "test the login functionality" — described one self-contained behavior. This chapter's instruction — "login, search, select, add to cart, verify total" — describes five real actions where each one depends on what the previous one actually produced. This page names exactly why that difference matters before the rest of this chapter solves it.</p>
+
+<h2 id="why-it-matters-a-concrete-comparison">Why It Matters — A Concrete Comparison</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>CHAPTER 3's REQUIREMENT (self-contained):
+  "Test the login functionality of ShopSmart"
+  → ONE behavior, testable with a FIXED, known sequence of
+    steps decided ENTIRELY in advance
+
+THIS CHAPTER's INSTRUCTION (dependent steps):
+  "Login, search for 'Laptop', select a product, add it to
+  the cart, verify the cart total"
+  → FIVE actions where step 3 ("select a product") genuinely
+    depends on WHAT the search in step 2 actually RETURNED —
+    impossible to fully decide in advance, before anything runs</code></pre>
+
+<h2 id="how-it-works-why-a-single-generation-call-can-t-solve-this">How It Works — Why a Single Generation Call Can't Solve This</h2>
+<p>Chapter 3's approach — one prompt, one structured response, done — assumes everything needed to complete the task is knowable up front. "Select a product" genuinely isn't knowable up front: which product appears depends on the real search results, which depend on ShopSmart's actual, current inventory. This is exactly why this chapter's architecture includes a real Observation step feeding back into the next action, rather than one upfront plan.</p>
+
+<h2 id="example-where-this-breaks-down-concretely">Example — Where This Breaks Down Concretely</h2>
+<p>Asked to generate Playwright code for "select a product" without ever seeing real search results, an AI model would have to guess — a specific product name, a specific position in a list, something. That guess might work today and break tomorrow when ShopSmart's inventory changes, which is a fragile, false kind of "working." This chapter's remaining pages build something genuinely more robust: selecting a product based on what the search step actually, really returned.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Treating a multi-step instruction as one big prompt for one big code file.</strong> This produces exactly the guessing problem above — Playwright code written for search results that were never actually observed.</li>
+  <li><strong>Assuming "natural language testing" just means a more casually-worded requirement.</strong> The genuine difference this page establishes is dependency between steps, not phrasing style.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Before applying this chapter's techniques to your own instruction, check whether any step genuinely depends on a previous step's real, observed result — that's the signal this chapter's approach is needed, rather than Chapter 3's simpler one.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Write a five-step natural language instruction for your own application, the same shape as this chapter's ShopSmart example. For each step, identify honestly whether it could be fully planned in advance, or whether it genuinely depends on a previous step's real result.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>A multi-step instruction with dependent actions is a genuinely different problem than a single, self-contained requirement.</li>
+  <li>Planning every step fully in advance, without observing real results in between, produces fragile guesses rather than genuinely robust automation.</li>
+  <li>This chapter's remaining pages build the real, working answer — a plan that responds to what the browser actually shows, step by step.</li>
+</ul>
+</article>
+</body></html>

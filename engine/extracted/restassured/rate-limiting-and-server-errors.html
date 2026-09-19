@@ -1,0 +1,140 @@
+<!doctype html>
+<html><head>
+<title>RestAssured Rate Limiting &amp; Server Errors: 429 and 500</title>
+<meta name="description" content="Testing rate limits, server errors, and unsupported HTTP methods in RestAssured — the negative scenarios that are hardest to test reliably, and how to approach them anyway." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/rate-limiting-and-server-errors.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Rate Limiting &amp; Server Errors</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="resource-errors-404-and-409.html">Resource Errors: 404 & 409</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>These are the negative scenarios that are hardest to test reliably, precisely because they're about the API's own infrastructure behavior — rate limiting and server-side failure — rather than something you can simply construct in a request body.</p>
+
+<h2 id="429-too-many-requests">429 — Too Many Requests</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void exceedingRateLimitReturns429() {
+    Response lastResponse = null;
+    for (int i = 0; i &lt; 100; i++) {
+        lastResponse = given().header("X-API-Key", apiKey).when().get("/weather");
+        if (lastResponse.getStatusCode() == 429) break;
+    }
+    assertThat(lastResponse.getStatusCode(), equalTo(429));
+    assertThat(lastResponse.getHeader("Retry-After"), is(notNullValue()));
+}</code></pre>
+<p>Testing rate limiting genuinely means triggering it — sending requests until the limit kicks in. This is slower and more resource-intensive than most negative tests, and worth being deliberate about: running this against a shared test environment's real rate limit can affect other tests or users sharing that same limit, so consider whether a dedicated, isolated rate-limit-testing key or environment is available before running this routinely.</p>
+
+<h2 id="the-retry-after-header">The Retry-After Header</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>.then()
+    .statusCode(429)
+    .header("Retry-After", notNullValue());</code></pre>
+<p>A well-behaved rate-limited API tells the client how long to wait before retrying, via the <code>Retry-After</code> header — worth asserting on directly, since a 429 with no retry guidance forces clients to guess, which is a real usability gap in the API's own design.</p>
+
+<h2 id="500-internal-server-error">500 — Internal Server Error</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void malformedButUnusualInputDoesNotCauseA500() {
+    // Deliberately probing for an unhandled edge case that might crash
+    // the server instead of being gracefully rejected with a 400
+    String extremeInput = "a".repeat(100_000); // an unusually long string
+
+    given().body(Map.of("name", extremeInput)).when().post("/users")
+        .then().statusCode(not(500)); // should be a graceful 400, NOT a crash
+}</code></pre>
+<p>You generally can't (and shouldn't try to) deliberately trigger a genuine server bug on purpose in most testing scenarios — but you <em>can</em> test that unusual, edge-case inputs are handled gracefully (a proper 400) rather than crashing the server (a 500). A 500 in response to bad client input is itself a bug worth catching — the server should validate and reject gracefully, not fail unexpectedly.</p>
+
+<h2 id="unsupported-http-method-405">Unsupported HTTP Method — 405</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void unsupportedMethodReturns405() {
+    given()
+    .when()
+        .patch("/health-check") // a read-only endpoint that shouldn't accept PATCH at all
+    .then()
+        .statusCode(405)
+        .header("Allow", containsString("GET")); // tells the client which methods ARE supported
+}</code></pre>
+<p>A well-designed API returns <code>405 Method Not Allowed</code> (not a generic 404 or 400) when a valid resource exists but doesn't support the specific method attempted — and often includes an <code>Allow</code> header listing which methods actually are supported, similar in spirit to the <code>Retry-After</code> header for 429.</p>
+
+<h2 id="real-world-example-a-resilience-focused-test-suite-section">Real-World Example — A Resilience-Focused Test Suite Section</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Nested
+class ApiResilience {
+    @Test void unsupportedMethodIsRejectedGracefully() {
+        given().when().patch("/health-check").then().statusCode(405);
+    }
+
+    @Test void extremelyLargePayloadIsRejectedNotCrashed() {
+        String hugeBody = "x".repeat(10_000_000);
+        given().body(hugeBody).when().post("/users").then().statusCode(not(500));
+    }
+
+    @Test void deeplyNestedJsonIsHandledGracefully() {
+        String deeplyNested = buildDeeplyNestedJson(1000); // 1000 levels deep
+        given().contentType(ContentType.JSON).body(deeplyNested).when().post("/data")
+            .then().statusCode(not(500));
+    }
+}</code></pre>
+<p>This grouping reflects a genuinely different testing mindset from the rest of this chapter — not "does the API correctly reject THIS specific invalid input," but "does the API remain stable and gracefully rejecting under unusual, edge-case load," a lightweight form of resilience testing that fits naturally inside a functional negative-testing suite.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Running rate-limit tests routinely against a SHARED environment's
+// real, limited quota — can disrupt other tests or users sharing the same limit
+@Test void everyBuildTriggersRateLimit() { /* runs 100+ requests EVERY CI run */ }
+
+// ✅ Reserve rate-limit testing for a dedicated environment/key,
+// or run it deliberately and infrequently, not as part of every routine build
+@Tag("rate-limit-heavy") // excluded from the default fast CI run
+@Test void rateLimitEventuallyTriggers() { /* ... */ }</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Running rate-limit tests as part of every routine CI build</strong> against a shared quota — slows the suite and can genuinely disrupt other consumers of the same limit.</li>
+  <li><strong>Trying to deliberately trigger a real server bug</strong> to test 500 handling — instead, test that unusual-but-not-malicious inputs are handled gracefully, which is both safer and more representative of a real resilience concern.</li>
+  <li><strong>Not checking the <code>Allow</code> header on a 405 response</strong> — a useful piece of the contract worth validating alongside the status code itself.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Rate limits that reset on a rolling window</strong> vs. a fixed window — worth understanding which your API uses if you're testing the reset behavior specifically, not just that the limit triggers at all.</li>
+  <li><strong>APIs with different rate limits per endpoint or per authentication tier</strong> — a single generic rate-limit test may not represent every tier; be explicit about which specific limit you're testing.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a resilience-style test unexpectedly returns 500, treat it as a genuine finding worth reporting, not a test bug to work around — a server crash on unusual-but-plausible input is exactly the class of issue this kind of test exists to surface.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Tag or separate rate-limit and heavy-load tests from the routine fast CI suite, running them deliberately rather than on every build.</li>
+  <li>Test graceful handling of unusual inputs (very large payloads, deeply nested structures) rather than trying to deliberately trigger a genuine server bug.</li>
+  <li>Validate the <code>Retry-After</code> header on 429 responses and the <code>Allow</code> header on 405 responses, not just the status codes alone.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Design (without necessarily running against a real shared environment) a rate-limit test that sends requests until a 429 is returned, asserting both the status code and the presence of a <code>Retry-After</code> header — and a separate resilience test confirming an unusually large request body is rejected gracefully rather than causing a 500.</p>
+
+<h2 id="summary">Summary</h2>
+<p>429 and 500 are the hardest negative scenarios to test reliably — rate limiting requires genuinely triggering it (carefully, given shared-environment impact), and server errors shouldn't be deliberately triggered at all, but rather probed for via graceful-handling tests against unusual, edge-case inputs. Unsupported HTTP methods (405) round out this chapter's coverage, including the often-overlooked <code>Allow</code> header that should accompany them.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why shouldn't you try to deliberately trigger a real 500 server error to test how your test suite handles it?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A genuine 500 represents an actual bug in the server — you generally can't reliably construct a request that triggers one on purpose (if you could predict it, the server would likely already have a fix or a validation check preventing it), and deliberately hunting for crashes isn't the same discipline as functional negative testing. The more valuable and reliable approach is testing that unusual, edge-case-but-plausible inputs — very large payloads, deeply nested structures, boundary values — are handled gracefully with an appropriate 4xx response rather than crashing the server; if one of these tests does surface a real 500, that's a genuine finding worth reporting, not something the test was specifically designed to force.</div>
+</details>
+<details class="faq-item">
+<summary>Why shouldn't you deliberately try to trigger a real 500 server error?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A genuine 500 represents an actual server bug you generally can't reliably construct on purpose; the more valuable approach is testing that unusual-but-plausible inputs are handled gracefully with a proper 4xx, not crashing.</div>
+</details>
+<details class="faq-item">
+<summary>Why should rate-limit tests be tagged or separated from the routine fast CI suite?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Genuinely triggering a rate limit means sending many requests, which is slow and can disrupt other tests or users sharing the same quota if run as part of every routine build.</div>
+</details>
+<details class="faq-item">
+<summary>What does the Retry-After header on a 429 response tell a client, and why test for it?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">How long to wait before retrying — a 429 with no retry guidance forces clients to guess, which is a real usability gap in the API's own design worth catching if the API is supposed to provide it.</div>
+</details>
+<details class="faq-item">
+<summary>Why does a 405 response typically include an Allow header?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It tells the client which methods ARE actually supported on that resource — similar in spirit to Retry-After, giving the client useful information rather than just a bare rejection.</div>
+</details>
+</div>
+</article>
+</body></html>

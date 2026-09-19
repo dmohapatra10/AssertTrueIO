@@ -1,0 +1,87 @@
+<!doctype html>
+<html><head>
+<title>AI Image Understanding</title>
+<meta name="description" content="The first real image sent to Claude in this entire track — capturing a screenshot and asking the model what it actually shows, in plain language." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/ai-image-understanding.html" />
+</head><body>
+<p class="difficulty">Advanced</p>
+<h1>AI Image Understanding</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="traditional-visual-testing-and-playwright-screenshots.html">Traditional Visual Testing and Playwright Screenshots</a></p>
+<article class="content">
+<h2>What You'll Learn</h2>
+<ul>
+  <li>Capturing a real screenshot and sending it to Claude as an actual image</li>
+  <li>The real API shape for image content — genuinely different from every earlier chapter's text-only calls</li>
+  <li>Getting a plain-language description back, and why that alone is already useful</li>
+</ul>
+
+<h2>Introduction — Genuinely New Mechanics</h2>
+<p>Every prompt this track has sent so far has been text describing a situation — an error message, a page structure, a list of actions. This page sends something genuinely different: the actual pixels of a real screenshot, as an image the model can see directly.</p>
+
+<h2>Step-by-Step Implementation</h2>
+<pre><code>// src/ai-image-understanding.ts
+import { Page } from '@playwright/test';
+import { anthropic } from './ai-client';
+
+export async function describeScreenshot(page: Page): Promise&lt;string&gt; {
+  const buffer = await page.screenshot();
+  const base64Image = buffer.toString('base64');
+
+  const response = await anthropic.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 500,
+    messages: [{
+      role: 'user',
+      content: [
+        {
+          type: 'image',
+          source: { type: 'base64', media_type: 'image/png', data: base64Image },
+        },
+        { type: 'text', text: 'Describe what this page shows, in plain language.' },
+      ],
+    }],
+  });
+
+  const textBlock = response.content.find((b) =&gt; b.type === 'text');
+  return (textBlock as any)?.text ?? '';
+}</code></pre>
+
+<h2>Code Explanation</h2>
+<p>The real, genuinely new piece is the <code>content</code> array — instead of a single string, it's a list of blocks, one <code>image</code> block carrying the actual base64-encoded screenshot, and one <code>text</code> block carrying the instruction. This is the real shape every remaining page in this chapter builds on; nothing about it is unique to this specific example.</p>
+
+<h2>Example — Describing ShopSmart's Cart Page</h2>
+<pre><code>const description = await describeScreenshot(page);
+
+console.log(description);
+// "This page shows a shopping cart with one item: a laptop
+// labeled 'ProBook 15' priced at $899.00. There's a quantity
+// selector showing '1', a 'Remove' link, an order summary on
+// the right showing a subtotal and total of $899.00, and a
+// green 'Proceed to Checkout' button below the summary."</code></pre>
+
+<h2>Why It Matters — Already Genuinely Useful, On Its Own</h2>
+<p>Even this simple description is worth something the pixel diff from the previous page never provides — actual, readable meaning. A human reviewing a failed test can read this description and immediately understand what the page showed, without opening the screenshot file themselves. This is the real foundation the rest of this chapter builds increasingly specific, structured checks on top of.</p>
+
+<h2>Common Mistakes</h2>
+<ul>
+  <li><strong>Sending an uncompressed, full-resolution screenshot without considering size.</strong> Image tokens genuinely cost more than text tokens — Chapter 18's later cost chapter covers this directly, but it's worth keeping in mind from this very first example.</li>
+  <li><strong>Forgetting the correct <code>media_type</code> for the actual image format.</strong> Playwright's default screenshot format is PNG — sending JPEG-formatted bytes with a PNG media type, or vice versa, will cause the model to misread the image entirely.</li>
+</ul>
+
+<h2>Best Practices</h2>
+<ul>
+  <li>Keep the content array structure — image block, then text block — as the standard pattern for every visual check this chapter builds afterward.</li>
+  <li>Match <code>media_type</code> to the actual format of the bytes you're sending, every time.</li>
+</ul>
+
+<h2>Hands-On Exercise</h2>
+<p>Run this page's function against a real page in your own application. Compare the model's description against what you'd have written yourself, looking at the same screenshot — note anything it captured accurately, and anything it seemed to miss or misread.</p>
+
+<h2>Key Takeaways</h2>
+<ul>
+  <li>Sending an image uses a genuinely different content structure — an array of blocks, not a single text string — the first time this track has needed this shape.</li>
+  <li>Even a simple plain-language description is already useful on its own, giving a human immediate context without opening the image file themselves.</li>
+  <li>This image-block pattern is the real foundation every remaining page in this chapter builds increasingly specific checks on top of.</li>
+</ul>
+</article>
+</body></html>

@@ -1,0 +1,186 @@
+<!doctype html>
+<html><head>
+<title>Testing Agent State: Does Its Tracked State Match Reality?</title>
+<meta name="description" content="Directly comparing an agent&#x27;s own tracked state against the real, actual page state — catching the exact drift bug Chapter 2 warned about, now as a genuine, repeatable test." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/testing-agent-state.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Testing Agent State</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="testing-agent-memory.html">Testing Agent Memory</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Chapter 2's Agent State page described a real, concrete bug: an agent's tracked state (current_page: "product") drifting out of sync with what's actually true (already on the cart page). This page turns that concept into an actual, repeatable test.</p>
+
+<h2 id="a-direct-state-vs-reality-comparison">A Direct State-vs-Reality Comparison</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def test_state_matches_reality(agent, page):
+    report = agent.run(page)
+
+    # Reconstruct what the agent's TRACKED state believed at
+    # each step from its own history, then compare against
+    # what page.url ACTUALLY was at that same moment — this
+    # requires the agent to log its BELIEVED state alongside
+    # each action, an addition to Chapter 3's original code
+    discrepancies = []
+    for step in report["full_history"]:
+        tracked_url = step.get("tracked_current_page")
+        actual_url = step.get("actual_url_at_time")
+        if tracked_url != actual_url:
+            discrepancies.append({
+                "step": step["step"],
+                "agent_believed": tracked_url,
+                "actually_was": actual_url,
+            })
+    return {"state_accurate": len(discrepancies) == 0,
+            "discrepancies": discrepancies}</code></pre>
+
+<h2 id="a-genuine-drift-this-test-catches">A Genuine Drift This Test Catches</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># A real discrepancy this function would surface:
+{
+  "step": 6,
+  "agent_believed": "/product/501",
+  "actually_was": "/cart",
+}
+
+This is EXACTLY Chapter 2's own state-drift example, now
+caught concretely: the agent's TRACKED state still says
+"product page," but the REAL page had ALREADY navigated to
+the cart. Whatever the agent reasons about NEXT will be based
+on this STALE, incorrect belief — precisely the risk Chapter 2
+described conceptually, now surfaced as an actual, specific
+test failure with an EXACT step number and EXACT values.</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why does this test require the agent's code to explicitly log its "believed" state alongside each action, rather than inferring it after the fact? State drift is, by definition, a mismatch between what the agent's INTERNAL tracking says and what's actually true — if you only ever observe the ACTUAL page state after the run completes, you have no record of what the agent BELIEVED at each intermediate point to compare against. Testing for state drift requires the agent to make its internal belief explicit and observable at each step, not just its final, real-world outcome.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Testing an agent only by its final report, assuming that if the final outcome is correct, state must have stayed accurate throughout. State could genuinely drift mid-run and still self-correct by the final step (a fresh observation eventually overwriting stale tracked state) — the final report alone wouldn't reveal that drift happened at all, even though it represents real, if temporary, risk during the steps where it occurred.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>Logging both "tracked" and "actual" state at every step (this page's approach) adds real, genuine overhead to an agent's execution — a reasonable practice for TEST runs specifically, even if a production agent doesn't always need this level of instrumentation for every single real task.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Instrument agents to log their believed state alongside each action, specifically to make state-drift testing possible.</li>
+  <li>Compare tracked state against actual, real state at every step, not just at the final outcome.</li>
+  <li>Treat temporary state drift that later self-corrects as a genuine finding worth investigating, not just something the final "success" outcome excuses.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>State testing directly compares an agent's tracked belief against real, actual page state at each step, turning Chapter 2's conceptual drift warning into a concrete, repeatable test.</li>
+  <li>State drift can occur and even self-correct within a run without ever showing up in the final report, making step-by-step comparison genuinely necessary.</li>
+  <li>Testing state accuracy requires an agent to explicitly log its internal beliefs, not just its final, observable outcome.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Sketch out what a minimal code change to Chapter 3's <code>QAAgent.run()</code> method would need to look like to log <code>tracked_current_page</code> and <code>actual_url_at_time</code> at each step, making this page's <code>test_state_matches_reality</code> function actually runnable against a real agent.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A run's final report shows "Success: True" with no errors. A teammate concludes state tracking was accurate throughout. Using this page's own reasoning, is this conclusion justified?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Not necessarily — this page's own "Think About It" section is explicit that state can drift mid-run and self-correct before the final step, meaning a clean final report doesn't rule out real, if temporary, drift having occurred along the way.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why a CLEAN final report DOESN'T confirm accurate state
+THROUGHOUT:
+State could genuinely go STALE at step 6 (believing "product
+  page" while actually on "cart"), then get CORRECTED by a
+  FRESH observation at step 7 — the FINAL report would show
+  NOTHING wrong, since the run EVENTUALLY succeeded despite
+  the temporary drift.
+
+What THIS page's step-by-step comparison would ADDITIONALLY
+reveal:
+The SPECIFIC discrepancy at step 6 — a REAL finding worth
+  investigating (WHY did state go stale there, even if it
+  later self-corrected), completely INVISIBLE to someone only
+  looking at the clean FINAL outcome.</code></pre>
+<p>The teammate's conclusion conflates "the run ultimately succeeded" with "nothing went wrong along the way" — this page's entire point is that these are genuinely different claims, and only step-by-step comparison can confirm the second one.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page argue that testing state accuracy requires the agent's code to be modified, rather than being purely an external, black-box testing technique?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>State drift is fundamentally about a mismatch between an INTERNAL belief and EXTERNAL reality — without access to what the agent internally BELIEVED at each step, there's genuinely nothing to compare the external reality AGAINST.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why PURE black-box testing genuinely can't catch THIS
+specific problem:
+From OUTSIDE the agent, you can observe the REAL, actual page
+  state at any point — but you have NO visibility into what
+  the agent's OWN internal tracking BELIEVES that state to be,
+  UNLESS the agent itself EXPOSES this information explicitly.
+
+Why THIS page's approach GENUINELY requires instrumentation:
+Comparing "believed" against "actual" is IMPOSSIBLE without
+  BOTH sides of the comparison being OBSERVABLE — the "actual"
+  side is externally visible, but the "believed" side ONLY
+  exists INSIDE the agent's own internal state, requiring
+  DELIBERATE logging to make it externally CHECKABLE at all.</code></pre>
+<p>This is a genuinely important, practical limitation worth recognizing — SOME testing techniques (like this one) fundamentally require GREY-BOX access (instrumenting the system under test), not PURE black-box observation, and state-drift testing is a clear, concrete example of exactly this kind of need.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why this page's test is described as "turning Chapter 2's conceptual drift warning into a concrete, repeatable test" — what's the genuine difference between a conceptual warning and a repeatable test?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Chapter 2's original discussion illustrated the RISK with a hypothetical, narrative example — genuinely useful for understanding the CONCEPT, but not something you could run again and again to CONFIRM an actual agent avoids it; this page's function is something you can execute repeatedly, on ANY agent run, producing a CONCRETE, checkable result.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Chapter 2's ORIGINAL treatment — a conceptual illustration:
+"A reasoner, trusting the STALE tracked state, decides..." —
+  a NARRATIVE example explaining WHY grounding state in fresh
+  observation matters, genuinely valuable for building
+  UNDERSTANDING, but not something you could literally RUN
+  against a real agent to get a PASS/FAIL result.
+
+THIS page's test — an ACTUAL, repeatable artifact:
+test_state_matches_reality(agent, page) is REAL, EXECUTABLE
+  code — you can run it against ANY agent, on ANY task, and
+  get a CONCRETE, specific answer: state_accurate: True/False,
+  with SPECIFIC discrepancies listed if any exist.</code></pre>
+<p>This distinction — between UNDERSTANDING a risk conceptually and having an ACTUAL, runnable test that VERIFIES an agent avoids it — is genuinely important, and mirrors this ENTIRE chapter's own purpose: taking Chapter 2's architectural CONCEPTS and turning EACH one into something GENUINELY, PRACTICALLY testable.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might logging both tracked and actual state at every step be reasonable for TEST runs specifically, but not necessarily for every production run, as this page's "Quick Tip" suggests?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This instrumentation adds genuine, real overhead (an extra observation call at every step) — reasonable to accept during DELIBERATE testing where verifying correctness IS the goal, but potentially unnecessary cost for EVERY real, production task where the agent is simply trying to get real work done efficiently.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why the OVERHEAD is GENUINELY worth it during TESTING:
+The WHOLE POINT of a test run is VERIFYING correctness — an
+  EXTRA observation call at each step, specifically to CONFIRM
+  actual_url_at_time, is a REASONABLE, DELIBERATE cost for
+  GENUINELY valuable verification information.
+
+Why this SAME overhead might be UNNECESSARY for EVERY
+production run:
+A production agent handling ROUTINE, ALREADY-WELL-TESTED
+  tasks doesn't NEED this EXTRA verification on EVERY SINGLE
+  run — the ARCHITECTURE has already been VALIDATED through
+  DEDICATED testing; adding the SAME overhead to EVERY
+  production execution would be a REAL, ongoing cost for
+  DIMINISHING additional value, once genuine confidence has
+  already been established.</code></pre>
+<p>This is a genuinely practical, real trade-off — INSTRUMENTATION appropriate for DELIBERATE, periodic TESTING isn't automatically the RIGHT default for EVERY production execution, a distinction worth making explicitly rather than assuming ALL instrumentation should ALWAYS be present everywhere.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you extend this page's approach to test whether state drift specifically correlates with certain KINDS of actions (e.g., navigation actions specifically, versus fill/click actions)?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A genuinely useful extension would group the discrepancies this page's function already collects by the ACTION TYPE that preceded each one, revealing whether drift clusters around a SPECIFIC kind of action rather than occurring uniformly.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def analyze_drift_by_action_type(discrepancies, full_history):
+    from collections import Counter
+    drift_action_types = []
+    for d in discrepancies:
+        preceding_step = next(
+            (s for s in full_history if s["step"] == d["step"] - 1), None)
+        if preceding_step:
+            action_type = preceding_step["action"].split("(")[0]
+            drift_action_types.append(action_type)
+
+    counts = Counter(drift_action_types)
+    return (f"State drift occurred following these action types: "
+            f"{dict(counts)} — worth investigating whether ONE "
+            f"SPECIFIC action type is disproportionately "
+            f"responsible for state going stale.")</code></pre>
+<p>This directly extends this page's own core technique to answer a MORE SPECIFIC, genuinely useful diagnostic question — rather than JUST confirming state drift OCCURRED, this reveals WHETHER it's concentrated around a PARTICULAR kind of action (perhaps NAVIGATION actions specifically don't reliably trigger a state REFRESH), pointing toward a much MORE TARGETED, ACTIONABLE fix than "state sometimes drifts" alone would provide.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

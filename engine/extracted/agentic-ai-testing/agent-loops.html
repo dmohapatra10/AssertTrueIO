@@ -1,0 +1,210 @@
+<!doctype html>
+<html><head>
+<title>Agent Loops: The Cycle That Ties Everything Together</title>
+<meta name="description" content="How planning, reasoning, tools, memory, and state combine into one repeating cycle, when a loop should actually stop, and why unbounded loops are a real, practical risk." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/agent-loops.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Agent Loops</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="agent-state.html">Agent State</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Every piece from this chapter's previous eight pages comes together here, in one repeating cycle: reason about the current state, act through a tool, observe the real result, update memory and state, and repeat — until the goal is genuinely reached, or a real stopping condition is hit.</p>
+
+<h2 id="the-complete-loop">The Complete Loop</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>┌─────────────────────────────────────────────────┐
+│                                                     │
+│   ┌────────┐   ┌──────┐   ┌───────────┐   ┌──────┐│
+│   │ REASON  ├──►│  ACT  ├──►│  OBSERVE   ├──►│UPDATE││
+│   └────────┘   └──────┘   └───────────┘   │STATE &│
+│        ▲                                    │MEMORY││
+│        │                                    └───┬──┘│
+│        └────────────────────────────────────────┘   │
+│                                                        │
+│         (repeats until a stopping condition)            │
+└──────────────────────────────────────────────────────┘</code></pre>
+<p>This is the exact same shape as Chapter 1's "Plan → Act → Observe → Evaluate → Recover" preview — now filled in with the specific pieces (reasoner, tools, memory, state) this chapter has spent eight pages building up individually.</p>
+
+<h2 id="one-full-trip-around-the-loop">One Full Trip Around the Loop</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Current state: on the cart page, item added, about to checkout
+
+REASON: "Plan step 5 says 'proceed to checkout' — I see a
+  'Checkout' button, clearly visible and enabled."
+
+ACT: click_element(role: "button", name: "Checkout")
+
+OBSERVE: "Page navigated. Now showing a shipping address form,
+  with fields for street, city, zip — none pre-filled."
+
+UPDATE STATE & MEMORY:
+  state.current_page = "checkout-shipping"
+  state.last_action_result = "success"
+  memory: "Checkout button led to a shipping form requiring
+    manual entry — not pre-filled from account, worth noting."
+
+...loop repeats: REASON again, now with this fresh state and
+memory, deciding the NEXT specific action (filling the shipping
+form).</code></pre>
+
+<h2 id="when-should-a-loop-actually-stop">When Should a Loop Actually Stop?</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Genuine, real stopping conditions:
+
+✅ GOAL REACHED: state shows "order confirmed" — the original
+   goal is genuinely satisfied.
+
+✅ GENUINE FAILURE, clearly identified: an error page appears
+   that no reasonable next action can work around — worth
+   stopping and reporting, not endlessly retrying.
+
+✅ SAFETY LIMIT HIT: a maximum step count or time limit is
+   reached — covered in depth on this chapter's next page,
+   since this is fundamentally a guardrail.
+
+❌ WHAT SHOULD NOT HAPPEN: the loop runs forever, retrying the
+   same failed action indefinitely, burning real time and real
+   cost with no genuine progress toward the goal.</code></pre>
+
+<h2 id="why-unbounded-loops-are-a-real-practical-risk">Why Unbounded Loops Are a Real, Practical Risk</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A genuinely realistic failure mode without a proper stopping
+condition:
+
+Step 1: Agent tries to click a button that doesn't actually
+  exist (a genuine bug — the button was removed in a redesign).
+Step 2: Reasoner, seeing the click "failed," reasons "maybe I
+  need to scroll down first," tries again.
+Step 3: Still fails. Reasoner tries yet another approach.
+...
+Step 200: STILL retrying, having burned real LLM API cost on
+  200 calls, having made genuinely no progress, with nobody
+  aware this is happening until someone notices the bill or
+  the test run that's been "running" for hours.</code></pre>
+<p>This is exactly why every real agent loop needs an explicit, enforced limit — not as an afterthought, but as a fundamental part of the loop's own design from the start.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might a reasoner that's "trying different approaches" when something fails actually make an unbounded-loop problem harder to detect, rather than easier? A loop that repeats the exact identical failed action is relatively easy to detect and stop (the same action, over and over). A reasoner genuinely trying different, varied approaches each time looks like real progress is being made — even though the underlying problem (a button that simply doesn't exist) means none of those varied attempts will ever actually succeed. This is precisely why stopping conditions need to be based on genuine, real signals like elapsed time or total step count, not just "is the exact same thing repeating."</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Adding a step limit or timeout as an afterthought, once an unbounded loop has already caused a real problem in production. This chapter's own final page argues explicitly for building guardrails — including loop limits — into an agent's design from the very beginning, not as a patch applied after the fact.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>A genuinely useful loop-monitoring signal, beyond a simple step count: track whether STATE is genuinely changing between iterations. If an agent has taken 10 steps but its tracked state (current page, task progress) hasn't meaningfully changed at all, that's a strong, real signal of a stuck loop worth investigating — even before hitting a hard step limit.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Design explicit, enforced stopping conditions — goal reached, genuine failure, or safety limit — as a first-class part of the loop, not an afterthought.</li>
+  <li>Monitor whether state is genuinely progressing between iterations, not just whether the same exact action is repeating.</li>
+  <li>Treat "the loop ran far longer than expected" as a real signal worth investigating, even if it eventually did stop.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>The agent loop — reason, act, observe, update — is where every piece from this chapter (planning, reasoning, tools, memory, state) actually comes together in practice.</li>
+  <li>A loop needs genuine, explicit stopping conditions: goal reached, genuine identified failure, or a safety limit — never left to run indefinitely.</li>
+  <li>Varied, "trying different approaches" retries can look like real progress while still representing a genuinely stuck loop, which is why stopping conditions need real, objective signals, not just repetition detection.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>For the goal "verify a discount code applies correctly," sketch out three full trips around the loop (reason, act, observe, update), then describe a genuine, sensible stopping condition for this specific task — both for the success case and for a case where the discount code genuinely doesn't work.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Your team's agent has been "running" for 45 minutes on a task that should normally take 2 minutes, still producing varied, different-looking actions each time. Is this necessarily a stuck loop? How would you actually investigate?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Not necessarily — but the duration alone is a strong enough signal to genuinely investigate, and the "varied actions" detail specifically matters, since (per this page) that can mask a stuck loop rather than rule one out.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Investigation steps:
+1. Check STATE over time — has current_page, task progress,
+   or any other tracked state value ACTUALLY changed across
+   these 45 minutes, or has the agent been circling without
+   genuine forward progress despite varied individual actions?
+2. Check whether the SAME underlying obstacle keeps appearing
+   across different attempted approaches — e.g., every attempt
+   eventually hits the same "element not found" error, just
+   via different specific actions each time
+3. Check total step/API call count against what's realistic
+   for this task — even varied actions accumulating past a
+   sane threshold is itself a real signal</code></pre>
+<p>The key diagnostic insight from this page: don't just check "is it repeating the identical action" — check whether genuine, meaningful progress (state change) is actually happening, which is a more reliable signal than surface-level action variety.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page argue that a loop limit should be part of the initial design, not something added after a production incident?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because by the time a production incident reveals the need for a limit, real cost and real time have already been wasted — the entire value of an upfront limit is preventing exactly that outcome, which is impossible to achieve retroactively.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Reactive approach (what this page argues against):
+Agent runs unbounded → burns real cost/time on a stuck loop →
+  someone notices (a bill, a stuck test run) → limit gets
+  added AFTER the fact → the SPECIFIC incident that motivated
+  the fix already happened and already cost something real
+
+Proactive approach (this page's recommendation):
+Loop limit is part of the agent's design from day one → the
+  FIRST time a loop would have gotten stuck, it's caught and
+  stopped automatically, with no incident needed to discover
+  the need for the safeguard in the first place</code></pre>
+<p>This mirrors a broader pattern in this course (and in software safety generally): a safeguard that only exists because of a past incident has already let that incident's cost happen once — building it in from the start prevents the FIRST occurrence, not just future ones.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Give an example of a genuinely appropriate stopping condition beyond a simple maximum step count, and explain what specific failure mode it catches that a step count alone would miss.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A genuinely useful additional condition: "stop if state hasn't meaningfully changed across the last N steps," which specifically catches the varied-but-stuck failure mode this page describes — one that a pure step count alone wouldn't distinguish from genuine, if slow, progress.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Step count alone (limited):
+"Stop after 50 steps." — This eventually catches ANY runaway
+  loop, but only after burning the FULL 50 steps' worth of
+  cost, even for a loop that was clearly stuck by step 10.
+
+State-change-based condition (more targeted):
+"Stop if current_page and task_progress haven't changed across
+  the last 8 consecutive steps, regardless of what specific
+  actions were attempted." — catches the SPECIFIC case of an
+  agent trying varied approaches that all fail to make genuine
+  progress, much earlier than a pure step-count limit would.</code></pre>
+<p>The two conditions are genuinely complementary, not alternatives — a step count catches truly runaway loops as an absolute backstop, while a state-change condition catches the specific "looks like progress, isn't" failure mode this page uses as its main example, often much sooner.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Trace through why "the reasoner tries a genuinely different approach each time" can actually make a stuck loop MORE expensive than one that just repeats the identical failed action.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because generating a genuinely different, reasoned approach each time requires real, fresh LLM reasoning work at every single step — a repeating identical action is comparatively cheap and also easier to detect and stop quickly, while varied reasoning is both more expensive per step AND harder to recognize as stuck.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Repeating IDENTICAL failed action:
+Step 1-10: click_element(role: "button", name: "Submit") —
+  same call, same failure, EASY to detect ("this exact call
+  has now failed 10 times") and relatively cheap since the
+  reasoning itself may be simple/repetitive too.
+
+Repeating VARIED failed attempts:
+Step 1: try clicking by role/name
+Step 2: try scrolling first, then clicking
+Step 3: try a different, nearby element
+Step 4: try waiting, then retrying
+...each step requires GENUINE, fresh LLM reasoning (real cost),
+  and none of them individually LOOK like simple repetition —
+  making both the cost AND the detection problem meaningfully
+  worse than the identical-action case.</code></pre>
+<p>This is exactly why this page emphasizes state-change-based stopping conditions over simple repetition detection — the more sophisticated, expensive-to-detect failure mode is also the more expensive one to let run unchecked, making a robust stopping condition even more valuable, not less.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How does the agent loop described on this page relate to the earlier "planning" and "reasoning" pages — is reasoning simply one step within the loop, or something bigger?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Reasoning is genuinely one specific step WITHIN each trip around the loop — but planning sits slightly outside the loop's repeating cycle, typically happening once before the loop starts, and again (as re-planning) only when triggered by something the loop observes.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Relationship, precisely:
+PLANNING: happens BEFORE the loop begins (produces the rough
+  initial sequence), and again OCCASIONALLY during the loop,
+  triggered by a genuine divergence between plan and reality
+  (covered on the Agent Planning page)
+
+REASONING: happens INSIDE every single trip around the loop —
+  it's literally the first box in this page's own diagram,
+  repeated at every iteration
+
+TOOLS, MEMORY, STATE: also live inside the loop, each doing
+  their specific job (act, retain history, track the current
+  snapshot) at every single iteration</code></pre>
+<p>So reasoning is best understood as the loop's own "thinking" step, happening every time around — while planning is a somewhat separate, higher-level activity that sets the loop's initial direction and occasionally redirects it, rather than something that happens at every single iteration the way reasoning does.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

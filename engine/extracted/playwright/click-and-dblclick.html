@@ -1,0 +1,125 @@
+<!doctype html>
+<html><head>
+<title>Playwright click() and dblclick(): Complete Guide with Real-World Examples</title>
+<meta name="description" content="How Playwright&#x27;s click() and dblclick() actions work, the actionability checks that run before every click, click options, and why force clicks are usually a mistake." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/click-and-dblclick.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1><code class="api-name">click()</code> and <code class="api-name">dblclick()</code></h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="actions.html">Actions overview</a>, <a href="locators.html">Locators</a></p>
+<article class="content">
+<h2 id="what-is-click">What is <code>click()</code>?</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>locator.click(options?: {
+  button?: 'left' | 'right' | 'middle',
+  clickCount?: number,
+  modifiers?: Array&lt;'Alt'|'Control'|'Meta'|'Shift'&gt;,
+  position?: { x: number, y: number },
+  force?: boolean,
+  timeout?: number,
+})</code></pre>
+      <p><code>click()</code> performs a real mouse click on an element — moving the (virtual) mouse to its center, then dispatching genuine <code>mousedown</code>/<code>mouseup</code>/<code>click</code> events, exactly as a user's click would. <code>dblclick()</code> is the same, dispatched twice in quick succession to trigger double-click handlers.</p>
+
+      <h2 id="why-it-s-important">Why it's important</h2>
+      <p>Click is the single most common action in UI automation, and also the one most exposed to actionability problems: clicking something not yet rendered, still animating in, or covered by a loading overlay. Playwright's actionability checks (covered fully on the <a href="actionability-and-force.html">Actionability and Force</a> page) exist specifically to make <code>click()</code> reliable without manual waits.</p>
+
+      <h2 id="what-happens-when-you-call-click">What happens when you call click()</h2>
+      <p>Under the hood, before the actual click event fires, Playwright:</p>
+      <ol>
+        <li>Waits for the element to be attached, visible, stable, enabled, and not obscured.</li>
+        <li>Scrolls the element into view if needed.</li>
+        <li>Computes the element's center point (or the given <code>position</code>).</li>
+        <li>Dispatches real <code>mousemove</code>, <code>mousedown</code>, <code>mouseup</code>, and <code>click</code> events at that point.</li>
+      </ol>
+      <p>This is meaningfully different from directly invoking a JavaScript <code>onclick</code> handler — Playwright's click genuinely simulates what a real user's mouse does, which is why it also correctly triggers CSS <code>:hover</code>/<code>:active</code> states and any listener attached anywhere in the click's event path, not just a specific handler.</p>
+
+      <h2 id="basic-example">Basic Example</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>await page.getByRole('button', { name: 'Submit' }).click();</code></pre>
+
+      <h2 id="detailed-example-click-options">Detailed Example — Click Options</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Right-click to open a context menu
+await page.getByTestId('file-row-report.pdf').click({ button: 'right' });
+await expect(page.getByRole('menu')).toBeVisible();
+
+// Shift-click to select a range in a multi-select list
+await page.getByText('Item 1').click();
+await page.getByText('Item 5').click({ modifiers: ['Shift'] });
+
+// Click a specific pixel offset within an element — e.g. a canvas or slider
+await page.getByTestId('volume-slider').click({ position: { x: 40, y: 5 } });</code></pre>
+
+      <h2 id="real-world-example-double-click-to-rename">Real-World Example — Double-Click to Rename</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('double-clicking a file name enters rename mode', async ({ page }) =&gt; {
+  await page.goto('/files');
+
+  await page.getByText('Q3 Report.docx').dblclick();
+  const renameInput = page.getByRole('textbox', { name: 'File name' });
+
+  await expect(renameInput).toBeVisible();
+  await renameInput.fill('Q3 Report Final.docx');
+  await page.keyboard.press('Enter');
+
+  await expect(page.getByText('Q3 Report Final.docx')).toBeVisible();
+});</code></pre>
+
+      <h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Manual wait "just in case" before clicking
+await page.waitForTimeout(2000);
+await page.getByRole('button', { name: 'Submit' }).click();
+
+// ✅ Actionability checks already handle this — no manual wait needed
+await page.getByRole('button', { name: 'Submit' }).click();</code></pre>
+
+      <h2 id="common-mistakes">Common Mistakes</h2>
+      <ul>
+        <li><strong>Clicking a styled <code>&lt;div&gt;</code> instead of fixing the markup to a real <code>&lt;button&gt;</code></strong> — works, but skips keyboard accessibility and role-based locators the app should have anyway.</li>
+        <li><strong>Reaching for <code>{ force: true }</code> the moment a click times out</strong> instead of investigating why — usually there's a genuine reason the element isn't clickable yet (an overlay, a disabled state), and forcing the click just hides a real bug. See <a href="actionability-and-force.html">Actionability and Force</a>.</li>
+        <li><strong>Assuming <code>clickCount: 2</code> is the same as <code>dblclick()</code></strong> — they're equivalent in effect, but <code>dblclick()</code> is clearer intent and is what most teams standardize on.</li>
+      </ul>
+
+      <h2 id="edge-cases">Edge Cases</h2>
+      <ul>
+        <li><strong>Elements partially off-screen</strong> — Playwright auto-scrolls the element into view before clicking, but elements inside a scrollable container with unusual overflow behavior occasionally need that container scrolled manually first.</li>
+        <li><strong>Overlapping elements (a tooltip covering a button on hover)</strong> — the "receives events" actionability check catches this and times out with a clear "element is covered by..." message rather than silently clicking the wrong thing.</li>
+      </ul>
+
+      <h2 id="debugging">Debugging</h2>
+      <p>A click that times out with "element is not visible" or "element is covered by" is Playwright telling you exactly what's blocking it — use Trace Viewer (Chapter 15) or run with <code>--debug</code> to see the exact DOM state at the moment of the failed click, rather than guessing.</p>
+
+      <h2 id="best-practices">Best Practices</h2>
+      <ul>
+        <li>Trust actionability checks; treat a persistent click timeout as a real bug to investigate, not something to force past.</li>
+        <li>Use <code>dblclick()</code> (not two chained <code>click()</code> calls) when double-click behavior is genuinely what's being tested.</li>
+        <li>Follow every click with an assertion confirming its effect — a click that "succeeds" but does nothing is a false-positive test.</li>
+      </ul>
+
+      <h2 id="practice-exercise">Practice Exercise</h2>
+      <p>Write a test that right-clicks a table row to open a context menu, then left-clicks "Delete" from that menu, and asserts the row is gone.</p>
+
+      <h2 id="summary">Summary</h2>
+      <p><code>click()</code> dispatches a real, fully-simulated mouse click after actionability checks pass; <code>dblclick()</code> does the same twice in quick succession. Options like <code>button</code>, <code>modifiers</code>, and <code>position</code> cover right-clicks, shift-clicks, and precise coordinate clicks without needing lower-level workarounds.</p>
+
+      <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why does Playwright's click() dispatch real mouse events instead of just calling the element's onclick handler directly?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Calling a handler directly bypasses everything a real click triggers — CSS hover/active states, event listeners attached elsewhere in the bubbling path, and any framework-level event delegation. Dispatching genuine mouse events means the test exercises the exact same code path a real user's click would, which is what makes the test meaningful.</div>
+</details>
+<details class="faq-item">
+<summary>What real browser events does click() dispatch, and why does that matter?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">mousemove, mousedown, mouseup, and click — genuine simulated events, which is why click() also correctly triggers CSS :hover/:active states, unlike directly invoking a JS handler.</div>
+</details>
+<details class="faq-item">
+<summary>How would you shift-click to select a range in a multi-select list?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Pass modifiers: ['Shift'] to the click() call on the second item after clicking the first normally.</div>
+</details>
+<details class="faq-item">
+<summary>Is clickCount: 2 the same as calling dblclick()?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Functionally equivalent, but dblclick() communicates intent more clearly and is what most teams standardize on.</div>
+</details>
+<details class="faq-item">
+<summary>What does a 'element is covered by...' error during a click actually tell you?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Something (an overlay, a sticky header, a modal backdrop) is blocking the click target — a real condition a user would also be blocked by.</div>
+</details>
+</div>
+</article>
+</body></html>

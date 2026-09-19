@@ -1,0 +1,135 @@
+<!doctype html>
+<html><head>
+<title>RestAssured Response Validation: Status Codes, Headers, JSON Body &amp; JsonPath</title>
+<meta name="description" content="How to properly validate a RestAssured API response — status codes, headers, nested JSON, arrays — and the crucial difference between validating a response and extracting data from it." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/response-validation-assertions.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Response Validation & Assertions</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="building-http-requests.html">Building HTTP Requests</a></p>
+<article class="content">
+<h2 id="validating-what-came-back">Validating What Came Back</h2>
+<p>Building a correct request is only half of an API test — the other half, arguably the more important half, is validating that the response actually reflects what the business logic should have done. A test that sends a perfect request but never meaningfully checks the response isn't really testing anything. Doing that checking properly is covered across six focused pages:</p>
+<ol>
+  <li><a href="status-code-validation.html">Status Code Validation</a> — why it's almost always your first assertion</li>
+  <li><a href="response-header-validation.html">Response Header Validation</a> — Content-Type, rate limits, and other contract-carrying headers</li>
+  <li><a href="json-body-validation.html">JSON Body Validation</a> — flat fields, nested objects, and arrays</li>
+  <li><a href="jsonpath-and-extraction.html">JsonPath & extract()</a> — reading values out of a response</li>
+  <li><a href="validate-vs-extract.html">Validate vs. Extract</a> — the conceptual distinction that ties everything on this page together</li>
+  <li><a href="xml-response-validation.html">XML Response Validation</a> — the same ideas, for XML/SOAP-based APIs</li>
+</ol>
+
+<h2 id="the-request-response-model-again">The Request/Response Model, Again</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>REQUEST
+│
+├── Method
+├── URL
+├── Path Params
+├── Query Params
+├── Headers
+├── Authentication
+└── Body
+        ↓
+      API
+        ↓
+RESPONSE
+│
+├── Status Code
+├── Headers
+├── Body
+├── Schema
+├── Business Rules
+└── Performance</code></pre>
+<p>Chapter 3 was entirely about the REQUEST side of this diagram. This chapter is entirely about the RESPONSE side — and you'll see this exact diagram referenced again throughout the rest of this course, since it's the mental model every single API test in this track is built around.</p>
+
+<h2 id="why-validation-is-the-part-that-actually-tests-something">Why Validation Is the Part That Actually Tests Something</h2>
+<p>It's genuinely possible to write a RestAssured test that compiles, runs, sends a real request, gets a real response back — and verifies nothing at all. Constructing the request correctly (Chapter 3) proves your test can talk to the API; it proves nothing about whether the API behaved correctly. Every meaningful assertion your test suite makes lives in this chapter's six pages. This is worth internalizing early, because it's tempting for a beginner's first tests to over-invest in getting the request right and under-invest in checking the result — the response is where the actual test lives.</p>
+
+<h2 id="a-layered-approach-to-validation">A Layered Approach to Validation</h2>
+<p>A thorough test doesn't validate just one thing about a response — it layers several checks, each catching a different class of problem:</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>given()
+    .pathParam("id", 2)
+.when()
+    .get("/api/users/{id}")
+.then()
+    .statusCode(200)                                          // Layer 1: did it even succeed?
+    .header("Content-Type", containsString("application/json")) // Layer 2: right format?
+    .body("data.id", equalTo(2))                              // Layer 3: right data?
+    .body("data.email", containsString("@reqres.in"));        // Layer 3: right data, continued</code></pre>
+<p>A response could pass any one of these layers while failing another — a 200 status with the wrong body, or a correct body wrapped in the wrong Content-Type. Testing only one layer leaves the others completely unverified, which is exactly why the six pages in this chapter build toward a validation habit that covers status, headers, and body together rather than picking just one.</p>
+
+<h2 id="different-ways-to-validate-the-response-body">Different Ways to Validate the Response Body</h2>
+<p>Chapter 1 covered that a response body can be JSON or XML. RestAssured gives you a matching validation language for each — the format of the body determines which one applies, and both plug into the exact same <code>.then().body(...)</code> assertion style.</p>
+
+<h3>JSON Responses — Validated with JsonPath</h3>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>{ "user": { "name": "John", "roles": ["ADMIN", "USER"] } }</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>.then()
+    .body("user.name", equalTo("John"))           // dot notation into a nested object
+    .body("user.roles", hasItem("ADMIN"));         // array membership</code></pre>
+<p><strong>JsonPath</strong> is the addressing language behind every JSON body assertion — dot notation for nested objects, bracket notation for array elements, and a small set of function-like helpers (<code>.size()</code>, <code>.find { }</code>) for more complex queries. This is what the JSON Body Validation and JsonPath & extract() pages, later in this chapter, cover in full depth.</p>
+
+<h3>XML Responses — Validated with XPath</h3>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>&lt;user&gt;
+  &lt;name&gt;John&lt;/name&gt;
+  &lt;roles&gt;
+    &lt;role&gt;ADMIN&lt;/role&gt;
+  &lt;/roles&gt;
+&lt;/user&gt;</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>.then()
+    .body("user.name", equalTo("John"))            // same dot-notation SHAPE as JSON...
+    .body("user.roles.role", hasItem("ADMIN"));      // ...backed by XPath underneath instead
+
+// For more complex queries, drop into raw XPath directly:
+.then().body(hasXPath("/user/roles/role[text()='ADMIN']"));</code></pre>
+<p><strong>XPath</strong> is the equivalent addressing language for XML bodies — RestAssured's dot-notation shorthand looks almost identical to the JSON version, deliberately, so switching between validating JSON and XML responses doesn't require learning a completely separate mental model. The one real syntax difference: XML attributes need an <code>@</code> prefix (<code>user.@id</code>), since XML has a structural concept — attributes vs. child elements — that JSON simply doesn't have. The XML Response Validation page, later in this chapter, covers this fully.</p>
+
+<h3>How RestAssured Knows Which One to Use</h3>
+<p>You never explicitly tell RestAssured "use JsonPath" or "use XPath" — it inspects the response's <code>Content-Type</code> header (<code>application/json</code> vs. <code>application/xml</code> or <code>text/xml</code>) and picks the matching validation engine automatically. This is exactly why the <code>.body(...)</code> assertion syntax looks the same regardless of format — the dispatching happens invisibly underneath.</p>
+
+<h2 id="quick-example-a-fully-validated-response">Quick Example — A Fully Validated Response</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>given()
+    .pathParam("id", 2)
+.when()
+    .get("/api/users/{id}")
+.then()
+    .statusCode(200)
+    .header("Content-Type", containsString("application/json"))
+    .body("data.id", equalTo(2))
+    .body("data.email", containsString("@reqres.in"));</code></pre>
+<p>This one chain touches three of the six pages in this chapter: status code, header, and JSON body validation, all working together.</p>
+
+<h2 id="common-mistakes-to-watch-for">Common Mistakes to Watch For</h2>
+<ul>
+  <li><strong>Validating only the body and skipping status/headers</strong> — a body-shape coincidence on an error response can produce a false-positive pass that a status check would have caught immediately.</li>
+  <li><strong>Extracting a value and treating the extraction itself as a check</strong> — reading a field's value proves nothing about whether it's correct; this exact confusion is what the dedicated Validate vs. Extract page exists to untangle.</li>
+  <li><strong>Defaulting to exact-match assertions for every field</strong>, including ones with legitimately dynamic values — makes tests brittle against harmless variation for no real benefit.</li>
+</ul>
+
+<h2 id="what-you-ll-be-able-to-do">What You'll Be Able to Do</h2>
+<p>By the end of the six pages that follow, you should be able to write a validation chain that layers status, header, and body checks appropriately for a given endpoint, choose the right matcher for each field based on whether it's stable or dynamic, and clearly distinguish — in your own code — the moments where you're asserting something is true versus the moments where you're simply reading a value out for later use. Start with Status Code Validation below.</p>
+      
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why should status code validation almost always come before body validation?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A test that only checks the body can produce a false positive against an error response whose body shape happens to satisfy the assertions; checking status first eliminates that risk.</div>
+</details>
+<details class="faq-item">
+<summary>What determines whether Playwright — sorry, RestAssured — uses JsonPath or XPath to validate a response body?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">RestAssured inspects the response's Content-Type header (application/json vs application/xml) and picks the matching engine automatically — you never explicitly choose.</div>
+</details>
+<details class="faq-item">
+<summary>What's the value of layering status, header, and body checks in one validation chain?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Each layer catches a different class of regression — a response could pass any one check while failing another (a 200 with the wrong body, or a correct body with the wrong Content-Type).</div>
+</details>
+<details class="faq-item">
+<summary>Why is checking a header like Content-Type sometimes just as important as checking the body?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Headers carry real contract information — caching directives, pagination totals, rate-limit counters — that a body-only test suite would leave completely unverified.</div>
+</details>
+<details class="faq-item">
+<summary>Why does this chapter's diagram distinguish the REQUEST side from the RESPONSE side so explicitly?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Chapter 3 covered request construction entirely; this chapter is entirely about the response — keeping that mental split clear is what the diagram is meant to reinforce throughout the rest of the course.</div>
+</details>
+</div>
+</article>
+</body></html>

@@ -1,0 +1,160 @@
+<!doctype html>
+<html><head>
+<title>RestAssured DELETE Requests: Removal, Verification, and Cleanup</title>
+<meta name="description" content="A deep guide to DELETE requests in RestAssured — verifying removal actually happened, idempotent cleanup patterns, and hard vs soft delete." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/delete-requests.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>DELETE Requests</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="patch-requests.html">PATCH Requests</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>given()
+    .pathParam("id", orderId)
+.when()
+    .delete("/orders/{id}")
+.then()
+    .statusCode(204);</code></pre>
+<p>DELETE removes a resource. It's the method behind most test cleanup — the teardown half of any setup/teardown pattern, and the operation the API Chaining chapter's "create, use, clean up" scenarios end with.</p>
+
+<h2 id="why-it-s-important">Why it's important</h2>
+<p>DELETE looks trivially simple, but two things trip people up in practice: confirming a resource is genuinely gone (not just that the request returned success), and handling cleanup for resources that may or may not still exist by the time teardown actually runs.</p>
+
+<h2 id="basic-example">Basic Example</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Response response = given().pathParam("id", orderId).when().delete("/orders/{id}");
+response.then().statusCode(204); // 204 No Content — common for successful deletes</code></pre>
+<p>A <code>204</code> response has no body by design — calling <code>.jsonPath()</code> on it will find nothing to parse. If your API returns the deleted resource's final state instead (some do, as a convenience), it'll use <code>200</code> with a body instead; check which convention your specific API follows.</p>
+
+<h2 id="detailed-example-verifying-the-resource-is-actually-gone">Detailed Example — Verifying the Resource Is Actually Gone</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void deletingAnOrderRemovesItCompletely() {
+    Response created = given().body(newOrder).when().post("/orders");
+    String id = created.jsonPath().getString("id");
+
+    given().pathParam("id", id).when().delete("/orders/{id}")
+        .then().statusCode(204);
+
+    // Don't stop at the delete response — confirm it's genuinely gone
+    given().pathParam("id", id).when().get("/orders/{id}")
+        .then().statusCode(404);
+}</code></pre>
+<p>The delete call succeeding tells you the server accepted the request, but a follow-up GET returning 404 is what actually proves the resource is gone — a server could return a "successful" delete response due to a bug while leaving the resource fully intact.</p>
+
+<h2 id="delete-is-idempotent">DELETE Is Idempotent</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void deletingAnAlreadyDeletedResourceDoesNotThrow() {
+    given().pathParam("id", id).when().delete("/orders/{id}"); // first call: removed
+    Response second = given().pathParam("id", id).when().delete("/orders/{id}");
+
+    // A well-behaved API returns 404 here (already gone), not a 500 error —
+    // either way, the END STATE is the same as after the first call
+    assertThat(second.getStatusCode(), isOneOf(204, 404));
+}</code></pre>
+<p>This idempotence is exactly why cleanup code can safely call delete on something that might already be gone, without needing to first check whether it exists — the operation is safe to repeat.</p>
+
+<h2 id="real-world-example-resilient-cleanup-in-aftereach">Real-World Example — Resilient Cleanup in @AfterEach</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>public class OrderTests {
+    private String orderId;
+
+    @BeforeEach
+    void setup() {
+        Response created = given().body(newOrder).when().post("/orders");
+        orderId = created.jsonPath().getString("id");
+    }
+
+    @AfterEach
+    void cleanup() {
+        // Tolerates "already deleted" — if the test ITSELF already deleted
+        // the order as part of what it was testing, this is a safe no-op
+        given().pathParam("id", orderId).when().delete("/orders/{id}");
+    }
+
+    @Test
+    void canViewOrderDetails() { /* doesn't delete the order itself */ }
+
+    @Test
+    void canCancelAndDeleteAnOrder() {
+        // this test's own logic already deletes orderId —
+        // the @AfterEach's delete-again is now a safe no-op, not a failure
+    }
+}</code></pre>
+<p>This pattern — cleanup that tolerates "already gone" — is what makes teardown robust across a whole suite of tests that may or may not have already deleted the resource themselves as part of what they were testing.</p>
+
+<h2 id="soft-delete-vs-hard-delete">Soft Delete vs. Hard Delete</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Hard delete — a follow-up GET returns 404
+given().pathParam("id", id).when().get("/orders/{id}").then().statusCode(404);
+
+// Soft delete — the resource may still be fetchable directly, but should be
+// excluded from normal listings and flagged as deleted
+Response fetched = given().pathParam("id", id).when().get("/orders/{id}");
+fetched.then().body("deletedAt", notNullValue());
+
+Response list = given().when().get("/orders");
+List&lt;String&gt; ids = list.jsonPath().getList("data.id");
+assertThat(ids, not(hasItem(id))); // excluded from the normal list view</code></pre>
+<p>Not every DELETE actually removes data from the database — many APIs implement a soft delete, marking a record inactive/archived rather than removing it. Assuming hard-delete semantics against an API that actually soft-deletes is a common source of confusing test failures.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Only checking the delete call's own status, never confirming removal
+given().pathParam("id", id).when().delete("/orders/{id}").then().statusCode(204);
+// test ends here — never actually proved the order is gone
+
+// ✅ Follow up to confirm genuine removal (or correctly soft-deleted state)
+given().pathParam("id", id).when().delete("/orders/{id}");
+given().pathParam("id", id).when().get("/orders/{id}").then().statusCode(404);</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Never verifying the delete actually took effect</strong> — trusting the delete response's status code alone.</li>
+  <li><strong>Assuming hard-delete when the API actually soft-deletes</strong>, leading to a test that expects 404 but gets 200 with a "deleted" flag instead.</li>
+  <li><strong>Not making cleanup code tolerant of "already deleted"</strong> — an <code>@AfterEach</code> that throws when a resource the test itself already removed can't be deleted again, failing tests that were otherwise passing.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Cascading deletes</strong> (deleting a customer also deletes their orders) — worth explicitly verifying the cascade actually happened, not just that the top-level resource is gone.</li>
+  <li><strong>Deleting a resource that never existed</strong> — a well-behaved API returns 404, not a 500 server error; worth its own explicit test.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a "delete" test fails with an unexpected status on a follow-up GET, check whether the API implements soft delete before assuming the delete itself failed — a soft-deleted resource often still returns 200 from a direct GET by ID, which is correct behavior for that API, not a bug.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Always follow a delete with a verification step — never trust the delete response alone.</li>
+  <li>Make cleanup code tolerant of resources that may already be gone.</li>
+  <li>Know which delete semantics (hard vs. soft) your specific API implements before writing verification assertions.</li>
+  <li>Test deleting a non-existent resource explicitly, confirming a clean 404 rather than a server error.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Write a test that creates an order, deletes it, verifies a follow-up GET returns 404, and then calls delete on the same (already-deleted) ID again, asserting the second call doesn't throw and reflects idempotent behavior.</p>
+
+<h2 id="summary">Summary</h2>
+<p>DELETE removes a resource and is idempotent by convention. Always verify removal with a follow-up request rather than trusting the delete response alone, know whether your API implements hard or soft delete, and make cleanup code tolerant of resources that may already be gone.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why is it important to make cleanup code (like an @AfterEach hook) tolerant of a resource that's already been deleted?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Some tests delete a resource as part of what they're actually testing (a "cancel order" test, for instance), while an <code>@AfterEach</code> hook designed for general cleanup might also try to delete that same resource afterward. Since DELETE is idempotent, calling it again on an already-gone resource should be harmless — but if the cleanup code doesn't handle the resulting 404 gracefully, it can throw and fail an otherwise-passing test purely because of teardown logic, not because anything actually went wrong.</div>
+</details>
+<details class="faq-item">
+<summary>Why isn't a 204 response from DELETE enough to prove a resource is actually gone?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The delete response only tells you the server accepted the request — a bug could return a successful-looking delete response while leaving the resource intact; a follow-up GET expecting 404 actually proves removal.</div>
+</details>
+<details class="faq-item">
+<summary>Why is DELETE described as idempotent, and why does that matter for cleanup code?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Calling it again on an already-deleted resource should produce the same end state as the first call — this is exactly why cleanup hooks can safely call delete on something that might already be gone, without checking existence first.</div>
+</details>
+<details class="faq-item">
+<summary>What's the difference in verification needed for hard delete vs. soft delete?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Hard delete: a follow-up GET should return 404. Soft delete: the resource may still be fetchable but should be flagged (a deletedAt field) and excluded from normal list views.</div>
+</details>
+<details class="faq-item">
+<summary>Why should cleanup code use .catch(() -> {}) or equivalent around a delete call?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">So it doesn't throw if the test's own logic already deleted the resource as part of what it was testing — making a second delete call a safe no-op instead of an unexpected failure.</div>
+</details>
+</div>
+</article>
+</body></html>

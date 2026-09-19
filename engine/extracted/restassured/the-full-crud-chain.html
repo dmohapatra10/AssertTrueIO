@@ -1,0 +1,184 @@
+<!doctype html>
+<html><head>
+<title>The Full CRUD Chain in RestAssured: Create, Read, Update, Verify, Delete</title>
+<meta name="description" content="A complete, worked example of a full CRUD chain in RestAssured — Create, Extract ID, Get, Update, Verify, Delete, Verify Deletion — with every step explained." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/the-full-crud-chain.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>The Full CRUD Chain</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="api-chaining-workflows.html">API Chaining & End-to-End Workflows overview</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>The full lifecycle of a resource, tested end to end in a single scenario:</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Create User
+    ↓
+Extract User ID
+    ↓
+Get User
+    ↓
+Update User
+    ↓
+Verify User
+    ↓
+Delete User
+    ↓
+Verify deletion</code></pre>
+<p>Each arrow represents a dependency — the step below needs data produced by the step above. This page works through the whole chain in real code, one step at a time.</p>
+
+<h2 id="step-1-create">Step 1 — Create</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Response createResponse =
+    given()
+        .contentType(ContentType.JSON)
+        .body(new User("John", "john@example.com"))
+    .when()
+        .post("/users");
+
+createResponse.then().statusCode(201);</code></pre>
+
+<h2 id="step-2-extract-the-generated-id">Step 2 — Extract the Generated ID</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>String userId = createResponse.jsonPath().getString("id");
+assertThat(userId, is(notNullValue())); // fail fast if extraction itself produced nothing</code></pre>
+<p>Validating the creation succeeded (step 1) before extracting is exactly the validate-then-extract pattern from Chapter 4 — and adding an explicit assertion on the extracted value itself is worth doing in a multi-step chain specifically, since a silently-null ID here would otherwise corrupt every subsequent step in a confusing way.</p>
+
+<h2 id="step-3-get-verify-creation">Step 3 — Get (Verify Creation)</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>given()
+    .pathParam("id", userId)
+.when()
+    .get("/users/{id}")
+.then()
+    .statusCode(200)
+    .body("name", equalTo("John"))
+    .body("email", equalTo("john@example.com"));</code></pre>
+<p>This step verifies something the creation response alone doesn't prove: that the resource was actually persisted, not just echoed back in the creation response. A buggy API could return a correct-looking 201 response while failing to actually save the record — this GET is what would catch that.</p>
+
+<h2 id="step-4-update">Step 4 — Update</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>given()
+    .pathParam("id", userId)
+    .body(Map.of("name", "John Updated"))
+.when()
+    .patch("/users/{id}")
+.then()
+    .statusCode(200);</code></pre>
+
+<h2 id="step-5-verify-the-update">Step 5 — Verify the Update</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>given()
+    .pathParam("id", userId)
+.when()
+    .get("/users/{id}")
+.then()
+    .statusCode(200)
+    .body("name", equalTo("John Updated"))
+    .body("email", equalTo("john@example.com")); // confirming this was genuinely a PARTIAL update</code></pre>
+<p>This is the same principle from the PATCH Requests page in Chapter 3 — confirming both the changed field and a deliberately unchanged one, proving the update was genuinely partial rather than accidentally overwriting something else.</p>
+
+<h2 id="step-6-delete">Step 6 — Delete</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>given()
+    .pathParam("id", userId)
+.when()
+    .delete("/users/{id}")
+.then()
+    .statusCode(204);</code></pre>
+
+<h2 id="step-7-verify-deletion">Step 7 — Verify Deletion</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>given()
+    .pathParam("id", userId)
+.when()
+    .get("/users/{id}")
+.then()
+    .statusCode(404); // proves the resource is genuinely gone, not just that DELETE returned success</code></pre>
+
+<h2 id="real-world-example-the-whole-chain-as-one-test">Real-World Example — The Whole Chain as One Test</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void fullUserLifecycle() {
+    // 1. Create
+    Response created = given().body(new User("John", "john@example.com")).when().post("/users");
+    created.then().statusCode(201);
+
+    // 2. Extract
+    String userId = created.jsonPath().getString("id");
+    assertThat(userId, is(notNullValue()));
+
+    // 3. Get (verify creation)
+    given().pathParam("id", userId).when().get("/users/{id}")
+        .then().statusCode(200).body("name", equalTo("John"));
+
+    // 4. Update
+    given().pathParam("id", userId).body(Map.of("name", "John Updated"))
+        .when().patch("/users/{id}").then().statusCode(200);
+
+    // 5. Verify update
+    given().pathParam("id", userId).when().get("/users/{id}")
+        .then().statusCode(200).body("name", equalTo("John Updated"));
+
+    // 6. Delete
+    given().pathParam("id", userId).when().delete("/users/{id}").then().statusCode(204);
+
+    // 7. Verify deletion
+    given().pathParam("id", userId).when().get("/users/{id}").then().statusCode(404);
+}</code></pre>
+<p>Seven distinct assertions across seven steps, all in one test, all genuinely dependent on the same resource created in step one. This is meaningfully different from seven independent tests each creating their own resource — here, the test is specifically verifying the <em>lifecycle</em> as a coherent whole, not seven unrelated facts.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Skipping the GET-based verification steps, trusting the mutating
+// endpoints' own responses without confirming persistence
+given().body(user).when().post("/users").then().statusCode(201);
+given().pathParam("id", userId).body(update).when().patch("/users/{id}").then().statusCode(200);
+// never confirms via GET that either change actually persisted
+
+// ✅ Verify persistence explicitly after each mutation, not just the mutation's own response
+given().pathParam("id", userId).when().get("/users/{id}").then().body("name", equalTo("John Updated"));</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Trusting a mutating endpoint's own response without a follow-up GET</strong> — a POST/PATCH/DELETE response can look correct while the underlying data wasn't actually persisted or removed.</li>
+  <li><strong>Not asserting on the extracted ID itself</strong> before using it in later steps — a silently-null ID corrupts every subsequent step with confusing, hard-to-trace failures.</li>
+  <li><strong>Combining too many unrelated assertions into one giant chain</strong> — if this test fails, you want the failure to clearly indicate which of the seven steps broke, not just "something in this long test failed."</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>A chain step that legitimately can fail independent of the others</strong> (a rate limit hit mid-chain) — consider whether retry logic belongs at the chain level or whether the test should simply fail and be re-run.</li>
+  <li><strong>Resources with required fields that can't be set via PATCH</strong> — some fields may only be settable at creation time; know your API's actual constraints before assuming every field is always updatable.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>When a full-chain test fails, the step number (or a descriptive step name, via <code>test.step()</code>-equivalent patterns if your test framework supports named steps) is the first thing to identify — knowing exactly which of the seven steps broke narrows the investigation immediately, rather than needing to re-read the whole chain from scratch.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Verify persistence with a follow-up GET after every mutating step, not just trust the mutation's own response.</li>
+  <li>Assert on extracted values immediately, before using them in later steps.</li>
+  <li>Consider breaking a very long chain into named sub-steps (or separate but related tests) for clearer failure attribution.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Implement the full seven-step chain shown on this page against a real or sandbox API of your choice, then deliberately introduce a bug (skip the extraction's null check) and observe how the failure manifests several steps later — noting how much harder it is to diagnose without the explicit check.</p>
+
+<h2 id="summary">Summary</h2>
+<p>A full CRUD chain — create, extract, get, update, verify, delete, verify deletion — tests a resource's entire lifecycle as one coherent scenario, catching integration bugs that isolated single-endpoint tests can't. The key discipline throughout: verify persistence with a follow-up read after every mutation, and validate every extracted value before trusting it in the next step.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why include a GET request immediately after a POST, rather than just trusting the POST response's own status code and body?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A POST response reflects what the server claims it did, but doesn't independently prove the resource was actually persisted — a bug could produce a correct-looking 201 response with the right body while failing to actually save the record to the database. A follow-up GET, as a genuinely separate request, verifies the data is retrievable after the fact — proving persistence, not just that the creation endpoint returned a plausible-looking response.</div>
+</details>
+<details class="faq-item">
+<summary>Why include a GET immediately after a POST instead of trusting the POST response alone?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A POST response reflects what the server claims it did, not independent proof of persistence — a bug could return a correct-looking 201 while failing to actually save the record; a follow-up GET verifies it was genuinely persisted.</div>
+</details>
+<details class="faq-item">
+<summary>Why assert on both a changed field AND a deliberately unchanged one after the update step?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Confirming the changed field updated correctly is necessary but not sufficient — asserting an unchanged field proves the update was genuinely partial and didn't silently clobber something else, tying to the PUT/PATCH lessons from Chapter 3.</div>
+</details>
+<details class="faq-item">
+<summary>Why does the final chain step verify deletion with a GET expecting 404, not just trust the DELETE response?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The same principle as step 3's create verification — the delete response alone doesn't independently prove removal; a follow-up GET returning 404 is what actually confirms the resource is genuinely gone.</div>
+</details>
+<details class="faq-item">
+<summary>Why assert on the extracted ID's presence before using it in step 3?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A silently null ID here would corrupt every subsequent step with a confusing, hard-to-trace failure — an explicit check at the extraction point fails fast and clearly instead.</div>
+</details>
+</div>
+</article>
+</body></html>

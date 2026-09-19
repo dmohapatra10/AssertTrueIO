@@ -1,0 +1,141 @@
+<!doctype html>
+<html><head>
+<title>k6 Authentication Mechanisms: Basic Auth, Bearer Tokens, API Keys, JWT, OAuth</title>
+<meta name="description" content="Every common authentication mechanism implemented as real k6 code — Basic Auth, Bearer tokens, API keys, JWT structure, and OAuth 2.0 concepts." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/authentication-mechanisms-basic-bearer-apikey-jwt-oauth.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Authentication Mechanisms: Basic, Bearer, API Key, JWT, OAuth</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="authentication-sessions-and-realistic-user-journeys.html">Authentication, Sessions & Realistic User Journeys overview</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Bearer tokens have already appeared in code examples throughout this course, without being named as one option among several. This page covers every common authentication mechanism as its own distinct pattern, with real k6 syntax for each.</p>
+
+<h2 id="basic-authentication">Basic Authentication</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const credentials = `${btoa('username:password')}`;
+
+http.get('https://api.example.com/profile', {
+  headers: { Authorization: `Basic ${credentials}` },
+});</code></pre>
+<p>Basic Auth sends a base64-encoded username and password directly in the Authorization header, on every single request. It's simple but genuinely insecure without HTTPS (base64 is trivially decodable, not encryption) — still found in internal tools and simpler APIs, but rare in anything customer-facing today.</p>
+
+<h2 id="bearer-tokens">Bearer Tokens</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>http.get('https://api.example.com/profile', {
+  headers: { Authorization: `Bearer ${token}` },
+});</code></pre>
+<p>The pattern used throughout this course so far — a token, typically obtained from a login endpoint, sent in the Authorization header on every subsequent request. This is the most common modern pattern for API authentication.</p>
+
+<h2 id="api-keys">API Keys</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Header-based
+http.get('https://api.example.com/data', {
+  headers: { 'X-API-Key': apiKey },
+});
+
+// Query-parameter-based
+http.get(`https://api.example.com/data?api_key=${apiKey}`);</code></pre>
+<p>API keys identify the calling application or account, often with no separate login step at all — the key itself is the credential, issued once (typically outside the test, from a developer portal or admin panel) and used directly. Common for third-party integrations and public APIs.</p>
+
+<h2 id="jwt-what-s-actually-inside-a-bearer-token">JWT — What's Actually Inside a Bearer Token</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// A JWT has three base64-encoded parts, separated by dots:
+// header.payload.signature
+
+function decodeJwtPayload(token) {
+  const payload = token.split('.')[1];
+  return JSON.parse(atob(payload));
+}
+
+const decoded = decodeJwtPayload(token);
+console.log(decoded.exp); // expiration timestamp, if present</code></pre>
+<p>A JWT (JSON Web Token) is a specific, structured format many bearer tokens actually use — decoding the payload (no cryptographic verification needed for this, just reading the structure) can reveal useful information like an expiration timestamp, directly relevant to the token-expiration handling covered on the next page.</p>
+
+<h2 id="oauth-2-0-concepts-applied-to-k6">OAuth 2.0 Concepts, Applied to k6</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Client Credentials flow — common for service-to-service auth, no user involved
+function getOAuthToken() {
+  const response = http.post('https://auth.example.com/oauth/token',
+    'grant_type=client_credentials&client_id=' + clientId + '&client_secret=' + clientSecret,
+    { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+  return response.json('access_token');
+}</code></pre>
+<p>Full OAuth flows involving a real user's browser redirect aren't something k6 can (or should try to) simulate directly — but the Client Credentials flow, used for service-to-service authentication with no human interaction, maps directly onto a k6 script exactly like any other login-then-use-token pattern.</p>
+
+<h2 id="detailed-example-choosing-the-right-mechanism-for-a-test">Detailed Example — Choosing the Right Mechanism for a Test</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Target system uses:        Use in k6:
+Basic Auth                 Authorization: Basic header, base64-encoded
+Bearer token from login     POST to login, extract token, Bearer header
+Static API key              Header or query param, no login step needed
+OAuth Client Credentials    POST to token endpoint, extract access_token</code></pre>
+<p>The right approach isn't a choice you make — it's determined entirely by what the target system actually requires. Identifying which mechanism a real system uses (from its documentation, or by inspecting real traffic) is the first real step before writing any authentication code at all.</p>
+
+<h2 id="real-world-example-a-system-using-both-api-keys-and-bearer-tokens">Real-World Example — A System Using Both API Keys and Bearer Tokens</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>function callApi(userToken) {
+  http.get('https://api.example.com/orders', {
+    headers: {
+      'X-API-Key': staticServiceKey,       // identifies the calling application
+      Authorization: `Bearer ${userToken}`, // identifies the specific user
+    },
+  });
+}</code></pre>
+<p>This is a genuinely common real-world pattern — an API key identifying which application is calling (for rate limiting or billing purposes), combined with a user-specific bearer token identifying which actual user is making the request. Both are needed together, serving different purposes.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Guessing at an auth mechanism without checking what the system actually requires
+http.get(url, { headers: { Authorization: `Bearer ${somethingGuessed}` } });
+
+// ✅ Implementing the mechanism the target system's documentation actually specifies
+http.get(url, { headers: { 'X-API-Key': realApiKey } }); // if that's what's documented
+</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Assuming every API uses bearer tokens</strong> without checking what the specific target system actually requires.</li>
+  <li><strong>Decoding a JWT and trusting its contents without considering that verification (signature checking) is a separate concern</strong> — reading the payload for useful info like expiration is fine; treating unverified claims as authoritative is not, though for test purposes reading is usually all that's needed.</li>
+  <li><strong>Hardcoding OAuth client credentials directly in a script</strong> committed to version control — these are genuine secrets and should be handled the way any sensitive credential is (environment variables, a secrets manager), covered further in Chapter 13's CI/CD material.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>A system requiring multiple authentication factors together</strong> (an API key AND a bearer token, as shown above) — don't assume a single mechanism when the real system genuinely requires more than one simultaneously.</li>
+  <li><strong>A JWT with no expiration claim at all</strong> — not every JWT includes an <code>exp</code> field; token-expiration handling (next page) needs to account for tokens that simply don't expire, or that expire via a mechanism other than an embedded timestamp.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If every request in a test fails with a 401 despite what looks like correct authentication code, verify the target system's actual expected mechanism directly (documentation, or inspecting a real successful request from a browser's network tab) rather than assuming the most common pattern (bearer tokens) is automatically correct for this specific system.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Confirm the target system's actual authentication mechanism before writing any auth code, rather than assuming the most common pattern.</li>
+  <li>Handle secrets (API keys, OAuth client credentials) the same way any sensitive credential should be handled — never hardcoded directly in a script.</li>
+  <li>Remember a real system may require more than one authentication mechanism simultaneously.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>For a hypothetical system requiring an OAuth Client Credentials token that must then be sent as a Bearer token on every subsequent request, write the k6 code to obtain that token once and use it correctly across multiple requests.</p>
+
+<h2 id="summary">Summary</h2>
+<p>Basic Auth, Bearer tokens, API keys, JWTs, and OAuth Client Credentials each represent a genuinely different authentication pattern, and which one (or combination) to implement in k6 is determined entirely by what the target system actually requires — never assumed. A JWT's structure can be decoded (without cryptographic verification) to read useful information like an expiration claim, directly setting up the token-expiration handling covered next.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why is Basic Authentication generally considered less secure than a bearer token pattern?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Basic Auth sends a base64-encoded username and password on every single request — base64 encoding is trivially reversible, not encryption, so this relies entirely on the transport layer (HTTPS) for any real protection, and the actual credentials are transmitted repeatedly. A bearer token, by contrast, is typically a separate, often short-lived credential obtained once via a login step, limiting exposure of the actual underlying password.</div>
+</details>
+<details class="faq-item">
+<summary>What's actually inside a JWT, and why might decoding it matter for a k6 test?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A JWT consists of three base64-encoded, dot-separated parts — a header, a payload, and a signature. The payload often contains useful claims like an expiration timestamp (exp). Decoding just the payload (without cryptographic signature verification, which isn't necessary for reading this information in a test context) lets a k6 script proactively check when a token will expire, directly relevant to handling token expiration in a longer-running test.</div>
+</details>
+<details class="faq-item">
+<summary>Why might a real system require both an API key and a bearer token on the same request?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">These serve different purposes — an API key typically identifies which application or client is making the call (useful for rate limiting or billing at the application level), while a bearer token identifies which specific authenticated user is making the request. A system might need both pieces of information simultaneously, requiring a k6 script to send both headers together rather than assuming only one mechanism applies.</div>
+</details>
+<details class="faq-item">
+<summary>Why is the OAuth Client Credentials flow more directly applicable to k6 testing than a full OAuth authorization code flow?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Client Credentials is designed for service-to-service authentication with no human user or browser involved — it's a straightforward POST request that returns a token, fitting naturally into k6's request-based scripting model. A full authorization code flow involves a real user's browser being redirected through a login and consent screen, which isn't something a k6 script is designed to simulate directly, since k6 operates at the HTTP request level, not as a browser.</div>
+</details>
+<details class="faq-item">
+<summary>Why shouldn't OAuth client credentials or API keys be hardcoded directly into a k6 script committed to version control?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">These are genuine secrets — anyone with access to the script's source code (including anyone with repository access, even if not intended to have credential access) would gain the actual credential. The correct approach is handling them the way any sensitive credential should be handled: environment variables, a secrets manager, or a CI/CD platform's secret-injection mechanism, none of which exposes the actual value in the committed source code itself.</div>
+</details>
+</div>
+</article>
+</body></html>

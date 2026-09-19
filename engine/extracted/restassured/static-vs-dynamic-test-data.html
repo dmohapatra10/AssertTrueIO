@@ -1,0 +1,130 @@
+<!doctype html>
+<html><head>
+<title>Static vs. Dynamic Test Data in RestAssured</title>
+<meta name="description" content="Why hardcoded, shared test data breaks under parallel execution and repeated runs, and how to design dynamic test data that avoids the problem entirely." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/static-vs-dynamic-test-data.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Static vs. Dynamic Test Data</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="test-data-management.html">Test Data Management overview</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p><strong>Static data</strong> is a fixed, hardcoded value — the same email, the same ID, every time a test runs. <strong>Dynamic data</strong> is generated fresh, typically unique, each time a test runs. Both have a place, but confusing when to use which is a genuine source of flaky, hard-to-diagnose test failures.</p>
+
+<h2 id="the-problem-with-hardcoded-shared-data">The Problem With Hardcoded Shared Data</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ A fixed email — works the FIRST time, breaks on every subsequent run
+String userId = given()
+    .body(Map.of("email", "test@example.com", "name", "Test User"))
+    .when().post("/users")
+    .then().statusCode(201).extract().path("id");</code></pre>
+<p>The first time this test runs, it works fine. The second time — locally, or in CI on the next commit — the API correctly rejects it with a 409 Conflict, since <code>test@example.com</code> already exists from the first run. This is one of the most common "works on my machine, fails in CI" scenarios, and it has nothing to do with a real bug — it's purely a test data design problem.</p>
+
+<h2 id="the-fix-dynamic-unique-data">The Fix — Dynamic, Unique Data</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>String uniqueEmail = "test-" + UUID.randomUUID() + "@example.com";
+
+String userId = given()
+    .body(Map.of("email", uniqueEmail, "name", "Test User"))
+    .when().post("/users")
+    .then().statusCode(201).extract().path("id");</code></pre>
+<p>Generating a genuinely unique value per test run means this test can run any number of times — locally, in CI, in parallel with itself across multiple workers — without ever colliding with data from a previous run.</p>
+
+<h2 id="when-static-data-is-actually-the-right-choice">When Static Data Is Actually the Right Choice</h2>
+<p>Static data isn't wrong by default — it's the right choice specifically when uniqueness genuinely doesn't matter for what's being tested. A test validating that an invalid email format is correctly rejected doesn't need a unique invalid email each time — <code>"not-an-email"</code> is just as valid a test input on the hundredth run as the first, since the test isn't creating a persistent resource that could collide with anything.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Static data is fine here — nothing is being persisted, no collision risk
+given().body(Map.of("email", "not-an-email", "name", "Test")).when().post("/users")
+    .then().statusCode(400);</code></pre>
+
+<h2 id="detailed-example-testing-the-duplicate-detection-logic-itself">Detailed Example — Testing the Duplicate-Detection Logic Itself</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void creatingADuplicateEmailReturns409() {
+    String sharedEmail = "duplicate-test-" + UUID.randomUUID() + "@example.com";
+
+    // First creation succeeds
+    given().body(Map.of("email", sharedEmail, "name", "First")).when().post("/users")
+        .then().statusCode(201);
+
+    // Second creation with the SAME email should be rejected
+    given().body(Map.of("email", sharedEmail, "name", "Second")).when().post("/users")
+        .then().statusCode(409);
+}</code></pre>
+<p>This is a subtle but important case: the test is <em>specifically about</em> duplicate detection, so it deliberately reuses the same email within one test — but that email itself is still generated dynamically (via UUID) so the test as a whole remains safe to re-run without colliding with a previous run's data.</p>
+
+<h2 id="real-world-example-parallel-safe-data-generation">Real-World Example — Parallel-Safe Data Generation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>public class TestDataFactory {
+    public static Map&lt;String, Object&gt; uniqueUser() {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        return Map.of(
+            "email", "test-" + suffix + "@example.com",
+            "name", "Test User " + suffix
+        );
+    }
+}
+
+// Usage — safe even if this runs on multiple parallel workers simultaneously
+given().body(TestDataFactory.uniqueUser()).when().post("/users").then().statusCode(201);</code></pre>
+<p>A shared factory method producing fresh, unique data on demand is the foundation the Test Data Builders page (next in this chapter) builds on — this pattern is exactly what prevents the collision problem across a fully parallel test suite, tying directly into the parallel execution concerns covered in Chapter 14.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Static shared data for something being persisted — breaks on re-run and under parallelism
+String userId = "12345";
+given().pathParam("id", userId).when().get("/users/{id}");
+
+// ✅ Dynamic data for anything persisted or created fresh
+String userId = createUniqueTestUser();
+given().pathParam("id", userId).when().get("/users/{id}");</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Using static data for anything that gets persisted</strong> — the single most common cause of "passes once, fails on re-run" test data bugs.</li>
+  <li><strong>Generating "unique" data that isn't actually unique enough</strong> — a timestamp with only second-level precision can still collide under fast parallel execution; a UUID doesn't have this problem.</li>
+  <li><strong>Using dynamic data where static data would be simpler and clearer</strong> — for genuinely non-persisted, non-colliding scenarios (invalid format tests), unnecessary randomization just makes a test harder to read for no real benefit.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Data that needs to look realistic, not just unique</strong> (a properly formatted but fake address) — pure UUID-based uniqueness doesn't help here; this is exactly what the Faker page later in this chapter addresses.</li>
+  <li><strong>A test needing the SAME dynamic value used consistently across a multi-step chain</strong> — generate it once at the top of the test and reuse the variable, rather than generating a new one at each step (which would break the chain's own internal consistency).</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a test passes locally but fails intermittently in CI with a conflict-style error (409, or a unique-constraint violation), suspect static/hardcoded data colliding with leftover data from a previous run before assuming it's a real application bug.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Default to dynamic, unique data for anything that gets created or persisted.</li>
+  <li>Use static data deliberately for scenarios where uniqueness genuinely doesn't matter (format validation, non-persisted inputs).</li>
+  <li>Use a properly unique generation strategy (UUID, not just a timestamp) to be safe under parallel execution.</li>
+  <li>Generate a dynamic value once per test and reuse it consistently across a multi-step chain.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Write a test that creates a user with a dynamically generated unique email, then write a second test specifically verifying duplicate-email rejection, using a shared (but still dynamically generated) email within that one test — confirming both tests remain safe to re-run indefinitely.</p>
+
+<h2 id="summary">Summary</h2>
+<p>Static data is a fixed value reused every run; dynamic data is generated fresh, typically unique, each time. Default to dynamic data for anything persisted, since hardcoded shared data collides with itself on re-run and under parallel execution — one of the most common, least obvious sources of flaky test failures. Static data remains the right, simpler choice for genuinely non-colliding scenarios like format validation.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A test that creates a user with a hardcoded email passes the first time it runs, then starts failing with a 409 on every subsequent run. What's actually wrong, and how would you fix it?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The test is using static, hardcoded data for something that gets persisted — the first run successfully creates a user with that email, and every subsequent run tries to create the same email again, which the API correctly rejects as a duplicate. This isn't an application bug; it's a test data design problem. The fix is generating a dynamically unique value (typically via UUID) for the email on each run, so the test never collides with data from a previous run, regardless of how many times or how many parallel copies of it execute.</div>
+</details>
+<details class="faq-item">
+<summary>Why does a hardcoded test email typically work the first time but fail on every subsequent run?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The first run creates the record successfully; every later run tries to create the SAME email again, which the API correctly rejects as a duplicate — a test data problem, not an application bug.</div>
+</details>
+<details class="faq-item">
+<summary>When is static data actually the right choice, not a mistake?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">When uniqueness genuinely doesn't matter — testing that an invalid email FORMAT is rejected doesn't need a unique invalid value each time, since nothing is being persisted that could collide.</div>
+</details>
+<details class="faq-item">
+<summary>Why must a test specifically about duplicate-detection deliberately reuse the same value within itself?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The test needs to trigger an actual conflict — but that shared value should still be dynamically generated at the top of the test, so the test as a whole remains safe to re-run without colliding with a PREVIOUS run's data.</div>
+</details>
+<details class="faq-item">
+<summary>Why is a UUID safer than a timestamp for guaranteeing uniqueness under parallel execution?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A timestamp with only second-level precision can still collide under fast parallel test execution; a UUID's collision probability is negligible even under heavy concurrent generation.</div>
+</details>
+</div>
+</article>
+</body></html>

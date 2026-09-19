@@ -1,0 +1,197 @@
+<!doctype html>
+<html><head>
+<title>Recommended Fixes: Real Patterns Matched to Real Causes</title>
+<meta name="description" content="Why retries and longer timeouts usually mask flakiness instead of fixing it, and the genuine fix for this chapter&#x27;s race condition — waiting for the right thing, not just waiting longer." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/recommended-fixes.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Recommended Fixes</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="diagnosing-why-a-test-is-flaky.html">Diagnosing Why a Test Is Flaky</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>A diagnosis without a genuine fix recommendation is only half of Chapter 8's own report-writing lesson applied here. This page covers real fixes matched to real causes — and is explicit about the two "fixes" that usually aren't fixes at all.</p>
+
+<h2 id="the-two-non-fixes-named-directly">The Two Non-Fixes, Named Directly</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>❌ "Just add a retry" — masks the symptom, keeps the cause:
+  test.describe.configure({ retries: 2 });
+
+  The race condition STILL EXISTS. The test still fails on
+  its FIRST attempt roughly 20% of the time — retries just
+  hide this from the pass/fail dashboard, at the real cost of
+  slower CI runs and a genuine, real problem left unaddressed.
+
+❌ "Just increase the timeout" — treats a SYMPTOM, not the
+   actual CAUSE:
+  await expect(locator).toBeVisible({ timeout: 60000 });
+
+  This might genuinely reduce failures (more room for the slow
+  case to complete) — but it doesn't address WHY the timing is
+  variable in the first place, and makes every GENUINE failure
+  (an actually broken feature) take a full minute to surface.</code></pre>
+
+<h2 id="the-genuine-fix-for-this-chapter-s-race-condition">The Genuine Fix for This Chapter's Race Condition</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>❌ The ORIGINAL, flaky assertion:
+  await page.getByRole('button', { name: 'Add Wireless Mouse' }).click();
+  await expect(page.getByTestId('cart-total')).toHaveText('$27.50');
+  // implicitly assumes the total updates IMMEDIATELY after
+  // the click — but per the diagnosis, there's a SEPARATE,
+  // asynchronous re-render step the assertion doesn't account for
+
+✅ A GENUINE fix — wait for the RIGHT thing, not just longer:
+  await page.getByRole('button', { name: 'Add Wireless Mouse' }).click();
+  await page.waitForResponse(resp =>
+    resp.url().includes('/api/cart') && resp.status() === 200
+  );
+  await expect(page.getByTestId('cart-total')).toHaveText('$27.50');
+  // NOW explicitly waits for the API call to genuinely
+  // complete BEFORE checking the total — addressing the
+  // ACTUAL race, not just giving it more time to resolve
+  // on its own</code></pre>
+<p>This is genuinely different from a longer timeout — it doesn't just wait passively longer; it waits for the SPECIFIC event the diagnosis identified as the actual source of the timing gap.</p>
+
+<h2 id="fix-patterns-matched-to-the-other-three-causes">Fix Patterns Matched to the Other Three Causes</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>SHARED STATE — genuine fix: give each test its own, isolated
+  data (a fresh test account or cart per test), rather than
+  reusing shared fixtures across tests.
+
+TEST ORDER DEPENDENCY — genuine fix: make each test explicitly
+  set up its OWN required state at the start, rather than
+  relying on a previous test having already done so.
+
+EXTERNAL DEPENDENCY — genuine fix: mock the third-party
+  dependency in the test environment specifically, so the
+  test's reliability doesn't depend on a system outside the
+  team's own control.</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might "just add a retry" feel like a reasonable, pragmatic fix in the moment, even though this page treats it as a genuine non-fix? Retries genuinely do make the CI dashboard green more often, which feels like solving the immediate, visible problem — nobody's staring at a red X anymore. But the race condition itself is completely unaddressed; a real user experiencing the SAME underlying timing issue in production gets no benefit from a test retry, and the team has spent effort making the SYMPTOM less visible rather than making the actual system more genuinely reliable.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Reaching for a retry or a longer timeout as a default first response to any flaky test, before doing the diagnostic work this chapter's earlier pages describe. These aren't NEVER appropriate — a genuine external dependency's occasional slowness might reasonably warrant SOME retry tolerance — but they should be a deliberate, evidence-informed choice, not an automatic default that skips diagnosis entirely.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>A genuinely useful test for any proposed flaky-test fix: "does this address the mechanism my diagnosis identified, or does it just make the test more tolerant of that mechanism still existing?" The former is a real fix; the latter is a mask, however reasonable it might feel in the moment.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Match a fix to the specific, diagnosed cause — waiting for the right event for race conditions, isolated data for shared state, explicit setup for order dependency, mocking for external dependencies.</li>
+  <li>Treat retries and longer timeouts as masks, not fixes, unless deliberately, genuinely appropriate for a specific, understood situation.</li>
+  <li>Verify a proposed fix addresses the diagnosed mechanism itself, not just tolerance for that mechanism continuing to exist.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Retries and longer timeouts typically mask flakiness rather than fix it, leaving the real underlying cause completely unaddressed.</li>
+  <li>A genuine fix targets the specific mechanism a real diagnosis identified — waiting for the right event, not just waiting longer, for this chapter's race condition.</li>
+  <li>Each of the four causes from earlier in this chapter has its own genuine, matched fix pattern, not a one-size-fits-all solution.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Write the genuine fix (following this page's <code>waitForResponse</code> pattern) for a hypothetical test that flakes because it checks a "Order Confirmed" message immediately after clicking "Place Order," without accounting for a separate order-confirmation API call that completes shortly afterward.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A pull request "fixes" the cart-total flaky test by changing its timeout from 30 seconds to 60 seconds. Using this page's own reasoning, would you approve this fix?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd push back — this page's diagnosis identified a SPECIFIC mechanism (an unaccounted-for asynchronous re-render), and doubling the timeout doesn't address that mechanism at all; it just gives the SAME race more room to resolve on its own, without fixing anything.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What the 60-second timeout genuinely DOESN'T fix:
+The test STILL doesn't explicitly wait for the API call to
+  complete before checking the total — it's STILL racing the
+  SAME two asynchronous operations, just with a longer window
+  for the race to happen to resolve correctly by chance.
+
+What the GENUINE fix (this page's actual recommendation)
+does instead:
+await page.waitForResponse(...) EXPLICITLY waits for the
+  actual event the diagnosis identified — the race condition
+  is COMPLETELY eliminated because the assertion now happens
+  AFTER a confirmed completion point, not just after MORE TIME
+  has passed.</code></pre>
+<p>The longer timeout might genuinely reduce how OFTEN the test fails — but per this page's own distinction, that's treating a symptom, not the cause; the correct fix is the specific <code>waitForResponse</code> pattern that addresses the actual, diagnosed mechanism.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page argue that a retry, unlike a longer timeout, leaves the race condition "completely unaddressed" rather than just "less visible"?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Both are genuinely non-fixes, but the distinction matters precisely: a retry doesn't even attempt to resolve the timing issue on any individual attempt — it just runs the SAME flawed test again, hoping the race resolves favorably on a LATER try, while a longer timeout at least gives the SAME single attempt more room to succeed.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What a RETRY genuinely does:
+On the FIRST attempt, the test still races the SAME two
+  asynchronous operations with the SAME underlying flaw — if
+  it happens to fail, RUN IT AGAIN, hoping THIS time the race
+  resolves favorably. The race condition ITSELF never gets any
+  closer to being addressed; you're just buying MULTIPLE
+  chances at a favorable coin flip.
+
+What a LONGER TIMEOUT does, DIFFERENTLY (though still not
+a fix):
+Gives the SAME single attempt MORE time to let the race
+  resolve — a subtly different (though still ultimately
+  inadequate) approach than simply re-rolling the dice via
+  retry.</code></pre>
+<p>Both fail to address the diagnosed mechanism, which is why this page treats both as genuine non-fixes — but recognizing the specific way each one fails to fix the problem is worth understanding precisely, not just lumping them together as "bad" without examining why.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why the genuine fix for this chapter's race condition specifically waits for the API response, rather than waiting for a fixed, additional delay (like page.waitForTimeout(2000)).<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A fixed delay is genuinely just another disguised version of the "longer timeout" non-fix — it doesn't wait for a specific, confirmed EVENT, just for an arbitrary amount of TIME, which reintroduces exactly the same underlying problem in a different form.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>await page.waitForTimeout(2000);  // NOT a genuine fix
+await expect(locator).toHaveText('$27.50');
+
+Why this is STILL fundamentally the SAME non-fix pattern:
+2000ms is an ARBITRARY guess at how long the API call PLUS
+  re-render typically takes — on a GENUINELY slow run
+  (exactly the scenario causing the original flakiness), this
+  FIXED delay could STILL be insufficient, reintroducing the
+  EXACT same race condition, just with different numbers.
+
+Why waitForResponse is GENUINELY different:
+It waits for a CONFIRMED, real EVENT (the API response
+  actually completing) rather than an ARBITRARY guess at
+  timing — genuinely robust regardless of whether that
+  specific run happens to be fast or slow, since it's tied
+  to what ACTUALLY happened, not a guessed time estimate.</code></pre>
+<p>This is a genuinely important, precise distinction: "wait longer" (any fixed duration) and "wait for the right thing" (a confirmed event) are NOT the same fix, even though both involve the word "wait" — only the second genuinely eliminates the race, since it's tied to REALITY rather than an estimate of reality.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might "mock the external dependency" be a genuinely appropriate fix for the external-dependency cause, while "mock the API call" would be a genuinely INAPPROPRIATE fix for this chapter's race condition?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>These target genuinely different things — mocking a THIRD-PARTY system removes a source of unreliability OUTSIDE the team's own control; mocking the FIRST-PARTY cart API would remove the exact real behavior the test is supposed to be verifying in the first place.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why mocking an EXTERNAL dependency is genuinely appropriate:
+A third-party payment sandbox's occasional slowness has
+  NOTHING to do with whether ShopEasy's OWN checkout flow
+  logic is correct — mocking it removes an irrelevant source
+  of noise, letting the test focus on what it's ACTUALLY meant
+  to verify (ShopEasy's own code).
+
+Why mocking the CART API would be genuinely inappropriate here:
+The cart-total test's ENTIRE PURPOSE is verifying that adding
+  an item GENUINELY, CORRECTLY updates the total through the
+  REAL system — mocking the API call would mean the test no
+  longer verifies ANYTHING real about this actual behavior,
+  defeating its own purpose entirely rather than fixing a
+  genuine timing issue within it.</code></pre>
+<p>The distinguishing question: is the thing being considered for mocking GENUINELY IRRELEVANT to what this specific test is meant to verify (appropriate to mock), or is it the VERY THING the test exists to check (never appropriate to mock away) — a genuinely important distinction this page's fix-matching approach implicitly requires getting right.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you verify that this page's genuine waitForResponse fix actually resolved the flakiness, rather than just assuming it worked because it "sounds right"?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>The genuinely rigorous verification is re-running the EXACT same detection process from earlier in this chapter — the fixed test should now show a fail_rate of exactly 0 across a comparably-sized sample, under the SAME conditions that previously showed genuine flakiness.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A genuinely rigorous verification approach:
+1. Deploy the FIXED test (using waitForResponse) under the
+   SAME commit and environment conditions.
+2. Run it the SAME number of times (or more) as originally
+   used to CONFIRM the flakiness (20+ runs, per Detecting
+   Failure Patterns' own minimum-sample guidance).
+3. Re-apply the SAME detect_flaky_tests function — a GENUINE
+   fix should now show fail_rate = 0.0 (CONSISTENT passing),
+   not just a LOWER but still non-zero rate.</code></pre>
+<p>This directly reuses this chapter's own earlier detection infrastructure as a genuine VERIFICATION tool, not just a detection tool — closing the loop by confirming the fix actually worked using the exact same rigorous, evidence-based standard this chapter applied to CONFIRM the original flakiness, rather than simply trusting that a fix which "sounds correct" actually resolved the real, underlying issue.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

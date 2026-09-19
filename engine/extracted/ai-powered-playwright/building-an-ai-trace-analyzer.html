@@ -1,0 +1,165 @@
+<!doctype html>
+<html><head>
+<title>Building an AI Trace Analyzer</title>
+<meta name="description" content="Assembling this chapter&#x27;s seven pages into the full workflow — Playwright Test, Failure, Trace, AI Analysis, Root Cause, Recommendation — running end to end." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/building-an-ai-trace-analyzer.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Building an AI Trace Analyzer</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="identifying-the-failed-step.html">Identifying the Failed Step</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Assembling this chapter's earlier pages into the complete workflow</li>
+  <li>Running the full pipeline end to end against a real ShopSmart trace</li>
+  <li>Chapter 10's closing interview questions</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>Every earlier page in this chapter built one real, working piece. This page connects them into the full workflow from Chapter 10's own opening page.</p>
+
+<h2 id="step-by-step-implementation">Step-by-Step Implementation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/trace-analyzer.ts
+import { extractTraceActions } from './extract-trace-data';
+import { extractNetworkEvents } from './extract-trace-network';
+import { findFailedAction, resolveAmbiguousFailurePoint } from './find-failed-action';
+import { analyzeTraceTimeline } from './analyze-trace-with-ai';
+import { askClaude } from './ai-client';
+
+export interface TraceAnalyzerResult {
+  failedActionIndex: number;
+  timelineSummary: string;
+  rootCause: string;
+  recommendation: string;
+}
+
+export async function analyzeTrace(
+  traceZipPath: string
+): Promise&lt;TraceAnalyzerResult&gt; {
+  // Trace → structured data
+  const actions = extractTraceActions(traceZipPath);
+  const networkEvents = extractNetworkEvents(traceZipPath);
+
+  // Find the failed step — deterministic first, AI only if
+  // genuinely ambiguous (Chapter 10's own rule)
+  const errorActions = actions
+    .map((a, i) =&gt; ({ a, i }))
+    .filter(({ a }) =&gt; a.error);
+
+  let failedActionIndex: number;
+  if (errorActions.length === 1) {
+    failedActionIndex = errorActions[0].i;
+  } else {
+    const resolved = await resolveAmbiguousFailurePoint(
+      actions, errorActions.map(({ i }) =&gt; i)
+    );
+    failedActionIndex = resolved.primaryFailureIndex;
+  }
+
+  // AI Analysis, across the full sequence
+  const timelineAnalysis = await analyzeTraceTimeline(actions);
+
+  // Root Cause + Recommendation
+  const recommendationPrompt = `Failed action: ${JSON.stringify(actions[failedActionIndex])}
+Timeline analysis: ${timelineAnalysis.likelyCause}
+Related network events: ${JSON.stringify(networkEvents.slice(0, 5))}
+
+Give ONE specific, concrete recommended action for a developer
+investigating this failure.
+
+Respond with ONLY the recommendation text.`;
+  const recommendation = await askClaude(recommendationPrompt);
+
+  return {
+    failedActionIndex,
+    timelineSummary: timelineAnalysis.summary,
+    rootCause: timelineAnalysis.likelyCause,
+    recommendation,
+  };
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p>Every function called here was built on this chapter's earlier pages — nothing new except the assembly. Notice the deterministic-first logic for finding the failed action, directly reusing this chapter's own rule: only reach for AI resolution when there's genuine ambiguity, not by default.</p>
+
+<h2 id="example-the-full-workflow-running">Example — The Full Workflow, Running</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const result = await analyzeTrace('test-results/checkout-failure-trace.zip');
+
+console.log(result);
+// {
+//   failedActionIndex: 3,
+//   timelineSummary: "Five actions completed normally, but the
+//     final waitForSelector took 30 seconds before timing out",
+//   rootCause: "The Order Confirmed heading never appeared within
+//     the timeout — prior actions succeeded normally",
+//   recommendation: "Check whether the heading's accessible name
+//     changed recently; run Chapter 6's locator healing pipeline
+//     against this specific locator before manually investigating"
+// }
+
+// EXACTLY Chapter 10's own workflow:
+// Playwright Test → Failure → Trace → AI Analysis → Root
+// Cause → Recommendation — now REAL, working code</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Skipping the deterministic-first check and always calling AI for failure-point resolution.</strong> Most real traces have exactly one failed action — this chapter's own rule exists specifically to keep the common case fast and free of unnecessary AI calls.</li>
+  <li><strong>Discarding the extracted network events after finding the failed action.</strong> They remain genuinely useful context for the final recommendation, as this page's <code>recommendationPrompt</code> shows.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Keep every stage of this pipeline calling this chapter's own, already-built, tested functions — resist rewriting logic inline during assembly.</li>
+  <li>Log intermediate results (which action failed, the timeline summary) even when only the final recommendation is what a report ultimately surfaces — useful for debugging the analyzer itself.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Run this page's <code>analyzeTrace</code> function against a real trace file from your own project, end to end. Compare its recommendation against what you'd have concluded from manually opening the same trace in Playwright's own viewer, following this chapter's opening exercise.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>This chapter's full workflow — extraction, failure-point resolution, timeline analysis, recommendation — is now real and assembled from functions built on its own earlier pages.</li>
+  <li>Deterministic-first failure-point resolution keeps the common case fast, reserving AI reasoning for genuinely ambiguous situations.</li>
+  <li>Every earlier page's evidence — actions, network events — stays available to later stages of the pipeline, not discarded once its immediate purpose is served.</li>
+</ul>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Beginner: What is the genuine difference between a trace file and a single failure screenshot?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A screenshot captures one moment — what the page looked like at the instant of failure. A trace captures an entire, ordered timeline — every action, its timing and duration, every network request, and DOM snapshots at multiple points throughout the run. A screenshot shows the outcome; a trace shows the full sequence that led there.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Beginner: Why does this chapter recommend finding the failed action with a deterministic search rather than an AI call, in the common case?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>When exactly one action in the timeline has a recorded error, finding it is an exact operation with one correct answer — searching for the action where the error field is populated. This is the same kind of deterministic question Chapter 5 established doesn't need AI reasoning; using AI here would add real cost and latency for a question the data already answers directly.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Intermediate: Explain why sequence-aware trace analysis can rule out explanations that Chapter 9's single-error analysis couldn't.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Chapter 9's analysis worked from an error message and a few stack frames — it had no visibility into what happened before the failure. Trace analysis sees the full sequence, so if every action before the failure completed normally, with no errors and typical durations, that directly rules out a cascading earlier problem as the cause. This kind of elimination is only possible because the full timeline, not just the final error, is available for reasoning.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Intermediate: Why does correlateNetworkWithActions check for network failures within a time window of an action's timestamp, rather than requiring an exact timestamp match?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A network request that's genuinely related to a given action rarely completes at the exact same millisecond — a click might trigger a request that resolves shortly after, or a request might be in flight when a subsequent action begins. Requiring an exact match would miss almost every genuinely related failure. A reasonable time window (this page uses 500ms) captures requests that are plausibly connected to an action without being so wide that it correlates clearly unrelated events happening to occur near each other in time.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Advanced: Why does resolveAmbiguousFailurePoint explicitly ask the model to consider whether some candidate failures are "downstream consequences," rather than just asking it to pick the most severe one?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Severity alone doesn't indicate causation. An early network failure and a later timeout might both look like genuine problems, but the later one could simply be a consequence of the earlier one — the page never loaded correctly because a request failed, and everything after that was doomed regardless of how it's individually described. Asking specifically about downstream consequences directs the model's reasoning toward the actual causal structure of the sequence, rather than toward whichever failure happens to sound worse in isolation — a genuinely different and more useful question for identifying where a fix actually needs to be applied.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Scenario-based: A teammate wants to skip Chapter 10's manual trace-viewer exercise and go straight to building the automated analyzer, reasoning it's faster. How would you respond?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd point to why this chapter placed that exercise first: building real intuition for what's genuinely valuable inside a trace — an unexpectedly long action, a network failure near a specific step, an earlier screenshot revealing an unexpected modal — is what shapes good judgment about what the automated pipeline should extract and prioritize. Skipping straight to automation risks building an analyzer around assumptions about trace data that were never actually verified against a real, messy trace. The manual exercise costs a small amount of time upfront and pays for itself the first time the automated analyzer produces a result that doesn't match what a human would have concluded — at that point, having actually explored a trace by hand makes it much easier to tell whether the analyzer or the assumption behind it is what's wrong.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

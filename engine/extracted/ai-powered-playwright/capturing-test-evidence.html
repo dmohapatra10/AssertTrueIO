@@ -1,0 +1,120 @@
+<!doctype html>
+<html><head>
+<title>Capturing Test Evidence</title>
+<meta name="description" content="Real, working code capturing every category of evidence Playwright offers — error, stack trace, screenshot, video, trace, console logs, network — into one structured bundle." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/capturing-test-evidence.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Capturing Test Evidence</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="understanding-playwright-failures.html">Understanding Playwright Failures</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Configuring Playwright to capture every category of evidence on failure</li>
+  <li>Assembling it into one structured, reusable evidence bundle</li>
+  <li>Capturing console logs and network activity, which need active collection during the test itself</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>This page builds the real, comprehensive capture this chapter's opening page argued for — every category Playwright can provide, assembled into one structured object the rest of this chapter's pages can work with.</p>
+
+<h2 id="step-by-step-implementation-configuration">Step-by-Step Implementation — Configuration</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// playwright.config.ts
+import { defineConfig } from '@playwright/test';
+
+export default defineConfig({
+  use: {
+    screenshot: 'only-on-failure',
+    video: 'retain-on-failure',
+    trace: 'retain-on-failure',
+  },
+});</code></pre>
+
+<h2 id="step-by-step-implementation-assembling-the-evidence-bundle">Step-by-Step Implementation — Assembling the Evidence Bundle</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/capture-evidence.ts
+import { Page, TestInfo } from '@playwright/test';
+
+export interface EvidenceBundle {
+  errorMessage: string;
+  stackTrace: string;
+  screenshotPath?: string;
+  videoPath?: string;
+  tracePath?: string;
+  consoleLogs: string[];
+  networkFailures: string[];
+}
+
+export function setupEvidenceCollection(page: Page) {
+  const consoleLogs: string[] = [];
+  const networkFailures: string[] = [];
+
+  page.on('console', (msg) => {
+    if (msg.type() === 'error') consoleLogs.push(msg.text());
+  });
+  page.on('requestfailed', (request) => {
+    networkFailures.push(`${request.method()} ${request.url()} — ${request.failure()?.errorText}`);
+  });
+
+  return { consoleLogs, networkFailures };
+}
+
+export function buildEvidenceBundle(
+  testInfo: TestInfo, consoleLogs: string[], networkFailures: string[]
+): EvidenceBundle {
+  const screenshot = testInfo.attachments.find((a) => a.name === 'screenshot');
+  const video = testInfo.attachments.find((a) => a.name === 'video');
+  const trace = testInfo.attachments.find((a) => a.name === 'trace');
+
+  return {
+    errorMessage: testInfo.error?.message ?? 'No error message captured',
+    stackTrace: testInfo.error?.stack ?? 'No stack trace captured',
+    screenshotPath: screenshot?.path,
+    videoPath: video?.path,
+    tracePath: trace?.path,
+    consoleLogs,
+    networkFailures,
+  };
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p>Console logs and network failures need genuinely different handling than the rest — they're not available after the fact from <code>testInfo</code> alone. <code>setupEvidenceCollection</code> attaches listeners at the start of a test, actively accumulating evidence as the test runs, so it's available if the test later fails. This is a real, structural difference worth understanding: some evidence is captured passively by Playwright's config; some needs active collection during execution.</p>
+
+<h2 id="example-using-this-in-a-real-test">Example — Using This in a Real Test</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import { test } from '@playwright/test';
+import { setupEvidenceCollection, buildEvidenceBundle } from './capture-evidence';
+
+test('checkout completes successfully', async ({ page }, testInfo) => {
+  const { consoleLogs, networkFailures } = setupEvidenceCollection(page);
+
+  // ... real test steps ...
+
+  if (testInfo.status !== testInfo.expectedStatus) {
+    const evidence = buildEvidenceBundle(testInfo, consoleLogs, networkFailures);
+    // evidence is now a COMPLETE, structured bundle — ready
+    // for this chapter's NEXT page to send to AI
+  }
+});</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Only configuring screenshot and video, forgetting trace.</strong> The trace file is often the single richest piece of evidence — every action, every network request, a full timeline — skipping it discards real, valuable information.</li>
+  <li><strong>Setting up console and network listeners only after a test has already failed.</strong> This evidence needs to be collected DURING execution — by the time a failure is detected, the moment to start listening has already passed.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Configure comprehensive capture (<code>retain-on-failure</code>) globally — it's cheap, and having evidence you don't end up needing costs far less than needing evidence you didn't capture.</li>
+  <li>Attach console and network listeners at the very start of every test, not conditionally based on whether you expect it might fail.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Add this page's evidence collection to one of your own real tests. Deliberately break it (change a locator to something invalid) and confirm every field in the resulting <code>EvidenceBundle</code> is genuinely populated — including console logs and network failures, not just the error message.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Playwright's config captures screenshots, video, and trace passively on failure — console logs and network activity need active listeners set up during the test itself.</li>
+  <li>Assembling everything into one structured <code>EvidenceBundle</code> is what makes this chapter's remaining pages able to work with evidence consistently, rather than reaching into <code>testInfo</code> differently each time.</li>
+  <li>Comprehensive capture is cheap and worth doing by default — the real cost decision, covered next, is what to actually send to AI.</li>
+</ul>
+</article>
+</body></html>

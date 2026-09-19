@@ -1,0 +1,128 @@
+<!doctype html>
+<html><head>
+<title>Data Privacy and Avoiding Sensitive Data Leakage</title>
+<meta name="description" content="Closing this chapter with the discipline every earlier page&#x27;s generated data needs — synthetic data by default, and a real audit for anything that looks like real customer information." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/data-privacy-and-avoiding-sensitive-leakage.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Data Privacy and Avoiding Sensitive Data Leakage</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="deterministic-ai-test-data.html">Deterministic AI Test Data</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Why synthetic data is the genuinely safer default this whole chapter has used, made explicit here</li>
+  <li>A real, concrete way real customer data could leak into generated fixtures</li>
+  <li>Chapter 8's closing interview questions</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>Every generation function in this chapter has used <code>example.com</code> email domains and clearly synthetic values — not by accident. This page makes that choice explicit, and covers the one genuine way this discipline can quietly break down: real data leaking in through context.</p>
+
+<h2 id="why-it-matters-the-real-risk-isn-t-generation-itself">Why It Matters — The Real Risk Isn't Generation Itself</h2>
+<p>AI generation, on its own, produces synthetic data — it has no access to ShopSmart's real customer database. The genuine risk is different: a developer debugging a real, specific customer issue might paste a real customer's actual email or address into a prompt as "context" for generating a similar test case — and from that point, real, sensitive data has entered a system this chapter's own techniques never intended to touch.</p>
+
+<h2 id="how-it-works-a-concrete-risky-prompt">How It Works — A Concrete, Risky Prompt</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// GENUINELY risky — a developer trying to be HELPFUL:
+const prompt = `Generate a test user similar to this real
+customer who reported a bug: jane.actual.smith@gmail.com,
+482 Real Street, Denver, CO 80203`;
+
+// The REAL customer's email and address are NOW part of the
+// PROMPT sent to an external AI provider — exactly the
+// EXPOSURE this page exists to PREVENT</code></pre>
+
+<h2 id="step-by-step-implementation-a-real-guard">Step-by-Step Implementation — A Real Guard</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/prevent-real-data-leakage.ts
+
+const REAL_DOMAIN_PATTERN = /@(?!example\.com)[\w-]+\.[a-z]{2,}/i;
+
+export function scanPromptForRealData(prompt: string): string[] {
+  const warnings: string[] = [];
+  const emailMatches = prompt.match(REAL_DOMAIN_PATTERN);
+  if (emailMatches) {
+    warnings.push(
+      `Prompt contains an email NOT using example.com — possible real data: ${emailMatches[0]}`
+    );
+  }
+  return warnings;
+}
+
+export async function askClaudeSafely(prompt: string): Promise&lt;string&gt; {
+  const warnings = scanPromptForRealData(prompt);
+  if (warnings.length &gt; 0) {
+    throw new Error(
+      `Refusing to send prompt — possible real data detected:\n${warnings.join('\n')}`
+    );
+  }
+  return askClaude(prompt);
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p>This is a real, if imperfect, safeguard — it catches the specific, common mistake from this page's example (a real-looking email domain), not every conceivable form of sensitive data. That's honest and worth stating plainly: this check reduces risk, it doesn't eliminate it, the same honest framing this tutorial has used since Chapter 1 for every technique that helps without guaranteeing safety.</p>
+
+<h2 id="why-it-matters-this-connects-directly-to-chapter-16">Why It Matters — This Connects Directly to Chapter 16</h2>
+<p>This tutorial's later security chapter covers this exact concern at the level of an entire testing system — every prompt, every log, every trace. This page is the same discipline applied specifically to test data generation: prefer synthetic data by default, and add a real, if imperfect, guard against real data slipping in through careless context.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Assuming AI generation is inherently safe because it's "just making things up."</strong> The genuine risk isn't the generation itself — it's real data entering a prompt as context, exactly this page's example.</li>
+  <li><strong>Treating a guard like <code>scanPromptForRealData</code> as a complete solution.</strong> It catches one common, real pattern — it's not a comprehensive sensitive-data detector, and shouldn't be trusted as one.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Default to synthetic data throughout — every generation function in this chapter already does, deliberately.</li>
+  <li>Never paste real customer data into a prompt, even for a seemingly helpful, well-intentioned reason like generating a "similar" test case.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Review your own prompts from this chapter's earlier exercises. Confirm none of them accidentally included anything beyond clearly synthetic, <code>example.com</code>-style data — and run <code>scanPromptForRealData</code> against a few to see it catch a deliberately real-looking email you add for the test.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Synthetic data has been this chapter's default throughout — this page makes that choice explicit rather than assumed.</li>
+  <li>The genuine privacy risk in AI-generated test data is real information entering a prompt as context, not the generation process itself.</li>
+  <li>A guard like this page's pattern check reduces risk without eliminating it — an honest, real safeguard, not a complete solution.</li>
+</ul>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Beginner: What is the genuine difference between the test data this chapter generates and the test cases Chapter 4 generates?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Chapter 4 generates test cases — descriptions of what to test, like "registration with a duplicate email," including steps and an expected result. This chapter generates the actual data values that fill in a case like that — a real, concrete email string, a realistic address, a believable product price. Chapter 4 decides what to test; this chapter provides what to test it with.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Beginner: Why does this chapter's generateUsers function explicitly request "genuinely varied" users rather than just "realistic" ones?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A vague request for "realistic" data tends to produce the same statistically common patterns repeatedly, quietly recreating the poor-diversity problem this chapter opened with. Explicitly requesting variety across name origins, address formats, and regions is what actually produces the diversity needed to exercise genuinely different code paths — realism alone doesn't guarantee variety.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Intermediate: Explain, using the Denver ZIP code example, why field-by-field validation isn't sufficient for generating realistic test data.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A ZIP code like "33139" is validly formatted and genuinely real — it just belongs to Miami Beach, not Denver. Checking each field independently (is this a valid city name? is this a valid ZIP format?) would accept this combination without complaint, since each field passes its own check. The problem only appears when checking whether the fields are consistent with each other, which is a genuinely separate requirement from each field's individual validity — exactly why context-aware generation needs to produce related fields together, in one call, rather than independently.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Intermediate: Why does this chapter recommend caching generated test data and committing it to version control, rather than generating fresh data on every test run?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Fresh generation on every run means a test failure triggered by specific, unusual data — like a last name containing an apostrophe — may be impossible to reproduce later, since the next run generates different data that may not trigger the same bug. This makes debugging genuinely harder, since the bug appears to "disappear" even though it never was fixed. Caching once and committing the result makes test data reproducible across runs and reviewable via version control, the same way any other test fixture would be, while forceRegenerate still allows deliberate refresh when genuinely needed.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Advanced: Why does this chapter frame the real privacy risk in AI-generated test data as being about "context," rather than about the generation process itself?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>AI generation, left to itself, produces synthetic data — it has no access to a real customer database and nothing to leak on its own. The genuine risk enters through a different path: a developer, trying to be helpful, pastes real customer information into a prompt as context for generating something similar. At that point, real, sensitive data has been sent to an external AI provider, a completely different exposure than anything generation itself creates. Framing the risk this way is what correctly points the mitigation at prompt hygiene and developer discipline, rather than at the generation functions themselves, which were never where the actual risk lived.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Scenario-based: A teammate wants to skip this chapter's caching approach for a "quick, one-off test," reasoning that determinism only matters for tests that run repeatedly in CI. How would you respond?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd point to this chapter's own Monday/Tuesday example: the value of caching isn't about how often a test runs in CI — it's about being able to reproduce a specific failure after the fact, whenever that need arises. A "quick, one-off test" that happens to fail today, using freshly-generated data, creates exactly the same reproduction problem the moment someone tries to investigate it tomorrow — the failure wasn't one-off, but the data that triggered it was, and now it's gone. If a test is worth running at all, the data it used when it failed is worth being able to reproduce; the caching approach costs very little and removes a real, avoidable source of debugging difficulty regardless of how the test is categorized.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

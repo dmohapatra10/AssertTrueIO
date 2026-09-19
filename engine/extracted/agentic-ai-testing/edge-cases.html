@@ -1,0 +1,197 @@
+<!doctype html>
+<html><head>
+<title>Edge Cases: Genuinely Unusual Situations, Distinct From Boundaries</title>
+<meta name="description" content="What genuinely distinguishes an edge case from a boundary case, real examples that aren&#x27;t about numeric ranges at all, and how to prompt AI to find them deliberately." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/edge-cases.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Edge Cases</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="boundary-testing.html">Boundary Testing</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Edge cases are genuinely unusual situations a feature might encounter — but unlike boundary testing, they're not necessarily about numeric ranges at all. This page exists specifically to draw that distinction clearly, since the two are genuinely easy to conflate.</p>
+
+<h2 id="the-real-distinction-stated-plainly">The Real Distinction, Stated Plainly</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>BOUNDARY testing: values at the EDGE OF A RANGE
+  ($49.99, $50.00, $50.01 — all about WHERE on a numeric
+  scale an input sits)
+
+EDGE CASES: genuinely UNUSUAL SITUATIONS, often with NOTHING
+  to do with numeric ranges at all
+  (What if a code expires WHILE checkout is in progress? What
+  if two people apply the SAME single-use code simultaneously?)</code></pre>
+
+<h2 id="genuine-edge-cases-for-the-discount-code-requirement">Genuine Edge Cases for the Discount-Code Requirement</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>1. TIMING: a code is valid when checkout starts, but expires
+   in the few seconds BETWEEN starting checkout and submitting
+   the order — does the order use the discount or not?
+
+2. CONCURRENCY: two different users attempt to apply the exact
+   same single-use-only code at nearly the same moment — does
+   exactly one succeed, or could both incorrectly succeed?
+
+3. STATE INTERACTION: a code is applied, then the user REMOVES
+   an item from their cart, dropping the order below the
+   code's minimum threshold — does the discount get correctly
+   removed too, or does it incorrectly remain applied?
+
+4. INPUT OUTSIDE NORMAL EXPECTATIONS: a user pastes a code
+   with leading/trailing whitespace, or with special characters
+   that were never a genuine, intended part of any real code</code></pre>
+<p>None of these are about a numeric value sitting near a threshold — they're genuinely unusual SITUATIONS: timing, concurrency, an interaction between two different pieces of state, or malformed input the requirement never explicitly anticipated.</p>
+
+<h2 id="a-genuinely-useful-prompt-for-edge-cases">A Genuinely Useful Prompt for Edge Cases</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def generate_edge_cases(requirement, client):
+    prompt = f"""Given this requirement, identify genuinely
+UNUSUAL situations that aren't covered by simple positive,
+negative, or boundary-value testing. Specifically consider:
+timing (something changing mid-process), concurrency (two
+things happening at once), interaction between different
+pieces of state, and malformed or unexpected input. For each,
+state what you'd want to happen and why it's genuinely unclear
+from the requirement alone.
+
+Requirement:
+{requirement}
+"""
+    response = client.messages.create(
+        model="claude-sonnet-4-6", max_tokens=1024,
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return response.content[0].text</code></pre>
+<p>Notice the prompt explicitly asks the LLM to state why each case is "genuinely unclear from the requirement alone" — this is deliberate, and connects directly to why edge cases are worth generating at all, covered next.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might edge cases be specifically valuable for surfacing gaps in the REQUIREMENT itself, not just gaps in an implementation's correctness? A positive or negative case usually has a clear right answer derivable directly from the requirement. Many genuine edge cases — like the mid-checkout expiration timing case above — don't have an answer the requirement actually specifies at all. Generating these cases often reveals that a requirement is incomplete, which is valuable to discover before writing any code, not just before writing tests.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Treating "edge case" as a catch-all label for "any test I haven't otherwise categorized," including things that are actually boundary tests in disguise. Keeping the genuine distinction clear — boundary is about numeric range position, edge is about genuinely unusual situations — makes both categories more useful and more precisely targeted.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>A genuinely reliable way to find real edge cases: ask "what happens if two of these things happen AT THE SAME TIME, or in an unexpected ORDER?" Timing and ordering issues are a consistently rich, real source of genuine edge cases across nearly any feature.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Keep edge cases conceptually distinct from boundary cases — situational unusualness, not numeric range position.</li>
+  <li>Treat an edge case that reveals a genuinely unclear requirement as a valuable finding in itself, worth raising before writing any code.</li>
+  <li>Deliberately consider timing, concurrency, and state interaction as reliable, systematic sources of genuine edge cases.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Edge cases are genuinely unusual situations — timing, concurrency, state interaction, unexpected input — distinct from boundary testing's numeric range focus.</li>
+  <li>Many genuine edge cases don't have an answer the requirement actually specifies, which makes generating them valuable for finding requirement gaps, not just implementation bugs.</li>
+  <li>Timing and ordering ("what if two things happen at once, or out of order") are a consistently rich source of genuine edge cases across most features.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Write one genuine edge case each for timing, concurrency, and state interaction for a completely different ShopEasy feature — the shopping cart itself (not discount codes) — being explicit about why each one's correct behavior isn't clearly specified by an obvious, simple requirement like "users can add items to their cart."</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A teammate lists "order value of exactly $50.00" as an edge case. Based on this page's distinction, is this correctly categorized? Explain your reasoning.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This is more precisely a BOUNDARY case, not an edge case, based on the distinction this page draws — it's specifically about where a numeric value sits relative to a defined range (the $50 minimum), not about a genuinely unusual situation like timing, concurrency, or state interaction.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why this is boundary, not edge, per this page's definitions:
+"Exactly $50.00" is precisely testing a NUMERIC RANGE POSITION
+  — the defining characteristic of a boundary case (covered on
+  the previous page), not a situational unusualness.
+
+A GENUINE edge case involving a SIMILAR concept might be:
+"A code's minimum threshold is met, but the user removes an
+  item DURING checkout, dropping below the threshold AFTER the
+  code was already applied" — THIS is genuinely about state
+  interaction and timing, matching this page's actual
+  definition of an edge case, not just a range position.</code></pre>
+<p>The mislabeling itself isn't a serious problem — the underlying test is still valuable either way — but keeping the categories genuinely distinct, as this page argues, helps ensure BOTH kinds of coverage (range positions AND unusual situations) get deliberately, systematically considered, rather than one crowding out the other under a single vague label.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page argue that edge cases are valuable specifically for finding requirement gaps, not just implementation bugs?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because many genuine edge cases don't have an answer that can be derived from the requirement as written — the requirement simply never addressed that specific situation, which is a different, often more valuable kind of finding than "the code doesn't match what the requirement says."</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A positive/negative case gap (implementation bug):
+Requirement clearly states codes are case-insensitive. Testing
+  reveals the actual system rejects a mixed-case code. This is
+  a clear, unambiguous BUG — the requirement had an answer,
+  and the implementation didn't match it.
+
+An edge case gap (requirement gap, not necessarily a bug):
+"What happens if a code expires DURING checkout?" — the
+  requirement genuinely NEVER addresses this timing question
+  at all. There's no "correct" answer to check the
+  implementation against, because nobody has actually DECIDED
+  what should happen yet — this is a genuine GAP in the
+  requirement itself, discovered through edge-case thinking.</code></pre>
+<p>This distinction matters practically: a requirement gap needs a genuinely different response (going back to clarify with whoever owns the requirement, not just filing a bug) than an implementation bug does — and edge-case generation is specifically good at surfacing the former kind of finding.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why "two users applying the same single-use code simultaneously" is a genuinely hard case to even TEST, not just to specify correct behavior for.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Beyond the requirement ambiguity, this specific edge case is also genuinely difficult from a pure TESTING mechanics perspective — reliably triggering true simultaneity in an automated test is itself a real, non-trivial engineering challenge, distinct from the question of what SHOULD happen.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why "simultaneous" is hard to reliably TEST, mechanically:
+Two separate test actions, even started at "the same time"
+  programmatically, will almost always have SOME real timing
+  difference once they actually reach the server — genuinely
+  reproducing a true race condition reliably, on demand, in an
+  automated test, requires deliberate techniques (artificial
+  delays, mocking, or specifically designed test hooks) beyond
+  simply "run two requests at once" and hoping they collide.
+
+This doesn't mean it's not worth testing — it means the
+  IMPLEMENTATION of such a test genuinely needs more thought
+  than a typical positive or negative case, which is itself
+  worth flagging explicitly when this kind of edge case comes
+  up during generation.</code></pre>
+<p>This is a genuinely useful thing to recognize: some edge cases are hard because the CORRECT BEHAVIOR is ambiguous (the timing-expiration example), while others are hard because RELIABLY TESTING them at all is a genuine technical challenge (this concurrency example) — both are real, but they need different kinds of follow-up.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might "what if two things happen at once, or in an unexpected order" be described as a "consistently rich source" of edge cases across many different features, not just this chapter's discount-code example?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because timing and ordering assumptions are genuinely easy to make implicitly while writing a requirement or building a feature, without realizing they've been assumed at all — until someone explicitly asks "what if the order were different," which reliably surfaces them.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>The GENERAL pattern, applicable well beyond discount codes:
+Most requirements are written assuming a single, LINEAR
+  sequence of events — "user does X, then Y, then Z." This
+  linear framing often silently assumes NOTHING happens
+  out of that expected order, or at the same time as
+  something else — an assumption that's easy to make without
+  ever stating it explicitly.
+
+Examples from GENUINELY different features, same pattern:
+- Cart: what if an item goes out of stock WHILE it's in
+  someone's cart, before they check out?
+- User profile: what if a user updates their email address
+  in one browser tab while a password-reset email (tied to
+  the OLD address) is still in flight from another tab?
+- Search: what if the underlying data changes WHILE a user is
+  scrolling through paginated search results?</code></pre>
+<p>Across all these genuinely different features, the same underlying question — "what if the normal, expected order or timing doesn't hold" — reliably surfaces real, non-obvious scenarios, which is exactly why this page calls it out as a consistently valuable, general-purpose technique rather than something specific to discount codes alone.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you respond if a teammate said "edge cases are too rare to be worth testing — let's focus only on positive and negative cases"?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd push back on the premise that edge cases are necessarily rare in practice — several of this page's own examples (a code expiring mid-checkout, state interaction after removing a cart item) are genuinely plausible, not exotic, and the real value isn't just about frequency.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why "rare" isn't quite the right lens:
+The STATE-INTERACTION edge case (removing an item drops the
+  order below a code's minimum AFTER the code was already
+  applied) is genuinely a completely ordinary, everyday user
+  action (removing a cart item) — not some exotic, unlikely
+  scenario. This could plausibly happen regularly, not rarely.
+
+Beyond frequency, the REQUIREMENT-GAP value:
+Even a genuinely rare edge case can reveal that the
+  requirement itself never actually specified correct
+  behavior — discovering that gap BEFORE it becomes a real,
+  live production incident is valuable specifically because
+  of when it's found, not how often the underlying scenario
+  actually occurs in practice.</code></pre>
+<p>The honest response: some edge cases genuinely ARE rare and lower priority, and it's reasonable to triage which ones are worth automating right now — but "edge cases are inherently rare" as a blanket justification for skipping them entirely isn't accurate, and several of this page's own examples are ordinary enough to push back on that premise directly.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

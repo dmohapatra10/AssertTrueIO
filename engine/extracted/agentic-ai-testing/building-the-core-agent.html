@@ -1,0 +1,201 @@
+<!doctype html>
+<html><head>
+<title>Building the Core Agent: Chapter 3&#x27;s QAAgent as the Foundation</title>
+<meta name="description" content="Starting Layer 0 with the exact agent Chapter 3 built — no changes, since every later capstone page builds on top of it, not around it." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/building-the-core-agent.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Building the Core Agent</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="capstone-overview-and-architecture.html">Capstone Overview and Architecture</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Layer 0 of the previous page's architecture is exactly Chapter 3's <code>QAAgent</code> — no changes, no new code. This page is about starting the capstone build correctly: the foundation everything else attaches to has already been written.</p>
+
+<h2 id="the-foundation-as-already-built">The Foundation, As Already Built</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>class QAAgent:
+    def __init__(self, objective, instructions, tools, client, model):
+        self.objective = objective
+        self.instructions = instructions  # Chapter 2's own
+                                             # careful instruction-
+                                             # writing principles
+        self.tools = tools                # Chapter 2's own
+                                             # tool-definition format
+        self.client = client
+        self.model = model
+        self.max_steps = 15               # Chapter 2's own loop
+                                             # guardrail
+
+    def run(self, page):
+        history = []
+        for step in range(self.max_steps):
+            prompt = self._build_prompt(history, page)
+            response = self.client.messages.create(
+                model=self.model, max_tokens=1024,
+                system=self.instructions, tools=self.tools,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            if self._is_task_complete(response):
+                return self._build_report(history, success=True)
+            tool_call = self._extract_tool_call(response)
+            result = execute_tool(tool_call.name, tool_call.input, page)
+            history.append({"step": step, "action": tool_call, "result": result})
+        return self._build_report(history, success=False)</code></pre>
+
+<h2 id="why-this-page-deliberately-makes-no-changes">Why This Page Deliberately Makes No Changes</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>EVERY capstone page THAT follows ADDS a LAYER around THIS
+exact CODE — Chapter 13'S MCP page CONNECTS it via a NEW
+protocol; Chapter 15'S observability page INSTRUMENTS its OWN
+run() loop; Chapter 12'S testing PAGE verifies IT genuinely
+works. NONE of them REQUIRE rewriting THIS foundation — EXACTLY
+the SAME finding Chapter 13'S OWN "AI Agent + MCP" page
+ALREADY confirmed: the REASONING loop stays GENUINELY unchanged
+when NEW capability gets ADDED around it.</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why is it genuinely significant, for this capstone specifically, that Chapter 13 already confirmed the reasoning loop needs almost no changes when MCP gets added? If this capstone's later pages required substantially rewriting <code>QAAgent</code> at every layer, that would suggest the architecture from the previous page was wrong — that these capabilities aren't genuinely layered extensions, but a series of incompatible redesigns. The fact that Chapter 13 already demonstrated this stability is direct evidence the layered architecture is sound, not just a convenient diagram.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Starting this capstone by rewriting or "improving" Chapter 3's agent before building anything on top of it. This page's entire point is that the foundation is already correct — the capstone's real work is layering capability around it, not second-guessing a foundation this course has already validated across twelve prior chapters.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>Before proceeding to this capstone's next page, running Chapter 3's own basic verification — a simple, single-tool task, confirming the agent still runs correctly in isolation — is a genuinely useful sanity check, exactly the same incremental-verification discipline Chapter 3 itself established.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Start this capstone from Chapter 3's exact, unmodified agent, rather than treating the capstone as an opportunity to redesign the foundation.</li>
+  <li>Treat every later layer as an addition around this foundation, not a replacement or rewrite of it.</li>
+  <li>Verify the foundation works in isolation before layering capability on top, following Chapter 3's own incremental verification discipline.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Layer 0 of this capstone is exactly Chapter 3's QAAgent, unchanged — every later layer builds around it, not through modification.</li>
+  <li>Chapter 13's own earlier finding — that the reasoning loop needs almost no changes when new capability is added — is direct evidence this layered architecture is genuinely sound.</li>
+  <li>The capstone's real work begins with the next page's layering, not with second-guessing a foundation already validated across this entire course.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Run Chapter 3's own basic verification against this page's unmodified <code>QAAgent</code> code — a simple, single-tool objective — and confirm it behaves identically to how it did when Chapter 3 first introduced it, establishing a genuine baseline before this capstone's remaining pages begin layering capability on top.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A teammate suggests "since we're building a capstone, let's use this as an opportunity to redesign the agent's core loop more elegantly." Why does this page argue against this?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>REDESIGNING the FOUNDATION at THIS point would UNDERMINE the ENTIRE capstone'S actual PURPOSE — DEMONSTRATING that SIXTEEN chapters'S worth of TECHNIQUES genuinely COMBINE into ONE working SYSTEM, which REQUIRES building on the EXACT foundation THOSE techniques were ALREADY designed AGAINST.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why REDESIGNING the LOOP now would GENUINELY undermine the
+capstone:
+Chapter 13'S OWN "AI Agent + MCP" page ALREADY confirmed
+  THIS specific loop WORKS correctly with MCP INTEGRATION.
+  Chapter 12'S TESTING techniques were ALREADY validated
+  AGAINST this EXACT structure. REDESIGNING it NOW means
+  EVERY one of those EARLIER validations NO longer GENUINELY
+  applies, REQUIRING re-verification of EVERYTHING this
+  COURSE already ESTABLISHED.
+
+What the TEAMMATE'S instinct GETS right, and WRONG:
+WANTING a "MORE elegant" design is a REASONABLE engineering
+  INSTINCT in GENERAL — but a CAPSTONE'S specific PURPOSE is
+  DEMONSTRATING genuine INTEGRATION of EXISTING, PROVEN
+  pieces, NOT an OPPORTUNITY for UNRELATED architectural
+  IMPROVEMENT that would UNDERMINE that SPECIFIC goal.</code></pre>
+<p>This is EXACTLY why THIS page insists on ZERO changes — the CAPSTONE'S value COMES from SHOWING sixteen chapters GENUINELY fit TOGETHER, which REQUIRES the FOUNDATION to remain EXACTLY what THOSE chapters were BUILT against.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page treat Chapter 13's earlier "reasoning loop STAYS unchanged" finding as GENUINE evidence for THIS capstone'S architecture, RATHER than an UNRELATED, separate OBSERVATION?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Chapter 13'S finding was SPECIFICALLY about WHETHER adding MCP capability REQUIRED rewriting THIS foundation — and it CONFIRMED it DIDN'T, DIRECTLY supporting THIS capstone'S OWN core ASSUMPTION that MULTIPLE layers can GENUINELY attach to the SAME, stable FOUNDATION.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What Chapter 13'S finding SPECIFICALLY demonstrated:
+ADDING a GENUINELY new, SUBSTANTIAL capability (MCP-based
+  tool CALLING, replacing a HARDCODED dispatch FUNCTION)
+  required ALMOST no changes to the AGENT'S own REASONING
+  loop — CONCRETE, EMPIRICAL evidence the FOUNDATION is
+  GENUINELY stable under REAL, substantial EXTENSION.
+
+Why this DIRECTLY supports THIS capstone'S architecture:
+IF ONE genuinely SUBSTANTIAL extension (MCP) required ALMOST
+  no CHANGES, this is REAL evidence (not JUST a HOPEFUL
+  assumption) that OTHER layers (OBSERVABILITY, CI/CD
+  integration) COULD ALSO attach WITHOUT requiring
+  FOUNDATIONAL rewrites — EXACTLY what the PREVIOUS page'S
+  architecture ASSUMES, now SUPPORTED by ACTUAL, prior
+  evidence FROM this course, not JUST theoretical HOPE.</code></pre>
+<p>This is a GENUINELY important, EVIDENCE-based connection — RATHER than SIMPLY assuming the LAYERED architecture WOULD work, THIS page POINTS to CONCRETE, prior PROOF (Chapter 13'S OWN finding) that IT genuinely DOES, for AT LEAST one SUBSTANTIAL extension ALREADY tested.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why THIS page recommends running Chapter 3'S basic VERIFICATION again, EVEN though the CODE is IDENTICAL to WHAT Chapter 3 already VERIFIED.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>ESTABLISHING a GENUINE, FRESH baseline WITHIN this CAPSTONE'S own CONTEXT — a NEW environment, POSSIBLY a NEW model VERSION, POSSIBLY different DEPENDENCIES — confirms the FOUNDATION genuinely WORKS here, NOW, rather than TRUSTING a VERIFICATION performed in a DIFFERENT chapter'S CONTEXT, POTENTIALLY under DIFFERENT conditions.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why TRUSTING Chapter 3'S ORIGINAL verification ALONE isn'T
+fully SUFFICIENT:
+Chapter 3'S verification CONFIRMED the AGENT worked
+  CORRECTLY in THAT chapter'S specific CONTEXT — POTENTIALLY
+  a DIFFERENT model VERSION, a DIFFERENT test ENVIRONMENT, or
+  SIMPLY at a DIFFERENT POINT in time. THIS capstone REPRESENTS
+  a GENUINELY new CONTEXT (POSSIBLY MONTHS later in a REAL
+  learning JOURNEY), where CONDITIONS could have GENUINELY
+  shifted.
+
+Why a FRESH verification GENUINELY matters HERE:
+CONFIRMING the FOUNDATION works CORRECTLY IN THIS specific
+  capstone'S environment, BEFORE layering EIGHT more PAGES'
+  worth of CAPABILITY on TOP of it, follows the SAME
+  incremental-VERIFICATION discipline Chapter 3 ITSELF
+  established — VERIFY the SIMPLEST piece FIRST, in the
+  ACTUAL context WHERE it'll be USED.</code></pre>
+<p>This is a GENUINELY practical, careful HABIT — EVEN CODE that'S "the SAME" deserves a FRESH check in a NEW context, EXACTLY the SAME discipline THIS course has CONSISTENTLY modeled SINCE Chapter 3'S own INCREMENTAL-build approach.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might it be a MISTAKE to assume "NO changes to THIS foundation" MEANS "no ENGINEERING work happens AT this stage of the CAPSTONE"?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>"NO code CHANGES" and "no WORK required" are GENUINELY different CLAIMS — THIS page'S real WORK is CONFIRMING the FOUNDATION is CORRECTLY set UP and VERIFIED as a STABLE starting POINT, which IS genuine, NECESSARY work EVEN though it PRODUCES no NEW code.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What "NO code changes" GENUINELY means:
+The QAAgent CLASS itself ISN'T being MODIFIED or REWRITTEN —
+  the SAME structure, SAME loop, SAME METHODS from Chapter 3.
+
+What STILL genuinely CONSTITUTES real WORK at THIS stage:
+CONFIRMING this EXACT code RUNS correctly in the CAPSTONE'S
+  OWN environment (THIS page'S "TRY IT Yourself" EXERCISE),
+  ENSURING the RIGHT dependencies and MODEL access are IN
+  place, and ESTABLISHING the GENUINE, verified BASELINE every
+  LATER page will BUILD upon — GENUINE, necessary WORK, even
+  though it PRODUCES zero LINES of NEW application CODE.</code></pre>
+<p>This is a GENUINELY important, PRACTICAL clarification — "no CODE changes" doesn'T mean "SKIP this PAGE" or "NOTHING to DO here" — VERIFICATION and SETUP work, EVEN without NEW code, is GENUINELY real, NECESSARY engineering EFFORT before LATER layers can be BUILT with CONFIDENCE.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you DESIGN a genuine CHECKLIST to confirm THIS foundational STAGE is TRULY ready before PROCEEDING to the NEXT capstone PAGE'S layering WORK?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A GENUINELY useful readiness CHECKLIST verifies BOTH that the CODE runs CORRECTLY and that the ENVIRONMENT genuinely MATCHES what LATER layers will EXPECT to FIND already in PLACE.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def verify_foundation_ready_for_capstone(agent_class, client, model):
+    """A readiness checklist confirming Layer 0 is genuinely
+    prepared before layering additional capability on top."""
+    checks = {}
+
+    # Does the BASIC agent run correctly, per Chapter 3'S
+    # OWN original verification approach?
+    test_agent = agent_class(
+        objective="Navigate to a test page and confirm it loads.",
+        instructions="You are a QA agent. Report success when "
+                      "the objective is genuinely confirmed.",
+        tools=BASIC_TOOL_DEFINITIONS, client=client, model=model
+    )
+    checks["basic_run_succeeds"] = test_agent.run(get_test_page())["success"]
+
+    # Are the DEPENDENCIES later layers will NEED already
+    # available (Chapter 13'S MCP SDK, Chapter 15'S logging
+    # infrastructure)?
+    checks["mcp_sdk_available"] = check_mcp_sdk_installed()
+    checks["logging_infrastructure_reachable"] = check_logging_backend()
+
+    return checks
+</code></pre>
+<p>This TURNS this page'S OWN "verify FIRST" recommendation into a CONCRETE, COMPREHENSIVE readiness CHECK — CONFIRMING not JUST that the AGENT itself WORKS, but that the BROADER environment LATER capstone PAGES will GENUINELY depend on is ALSO in place, EXACTLY the KIND of THOROUGH, evidence-BASED preparation this ENTIRE course has CONSISTENTLY favored OVER simply ASSUMING readiness.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

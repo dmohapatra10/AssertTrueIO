@@ -1,0 +1,84 @@
+<!doctype html>
+<html><head>
+<title>Error Handling &amp; Negative API Testing in RestAssured</title>
+<meta name="description" content="Testing APIs properly means testing what happens when things go wrong — every negative scenario, every error status code, and how to verify error responses thoroughly." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/error-handling-negative-testing.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Error Handling &amp; Negative API Testing</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="advanced-response-validation.html">Advanced Response Validation</a></p>
+<article class="content">
+<h2 id="testing-what-should-fail-not-just-what-should-work">Testing What Should Fail, Not Just What Should Work</h2>
+<p>Earlier pages have occasionally tested a failure case in passing — an invalid email here, a missing token there. Negative testing deserves treatment as its own systematic discipline, not an afterthought bolted onto happy-path tests. Six pages:</p>
+<ol>
+  <li><a href="validation-errors-400-and-422.html">Validation Errors: 400 & 422</a> — missing fields, wrong types, malformed JSON</li>
+  <li><a href="authentication-and-authorization-errors.html">Authentication & Authorization Errors</a> — 401 and 403, tested systematically</li>
+  <li><a href="resource-errors-404-and-409.html">Resource Errors: 404 & 409</a> — invalid IDs and duplicate data</li>
+  <li><a href="rate-limiting-and-server-errors.html">Rate Limiting & Server Errors</a> — 429 and 500, and unsupported methods</li>
+  <li><a href="verifying-error-response-structure.html">Verifying Error Response Structure</a> — not just the status code, the whole error shape</li>
+  <li><a href="why-negative-testing-matters.html">Why Negative Testing Matters</a> — the case for why this often matters more than the happy path</li>
+</ol>
+
+<h2 id="positive-testing-vs-negative-testing">Positive Testing vs. Negative Testing</h2>
+<p><strong>Positive testing</strong> confirms a valid request produces the expected successful response — nearly everything tested so far in this course. <strong>Negative testing</strong> confirms an <em>invalid</em> request is handled correctly — rejected with the right status code, the right error message, and no unintended side effects. Both matter, but the pages ahead are specifically about the second half, which real suites systematically under-invest in.</p>
+
+<h2 id="every-status-code-covered-here">Every Status Code Covered Here</h2>
+<table>
+  <thead><tr><th>Code</th><th>Meaning</th><th>Covered on</th></tr></thead>
+  <tbody>
+    <tr><td>400</td><td>Bad Request — malformed or invalid input</td><td>Validation Errors page</td></tr>
+    <tr><td>401</td><td>Unauthorized — missing or invalid credentials</td><td>Auth Errors page</td></tr>
+    <tr><td>403</td><td>Forbidden — authenticated, but not permitted</td><td>Auth Errors page</td></tr>
+    <tr><td>404</td><td>Not Found — the resource doesn't exist</td><td>Resource Errors page</td></tr>
+    <tr><td>409</td><td>Conflict — duplicate or conflicting state</td><td>Resource Errors page</td></tr>
+    <tr><td>422</td><td>Unprocessable Entity — well-formed but semantically invalid</td><td>Validation Errors page</td></tr>
+    <tr><td>429</td><td>Too Many Requests — rate limit exceeded</td><td>Rate Limiting page</td></tr>
+    <tr><td>500</td><td>Internal Server Error — the server itself failed</td><td>Rate Limiting & Server Errors page</td></tr>
+  </tbody>
+</table>
+
+<h2 id="the-eleven-negative-scenarios-at-a-glance">The Eleven Negative Scenarios, at a Glance</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Missing required field       → 400
+Invalid data type            → 400
+Invalid email format         → 400 or 422
+Malformed JSON               → 400
+Invalid token                → 401
+Expired token                → 401
+Missing authorization        → 401
+Insufficient permissions     → 403
+Invalid ID                   → 404
+Duplicate data               → 409
+Unsupported HTTP method      → 405</code></pre>
+<p>These eleven scenarios recur across almost every API you'll ever test — the specific status codes an API returns for each may vary slightly (some use 422 where others use 400, for instance), but the <em>categories</em> of thing that can go wrong are remarkably consistent, which is exactly why this chapter organizes around them systematically rather than treating each as a one-off.</p>
+
+<h2 id="why-this-chapter-comes-after-not-before-everything-else">Why This Chapter Comes After (Not Before) Everything Else</h2>
+<p>Writing genuinely good negative tests draws on nearly every earlier chapter: request construction (Chapter 3) to deliberately send something wrong, response validation (Chapter 4) to verify the error came back correctly, authentication (Chapter 6) to test invalid/expired credentials specifically, and test data management (Chapter 10) to generate realistic invalid inputs rather than just one hardcoded bad example. This chapter is where all of that comes together with a specific, deliberate focus.</p>
+
+<h2 id="what-you-ll-be-able-to-do">What You'll Be Able to Do</h2>
+<p>By the end of the six pages that follow, you should be able to systematically test every major error category an API can produce, verify not just the status code but the full error response structure, and make the case — to a teammate or a skeptical stakeholder — for why a suite heavy on negative tests is often more valuable than one that only ever exercises the happy path. Start with Validation Errors below.</p>
+      
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>What's the fundamental difference between positive and negative testing?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Positive testing confirms a valid request produces the expected successful response; negative testing confirms an INVALID request is handled correctly — rejected with the right status, message, and no unintended side effects.</div>
+</details>
+<details class="faq-item">
+<summary>Why do the eleven negative scenarios in this chapter recur across almost every API?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The specific status codes an API uses for each might vary slightly, but the CATEGORIES of things that can go wrong (missing fields, bad auth, non-existent resources, conflicts) are remarkably consistent across different APIs.</div>
+</details>
+<details class="faq-item">
+<summary>Why does this chapter draw on nearly every earlier chapter in the course?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Writing good negative tests needs request construction (to deliberately send something wrong), response validation (to verify the error came back correctly), authentication (for invalid/expired credential testing), and test data management (for realistic invalid inputs).</div>
+</details>
+<details class="faq-item">
+<summary>What's the difference between 422 and 400 where an API distinguishes them?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">400 conventionally means malformed at the protocol/syntax level; 422 means well-formed but semantically invalid — a business rule violation rather than a structural one; not every API observes this distinction consistently.</div>
+</details>
+<details class="faq-item">
+<summary>Why does this chapter draw on nearly every earlier chapter in the course?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Writing genuinely good negative tests needs request construction to deliberately send something wrong, response validation to verify the error came back correctly, authentication for invalid-credential testing, and realistic test data — all composed together with a specific, deliberate negative focus.</div>
+</details>
+</div>
+</article>
+</body></html>

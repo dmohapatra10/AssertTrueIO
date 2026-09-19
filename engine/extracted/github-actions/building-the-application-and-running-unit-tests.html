@@ -1,0 +1,106 @@
+<!doctype html>
+<html><head>
+<title>Building the Application &amp; Running Unit Tests in GitHub Actions</title>
+<meta name="description" content="Building an application in CI, why a build failure and a test failure are two different, sequential questions, and running unit tests as a distinct, deliberate pipeline stage." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/building-the-application-and-running-unit-tests.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Building the Application &amp; Running Unit Tests</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="installing-dependencies-and-caching.html">Installing Dependencies & Caching</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>With dependencies installed, the pipeline can finally do something with the actual code — build it, and verify it with unit tests. These are two distinct, sequential questions: does it compile/bundle at all, and does it actually behave correctly?</p>
+
+<h2 id="building-by-ecosystem">Building, By Ecosystem</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># Node.js (e.g., a frontend bundle)
+- run: npm run build
+
+# Java (Maven)
+- run: mvn package
+
+# A statically-typed language might fail here on a type error alone,
+# before any test even runs</code></pre>
+<p>"Building" varies enormously by language and framework — the common thread is that it's the step that turns source code into something runnable or deployable, and it can genuinely fail entirely independently of whether any test would pass or fail.</p>
+
+<h2 id="why-build-and-test-are-separate-sequential-steps">Why Build and Test Are Separate, Sequential Steps</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Question 1: "Does this even compile/bundle?"     → the BUILD step
+Question 2: "Does it actually behave correctly?" → the TEST step</code></pre>
+<p>A build failure means something is fundamentally broken before you'd even get to ask whether behavior is correct — running tests against code that doesn't build wouldn't be meaningful anyway. Keeping these as genuinely separate steps means a build failure is reported clearly as a build problem, not confusingly mixed in with test output.</p>
+
+<h2 id="running-unit-tests">Running Unit Tests</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># Node.js (Jest, for example)
+- run: npm test
+
+# Java (Maven, JUnit)
+- run: mvn test
+
+# Python (pytest)
+- run: pytest</code></pre>
+<p>Unit tests verify individual pieces of logic in isolation — genuinely different in scope from the automation tests (Playwright, RestAssured, k6) covered on the next page, which verify real, end-to-end behavior across a whole running system.</p>
+
+<h2 id="detailed-example-a-complete-build-then-test-sequence">Detailed Example — A Complete Build-Then-Test Sequence</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run build   # fails here if the code doesn't even compile/bundle
+      - run: npm test        # only reached if the build succeeded</code></pre>
+<p>Because steps run strictly in order and a failure stops the rest of the job (covered in Chapter 4), a build failure here correctly prevents the test step from ever running at all — there's no point testing something that doesn't successfully build in the first place.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might a team specifically want the build step to run before the test step, rather than the reverse order? If tests ran first and a test genuinely depends on a successfully built artifact (a compiled binary, a bundled frontend), running tests before the build would either fail for the wrong reason or simply not be possible at all. Build-then-test reflects the actual, real dependency between these two concerns.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Treating "the build succeeded" as if it were equivalent to "the application works correctly." A successful build only confirms the code is syntactically valid and its pieces fit together — it says nothing about whether the actual behavior is correct, which is exactly what the subsequent test step exists to verify.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>Many CI setups don't need an explicit separate "build" step at all — for an interpreted language with no bundling step, "build" might not meaningfully exist as its own distinct action, and tests can run directly against the source. Whether build and test are genuinely separate steps depends entirely on your actual language and toolchain.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Keep build and test as distinct steps whenever your toolchain genuinely has a separate build phase — clearer failure attribution matters.</li>
+  <li>Order steps so a build failure prevents wasted time running tests against code that doesn't even build.</li>
+  <li>Don't treat a passing build as any kind of substitute for actually running tests — they answer genuinely different questions.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Building and testing are two different, sequential questions — does it compile/bundle, and does it behave correctly.</li>
+  <li>A build failure correctly prevents the test step from running at all, given default fail-fast step behavior.</li>
+  <li>Unit tests verify individual logic in isolation — genuinely different in scope from end-to-end automation testing.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>For a language or framework you're personally familiar with, write out the actual build and test commands a real CI job would use, and identify whether "build" is a genuinely separate, meaningful step for that specific toolchain or whether tests could reasonably run directly against the source.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why does a build failure and a test failure represent two genuinely different kinds of problems?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A build failure means the code is fundamentally broken at a structural level — it doesn't compile, bundle, or assemble correctly at all — before any question of correct behavior even applies. A test failure means the code builds successfully but doesn't behave as expected in some specific case. These require genuinely different kinds of investigation and fixes, which is why keeping them as separate pipeline steps produces clearer, more actionable failure information.</div>
+</details>
+<details class="faq-item">
+<summary>Why does it make sense for the build step to run before the test step, rather than the other way around?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Many test suites genuinely depend on a successfully built artifact — a compiled binary, a bundled frontend — to actually run against. Running tests before a build that hasn't happened yet either isn't possible or would fail for reasons unrelated to the actual test logic, so building first reflects the real, practical dependency between these two steps.</div>
+</details>
+<details class="faq-item">
+<summary>Why isn't a successful build enough evidence that an application actually works correctly?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A successful build only confirms the code is syntactically valid and its various pieces fit together well enough to compile or bundle — it says nothing about whether the actual logic produces correct results. Verifying correct behavior is specifically what the subsequent test step is for, and skipping it based on a passing build alone would leave genuine behavioral bugs completely uncaught.</div>
+</details>
+<details class="faq-item">
+<summary>Why might some CI pipelines not have an explicit, separate "build" step at all?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Whether "build" exists as its own distinct, meaningful action depends entirely on the language and toolchain — an interpreted language with no bundling or compilation step may not have anything genuinely separate to call a "build" phase, and tests might run directly against the source code itself. The build-then-test pattern is common, not universal, and should be applied based on what a specific project's toolchain actually requires.</div>
+</details>
+<details class="faq-item">
+<summary>How does the default fail-fast behavior of steps within a job (from Chapter 4) apply specifically to a build-then-test sequence?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Since a failing step stops the rest of that job's remaining steps by default, a failed build step correctly and automatically prevents the subsequent test step from ever running — there's no need for extra logic to explicitly check "did the build succeed" before deciding whether to run tests. This default behavior naturally produces the correct sequential dependency without any additional configuration.</div>
+</details>
+</div>
+</article>
+</body></html>

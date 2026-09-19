@@ -1,0 +1,84 @@
+<!doctype html>
+<html><head>
+<title>Capturing Traces</title>
+<meta name="description" content="Real trace capture configuration beyond Chapter 9&#x27;s basic setup — including sources and snapshots, and why on-first-retry is often the genuinely better default than retain-on-failure." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/capturing-traces.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Capturing Traces</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="what-is-playwright-trace-and-why-it-matters.html">What is Playwright Trace, and Why It Matters</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Configuring trace capture with genuine control over what gets included</li>
+  <li>Why <code>on-first-retry</code> is often a better real default than <code>retain-on-failure</code></li>
+  <li>The real storage cost tradeoff this configuration involves</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>Chapter 9 configured <code>trace: 'retain-on-failure'</code> as part of comprehensive evidence capture. This page goes deeper into the real options and tradeoffs specific to trace capture, which are genuinely more nuanced than a single setting.</p>
+
+<h2 id="how-it-works-the-real-configuration-options">How It Works — The Real Configuration Options</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// playwright.config.ts
+import { defineConfig } from '@playwright/test';
+
+export default defineConfig({
+  use: {
+    trace: {
+      mode: 'on-first-retry',
+      // 'on-first-retry' — ONLY capture when a test is being
+      //   RETRIED after an initial FAILURE — genuinely cheaper,
+      //   since MOST tests never fail at all
+      // 'retain-on-failure' — capture EVERY run, keep ONLY the
+      //   failed ones — MORE storage during the run ITSELF,
+      //   but works even WITHOUT retries configured
+      // 'on' — capture EVERYTHING, always — GENUINELY expensive,
+      //   rarely the right DEFAULT for a full suite
+
+      screenshots: true,
+      snapshots: true,
+      sources: true,
+      // 'sources: true' — includes the TEST'S OWN source code
+      // in the trace, letting the VIEWER show WHICH line of
+      // YOUR test was executing at each STEP
+    },
+  },
+});</code></pre>
+
+<h2 id="why-it-matters-the-real-tradeoff">Why It Matters — The Real Tradeoff</h2>
+<p><code>on-first-retry</code> genuinely costs less overall, since most test runs across a real suite pass cleanly and never need a trace at all — capture only kicks in once a test has already failed once and is being retried. <code>retain-on-failure</code> captures during every single run, discarding the data afterward for passing tests, which costs more in-run overhead but doesn't depend on retries being configured at all. Neither is universally correct; it's a genuine choice based on your suite's real retry configuration and performance sensitivity.</p>
+
+<h2 id="example-shopsmart-s-real-configuration-choice">Example — ShopSmart's Real Configuration Choice</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ShopSmart's suite runs 400+ tests per CI run and RETRIES
+// failed tests once automatically — on-first-retry is the
+// GENUINELY better fit: cheap during the COMMON case (tests
+// passing), and traces are STILL captured for anything that
+// GENUINELY fails and gets retried
+export default defineConfig({
+  retries: 1,
+  use: { trace: { mode: 'on-first-retry', screenshots: true, snapshots: true, sources: true } },
+});</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Using <code>trace: 'on'</code> for a full suite "to be safe."</strong> This genuinely slows down every single run and consumes real storage for hundreds of traces that will never be looked at, since most tests pass.</li>
+  <li><strong>Setting <code>sources: false</code> without realizing it.</strong> Without it, the trace viewer can't show which line of your own test code was running at each step — a real, useful piece of context lost for a small storage saving.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Match your trace mode to your suite's real retry configuration — <code>on-first-retry</code> when retries are enabled, <code>retain-on-failure</code> when they're not.</li>
+  <li>Keep <code>sources: true</code> unless storage is a genuinely tight constraint — the ability to see your own test's source alongside the timeline is worth the small cost.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Check your own project's current trace configuration. If it's set to <code>'on'</code> or unconfigured entirely, calculate roughly how much storage a full CI run is genuinely consuming, and consider whether <code>on-first-retry</code> or <code>retain-on-failure</code> would be a better real fit given your suite's retry settings.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Trace capture mode is a genuine, real tradeoff between storage cost and reliability of capture — not a single obviously-correct setting.</li>
+  <li><code>on-first-retry</code> is often the better default specifically because most tests in a real suite pass and never need a trace at all.</li>
+  <li><code>sources: true</code> is a small cost for a genuinely useful capability — seeing your own test code alongside the trace timeline.</li>
+</ul>
+</article>
+</body></html>

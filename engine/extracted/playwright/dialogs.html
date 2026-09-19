@@ -1,0 +1,147 @@
+<!doctype html>
+<html><head>
+<title>Playwright Dialogs: Handling alert, confirm, and prompt</title>
+<meta name="description" content="Learn how Playwright intercepts native browser dialogs — alert, confirm, and prompt — and why they must be handled before they appear, not after." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/dialogs.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Chapter 12: Dialogs</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="actions.html">Actions</a>, <a href="waiting-and-synchronization.html">Waiting and Synchronization</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Native browser dialogs — <code>alert()</code>, <code>confirm()</code>, and <code>prompt()</code> — are rendered by the browser itself, outside the normal DOM. They can't be located or clicked with regular locators; Playwright instead exposes them through a <code>dialog</code> event.</p>
+
+<h2 id="why-it-s-important">Why it's important</h2>
+<p>An unhandled dialog blocks the page entirely — JavaScript execution pauses until the dialog is dismissed. If a test doesn't set up a handler before triggering one, the test will hang or time out, which is a confusing failure if you don't know dialogs need this special handling.</p>
+
+<h2 id="mental-model">Mental Model</h2>
+<p>Dialogs sit outside the page's DOM the same way a native OS file picker does (see the <code>setInputFiles()</code> page in Actions) — they're not elements Playwright's normal locator system can see. Instead of finding and clicking a dialog's buttons, you intercept the <em>event</em> that represents the dialog appearing, and respond programmatically before the browser ever actually shows it.</p>
+
+<h2 id="automatic-dismissal-by-default">Automatic Dismissal by Default</h2>
+<p>Playwright auto-dismisses dialogs by default so a forgotten dialog doesn't hang your entire suite — but auto-dismissal happens silently, which means a test can pass or fail in a way that doesn't reflect what you intended unless you explicitly handle the dialog yourself.</p>
+
+<h2 id="handling-a-dialog-explicitly">Handling a Dialog Explicitly</h2>
+<p>The handler must be registered before the action that triggers the dialog, since the event fires synchronously as soon as the page calls e.g. <code>window.confirm()</code>:</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>page.on('dialog', async (dialog) =&gt; {
+  expect(dialog.message()).toContain('Are you sure you want to delete this item?');
+  await dialog.accept();
+});
+
+await page.getByRole('button', { name: 'Delete' }).click();</code></pre>
+<p>Use <code>dialog.dismiss()</code> instead of <code>accept()</code> to simulate clicking "Cancel," and for a <code>prompt()</code> dialog, pass a value to <code>accept()</code> to simulate typed input: <code>await dialog.accept('some text')</code>.</p>
+
+<h2 id="basic-example-a-prompt-dialog">Basic Example — a prompt() Dialog</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>page.on('dialog', async (dialog) =&gt; {
+  expect(dialog.type()).toBe('prompt');
+  await dialog.accept('My Custom List Name');
+});
+
+await page.getByRole('button', { name: 'Create new list' }).click();
+await expect(page.getByRole('heading', { name: 'My Custom List Name' })).toBeVisible();</code></pre>
+
+<h2 id="detailed-example-beforeunload-confirmation">Detailed Example — beforeunload Confirmation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Some apps warn about unsaved changes when navigating away
+page.on('dialog', (dialog) =&gt; {
+  expect(dialog.type()).toBe('beforeunload');
+  dialog.accept(); // proceed with navigation despite unsaved changes
+});
+
+await page.getByLabel('Notes').fill('Unsaved draft text');
+await page.getByRole('link', { name: 'Go back' }).click();</code></pre>
+<p><code>beforeunload</code> dialogs are triggered differently than the other three (by attempted navigation, not a direct script call) but are handled through the exact same event, which keeps the API consistent even for this less obvious case.</p>
+
+<h2 id="real-world-example-confirming-a-destructive-action">Real-World Example — Confirming a Destructive Action</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import { test, expect } from '@playwright/test';
+
+test('deleting an item requires confirmation', async ({ page }) =&gt; {
+  await page.goto('/inventory');
+
+  page.on('dialog', async (dialog) =&gt; {
+    expect(dialog.type()).toBe('confirm');
+    await dialog.accept();
+  });
+
+  await page.getByRole('row', { name: 'Wireless Mouse' })
+    .getByRole('button', { name: 'Delete' })
+    .click();
+
+  await expect(page.getByText('Wireless Mouse')).toHaveCount(0);
+});
+
+test('cancelling the confirmation keeps the item', async ({ page }) =&gt; {
+  await page.goto('/inventory');
+
+  page.on('dialog', (dialog) =&gt; dialog.dismiss());
+
+  await page.getByRole('row', { name: 'Wireless Mouse' })
+    .getByRole('button', { name: 'Delete' })
+    .click();
+
+  await expect(page.getByText('Wireless Mouse')).toBeVisible();
+});</code></pre>
+<p>These two tests cover both branches of the same interaction — a good habit for any dialog-gated action, since the dismiss path is exactly the kind of thing that's easy to leave untested and easy to accidentally break.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Handler registered too late — the dialog may already have been auto-dismissed
+await page.getByRole('button', { name: 'Delete' }).click();
+page.on('dialog', (dialog) =&gt; dialog.accept()); // too late
+
+// ✅ Handler registered before the triggering action
+page.on('dialog', (dialog) =&gt; dialog.accept());
+await page.getByRole('button', { name: 'Delete' }).click();</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Registering the dialog handler after the action that triggers it</strong>, so the dialog fires (and gets auto-dismissed) before the handler is attached.</li>
+  <li><strong>Relying on default auto-dismissal for a <code>confirm()</code> dialog</strong> whose "yes" path the test actually needs to exercise.</li>
+  <li><strong>Never testing the cancel/dismiss path</strong> of a confirmation dialog, leaving that behavior completely unverified.</li>
+  <li><strong>Forgetting <code>beforeunload</code> dialogs exist</strong> and being surprised when a navigation-triggering test hangs on an app that warns about unsaved changes.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Multiple dialogs in sequence</strong> — if an action can trigger more than one dialog, the same <code>page.on('dialog', ...)</code> handler fires for each occurrence; make the handler's logic generic enough to handle repeated calls, or use a counter if each dialog needs different handling.</li>
+  <li><strong>Dialogs triggered by timers, not direct user action</strong> — the handler must still be registered in advance, since there's no reliable way to know exactly when a timer-triggered dialog will appear.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a test hangs indefinitely right after an action that should be simple, suspect an unhandled dialog first — check whether the triggering code calls <code>alert()</code>/<code>confirm()</code>/<code>prompt()</code> and add a <code>page.on('dialog', ...)</code> handler before that action.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Register the dialog handler as the very next line before the action expected to trigger it, so the ordering is unambiguous when reading the test.</li>
+  <li>Assert on <code>dialog.message()</code> when the exact wording matters (e.g., a legally required confirmation message), not just that a dialog appeared.</li>
+  <li>Write both the accept and dismiss paths as separate tests for any destructive action gated by a confirmation dialog.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Write a test for a "Rename" feature that uses <code>prompt()</code> to collect a new name, asserting the renamed item appears with the typed value, and a second test that dismisses the prompt and confirms the original name is unchanged.</p>
+
+<h2 id="summary">Summary</h2>
+<p>Native browser dialogs live outside the DOM and block execution until dismissed, so Playwright exposes them via a <code>dialog</code> event rather than a locator. Register the handler before triggering the dialog, use <code>accept()</code> or <code>dismiss()</code> to simulate the user's choice, and test both paths for any dialog gating a meaningful action.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why must a dialog event handler be registered before the action that triggers the dialog, rather than after?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The browser fires the dialog event synchronously the moment <code>alert()</code>/<code>confirm()</code>/<code>prompt()</code> is called, and Playwright auto-dismisses any dialog with no registered handler to avoid hanging the page. If the handler is attached after the triggering action, the dialog may already have appeared and been auto-dismissed before the handler exists to intercept it.</div>
+</details>
+<details class="faq-item">
+<summary>Why does an unhandled native dialog block test execution?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Native alert/confirm/prompt dialogs pause JavaScript execution until dismissed, and Playwright auto-dismisses any with no registered handler.</div>
+</details>
+<details class="faq-item">
+<summary>Why must the dialog handler be registered before the action that triggers it?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The dialog event fires synchronously the instant the page calls alert()/confirm()/prompt(); a handler added afterward misses it.</div>
+</details>
+<details class="faq-item">
+<summary>How do you simulate typing into a prompt() dialog?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Pass a value to dialog.accept('some text') instead of calling it with no argument.</div>
+</details>
+<details class="faq-item">
+<summary>Why is beforeunload handled through the same dialog event as the other three types?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It keeps the API consistent even though it's triggered differently — by attempted navigation rather than a direct script call.</div>
+</details>
+</div>
+</article>
+</body></html>

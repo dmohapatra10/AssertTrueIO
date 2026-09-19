@@ -1,0 +1,111 @@
+<!doctype html>
+<html><head>
+<title>Load, Stress, Spike, Soak &amp; Volume Testing Explained</title>
+<meta name="description" content="The five core performance test types explained precisely — load, stress, spike, soak, and volume testing — and how to choose the right one for the question you&#x27;re actually asking." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/test-types-load-stress-spike-soak-volume.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Load, Stress, Spike, Soak &amp; Volume Testing</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="performance-testing-fundamentals.html">Performance Testing Fundamentals overview</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>These five terms get used constantly in performance engineering, and mixing them up leads to designing the wrong test for the question you're actually trying to answer. Each one exists to answer something genuinely different.</p>
+
+<h2 id="load-testing">Load Testing</h2>
+<p>Load testing measures how the system behaves under an expected, realistic amount of traffic — the baseline "does this work under normal conditions" test. If your product typically sees 800 concurrent users during business hours, a load test runs roughly that many virtual users and confirms the system holds up.</p>
+
+<h2 id="stress-testing">Stress Testing</h2>
+<p>Stress testing deliberately pushes traffic beyond expected levels to find the system's actual breaking point, and to observe <em>how</em> it fails — gracefully (clear errors, controlled degradation) or catastrophically (crashes, data corruption, cascading failures). The goal isn't to confirm a known number works; it's to discover a number you don't know yet.</p>
+
+<h2 id="load-vs-stress-the-distinction-that-confuses-people-most">Load vs. Stress — The Distinction That Confuses People Most</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Load test:   "Can the system handle 1,000 concurrent users?" (expected, realistic traffic)
+Stress test: "At what point does the system actually break — 1,500? 3,000? 10,000?" (finding the limit)</code></pre>
+<p>A load test confirms the system meets a known requirement; a stress test discovers a requirement you don't yet know — the actual ceiling. Designing a "load test" that accidentally pushes far beyond realistic traffic (or a "stress test" that never actually reaches a breaking point) means you didn't really run the test you intended to.</p>
+
+<h2 id="spike-testing">Spike Testing</h2>
+<p>Spike testing simulates a sudden, sharp burst of traffic — a flash sale going live, a link going viral, a marketing email landing in thousands of inboxes at once — rather than a gradual increase. This tests how the system handles a shock specifically, which is a genuinely different scenario from load ramping up smoothly over minutes; some systems handle gradual load fine but buckle under a sudden spike because auto-scaling or connection pools can't react fast enough.</p>
+
+<h2 id="soak-endurance-testing">Soak (Endurance) Testing</h2>
+<p>Soak testing applies sustained, moderate load over a long period — hours, not minutes — specifically to catch problems that only appear over time: a memory leak that's invisible in a five-minute test but crashes the server after six hours, a database connection pool that slowly exhausts itself, a cache that degrades in effectiveness as it fills. Load and stress tests, by design, don't run long enough to catch any of this.</p>
+
+<h2 id="volume-testing">Volume Testing</h2>
+<p>Volume testing is about a large volume of <em>data</em> specifically — a database table with fifty million rows, a search index with an enormous catalog, a file upload feature tested with genuinely large files — which is a related but distinct concern from a large volume of concurrent <em>users</em>. A system can handle 10,000 concurrent users comfortably while still falling over when a single query has to scan a table that's grown far larger than it was ever tested against.</p>
+
+<h2 id="detailed-example-the-same-application-five-different-questions">Detailed Example — The Same Application, Five Different Questions</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Load:   "Does checkout hold up at our typical Tuesday-afternoon traffic (600 concurrent users)?"
+Stress: "At what point does checkout actually start failing — 2,000? 5,000? 10,000 users?"
+Spike:  "What happens if 3,000 users hit checkout in the same 30 seconds during a flash sale?"
+Soak:   "Does checkout stay healthy after running at normal load for 8 straight hours?"
+Volume: "Does checkout still perform correctly once the product catalog has 2 million SKUs?"</code></pre>
+<p>Same application, same feature — five completely different tests, each surfacing a different class of problem. Running only one of these (load testing alone is the most common default) means the other four failure modes go completely uncovered.</p>
+
+<h2 id="real-world-example-choosing-the-right-test-for-a-real-scenario">Real-World Example — Choosing the Right Test for a Real Scenario</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Scenario: "Our marketing team is launching a flash sale next week —
+           should we be worried?"</code></pre>
+<p>This calls for spike testing specifically, not load testing — the actual risk isn't "can we handle our normal traffic" (already known), it's "can we handle a sudden burst concentrated in a short window." Reaching for the wrong test type here — running a smooth, gradual load test — would give false confidence, since it never actually simulates the shock the real event will produce.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Running only a load test and calling the system "performance tested"
+// — leaves stress limits, spike resilience, and long-term stability completely unknown
+
+// ✅ Matching the test type to the actual risk being assessed
+// Load test: confirm normal traffic works
+// Stress test: know the ceiling before you hit it in production
+// Spike test: specifically before a known traffic event
+// Soak test: specifically for long-running services</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Treating "load testing" as synonymous with "performance testing"</strong> — it's one of five distinct test types, each answering a different question.</li>
+  <li><strong>Running a stress test that never actually breaks the system</strong> — if you can't find the ceiling within a reasonable test duration, it may mean the test isn't generating enough load, not that the system is limitlessly scalable.</li>
+  <li><strong>Skipping soak testing for long-running services</strong> — a service that's expected to run for days or weeks needs its own dedicated test for exactly that timeframe; a five-minute load test tells you nothing about hour six.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>A system that's fast under load testing but fails soak testing</strong> — a classic signature of a slow memory leak or a resource that isn't being released properly; only shows up over sustained time, not a short burst.</li>
+  <li><strong>Volume testing revealing a problem that no amount of user-load testing would ever find</strong> — a query that's fast against a small test database but scans linearly against a production-sized one; this is purely a data-size problem, invisible to any test using realistic but small datasets.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a system passed load testing but failed in production during a real traffic spike, check whether spike testing was ever actually run — a smooth ramp-up test and a sudden burst are genuinely different stresses on a system, and passing one says nothing about the other.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Match the test type to the actual question or risk you're addressing, not a default "run a load test" habit.</li>
+  <li>Run soak tests specifically for any service expected to run continuously for long periods.</li>
+  <li>Run spike tests ahead of any known traffic event (launches, sales, marketing pushes), not just routine load tests.</li>
+  <li>Treat volume testing as a separate concern from user-load testing — test against realistic data sizes, not just realistic user counts.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>For a hypothetical ticket-booking site expecting a surge the moment tickets for a popular event go on sale, identify which of the five test types matters most for that specific scenario, and explain what a load test alone would fail to reveal.</p>
+
+<h2 id="summary">Summary</h2>
+<p>Load, stress, spike, soak, and volume testing each answer a genuinely different question — confirming expected traffic works (load), finding the breaking point (stress), testing resilience to sudden bursts (spike), catching problems that only emerge over time (soak), and testing against realistic data size rather than user count (volume). Treating "performance testing" as just one of these, usually load testing alone, leaves the other failure modes completely uncovered.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>What's the practical difference between a load test and a stress test?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A load test confirms the system handles an expected, realistic amount of traffic correctly — it's validating a known requirement. A stress test deliberately pushes beyond that expected level specifically to find the system's actual breaking point — it's discovering an unknown limit. Designing one when you actually need the other means the test won't answer the question you're really asking.</div>
+</details>
+<details class="faq-item">
+<summary>Why would a system pass a load test but still fail during a real flash sale?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A load test typically ramps traffic up smoothly; a flash sale produces a sudden, concentrated burst. Some systems handle gradually increasing traffic fine but struggle with a sudden spike specifically because auto-scaling, connection pools, or caches can't react fast enough to an abrupt shock — this is exactly the scenario spike testing is designed to catch, and a load test alone would never reveal it.</div>
+</details>
+<details class="faq-item">
+<summary>Why might a system that performs well in every test still fail in production after running for a week?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Most test types (load, stress, spike) run for a relatively short duration — minutes, not days. Problems like memory leaks, slowly exhausted connection pools, or degrading cache performance only manifest after sustained operation over a long period. Soak testing exists specifically to give that class of problem enough time to actually appear, which shorter test types structurally cannot do.</div>
+</details>
+<details class="faq-item">
+<summary>Why is volume testing considered separate from testing with a large number of concurrent users?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Volume testing is about the size of the data the system operates on — a huge database table, a massive catalog — not the number of simultaneous users hitting it. A system can comfortably handle thousands of concurrent users against a small dataset while still failing once that same dataset grows to a realistic production size, because the failure mode (a slow, unindexed query scanning millions of rows) has nothing to do with concurrency at all.</div>
+</details>
+<details class="faq-item">
+<summary>If you could only run one type of performance test before a major product launch, which would you choose, and why might that still be insufficient?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">For a launch with an expected traffic spike (a marketing push, a public announcement), spike testing is usually the most relevant single choice, since it's specifically testing the scenario most likely to actually occur. But relying on just one test type is genuinely insufficient — it would miss the system's actual breaking point (no stress test), miss any regressions that develop after sustained traffic (no soak test), and miss data-size-specific issues (no volume test). Each test type covers a distinct failure mode the others structurally cannot.</div>
+</details>
+</div>
+</article>
+</body></html>

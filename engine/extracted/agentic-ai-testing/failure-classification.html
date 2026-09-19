@@ -1,0 +1,197 @@
+<!doctype html>
+<html><head>
+<title>Failure Classification: Six Genuinely Different Reasons a Test Fails</title>
+<meta name="description" content="The six real failure categories — application defect, test defect, locator problem, environment problem, network problem, flaky behavior — with the same login test shown failing for each." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/failure-classification.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Failure Classification</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="understanding-test-failures.html">Understanding Test Failures</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>This is the chapter's core: six genuinely distinct categories a test failure can fall into, each needing a different real response. The previous page's login test fails identically on the surface for all six — this page shows what actually distinguishes them.</p>
+
+<h2 id="the-six-categories-with-the-same-test-failing-each-way">The Six Categories, With the Same Test Failing Each Way</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>1. APPLICATION DEFECT — the feature is genuinely broken
+   Evidence: login form submits, server returns a 500 error,
+   confirmed by checking the actual response and server logs.
+   Response: file a real, urgent bug.
+
+2. TEST DEFECT — the test itself has a mistake
+   Evidence: the test asserts 'Welcome back' but the REAL,
+   correct text on a successful login is 'Welcome, Test User'
+   — the application was never wrong.
+   Response: fix the test file.
+
+3. LOCATOR PROBLEM — the UI changed, the test didn't
+   Evidence: the email field's ARIA label changed from 'Email'
+   to 'Email address' in a recent, legitimate UI update — the
+   feature works fine for real users.
+   Response: update the selector.
+
+4. ENVIRONMENT PROBLEM — staging/config issue, not a real bug
+   Evidence: the staging database was mid-migration when the
+   test ran; the SAME test passes cleanly against production.
+   Response: no code fix needed — note the environment issue.
+
+5. NETWORK PROBLEM — a request genuinely failed to complete
+   Evidence: the trace shows the login POST request itself
+   never received a response — a connection reset, not an
+   application error.
+   Response: usually nothing — genuinely transient.
+
+6. FLAKY BEHAVIOR — genuinely inconsistent, timing-dependent
+   Evidence: re-running the IDENTICAL test 5 times produces
+   3 passes and 2 fails, with no environment or network issue
+   evident in either case — a real, underlying timing race.
+   Response: investigate the RACE CONDITION itself — flaky
+   tests are a genuine signal, not just noise to retry away.</code></pre>
+
+<h2 id="the-real-distinguishing-question-for-each">The Real Distinguishing Question for Each</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>App defect:       "Does the SAME action fail consistently,
+                    with evidence the APPLICATION itself
+                    behaved incorrectly?"
+Test defect:        "Is the TEST'S expectation itself simply
+                      wrong, given what the app is ACTUALLY
+                      supposed to do?"
+Locator problem:      "Does the FEATURE work, but the SELECTOR
+                        no longer matches anything real?"
+Environment problem:    "Does the SAME test pass cleanly against
+                          a DIFFERENT, known-good environment?"
+Network problem:           "Did a REQUEST itself fail to complete,
+                             independent of what either side
+                             would have returned?"
+Flaky behavior:                "Does REPEATING the exact same test
+                                 produce genuinely INCONSISTENT
+                                 results, with no other explanation?"</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why does flaky behavior get its own distinct category, rather than being treated as "not sure, probably nothing" and simply retried until it passes? A flaky test is often a genuine, real symptom of an actual race condition or timing issue in the application itself — not just an annoying inconvenience to route around. Treating flakiness as "nothing" and retrying past it discards exactly the diagnostic signal that a real, underlying timing problem exists, which is precisely why this category gets equal billing with the other five rather than being dismissed as noise.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Defaulting to "probably flaky" whenever a failure doesn't immediately, obviously fit one of the other five categories. Flakiness should be a genuine, evidence-based conclusion (repeating the test shows real inconsistency with no other explanation) — not a catch-all label applied whenever a failure is simply inconvenient to investigate further.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>A genuinely useful habit: work through these six categories roughly in the order shown on this page for a new failure — environment and network problems are often cheapest to rule in or out first (a quick staging health check, a look at whether the request even completed), before investing in the deeper investigation application defects, test defects, and locator problems typically require.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Classify based on genuine, checkable evidence for each category, not by process of elimination or convenient assumption.</li>
+  <li>Treat "flaky" as a real, evidence-based conclusion requiring actual repeated observation, not a default label for anything inconvenient.</li>
+  <li>Rule out cheaper categories (environment, network) before investing in more expensive investigation (application defect, test defect, locator problem).</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Six genuinely distinct categories — application defect, test defect, locator problem, environment problem, network problem, flaky behavior — cover the real space of why a test can fail.</li>
+  <li>Each category has its own distinguishing question and its own genuinely different, appropriate response.</li>
+  <li>Flaky behavior deserves real investigation as its own category, not dismissal as noise to simply retry past.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>For a hypothetical seventh scenario — the login test fails because the test account's password was changed by someone else during a shared testing session — work through this page's six categories and decide which one this genuinely fits best, or whether it reveals a gap in the six-category system worth naming explicitly.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>An agent classifies a failure as "application defect" based solely on the fact that the test failed and the feature seems important. What's wrong with this classification, using this page's own standard?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This isn't a genuine classification at all — it's an assumption dressed up as one, since "the feature seems important" provides zero actual evidence distinguishing application defect from any of the other five categories.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What GENUINE application-defect classification requires,
+per this page:
+"Does the SAME action fail consistently, with evidence the
+  APPLICATION itself behaved incorrectly?" — this means
+  actually CHECKING: did the server return an error status?
+  Does the SAME failure reproduce on a clean re-run? Is there
+  server-side log evidence of something genuinely wrong?
+
+What "seems important" actually provides:
+NOTHING about what ACTUALLY happened — it's a judgment about
+  the feature's SIGNIFICANCE, completely unrelated to whether
+  the EVIDENCE actually points to an application defect versus
+  any of the other five genuinely possible causes.</code></pre>
+<p>A feature's importance might affect how URGENTLY a genuine defect gets addressed once confirmed — but it provides no actual evidence for WHICH category a failure belongs to in the first place, which is exactly what this page's distinguishing questions are designed to require.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page recommend ruling out environment and network problems FIRST, before investigating application defects or test defects?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because these two categories are typically the CHEAPEST to check — often a single quick lookup (is staging healthy, did the request even complete) — while application defect and test defect investigation genuinely requires deeper, more time-consuming analysis.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>CHEAP to check FIRST:
+Environment: "is staging's health-check endpoint responding
+  normally right now?" — often a SINGLE, fast API call.
+Network: "did the actual HTTP request complete, or did it
+  error out at the CONNECTION level?" — visible directly in
+  a trace's network tab, quick to check.
+
+EXPENSIVE, requiring DEEPER investigation:
+Application defect: requires understanding what the CORRECT
+  behavior should be, checking server logs, potentially
+  reproducing manually.
+Test defect: requires understanding the TEST'S own intent
+  and comparing against actual, correct application behavior
+  — genuinely more involved than a quick health check.</code></pre>
+<p>This is a genuinely practical triage principle — checking the cheap possibilities first means a real environment or network issue gets identified quickly, without wasting the MORE expensive investigation time on categories that a 30-second check could have already ruled out.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why "the test asserts the wrong expected text" (test defect) and "the selector no longer matches" (locator problem) are genuinely different categories, even though both mean the test itself needs to be edited.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>They represent genuinely different KINDS of test mistakes — one is about the test's UNDERSTANDING of correct behavior being wrong from the start; the other is about the test's TARGETING of a real, correct element becoming stale after a legitimate UI change.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>TEST DEFECT — the test was WRONG about what's correct:
+The test asserts 'Welcome back' — but this was NEVER the
+  actual, correct text; the test author made a genuine
+  mistake writing the assertion, unrelated to any later
+  application change.
+
+LOCATOR PROBLEM — the test was RIGHT, then reality changed:
+The test's selector for the email field WAS correct when
+  written — but a LATER, legitimate UI update changed the
+  field's label, making a PREVIOUSLY correct selector stale.</code></pre>
+<p>The distinction genuinely matters for understanding what went wrong and preventing recurrence: a test defect suggests reviewing how the test was originally written (was the requirement misunderstood?), while a locator problem suggests reviewing whether UI changes and test maintenance are properly coordinated — different lessons, even though both result in editing the same test file.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might distinguishing "network problem" from "flaky behavior" be genuinely difficult in practice, even though this page presents them as distinct categories?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>They can genuinely overlap or resemble each other closely — a network problem is often itself a form of transient, timing-related failure, and the real distinguishing evidence (does a trace show a genuine connection-level failure, versus does repeating the test reveal inconsistency with no clear network cause) isn't always cleanly available.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A GENUINELY ambiguous case in practice:
+A test fails with a timeout. The trace shows the request TOOK
+  a long time but doesn't show a clear connection RESET or
+  error — was this a genuine, one-off NETWORK slowness (fits
+  "network problem"), or a genuine application-side TIMING
+  issue under momentary load (fits "flaky behavior")? The
+  available evidence might not cleanly distinguish these.
+
+The honest, practical response:
+When evidence genuinely doesn't cleanly separate two
+  categories, report BOTH as plausible, rather than forcing
+  an artificially confident single classification — exactly
+  the same honesty principle Chapter 1 established for
+  uncertain findings generally, now applied to this specific,
+  genuinely ambiguous classification case.</code></pre>
+<p>This is a genuinely honest acknowledgment worth making: the six-category system is a genuinely useful framework, but real evidence doesn't always cleanly sort into exactly one box — sometimes the honest, correct classification is "most likely X, though Y remains plausible given the available evidence."</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you design a test specifically to distinguish "flaky behavior" from "environment problem" when a failure's cause genuinely isn't obvious from a single run?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>The genuinely useful diagnostic technique is repeating the test across GENUINELY different conditions — same environment multiple times (tests for flakiness) versus a different, known-good environment once (tests for environment-specific issues) — since these two repetitions answer different diagnostic questions.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>To test for FLAKINESS specifically:
+Run the IDENTICAL test 5 times, in the SAME environment,
+  back to back. INCONSISTENT results (some pass, some fail)
+  with NOTHING else different between runs points toward
+  genuine flakiness — a real, underlying timing issue.
+
+To test for an ENVIRONMENT problem specifically:
+Run the SAME test ONCE against a DIFFERENT, known-good
+  environment (production, or a freshly-provisioned staging
+  instance). If it PASSES CLEANLY there, this points toward
+  something SPECIFIC to the original environment, not a
+  general flakiness issue with the test or feature itself.</code></pre>
+<p>Combining both checks genuinely helps distinguish the two: consistent failure in one environment but clean passes in another points to environment; inconsistent results even within the SAME environment, run repeatedly, points to genuine flakiness — a concrete, evidence-based way to resolve exactly the ambiguity the previous question raised.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

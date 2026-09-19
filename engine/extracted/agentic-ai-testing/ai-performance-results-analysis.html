@@ -1,0 +1,189 @@
+<!doctype html>
+<html><head>
+<title>AI Performance Results Analysis: Exact and Fuzzy Checks Applied to Metrics</title>
+<meta name="description" content="Applying the exact-vs-fuzzy distinction to K6 results — threshold pass/fail is exact, but explaining WHY a system degraded under load genuinely needs reasoning." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/ai-performance-results-analysis.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>AI Performance Results Analysis</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="ai-threshold-and-scenario-construction.html">AI Threshold and Scenario Construction</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Once thresholds exist, checking whether they passed is genuinely exact — K6 already does this natively. What genuinely benefits from an agent's reasoning is explaining WHY a result looks the way it does, and whether that explanation points to something worth real concern.</p>
+
+<h2 id="exact-checks-k6-already-does-this">Exact Checks — K6 Already Does This</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>results = run_k6_test("checkout_load_test.js")
+
+# EXACT — K6's own exit_code already reflects threshold
+# pass/fail; no AI reasoning genuinely needed here at all:
+assert results["exit_code"] == 0, "One or more thresholds failed"</code></pre>
+
+<h2 id="fuzzy-analysis-genuinely-needs-reasoning">Fuzzy Analysis — Genuinely Needs Reasoning</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def analyze_performance_pattern(metrics, client):
+    prompt = f"""These are K6 load test metrics from a test
+that ramped from 200 to 1000 virtual users over 5 minutes,
+sustained for 10 minutes:
+
+{metrics}
+
+Does the pattern of these numbers suggest anything worth
+investigating — for example, does response time degrade
+disproportionately as load increases, or does the error rate
+correlate with specific time periods in the test?"""
+
+    result = client.messages.create(
+        model="claude-sonnet-4-6", max_tokens=512,
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return result.content[0].text</code></pre>
+
+<h2 id="a-genuinely-real-finding-this-catches">A Genuinely Real Finding This Catches</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># A result that TECHNICALLY passes every threshold:
+{"http_req_duration": {"p(95)": 750},  // under the 800ms threshold ✓
+ "http_req_failed": {"rate": 0.008},     // under the 1% threshold ✓
+ "http_req_duration_by_stage": {
+   "ramp_up_200": {"p(95)": 210},
+   "ramp_up_1000": {"p(95)": 890},
+   "sustained_peak": {"p(95)": 1450}}}   // NOT part of the checked
+                                           // overall p(95), but a
+                                           // genuinely real signal
+
+FUZZY analysis catches something the OVERALL threshold missed:
+"The overall p(95) of 750ms passes — but broken down by stage,
+response time at SUSTAINED peak load (1450ms) is significantly
+WORSE than the overall figure suggests. The overall number is
+being pulled down by the FASTER early stages. This looks like
+genuine DEGRADATION under sustained load, not a stable, flat
+performance profile — worth investigating even though the
+single aggregate threshold technically passed."</code></pre>
+<p>This is directly analogous to Chapter 6's total/line-items example — a check that passes when looking at ONE aggregate number can hide a real, genuine problem visible only when reasoning across MULTIPLE related values together.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might an aggregate p(95) threshold across an entire test run genuinely hide a real degradation pattern, even when calculated completely correctly? An aggregate percentile blends measurements from every stage of the test together — a genuinely fast early stage (low load) can mathematically offset a genuinely slow later stage (peak load), producing an overall number that looks acceptable while the system's behavior specifically UNDER the load level you actually care about is meaningfully worse. The aggregate number is technically correct; it just isn't answering the specific question "how does the system perform at sustained peak load" as directly as breaking results down by stage does.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Treating a passing aggregate threshold as the end of the analysis, without looking at how metrics vary across different stages or time periods of the same test run. This page's example shows a genuinely real pattern — degradation specifically under sustained peak load — that only becomes visible when reasoning about the SHAPE of results over time, not just the final aggregate number.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>When designing a K6 script, it's genuinely useful to tag requests by test stage (as this page's example implicitly assumes) specifically so stage-by-stage breakdowns are available for this kind of analysis — an aggregate-only result structurally can't reveal the pattern this page's fuzzy analysis catches.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Rely on K6's own native threshold pass/fail for exact checks — no AI reasoning genuinely adds value there.</li>
+  <li>Use fuzzy analysis specifically to reason about patterns across multiple metrics or stages, not to re-check something already exact and deterministic.</li>
+  <li>Tag or segment K6 results by test stage where practical, so degradation patterns invisible in an aggregate number become visible for analysis.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Threshold pass/fail is already exact and handled natively by K6 — an agent's reasoning adds no value duplicating this check.</li>
+  <li>An aggregate metric passing can hide genuine degradation visible only when reasoning about how results vary across stages or time.</li>
+  <li>This mirrors Chapter 6's total/line-items lesson directly — a technically-passing single number can mask a real, meaningful pattern only visible when reasoning across related values together.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Write a fuzzy analysis prompt (following this page's pattern) specifically designed to catch a scenario where error rate stays low throughout a test EXCEPT for a brief spike during the ramp-DOWN stage — and explain why this specific pattern might be worth investigating even though the overall error-rate threshold would likely still pass.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A load test passes its overall p(95) threshold, but a teammate wants to also run AI-based fuzzy analysis "just to be thorough." Is this always necessary? When would you skip it?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Not always necessary — this connects to Chapter 5 and 6's cadence discussion, and fuzzy analysis adds genuine value specifically when stage-by-stage or pattern-level data is available and worth reasoning about, not as a blanket requirement for every single passing run.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>When fuzzy analysis GENUINELY adds value:
+Stage-by-stage breakdown data exists (per this page's example)
+  — there's a genuine PATTERN across multiple related numbers
+  worth reasoning about, which the aggregate threshold alone
+  can't reveal.
+
+When it's REASONABLY skippable:
+A simple, single-stage test with no meaningful stage breakdown
+  to analyze — if there's no PATTERN across multiple values to
+  reason about, fuzzy analysis has little genuine value to add
+  beyond what the exact threshold check already tells you.</code></pre>
+<p>The honest answer: "just to be thorough" isn't quite the right justification — fuzzy analysis should be reserved for situations where there's genuinely something pattern-level to reason about, exactly matching the AI Assertions page's original guidance from Chapter 5 about not reaching for fuzzy checks where an exact one (or, here, no check at all) genuinely suffices.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page's example finding matter even though EVERY individual threshold in the K6 script technically passed?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because the threshold was written against the AGGREGATE p(95), and the genuine problem exists specifically WITHIN a sub-period the aggregate threshold was never designed to isolate — the threshold answered the question it was asked, but that question wasn't precise enough to catch this specific pattern.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What the AGGREGATE threshold actually verified:
+"Is the OVERALL p(95) across the ENTIRE test under 800ms?" —
+  YES, genuinely true (750ms) — the threshold did its job
+  correctly for the QUESTION it was actually designed to answer.
+
+What it did NOT verify, and structurally COULDN'T:
+"Is response time STABLE and acceptable specifically DURING
+  sustained peak load?" — a GENUINELY different, more specific
+  question that the aggregate threshold's design never
+  addressed, regardless of how correctly it was calculated.</code></pre>
+<p>This is a subtle but genuinely important distinction: the threshold wasn't WRONG — it was answering a real but less precise question than what actually matters for understanding sustained-load behavior, which is exactly why the fuzzy, pattern-level analysis on this page adds real value beyond what the (correctly-passing) exact check alone provides.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why this page's finding is directly analogous to Chapter 6's total/line-items mismatch example, even though one is about API responses and the other about load test metrics.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Both are genuine examples of a check passing at one level of aggregation while a real problem exists at a more granular level — the underlying structural lesson is identical, even though the specific domain (a single API response vs. a whole load test's metrics) is different.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Chapter 6's version:
+A response passes EVERY individual field-level exact check
+  (status code valid, ID matches, status is recognized) while
+  the RELATIONSHIP between total and line items — visible only
+  when reasoning ACROSS fields together — reveals a genuine
+  inconsistency.
+
+THIS page's version:
+A test passes the AGGREGATE threshold check while the
+  RELATIONSHIP between metrics across different STAGES —
+  visible only when reasoning ACROSS the stage breakdown
+  together — reveals genuine degradation.</code></pre>
+<p>Both examples teach the SAME underlying lesson: checking individual values (or one aggregate value) in isolation can miss a real problem that only becomes visible when reasoning about how MULTIPLE related values relate to each other — a pattern worth recognizing as a general principle, not just two unrelated, coincidentally similar examples.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might it be a mistake to have the fuzzy analysis prompt ALSO restate whether the aggregate threshold passed or failed, given that K6 already determines this exactly?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This would genuinely duplicate work an exact, deterministic check already does perfectly reliably — exactly the "don't use fuzzy reasoning where exact checking already suffices" principle from Chapter 5's AI Assertions page, now shown as a real, avoidable inefficiency in this specific context.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Genuinely redundant, wasteful prompt design:
+"Does the p(95) of 750ms pass the 800ms threshold? ALSO, does
+  the overall PATTERN suggest anything worth investigating?"
+  — the FIRST question is pure, exact arithmetic (750 &lt; 800)
+  that K6 ALREADY calculated with perfect reliability; asking
+  an LLM to redundantly re-confirm this adds genuine cost for
+  zero additional value.
+
+The genuinely efficient version — THIS page's actual approach:
+The fuzzy prompt asks ONLY about the PATTERN question, trusting
+  K6's own exit_code entirely for the exact pass/fail
+  determination — no redundant, wasteful re-checking of
+  something already exact and reliably determined elsewhere.</code></pre>
+<p>This is a good, concrete reminder that even within a single, well-designed workflow, it's worth being deliberate about NOT asking an LLM to redo work that deterministic code already does reliably — redundant fuzzy checking of an already-exact result is real, avoidable waste, not extra thoroughness.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you design a fuzzy analysis check specifically for correlating error rate spikes with virtual-user ramp events, rather than response-time degradation?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A genuinely useful version would provide the reasoner with BOTH the error-rate timeline AND the VU ramp schedule together, specifically asking it to reason about whether error spikes cluster around ramp EVENTS (sudden increases) rather than sustained load itself.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def analyze_error_correlation(error_rate_timeline, ramp_schedule, client):
+    prompt = f"""Here is the error rate over time during a load
+test, alongside the virtual-user ramp schedule:
+
+Error rate timeline: {error_rate_timeline}
+VU ramp schedule: {ramp_schedule}
+
+Do error spikes appear to CLUSTER around moments when virtual
+users are actively RAMPING UP (rather than during STEADY,
+sustained load)? This pattern would suggest the system
+struggles specifically with SUDDEN increases in concurrent
+load, rather than sustained load itself."""
+    result = client.messages.create(
+        model="claude-sonnet-4-6", max_tokens=512,
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return result.content[0].text</code></pre>
+<p>This is a genuinely useful, distinct kind of finding from this page's response-time example — it would suggest a different underlying issue (connection pool exhaustion during rapid scaling, perhaps) than the sustained-degradation pattern this page's own example caught, showing how the SAME general fuzzy-analysis technique (reasoning across a timeline against a schedule) can be pointed at genuinely different, equally real performance questions.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

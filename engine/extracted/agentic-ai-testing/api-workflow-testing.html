@@ -1,0 +1,195 @@
+<!doctype html>
+<html><head>
+<title>API Workflow Testing: Chaining Multiple Calls Into One Real Scenario</title>
+<meta name="description" content="Testing a genuine multi-step order lifecycle as one coherent workflow — territory Chapter 6 never touched, since it tested individual endpoints in isolation." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/api-workflow-testing.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>API Workflow Testing</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="negative-api-testing.html">Negative API Testing</a></p>
+<article class="content">
+<h2 id="what-is-this-and-why-it-s-genuinely-new">What is this, and why it's genuinely new</h2>
+<p>Every page in Chapter 6 and every earlier page in this chapter tested ONE endpoint at a time. Real usage rarely looks like that — a real order genuinely gets created, then paid, then shipped, then delivered, each step depending on the one before it. This page is about testing that entire chain as one coherent scenario.</p>
+
+<h2 id="a-real-multi-step-workflow">A Real, Multi-Step Workflow</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def test_order_lifecycle_workflow(client_session):
+    # STEP 1: Create the order
+    create_response = client_session.post("/orders", json={
+        "customer_id": 42,
+        "items": [{"product_id": 501, "quantity": 1}],
+    })
+    assert create_response.status_code == 201
+    order_id = create_response.json()["id"]
+
+    # STEP 2: Apply a discount — genuinely DEPENDS on step 1's
+    # order_id, not a standalone, isolated request
+    discount_response = client_session.post(
+        f"/orders/{order_id}/discount", json={"code": "SUMMER23"})
+    assert discount_response.status_code == 200
+
+    # STEP 3: Update status — DEPENDS on the order genuinely
+    # existing AND the discount already being applied
+    status_response = client_session.patch(
+        f"/orders/{order_id}/status", json={"status": "shipped"})
+    assert status_response.status_code == 200
+
+    # STEP 4: Verify the FINAL state reflects EVERY prior step
+    final_response = client_session.get(f"/orders/{order_id}")
+    final_order = final_response.json()
+    assert final_order["status"] == "shipped"
+    assert final_order["discount_applied"] == "SUMMER23"
+    assert final_order["total"] &lt; final_order["subtotal"]  # discount
+                                                                # genuinely reflected</code></pre>
+
+<h2 id="what-this-catches-that-isolated-endpoint-tests-genuinely-can-t">What This Catches That Isolated Endpoint Tests Genuinely Can't</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Every INDIVIDUAL endpoint in this workflow could pass its OWN
+isolated test perfectly — POST /orders works, POST .../discount
+works, PATCH .../status works, GET /orders/{id} works — while
+the WORKFLOW as a whole is still genuinely broken:
+
+A REALISTIC bug this chains-together test catches, that
+isolated tests would MISS:
+Applying a discount AFTER an order's status is already
+"shipped" should probably be REJECTED (shipping shouldn't be
+retroactively discounted) — but if EACH endpoint is only ever
+TESTED in isolation, with a FRESH, pending order every time,
+NOBODY ever tests the SEQUENCE "apply discount AFTER shipping,"
+since an isolated discount-endpoint test would never naturally
+reach that specific, order-dependent state.</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might a bug that only manifests through a specific SEQUENCE of API calls be genuinely harder to catch than a bug in any single endpoint's own isolated behavior? Each individual endpoint, tested alone, only needs to handle the STATE it's given as a starting point — Chapter 6 and this chapter's earlier pages set up that starting state deliberately and directly. A sequence-dependent bug only manifests when the SPECIFIC PATH through several endpoints produces a state nobody explicitly constructed for an isolated test — discovering it requires actually WALKING that path, exactly what isolated, single-endpoint testing structurally never does.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Treating comprehensive per-endpoint coverage (this chapter's earlier pages) as equivalent to comprehensive coverage of the whole system. A genuinely complete test suite needs both — every endpoint verified in isolation, AND realistic multi-step sequences verified as coherent workflows, since each catches genuinely different bug classes.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>A genuinely useful source for realistic workflows to test: actual user journeys through the real application, not arbitrary combinations of endpoints. The order-lifecycle example on this page reflects a real, common sequence a real ShopEasy customer's order genuinely goes through — worth designing workflow tests around real usage patterns specifically.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Test realistic multi-step sequences as coherent workflows, not just each endpoint in isolation.</li>
+  <li>Design workflow tests around actual, real user journeys through the application, not arbitrary endpoint combinations.</li>
+  <li>Verify the final state after a complete workflow reflects every prior step correctly, not just that each individual step succeeded.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Workflow testing chains multiple API calls into one coherent scenario, catching sequence-dependent bugs that isolated, single-endpoint tests structurally cannot.</li>
+  <li>A comprehensive test suite needs both per-endpoint coverage and realistic multi-step workflow coverage — each catches genuinely different bug classes.</li>
+  <li>Realistic workflows should reflect actual user journeys through the real application, not arbitrary combinations of available endpoints.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Design a genuine multi-step workflow test for ShopEasy's cart-to-checkout journey (add item → apply discount → checkout → verify order created), following this page's structure, and identify one specific sequence-dependent bug this workflow test could catch that testing each endpoint in isolation would likely miss.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A teammate says "we already have 100% endpoint coverage from earlier chapters — workflow testing seems redundant." How would you respond, using this page's discount-after-shipping example?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd point out that "100% endpoint coverage" and "100% workflow coverage" are genuinely different claims — this page's own example shows a bug that could exist despite every individual endpoint passing its own isolated tests perfectly.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What "100% ENDPOINT coverage" genuinely guarantees:
+Every endpoint, tested with a FRESH, appropriately-set-up
+  starting state, behaves correctly for THAT starting state —
+  a genuinely real, valuable guarantee, but SCOPED to
+  individual endpoints tested in isolation.
+
+What it does NOT guarantee, per this page's own example:
+That applying a discount AFTER shipping (a state ONLY reached
+  by walking through a SPECIFIC sequence: create, ship, THEN
+  attempt discount) is correctly REJECTED — an isolated
+  discount-endpoint test, given a fresh PENDING order every
+  time, would NEVER naturally test this specific, sequence-
+  dependent scenario at all.</code></pre>
+<p>The teammate's coverage claim is accurate for what it measures — it's just measuring something narrower than "the system behaves correctly," which is exactly why this page argues workflow testing is a genuinely necessary complement, not a redundant addition.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page's workflow test explicitly verify the FINAL state (step 4) reflects every prior step, rather than just checking that each individual step returned a success status code?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because a workflow where every step returns a success code but the FINAL state doesn't genuinely reflect the combined effect of all of them is exactly the kind of bug this page's approach is meant to catch — success codes alone don't confirm the steps' effects actually composed correctly.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What checking ONLY individual success codes would MISS:
+Each of the four steps could return its OWN success status
+  (201, 200, 200, 200) while the DISCOUNT somehow gets LOST
+  during the STATUS UPDATE step — a genuine, real bug where
+  updating status accidentally clears a PREVIOUSLY applied
+  discount, something NONE of the individual success codes
+  would reveal on their own.
+
+Why the FINAL, combined-state check (this page's actual
+approach) catches this:
+assert final_order["discount_applied"] == "SUMMER23" —
+  explicitly confirms the discount SURVIVED the subsequent
+  status update, directly verifying the STEPS composed
+  correctly together, not just that each one individually
+  "succeeded" in isolation.</code></pre>
+<p>This is exactly why workflow tests need MORE than step-by-step success checking — the genuinely valuable verification is whether the CUMULATIVE, FINAL state correctly reflects the ENTIRE sequence, which is a fundamentally different (and stronger) check than confirming each step merely returned success.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why this page recommends designing workflow tests around "actual user journeys" rather than testing every mathematically possible combination of API call sequences.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>The number of POSSIBLE sequences across even a modest set of endpoints grows combinatorially huge, while only a small fraction represent GENUINELY realistic paths a real user (or the application's own legitimate logic) would ever actually produce — testing exhaustively would waste enormous effort on scenarios nobody will ever encounter.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why EXHAUSTIVE sequence testing is genuinely impractical:
+With just 5 order-related endpoints, the number of possible
+  ORDERINGS to call them in grows into the HUNDREDS — most of
+  which (like calling "update status" before "create order,"
+  which would simply fail immediately with a 404) represent
+  NONSENSICAL sequences no real usage pattern would ever
+  actually produce.
+
+Why REAL USER JOURNEYS are the genuinely efficient focus:
+Real, LEGITIMATE usage patterns — create, THEN pay, THEN ship,
+  THEN deliver — represent the SPECIFIC sequences actually
+  worth verifying, since these are the paths REAL customers
+  and the REAL application logic will genuinely traverse,
+  concentrating limited testing effort where it actually
+  matters.</code></pre>
+<p>This mirrors the same efficient-prioritization principle from Chapter 9's flaky-test scoring — comprehensive doesn't have to mean exhaustive; matching test investment to what's genuinely likely and impactful, rather than testing every theoretically possible combination, is a consistent, practical theme across this entire course.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would this page's workflow test need to change if step 2 (applying the discount) were designed to be genuinely idempotent — safe to call multiple times with the same effect?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>An idempotent design would change what counts as CORRECT behavior for a repeated call, and the workflow test should explicitly verify THIS specific property, rather than assuming (or leaving untested) how repeated calls are actually meant to behave.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What a workflow test SHOULD verify, for a GENUINELY idempotent
+discount endpoint:
+def test_idempotent_discount_application(client_session):
+    order_id = create_order(client_session)
+    first = client_session.post(f"/orders/{order_id}/discount",
+                                  json={"code": "SUMMER23"})
+    second = client_session.post(f"/orders/{order_id}/discount",
+                                   json={"code": "SUMMER23"})
+    # For a GENUINELY idempotent endpoint, calling it TWICE
+    # with the SAME code should produce the SAME final state —
+    # NOT double-apply the discount:
+    final = client_session.get(f"/orders/{order_id}")
+    assert final.json()["total"] == first.json()["total"]</code></pre>
+<p>This is a genuinely good illustration of why workflow tests need to be designed around the SPECIFIC, INTENDED behavior of the system being tested — "idempotent" and "rejects a second application" (this page's earlier interview question) are two DIFFERENT, both legitimate design choices, and the workflow test should verify whichever one the REAL system is actually SUPPOSED to implement, rather than assuming one or the other.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might it be reasonable to run this page's full workflow test LESS frequently than the individual, isolated endpoint tests from earlier in this chapter?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This connects to the same cadence-matching principle from Chapters 5, 6, and 7 — a full workflow test genuinely takes longer (multiple real API calls in sequence, each depending on the previous completing) and creates real, persistent test data, making it a reasonable candidate for a different, less frequent cadence than fast, isolated endpoint checks.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why ISOLATED endpoint tests reasonably run on EVERY commit:
+Each one is FAST (one request, minimal setup) and CHEAP,
+  exactly the traditional-automation strengths Chapter 1
+  established as ideal for high-frequency regression checks.
+
+Why the FULL WORKFLOW test might reasonably run LESS often:
+FOUR sequential real API calls, each depending on the
+  previous SUCCEEDING, takes genuinely MORE time and creates
+  MORE persistent test state (a real order, genuinely moving
+  through a real lifecycle) — a reasonable candidate for
+  running on a SLIGHTLY less frequent cadence (say, once per
+  hour or once per deployment) rather than on every single
+  commit, matching the same practical cost-benefit reasoning
+  this course has applied consistently since Chapter 5.</code></pre>
+<p>This is the same recurring, consistent lesson from across this entire course — matching test cadence to genuine cost and value, rather than running every kind of test at maximum possible frequency by default, regardless of what that specific test actually costs to run.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

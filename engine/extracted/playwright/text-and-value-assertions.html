@@ -1,0 +1,114 @@
+<!doctype html>
+<html><head>
+<title>Playwright Text &amp; Value Assertions: toHaveText, toContainText, toHaveValue, toHaveAttribute</title>
+<meta name="description" content="How Playwright&#x27;s text and value assertions work, the exact-match vs substring difference between toHaveText and toContainText, and asserting input values and DOM attributes." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/text-and-value-assertions.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Text & Value Assertions</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="assertions.html">Assertions overview</a>, <a href="visibility-and-state-assertions.html">Visibility & State Assertions</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+  <p>These assertions check the actual content of an element or input: <code>toHaveText()</code>, <code>toContainText()</code>, <code>toHaveValue()</code>, and <code>toHaveAttribute()</code>. Where the visibility/state assertions ask "is this here and usable," these ask "does this say or hold the right thing."</p>
+
+  <h2 id="why-it-s-important">Why it's important</h2>
+  <p>Content is what most tests actually verify — a confirmation message, a calculated total, a filled-in field. Getting the exact-match-vs-substring choice right (the most common early confusion here) determines whether a test is meaningfully strict or just brittle.</p>
+
+  <h2 id="tohavetext-vs-tocontaintext">toHaveText() vs. toContainText()</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// toHaveText() — exact match of the FULL text content (whitespace-normalized)
+await expect(page.getByRole('status')).toHaveText('Order confirmed');
+// Fails if the element actually reads "Order confirmed — thank you!"
+
+// toContainText() — substring match
+await expect(page.getByRole('status')).toContainText('Order confirmed');
+// Passes for "Order confirmed — thank you!" too</code></pre>
+  <p>Use <code>toHaveText()</code> when the full, exact copy matters to the test (e.g., a strict legal disclaimer). Use <code>toContainText()</code> when only a key phrase matters and the surrounding copy is expected to vary or isn't the point of the test — this is the more common case in practice.</p>
+
+  <h2 id="basic-example-tohavevalue">Basic Example — toHaveValue()</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>await page.getByLabel('Coupon code').fill('SAVE20');
+await expect(page.getByLabel('Coupon code')).toHaveValue('SAVE20');</code></pre>
+  <p><code>toHaveValue()</code> checks an input, textarea, or select's current value — not its visible label or placeholder, which are different things entirely (see the Locators chapter's getByPlaceholder page for that distinction).</p>
+
+  <h2 id="detailed-example-tohaveattribute">Detailed Example — toHaveAttribute()</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Confirm a link opens in a new tab, and a disabled button is really disabled
+// at the DOM level, not just visually styled
+await expect(page.getByRole('link', { name: 'Terms of Service' })).toHaveAttribute('target', '_blank');
+await expect(page.getByRole('button', { name: 'Save' })).toHaveAttribute('disabled', '');</code></pre>
+  <p>This is also how you'd verify accessibility-relevant attributes directly — <code>aria-expanded</code>, <code>aria-current</code>, <code>aria-label</code> — when the test's actual concern is the attribute itself, not an interaction outcome.</p>
+
+  <h2 id="real-world-example-dynamic-total">Real-World Example — Dynamic Total</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('cart total updates when quantity changes', async ({ page }) =&gt; {
+  await page.goto('/cart');
+  await page.getByLabel('Quantity').fill('3');
+
+  await expect(page.getByTestId('line-total')).toHaveText('$44.97');
+  await expect(page.getByTestId('cart-total')).toContainText('$44.97');
+});</code></pre>
+
+  <h2 id="regex-matching">Regex Matching</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Match a dynamic order number without hardcoding it
+await expect(page.getByText(/Order #ORD-\d+ confirmed/)).toBeVisible();
+await expect(page.getByTestId('order-id')).toHaveText(/ORD-\d{5}/);</code></pre>
+  <p>Both <code>toHaveText()</code> and <code>toContainText()</code> accept a regular expression instead of a string — the right tool whenever the exact value is dynamic (timestamps, generated IDs, counts) but its shape is predictable.</p>
+
+  <h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Brittle — breaks the moment unrelated copy around the number changes
+await expect(page.getByTestId('order-id')).toHaveText('Order #ORD-10492 placed just now');
+
+// ✅ Only asserts the part that actually matters to this test
+await expect(page.getByTestId('order-id')).toContainText('ORD-10492');</code></pre>
+
+  <h2 id="common-mistakes">Common Mistakes</h2>
+  <ul>
+    <li><strong>Defaulting to <code>toHaveText()</code> everywhere</strong> — makes tests brittle against unrelated copy changes; reserve it for when the full exact text is genuinely the point.</li>
+    <li><strong>Using <code>toHaveText()</code> on an element containing nested children</strong> and being surprised the match includes all their concatenated text too — this is correct behavior, but easy to forget when a component has more structure than expected.</li>
+    <li><strong>Asserting <code>toHaveValue()</code> on a non-form element</strong> — it's specifically for input/textarea/select; use <code>toHaveText()</code> for a <code>&lt;div&gt;</code> or <code>&lt;span&gt;</code> instead.</li>
+  </ul>
+
+  <h2 id="edge-cases">Edge Cases</h2>
+  <ul>
+    <li><strong>Whitespace-only differences</strong> — <code>toHaveText()</code> normalizes whitespace (collapsing multiple spaces/newlines), so minor formatting differences in the source HTML don't cause false failures.</li>
+    <li><strong>Case sensitivity</strong> — both assertions are case-sensitive by default; pass a regex with the <code>i</code> flag when case shouldn't matter.</li>
+  </ul>
+
+  <h2 id="debugging">Debugging</h2>
+  <p>A failed text assertion's error message shows both the expected and actual value side by side — read it closely before assuming the locator is wrong; often the locator is correct and the copy simply doesn't match what was assumed.</p>
+
+  <h2 id="best-practices">Best Practices</h2>
+  <ul>
+    <li>Default to <code>toContainText()</code> unless the full exact text is specifically what's under test.</li>
+    <li>Use regex for any value with dynamic, unpredictable-but-shaped content (IDs, timestamps, counts).</li>
+    <li>Reserve <code>toHaveAttribute()</code> for attributes the test genuinely cares about — don't use it as a roundabout way to check visible text.</li>
+  </ul>
+
+  <h2 id="practice-exercise">Practice Exercise</h2>
+  <p>A page shows "Last updated 3 minutes ago," where the number changes constantly. Write an assertion that verifies the format without hardcoding the number.</p>
+
+  <h2 id="summary">Summary</h2>
+  <p><code>toHaveText()</code> is an exact, full-content match; <code>toContainText()</code> is a substring match and the more commonly correct default. <code>toHaveValue()</code> checks form control values specifically, and <code>toHaveAttribute()</code> checks raw DOM attributes — all support regex for dynamic content.</p>
+
+  <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>When would you choose toHaveText() over toContainText(), given the latter is more forgiving?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">When the full, exact copy is itself the requirement being tested — a legal disclaimer, a precise error message mandated by spec, or any case where extra or missing text would itself be a bug. In most everyday assertions, only a key phrase matters and the surrounding copy is expected to change independently, which is why <code>toContainText()</code> is the more common default.</div>
+</details>
+<details class="faq-item">
+<summary>When would you choose toHaveText() over the more forgiving toContainText()?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">When the full, exact copy is itself the requirement — like a precise legally-mandated message — rather than just a key phrase within changeable surrounding text.</div>
+</details>
+<details class="faq-item">
+<summary>Does toHaveText() work correctly when the text is split across nested child elements?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Yes — it matches the full concatenated text content of the element, whitespace-normalized, regardless of nested markup.</div>
+</details>
+<details class="faq-item">
+<summary>What's the right assertion for a form input's current value?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">toHaveValue() — toHaveText() is for element text content, not form control values.</div>
+</details>
+<details class="faq-item">
+<summary>How would you assert on a dynamic order number without hardcoding it?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Pass a regex to toContainText() or toHaveText() instead of a plain string, matching the pattern rather than an exact value.</div>
+</details>
+</div>
+</article>
+</body></html>

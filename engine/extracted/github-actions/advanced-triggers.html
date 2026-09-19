@@ -1,0 +1,97 @@
+<!doctype html>
+<html><head>
+<title>Advanced GitHub Actions Triggers: Other Useful Repository Events</title>
+<meta name="description" content="Beyond push, pull_request, workflow_dispatch, and schedule — release, issues, workflow_run, and repository_dispatch, and when each one is genuinely the right tool." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/advanced-triggers.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Advanced Triggers</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="scheduled-workflows-and-cron.html">Scheduled Workflows & Cron</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Push, pull request, manual, and scheduled triggers cover the vast majority of real-world needs — but GitHub Actions supports many other repository events for more specialized situations. This page introduces the ones worth actually knowing exist.</p>
+
+<h2 id="release-reacting-to-a-published-release">release — Reacting to a Published Release</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>on:
+  release:
+    types: [published]</code></pre>
+<p>Fires when a GitHub release is created (or, with the right <code>types</code> filter, specifically when it's published). Genuinely useful for automating a release announcement, publishing a package, or building final release artifacts — actions that specifically belong to "we just shipped a version," distinct from every regular push.</p>
+
+<h2 id="issues-reacting-to-issue-activity">issues — Reacting to Issue Activity</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>on:
+  issues:
+    types: [opened]</code></pre>
+<p>Fires on issue-related activity — here, specifically when a new issue is opened. Useful for automatically labeling new issues, posting a welcome comment, or routing issues based on their content — automation around project management itself, not code.</p>
+
+<h2 id="workflow-run-reacting-to-another-workflow-s-completion">workflow_run — Reacting to Another Workflow's Completion</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>on:
+  workflow_run:
+    workflows: ["CI Pipeline"]
+    types: [completed]</code></pre>
+<p>Fires when a <em>different</em>, named workflow finishes running — letting you chain workflows together, where one only starts after another has genuinely completed. This is a real, different mechanism from job dependencies within a single workflow (covered in Chapter 9) — this connects entirely separate workflow files.</p>
+
+<h2 id="repository-dispatch-external-systems-triggering-a-workflow">repository_dispatch — External Systems Triggering a Workflow</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>on: repository_dispatch</code></pre>
+<p>Lets something outside GitHub entirely — another system, a custom script, a webhook — trigger a workflow via GitHub's API. Useful when the actual triggering event lives in a completely different system that GitHub itself has no native way to observe.</p>
+
+<h2 id="detailed-example-choosing-the-right-trigger-for-a-real-scenario">Detailed Example — Choosing the Right Trigger for a Real Scenario</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Scenario: "When we publish a new release, automatically build and
+           upload the release binaries."
+
+Wrong tool: on: push — this would trigger on every ordinary commit,
+            not specifically on releases.
+
+Right tool: on: release: types: [published] — fires exactly when
+            it should, and only then.</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why is <code>workflow_run</code> genuinely different from simply adding more jobs to the same workflow file? <code>workflow_run</code> connects two entirely separate, independently-maintained workflow files — useful when different teams own different workflows, or when a downstream process genuinely belongs to a conceptually different pipeline, rather than being just another stage of the same one.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Reaching for an exotic trigger like <code>repository_dispatch</code> or <code>workflow_run</code> when a simpler trigger would have worked fine. These advanced triggers solve genuinely specific problems (external systems, cross-workflow chaining) — using one where <code>push</code>, <code>pull_request</code>, or a job dependency (Chapter 9) would have been simpler adds real, often unnecessary complexity.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>GitHub's own documentation maintains the complete, current list of every supported event and its available <code>types</code> filters — since this list occasionally grows, it's worth checking directly rather than relying purely on memory for a genuinely uncommon event type.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Default to the simpler, more common triggers (push, pull_request, workflow_dispatch, schedule) unless a real requirement genuinely needs something more specialized.</li>
+  <li>Use <code>release</code> specifically for release-time automation — distinct from ordinary code changes.</li>
+  <li>Reach for <code>workflow_run</code> only when genuinely connecting separate, independently meaningful workflows, not as a substitute for job dependencies within one workflow.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li><code>release</code> reacts to a published release, distinct from ordinary commits.</li>
+  <li><code>issues</code> enables automation around project management, not code changes.</li>
+  <li><code>workflow_run</code> chains separate workflow files together; <code>repository_dispatch</code> lets external systems trigger a workflow via the API.</li>
+</ul>
+
+<h2 id="challenge">🏆 Challenge</h2>
+<p>For each of these three real scenarios, name which trigger from this entire chapter (including the more common ones from earlier pages) is the right fit, and briefly explain why: (1) automatically labeling every new issue as it's created, (2) running a full test suite before every merge into main, (3) triggering a deployment only when a specific engineer decides to.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why would a team use the release event instead of push to automate building release binaries?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">push fires on every ordinary commit, which would trigger the release-building automation constantly, not just when an actual release happens. The release event (filtered to published) fires specifically at the moment a release is genuinely published, making it the precise, correct trigger for automation that should only run at that specific point, not on every regular code change.</div>
+</details>
+<details class="faq-item">
+<summary>How does workflow_run genuinely differ from simply adding a dependent job within the same workflow file?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">workflow_run connects two entirely separate workflow files, where one triggers only after another, independently-defined and independently-maintained workflow has completed. A dependent job (using needs:, covered in a later chapter) exists within a single workflow file, coordinating jobs that were designed together from the start. workflow_run is for genuinely separate pipelines; job dependencies are for coordinating steps within one.</div>
+</details>
+<details class="faq-item">
+<summary>What kind of situation specifically calls for repository_dispatch rather than one of the more common triggers?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">repository_dispatch is for situations where the actual triggering event happens entirely outside GitHub — in another system, service, or custom script — that then needs to trigger a GitHub Actions workflow via GitHub's API. None of the other triggers can respond to something GitHub itself has no native way of observing, which is exactly the gap repository_dispatch fills.</div>
+</details>
+<details class="faq-item">
+<summary>Why is defaulting to simpler, more common triggers generally better than reaching for an advanced one by default?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Advanced triggers like workflow_run and repository_dispatch solve genuinely specific problems and add real complexity — extra configuration, another moving piece to understand and maintain. Using one where a simpler trigger (push, pull_request, or a job dependency within a single workflow) would have worked just as well adds unnecessary complexity without any corresponding benefit.</div>
+</details>
+<details class="faq-item">
+<summary>Why might the issues event be useful for automation that has nothing to do with actual code?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">GitHub Actions isn't limited to code-related automation — the issues event enables automating project management activities themselves, like automatically labeling a new issue based on its content or posting a welcome comment. This reflects that GitHub Actions is a genuinely general automation platform responding to repository events broadly, not just a CI/CD-specific tool limited to code changes.</div>
+</details>
+</div>
+</article>
+</body></html>

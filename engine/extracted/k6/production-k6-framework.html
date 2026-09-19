@@ -1,0 +1,257 @@
+<!doctype html>
+<html><head>
+<title>Building a Production-Style k6 Performance Testing Framework: A Trading Platform Capstone</title>
+<meta name="description" content="Every technique from this entire course, assembled into one real project — a production-style k6 performance testing framework for a realistic investment trading platform." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/production-k6-framework.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Building the Framework</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="results-analysis-monitoring-and-cicd.html">Results Analysis, Monitoring & CI/CD</a></p>
+<article class="content">
+<h2 id="what-this-capstone-builds">What This Capstone Builds</h2>
+<p>Every technique from this entire course, assembled into one real, coherent project — a production-style k6 performance testing framework for <strong>TradeFlow</strong>, a realistic investment trading platform. Real users log in, view their portfolio, search for a stock, place an order, and confirm it — and this capstone builds the complete testing strategy around that journey, incrementally, referencing exactly where each piece was originally covered.</p>
+
+<h2 id="1-project-setup-folder-structure">1 — Project Setup & Folder Structure</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>tradeflow-k6/
+├── tests/{smoke,load,stress,spike,soak}/
+├── workflows/
+├── api/
+├── data/
+├── config/
+├── utils/
+├── metrics/
+├── thresholds/
+└── reports/</code></pre>
+<p>The exact structure from Chapter 11, populated for TradeFlow's specific domain.</p>
+
+<h2 id="2-3-configuration-environment-management">2-3 — Configuration & Environment Management</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// config/index.js
+const environments = {
+  staging: { baseUrl: 'https://staging-api.tradeflow.example.com' },
+  production: { baseUrl: 'https://api.tradeflow.example.com' },
+};
+export const config = environments[__ENV.TARGET_ENV] || environments.staging;</code></pre>
+<p>Chapter 9's environment-variable pattern, centralized per Chapter 11 — every other layer imports <code>config</code>, never reads <code>__ENV</code> directly.</p>
+
+<h2 id="4-5-api-clients-authentication">4-5 — API Clients & Authentication</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// api/auth.js
+import http from 'k6/http';
+import { config } from '../config/index.js';
+
+let vuToken = null;
+export function ensureLoggedIn(credentials) {
+  if (!vuToken) {
+    const response = http.post(`${config.baseUrl}/login`, JSON.stringify(credentials),
+      { headers: { 'Content-Type': 'application/json' } });
+    vuToken = response.json('token');
+  }
+  return vuToken;
+}
+
+// api/portfolio.js
+export function getPortfolio(token) {
+  return http.get(`${config.baseUrl}/portfolio`, {
+    headers: { Authorization: `Bearer ${token}` }, tags: { endpoint: 'portfolio' },
+  });
+}
+
+// api/orders.js
+export function placeOrder(token, order) {
+  return http.post(`${config.baseUrl}/orders`, JSON.stringify(order),
+    { headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      tags: { endpoint: 'orders' } });
+}</code></pre>
+<p>Chapter 9's correct per-VU authentication pattern — each simulated trader logs in as a genuinely distinct user, never sharing one identity across VUs, which matters enormously here since a user-isolation bug in a trading platform (one trader seeing another's portfolio) would be a serious, real problem.</p>
+
+<h2 id="6-test-data">6 — Test Data</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// data/traders.js
+import { SharedArray } from 'k6/data';
+export const traders = new SharedArray('traders', function () {
+  return JSON.parse(open('./traders.json')); // realistic, distinct trader accounts
+});
+
+// utils/unique-data.js
+export function uniqueOrderRef() {
+  return `order-${__VU}-${__ITER}-${Date.now()}`;
+}</code></pre>
+<p>Chapter 8's <code>SharedArray</code> and unique-data generation — critical here, since two VUs placing orders with an identical reference could collide in exactly the way covered when that chapter's CRUD chain example was built.</p>
+
+<h2 id="7-8-the-realistic-user-journey-scenarios">7-8 — The Realistic User Journey & Scenarios</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// workflows/trading-journey.js
+import { check, sleep, group } from 'k6';
+import { ensureLoggedIn } from '../api/auth.js';
+import { getPortfolio } from '../api/portfolio.js';
+import { searchStock } from '../api/search.js';
+import { placeOrder } from '../api/orders.js';
+import { traders } from '../data/traders.js';
+import { uniqueOrderRef } from '../utils/unique-data.js';
+import { ordersPlaced, orderSuccessRate } from '../metrics/index.js';
+
+export default function () {
+  const trader = traders[__VU % traders.length];
+  const token = ensureLoggedIn(trader);
+
+  group('Trading Journey', function () {
+    const portfolio = getPortfolio(token);
+    check(portfolio, { 'portfolio loaded': (r) => r.status === 200 });
+    sleep(2 + Math.random() * 2);
+
+    const stock = searchStock(token, 'AAPL');
+    check(stock, { 'stock found': (r) => r.status === 200 });
+    sleep(1);
+
+    const order = placeOrder(token, {
+      symbol: 'AAPL', quantity: 10, reference: uniqueOrderRef(),
+    });
+    const orderOk = check(order, {
+      'order placed': (r) => r.status === 201,
+      'order confirmation matches quantity': (r) => r.json('quantity') === 10,
+    });
+    orderSuccessRate.add(orderOk);
+    if (orderOk) ordersPlaced.add(1);
+  });
+}</code></pre>
+<p>Chapter 9's complete journey pattern, applied to trading instead of e-commerce — login, browse (portfolio), search, and a purchase-equivalent (placing an order) — with functional checks verifying correctness, not just speed, per Chapter 5's core principle.</p>
+
+<h2 id="9-workload-modeling-translating-a-real-requirement">9 — Workload Modeling: Translating a Real Requirement</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// The actual business requirement:
+// "TradeFlow must support 3,000 concurrent traders during market open,
+//  with 95% of order placements completing within 1 second, and error
+//  rate under 0.5%."
+
+export const options = {
+  scenarios: {
+    market_open: {
+      executor: 'ramping-vus',
+      startVUs: 0,
+      stages: [
+        { duration: '2m', target: 3000 },
+        { duration: '20m', target: 3000 },
+        { duration: '3m', target: 0 },
+      ],
+    },
+  },
+};</code></pre>
+<p>Chapter 4's exact translation skill — concurrency target (3,000), a realistic ramp (traders arrive over 2 minutes as the market opens, not instantly), and the percentile/error-rate targets that become thresholds next.</p>
+
+<h2 id="10-11-checks-custom-metrics">10-11 — Checks & Custom Metrics</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// metrics/index.js
+import { Counter, Rate } from 'k6/metrics';
+export const ordersPlaced = new Counter('orders_placed');
+export const orderSuccessRate = new Rate('order_success_rate');</code></pre>
+<p>Chapter 6's custom metrics — <code>order_success_rate</code> specifically tracks business-level correctness (did the order actually confirm the right quantity), the exact gap a purely speed-focused test would miss, per Chapter 5's core lesson.</p>
+
+<h2 id="12-thresholds-derived-from-the-real-requirement">12 — Thresholds, Derived From the Real Requirement</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// thresholds/load.js
+export default {
+  http_req_duration: ['p(95)&lt;1000'],
+  http_req_failed: ['rate&lt;0.005'],
+  order_success_rate: ['rate>0.98'],
+  checks: ['rate>0.97'],
+};</code></pre>
+<p>Chapter 7's threshold-derivation discipline — every value here traces directly back to the business requirement above, not a guess.</p>
+
+<h2 id="13-17-every-test-type-same-script">13-17 — Every Test Type, Same Script</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// tests/smoke/trading-smoke.js
+export const options = { vus: 1, iterations: 5, thresholds: { checks: ['rate>0.99'] } };
+
+// tests/load/trading-load.js — the market-open scenario above, with load.js thresholds
+
+// tests/stress/trading-stress.js
+export const options = { scenarios: { find_limit: { executor: 'ramping-vus',
+  stages: [{ duration: '5m', target: 5000 }, { duration: '5m', target: 10000 }] } } };
+
+// tests/spike/trading-spike.js — a sudden jump, simulating a breaking-news-driven trading surge
+export const options = { scenarios: { news_spike: { executor: 'ramping-vus',
+  stages: [{ duration: '20s', target: 200 }, { duration: '10s', target: 4000 },
+           { duration: '3m', target: 4000 }, { duration: '30s', target: 200 }] } } };
+
+// tests/soak/trading-soak.js — sustained load through a full trading day
+export const options = { vus: 1500, duration: '6h',
+  thresholds: { http_req_duration: ['p(95)&lt;1000'], checks: ['rate>0.97'] } };</code></pre>
+<p>Chapter 10's central lesson — the exact same <code>trading-journey.js</code> workflow underneath every one of these, never rewritten, only reconfigured. The spike test specifically models a realistic trading-platform scenario: a sudden trading surge after breaking market news, not just an abstract "traffic spike."</p>
+
+<h2 id="18-19-result-analysis-monitoring">18-19 — Result Analysis & Monitoring</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>$ k6 run --out influxdb=http://localhost:8086/k6 tests/load/trading-load.js</code></pre>
+<p>Chapter 13's Grafana integration — with a dashboard correlating <code>http_req_duration</code> for the orders endpoint against the order-matching service's own CPU and the database's order-book table performance, following Chapter 13's full correlation chain: k6 → application → infrastructure → root cause.</p>
+
+<h2 id="20-21-ci-cd-integration-regression-detection">20-21 — CI/CD Integration & Regression Detection</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>name: TradeFlow Performance Tests
+on: { push: { branches: [main] }, schedule: [{ cron: '0 5 * * 1-5' }] } # weekday mornings
+
+jobs:
+  performance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Smoke test
+        uses: grafana/k6-action@v0.3.1
+        with: { filename: tests/smoke/trading-smoke.js }
+        env: { TARGET_ENV: staging, API_KEY: ${{ secrets.STAGING_API_KEY }} }
+      - name: Load test
+        uses: grafana/k6-action@v0.3.1
+        with: { filename: tests/load/trading-load.js }
+        env: { TARGET_ENV: staging, API_KEY: ${{ secrets.STAGING_API_KEY }} }
+      - name: Archive results
+        uses: actions/upload-artifact@v4
+        with: { name: k6-results-${{ github.run_id }}, path: results.json }
+      - name: Check regression against last week's baseline
+        run: node scripts/check-regression.js results.json baseline.json</code></pre>
+<p>Chapter 13's complete pipeline — smoke-gated, threshold-failing, artifact-archiving, regression-detecting, running automatically every weekday morning before real markets open, exactly when a genuine performance regression would matter most.</p>
+
+<h2 id="the-complete-picture">The Complete Picture</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Business requirement (Ch. 1, Ch. 4)
+        ↓
+Workload configuration (Ch. 4, Ch. 10)
+        ↓
+Realistic journey with unique data (Ch. 5, 8, 9)
+        ↓
+Functional + performance checks (Ch. 3, 5, 6)
+        ↓
+Thresholds derived from the requirement (Ch. 7)
+        ↓
+Layered, maintainable framework (Ch. 11)
+        ↓
+Dashboards + correlation (Ch. 13)
+        ↓
+Automated CI/CD with regression detection (Ch. 13)</code></pre>
+<p>This is what "capable of designing, implementing, executing, analyzing, and maintaining real-world k6 performance tests" actually looks like in practice — not a single script, but a coherent system where every piece has a clear job and traces back to a real business requirement.</p>
+
+<h2 id="common-mistakes-across-a-real-project-like-this">Common Mistakes Across a Real Project Like This</h2>
+<ul>
+  <li><strong>Building the load test before confirming the smoke test passes</strong> — wastes real time discovering a basic bug the expensive way, exactly as Chapter 10 warned.</li>
+  <li><strong>Treating the trading journey's functional checks as optional</strong> — for a financial platform specifically, verifying an order's confirmed quantity matches what was requested isn't optional polish, it's the actual point.</li>
+  <li><strong>Skipping regression detection</strong> and relying only on fixed thresholds — missing a real, gradual degradation that never quite crosses the absolute threshold line.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Extend this capstone with a "cancel order" step in the trading journey, following Chapter 8's collision-avoidance and Chapter 5's verification patterns — placing an order, canceling it, then verifying via a follow-up GET that its status actually changed to cancelled, not just trusting the cancel call's own status code.</p>
+
+<h2 id="summary">Summary</h2>
+<p>This capstone is the practical destination for every chapter in this course — a real business requirement translated into a realistic, properly-authenticated, collision-free trading journey; measured with the right custom metrics; gated by thresholds derived from that same requirement; organized into a maintainable, layered framework; visualized and correlated against real application and infrastructure behavior; and run automatically, with genuine consequences, inside a CI/CD pipeline. Building something like this — not just a script that happens to work once — is what separates knowing k6's syntax from being able to design, build, and maintain a genuine performance-engineering practice.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why does this capstone use per-VU authentication rather than a single shared setup()-based login, and why does that matter more for a trading platform specifically?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Per-VU authentication ensures each simulated trader is a genuinely distinct, isolated session — critical for a financial platform, where a user-isolation bug (one trader's session accidentally accessing another's portfolio or placing an order under the wrong identity) would be a serious, real-world problem. A shared setup()-based session would make this entire class of bug structurally invisible to the test, exactly as covered when this distinction was first introduced.</div>
+</details>
+<details class="faq-item">
+<summary>Why does the order-placement check verify the confirmed quantity, not just the response status code?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A 201 status code alone confirms the server accepted the request, not that it processed it correctly — under concurrent load, a race condition or data-handling bug could return success while recording the wrong quantity. Verifying the actual confirmed quantity matches what was requested is exactly the functional-correctness-under-load principle established when this course first covered why performance tests should validate functionality, not just speed.</div>
+</details>
+<details class="faq-item">
+<summary>Why does the spike test scenario in this capstone specifically model a "breaking news" surge rather than a generic traffic spike?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Designing a workload from a real, domain-specific scenario (rather than an abstract, generic one) is exactly the workload-modeling discipline this course emphasizes — a trading platform's most realistic and consequential spike scenario is genuinely triggered by market-moving news, not an arbitrary traffic burst, and modeling that specific real-world trigger produces a more meaningful test than a generic spike shape would.</div>
+</details>
+<details class="faq-item">
+<summary>Why does the CI/CD pipeline schedule performance tests for weekday mornings specifically, rather than an arbitrary time?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Scheduling deliberately, based on when a regression would actually matter most (before real markets open on trading days), rather than an arbitrary time, is a direct application of designing tests around genuine business context rather than convenience — catching a regression before it could affect real trading activity is far more valuable than catching the same regression at a moment when it wouldn't yet have any real consequence.</div>
+</details>
+<details class="faq-item">
+<summary>How does this capstone's threshold configuration directly trace back to the original business requirement, rather than being a set of arbitrary numbers?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Every threshold value — the p95 response time, the error rate, the order-success rate — was derived directly from the stated business requirement ("3,000 concurrent traders, 95% of orders under 1 second, error rate under 0.5%"), not picked because it sounded reasonable. This is the threshold-derivation discipline established earlier in this course, applied concretely: a threshold disconnected from a real requirement either fails constantly or passes meaninglessly, and grounding every value in the actual stated requirement is what keeps the whole test genuinely meaningful.</div>
+</details>
+</div>
+</article>
+</body></html>

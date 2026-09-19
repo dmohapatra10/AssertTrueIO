@@ -1,0 +1,163 @@
+<!doctype html>
+<html><head>
+<title>k6 Framework Layers: What Each Part of a Real Project Is Actually For</title>
+<meta name="description" content="The precise responsibility of every layer in a real k6 project — tests, workflows, api clients, data, config, utils, metrics, thresholds — and why each stays separate from the others." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/layer-by-layer-responsibilities-k6.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Layer-by-Layer Responsibilities</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="performance-test-architecture-and-framework-design.html">Performance Test Architecture & Framework Design overview</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Every layer in a well-organized k6 project has exactly one job, and doesn't reach into another layer's responsibility — this page defines precisely what each one is actually for.</p>
+
+<h2 id="tests-what-to-run-and-how">tests/ — What to Run, and How</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// tests/checkout-load.js
+import { checkoutJourney } from '../workflows/checkout.js';
+export const options = require('../thresholds/load-test.js');
+export default checkoutJourney;</code></pre>
+<p>A test file is thin — it selects a workflow, a set of options (from Chapter 10's test-type configurations), and thresholds (from Chapter 7). It contains almost no logic of its own; it assembles pieces that live elsewhere.</p>
+
+<h2 id="workflows-realistic-user-journeys">workflows/ — Realistic User Journeys</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// workflows/checkout.js
+import { getProduct, addToCart, checkout } from '../api/index.js';
+export function checkoutJourney() {
+  ensureLoggedIn();
+  const product = getProduct();
+  addToCart(product.id);
+  checkout();
+}</code></pre>
+<p>This is Chapter 9's realistic journey (login → browse → cart → checkout), extracted into its own module — the actual business scenario being simulated, expressed in terms of the <code>api/</code> layer's functions, not raw <code>http.get()</code> calls.</p>
+
+<h2 id="api-request-construction-one-module-per-resource">api/ — Request Construction, One Module Per Resource</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// api/products.js
+import http from 'k6/http';
+import { config } from '../config/index.js';
+
+export function getProduct(id) {
+  return http.get(`${config.baseUrl}/products/${id}`, {
+    headers: authHeaders(),
+    tags: { endpoint: 'products' },
+  });
+}</code></pre>
+<p>This is Chapter 3's "reusable API functions" instinct, formalized — every actual HTTP request lives here, and nowhere else. A workflow never constructs a raw request directly; it calls a function from this layer.</p>
+
+<h2 id="data-test-data-loaded-once">data/ — Test Data, Loaded Once</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// data/users.js
+import { SharedArray } from 'k6/data';
+export const users = new SharedArray('users', function () {
+  return JSON.parse(open('./users.json'));
+});</code></pre>
+<p>Chapter 8's <code>SharedArray</code> pattern, centralized — any script needing test users imports from here, rather than each independently loading and parsing the same file.</p>
+
+<h2 id="config-environment-and-settings">config/ — Environment and Settings</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// config/index.js
+const environments = {
+  staging: { baseUrl: 'https://staging-api.example.com' },
+  production: { baseUrl: 'https://api.example.com' },
+};
+export const config = environments[__ENV.TARGET_ENV] || environments.staging;</code></pre>
+<p>Chapter 9 and 10's <code>__ENV</code>-based configuration, centralized in one place — every other layer reads from <code>config</code>, rather than each file independently reading <code>__ENV</code> and duplicating the same environment-selection logic.</p>
+
+<h2 id="utils-shared-non-api-helper-logic">utils/ — Shared, Non-API Helper Logic</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// utils/unique-data.js
+export function uniqueEmail() {
+  return `user-${__VU}-${__ITER}-${Date.now()}@example.com`;
+}
+
+// utils/jwt.js
+export function decodeJwtPayload(token) {
+  return JSON.parse(atob(token.split('.')[1]));
+}</code></pre>
+<p>Chapter 8's unique-data generation and Chapter 9's JWT decoding — genuinely reusable logic that isn't itself an HTTP request (that's <code>api/</code>) and isn't business workflow logic (that's <code>workflows/</code>).</p>
+
+<h2 id="metrics-and-thresholds-measurement-and-criteria">metrics/ and thresholds/ — Measurement and Criteria</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// metrics/index.js
+import { Counter, Rate } from 'k6/metrics';
+export const ordersCreated = new Counter('orders_created');
+export const checkoutSuccessRate = new Rate('checkout_success');
+
+// thresholds/load-test.js
+export default {
+  http_req_duration: ['p(95)&lt;800'],
+  checkout_success: ['rate>0.98'],
+};</code></pre>
+<p>Chapter 6's custom metrics and Chapter 7's threshold configurations, each centralized — a threshold set derived for one specific test type (Chapter 10) lives in its own file, reusable across any test that needs that exact criteria.</p>
+
+<h2 id="detailed-example-how-a-test-actually-assembles-these-layers">Detailed Example — How a Test Actually Assembles These Layers</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>tests/checkout-load.js
+   imports workflows/checkout.js
+      which imports api/products.js, api/cart.js, api/checkout.js
+         which import config/index.js for the base URL
+      which imports utils/unique-data.js for realistic test data
+   imports thresholds/load-test.js for pass/fail criteria
+   imports metrics/index.js for custom tracking</code></pre>
+<p>Nothing in this chain duplicates anything — each piece of logic exists in exactly one place, imported wherever it's needed.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ One giant test file mixing every concern together
+export default function () {
+  const baseUrl = __ENV.TARGET_ENV === 'production' ? '...' : '...'; // config, inline
+  const email = `user-${__VU}@example.com`; // unique data, inline
+  http.post(`${baseUrl}/login`, ...); // API call, inline
+  // ...500 more lines mixing everything together
+}
+
+// ✅ Layers, each imported where needed
+import { checkoutJourney } from '../workflows/checkout.js';
+export default checkoutJourney;</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Putting HTTP request logic directly inside a workflow function</strong> instead of the <code>api/</code> layer — blurs the line between "what a user does" and "how a request is constructed."</li>
+  <li><strong>Reading <code>__ENV</code> directly in multiple files</strong> instead of centralizing it in <code>config/</code> — duplicated environment-selection logic that can drift out of sync.</li>
+  <li><strong>Defining a metric or threshold inline inside a test file</strong> instead of the dedicated layer — makes it harder to reuse the same criteria across multiple related tests.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>A workflow that genuinely needs slightly different behavior per test type</strong> (skipping a step for a stress test, as noted in Chapter 10) — this can still live in the <code>workflows/</code> layer, parameterized, rather than becoming an exception that breaks the layering.</li>
+  <li><strong>A very small project where full layering feels like overkill</strong> — the same judgment call as Chapter 3's "don't over-engineer a tiny script" applies here at project scale; a two-script project may not need every layer populated yet.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a change to one API endpoint requires editing several test files, that's a signal the <code>api/</code> layer isn't actually being used consistently — the fix is extracting that request into its proper layer once, then updating every caller to import it rather than duplicating the request logic.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Keep test files thin — assembling a workflow, options, and thresholds, with no request logic of their own.</li>
+  <li>Route every actual HTTP request through the <code>api/</code> layer, never constructed directly inside a workflow or test file.</li>
+  <li>Centralize environment and configuration logic in exactly one place, imported everywhere it's needed.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Take a single, unstructured script that mixes login logic, product-browsing requests, unique data generation, and hardcoded configuration all in one file, and split it into the appropriate layers described on this page — <code>api/</code>, <code>workflows/</code>, <code>utils/</code>, and <code>config/</code>.</p>
+
+<h2 id="summary">Summary</h2>
+<p>A real k6 project separates concerns into distinct layers — thin test files, realistic workflows, request-construction API modules, centralized data and configuration, shared utilities, and dedicated metrics and thresholds — each with exactly one job. Every layer here maps directly onto a concept already built earlier in this course; this chapter's job is organizing those pieces into one coherent, maintainable structure rather than introducing anything new.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why should a test file in the tests/ layer contain almost no logic of its own?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A test file's job is assembling existing pieces — a workflow, a set of options, thresholds — not implementing new logic. Keeping it thin means the actual behavior being tested lives in one place (the workflows/ layer) regardless of how many different test-type configurations (smoke, load, stress) end up wrapping around it, avoiding duplication across every test file that happens to use the same underlying workflow.</div>
+</details>
+<details class="faq-item">
+<summary>What's the practical difference between the workflows/ layer and the api/ layer?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The workflows/ layer expresses what a realistic user actually does — login, browse, add to cart, checkout — as a sequence of business-meaningful steps. The api/ layer handles how each individual request is actually constructed — the URL, headers, and body for a specific endpoint. A workflow calls functions from the api layer; it never builds a raw HTTP request directly, keeping "what a user does" cleanly separate from "how a request is built."</div>
+</details>
+<details class="faq-item">
+<summary>Why does centralizing __ENV access in a single config/ module matter, rather than reading __ENV directly wherever needed?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">If multiple files each independently read and interpret __ENV.TARGET_ENV, the environment-selection logic is duplicated — a change to how environments are determined (adding a new environment, changing a default) means updating every file that duplicated that logic, risking some being missed and drifting out of sync. Centralizing it in one config module means that logic exists in exactly one place, and every other layer simply imports the already-resolved configuration.</div>
+</details>
+<details class="faq-item">
+<summary>Why might defining a custom metric inline inside a single test file be worse than defining it in a dedicated metrics/ module?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A metric defined inline is only available to that specific test file — if a related test (perhaps a different test-type configuration of the same underlying workflow) needs to track the same thing, it would need to redefine the metric separately, risking inconsistent naming or definition. A dedicated metrics/ module makes the same metric definition importable and reusable across every test that needs it.</div>
+</details>
+<details class="faq-item">
+<summary>How would you know a k6 project's api/ layer isn't actually being used consistently?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A clear signal is needing to edit multiple test or workflow files when a single API endpoint changes — if request-construction logic for that endpoint were properly centralized in the api/ layer and imported everywhere it's used, a change would only require editing one file, with every caller automatically reflecting the update.</div>
+</details>
+</div>
+</article>
+</body></html>

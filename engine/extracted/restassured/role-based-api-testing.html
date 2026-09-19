@@ -1,0 +1,156 @@
+<!doctype html>
+<html><head>
+<title>RestAssured Role-Based API Testing: Admin, User, and Permission Boundaries</title>
+<meta name="description" content="How to design and write RestAssured tests that verify role-based access control — what different user roles can and can&#x27;t do, and testing the boundaries precisely." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/role-based-api-testing.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Role-Based API Testing</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="authentication-reuse-and-token-management.html">Authentication Reuse & Token Management</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Every page so far in this chapter has been about authentication — proving who you are. This page is about authorization — testing that once authenticated, a user can only do what their role actually permits. This is where the authentication-vs-authorization distinction from Chapter 1 becomes the real focus.</p>
+
+<h2 id="why-it-s-important">Why it's important</h2>
+<p>A permission check that's missing or wrong on even one endpoint is a genuine security bug, not just a functional one — a regular user able to hit an admin-only endpoint because a permission check was forgotten on that specific route is exactly the kind of gap thorough role-based testing exists to catch, and exactly the kind of gap that's easy to miss if you only ever test with one admin account.</p>
+
+<h2 id="common-roles-worth-testing">Common Roles Worth Testing</h2>
+<ul>
+  <li><strong>Admin</strong> — typically has access to everything, including other users' data and system-level operations.</li>
+  <li><strong>Regular User</strong> — access limited to their own data and standard operations.</li>
+  <li><strong>Read-Only User</strong> — can view but not modify; a common role for auditors, support staff, or reporting access.</li>
+  <li><strong>Manager</strong> — often an intermediate role: broader access than a regular user, narrower than a full admin (e.g., managing their own team's data, but not the entire system).</li>
+</ul>
+
+<h2 id="basic-example-the-same-endpoint-different-roles-different-outcomes">Basic Example — The Same Endpoint, Different Roles, Different Outcomes</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void adminCanAccessUserManagement() {
+    given().header("Authorization", "Bearer " + TokenManager.getTokenForRole("admin"))
+        .when().get("/admin/users")
+        .then().statusCode(200);
+}
+
+@Test
+void regularUserCannotAccessUserManagement() {
+    given().header("Authorization", "Bearer " + TokenManager.getTokenForRole("user"))
+        .when().get("/admin/users")
+        .then().statusCode(403); // authenticated, but not authorized
+}</code></pre>
+<p>Notice the second test expects <code>403</code>, not <code>401</code> — the user is genuinely authenticated (a valid token), just not authorized for this specific action. Getting this distinction right in your assertions (from Chapter 1) matters for precisely diagnosing what a failure actually means.</p>
+
+<h2 id="detailed-example-testing-a-read-only-role-s-boundary-precisely">Detailed Example — Testing a Read-Only Role's Boundary Precisely</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void readOnlyUserCanViewButNotModify() {
+    String readOnlyToken = TokenManager.getTokenForRole("readonly");
+
+    // CAN view
+    given().header("Authorization", "Bearer " + readOnlyToken)
+        .when().get("/orders")
+        .then().statusCode(200);
+
+    // CANNOT create
+    given().header("Authorization", "Bearer " + readOnlyToken)
+        .body(newOrder)
+        .when().post("/orders")
+        .then().statusCode(403);
+
+    // CANNOT modify
+    given().header("Authorization", "Bearer " + readOnlyToken)
+        .pathParam("id", existingOrderId)
+        .body(updatedOrder)
+        .when().put("/orders/{id}")
+        .then().statusCode(403);
+
+    // CANNOT delete
+    given().header("Authorization", "Bearer " + readOnlyToken)
+        .pathParam("id", existingOrderId)
+        .when().delete("/orders/{id}")
+        .then().statusCode(403);
+}</code></pre>
+<p>A single test verifying all four operations against one role is a thorough, precise way to confirm a "read-only" role actually means read-only across every mutating operation — not just one of them. It's a common, real bug for a permission system to correctly block CREATE but accidentally allow UPDATE or DELETE for the same role.</p>
+
+<h2 id="real-world-example-testing-a-manager-s-scoped-access">Real-World Example — Testing a Manager's Scoped Access</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void managerCanOnlyAccessOwnTeamsData() {
+    String managerToken = TokenManager.getTokenForRole("manager");
+
+    // CAN access their own team's data
+    given().header("Authorization", "Bearer " + managerToken)
+        .pathParam("teamId", managerOwnTeamId)
+        .when().get("/teams/{teamId}/reports")
+        .then().statusCode(200);
+
+    // CANNOT access a DIFFERENT team's data — this is the real test
+    given().header("Authorization", "Bearer " + managerToken)
+        .pathParam("teamId", someOtherTeamId)
+        .when().get("/teams/{teamId}/reports")
+        .then().statusCode(403);
+}</code></pre>
+<p>This is a subtler, often-missed category of authorization bug: not "does this role have permission for this type of action at all," but "is this specific instance of data scoped correctly to this specific user." A manager correctly having access to <em>a</em> team's reports doesn't guarantee they're correctly restricted to <em>their own</em> team's reports — this needs its own explicit test, since it's a genuinely different failure mode than a missing role check entirely.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Only ever testing with one admin account — the suite has no idea
+// whether permission boundaries are actually enforced for anyone else
+given().header("Authorization", "Bearer " + adminToken).when().get("/orders").then().statusCode(200);
+
+// ✅ Testing the same endpoint across multiple roles, confirming
+// each gets the outcome their role should actually produce
+given().header("Authorization", "Bearer " + adminToken).when().get("/admin/users").then().statusCode(200);
+given().header("Authorization", "Bearer " + userToken).when().get("/admin/users").then().statusCode(403);</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Only ever testing with an admin account</strong> — a suite that never authenticates as anything less privileged has zero coverage of whether permission boundaries actually work.</li>
+  <li><strong>Testing that a role CAN'T do something for only one type of operation</strong>, not all the mutating ones — a read-only role blocked from CREATE but accidentally allowed UPDATE is a real, missable bug.</li>
+  <li><strong>Testing role-level permissions but never data-scoping</strong> — confirming a manager role can access "team reports" in general without confirming they're restricted to their own specific team.</li>
+  <li><strong>Using 401 instead of 403 in assertions</strong> for an authenticated-but-unauthorized scenario — conflates two genuinely different failure categories.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>A user whose role changes mid-session</strong> (promoted from user to manager while their token is still valid) — worth testing whether the API re-checks permissions per-request (using current role) or trusts whatever was baked into the token at issuance time; this is a real design decision with security implications.</li>
+  <li><strong>Roles with overlapping but not identical permissions</strong> — don't assume role hierarchies are strictly nested (manager ⊃ user, admin ⊃ manager); verify the actual permission matrix rather than assuming a clean hierarchy.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a role-based test fails unexpectedly, first confirm which token was actually used — logging the Authorization header (or at minimum, decoding the JWT's role claim, from the JWT Authentication page) rules out "wrong role's token was accidentally used" as the cause before investigating the API's permission logic itself.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Test every meaningfully distinct role your API supports, not just admin.</li>
+  <li>For any role with restricted permissions, test every mutating operation (create/update/delete) it should be blocked from, not just one.</li>
+  <li>Test data-scoping (own resources vs. others') as a distinct concern from role-level permission checks.</li>
+  <li>Use 403 (not 401) for authenticated-but-unauthorized assertions.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Design a test suite section for an API with Admin, Manager, and Regular User roles, covering: what each role can access, what each role is explicitly blocked from, and at least one data-scoping test confirming a Manager can't access another manager's team data.</p>
+
+<h2 id="summary">Summary</h2>
+<p>Role-based API testing is where authorization — not authentication — becomes the real focus: confirming each role can do exactly what it should and nothing more, across every mutating operation, and that data access is correctly scoped to what a given user or role actually owns, not just gated by role-level checks alone. A suite that only ever tests with an admin account has effectively no authorization coverage at all.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A permission test confirms a read-only role gets a 403 when attempting to POST a new resource. Is this test sufficient to confirm the role is genuinely read-only?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Not on its own — confirming CREATE is blocked doesn't guarantee UPDATE and DELETE are also correctly blocked; a real, common bug is a permission system that correctly restricts one mutating operation while accidentally allowing another for the same role. Thoroughly confirming a role is genuinely read-only requires testing all three mutating operations (create, update, delete) return the correct forbidden status, plus confirming the role can still successfully read — a role that's accidentally blocked from reading too would also be a bug, just a different one.</div>
+</details>
+<details class="faq-item">
+<summary>Why does testing only with an admin account provide zero authorization coverage?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A suite that never authenticates as anything less privileged has no way of verifying whether permission boundaries actually work for anyone but the most privileged account.</div>
+</details>
+<details class="faq-item">
+<summary>Why is confirming a read-only role is blocked from POST insufficient to confirm it's genuinely read-only?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A permission system could correctly block CREATE while accidentally allowing UPDATE or DELETE for the same role — a real, missable bug; all mutating operations need testing, not just one.</div>
+</details>
+<details class="faq-item">
+<summary>What's the difference between role-level authorization and data-scoping authorization?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Role-level asks 'can this role perform this TYPE of action at all'; data-scoping asks 'is this specific instance of data correctly restricted to the right owner' — a manager correctly having team-report access doesn't guarantee they're restricted to their OWN team specifically.</div>
+</details>
+<details class="faq-item">
+<summary>Why use 403, not 401, when a valid but insufficiently-privileged user hits a restricted endpoint?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The user is genuinely, successfully authenticated — the failure is purely about permission, which is exactly what 403 signals, as opposed to 401's 'we don't know who you are.'</div>
+</details>
+</div>
+</article>
+</body></html>

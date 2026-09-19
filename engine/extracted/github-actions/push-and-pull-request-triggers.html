@@ -1,0 +1,108 @@
+<!doctype html>
+<html><head>
+<title>Push &amp; Pull Request Triggers in GitHub Actions, With Branch Filtering</title>
+<meta name="description" content="The push and pull_request events explained in depth, including branch filtering with branches and branches-ignore, and why the two events serve genuinely different purposes." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/push-and-pull-request-triggers.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Push &amp; Pull Request Triggers</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="what-is-a-github-actions-event.html">What is a GitHub Actions Event?</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>The two most commonly used events in any real project: <code>push</code>, which fires when code is pushed to any branch, and <code>pull_request</code>, which fires specifically around pull request activity. They look similar but serve genuinely different purposes.</p>
+
+<h2 id="the-push-event">The push Event</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>on: push</code></pre>
+<p>Fires whenever a commit is pushed to <em>any</em> branch in the repository — with no filtering, this is broader than most real projects actually want.</p>
+
+<h2 id="filtering-push-to-specific-branches">Filtering push to Specific Branches</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>on:
+  push:
+    branches:
+      - main</code></pre>
+<p>This restricts the trigger to pushes specifically on <code>main</code> — a push to any other branch won't fire this workflow at all. This is genuinely important once a repository has many active feature branches; without filtering, every single push everywhere would trigger the workflow.</p>
+
+<h2 id="excluding-specific-branches">Excluding Specific Branches</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>on:
+  push:
+    branches-ignore:
+      - 'docs/**'</code></pre>
+<p><code>branches-ignore</code> does the opposite — run on every branch except the ones matching this pattern. Useful for excluding branches where running the full pipeline genuinely doesn't make sense (documentation-only branches, for instance).</p>
+
+<h2 id="the-pull-request-event">The pull_request Event</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>on: pull_request</code></pre>
+<p>Fires specifically on pull request activity — by default, when a pull request is opened, when new commits are pushed to it, and a few other related actions. This is genuinely different from <code>push</code>: it's about the pull request itself as a concept, not just "code changed somewhere."</p>
+
+<h2 id="detailed-example-why-both-events-matter-for-different-reasons">Detailed Example — Why Both Events Matter for Different Reasons</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]</code></pre>
+<p>This workflow triggers in two genuinely different situations: when code is actually merged into <code>main</code> directly (the <code>push</code> half), and separately, whenever someone opens or updates a pull request <em>targeting</em> <code>main</code> (the <code>pull_request</code> half) — even before that pull request is merged. This combination is extremely common: it verifies proposed changes before they merge, and verifies main itself after they do.</p>
+
+<h2 id="real-world-example-shopeasy-s-actual-requirement-half-built">Real-World Example — ShopEasy's Actual Requirement, Half-Built</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># "Run tests on every pull request" — this piece, now covered:
+on:
+  pull_request:
+    branches: [main]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci
+      - run: npm test</code></pre>
+<p>This satisfies exactly one part of the three-part ShopEasy requirement from this chapter's hub page — tests now run automatically on every pull request targeting main, catching problems before they're ever merged.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might a team specifically want <code>pull_request</code> in addition to <code>push</code>, rather than relying on <code>push</code> alone? A push-only setup only catches problems <em>after</em> code lands on a branch — often after it's already been merged. A <code>pull_request</code> trigger runs checks on the proposed change itself, before it's merged, catching a problem while it's still easy to fix or simply not merge at all.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Using unfiltered <code>on: push</code> in a repository with many active feature branches, then being surprised that the pipeline runs constantly, on every single push to every branch, consuming far more CI resources and time than intended. Branch filtering isn't a minor optimization — for an active repository, it's often the difference between a genuinely useful pipeline and an overwhelming one.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>The pattern <code>branches: [main]</code> can also use wildcards, like <code>branches: ['release/**']</code>, matching any branch name under that pattern — useful for teams with a consistent branch naming convention.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Filter <code>push</code> to specific branches (usually <code>main</code>, and any other genuinely important long-lived branches) rather than leaving it unfiltered.</li>
+  <li>Use <code>pull_request</code> specifically to validate proposed changes before merge, separate from validating what's already on a branch.</li>
+  <li>Combine both when a workflow genuinely needs to cover both "before merge" and "after merge" scenarios.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li><code>push</code> fires on commits to a branch; <code>pull_request</code> fires on pull request activity specifically.</li>
+  <li>Both support branch filtering via <code>branches</code> (include) and <code>branches-ignore</code> (exclude).</li>
+  <li>Combining both is common — <code>pull_request</code> validates before merge, <code>push</code> validates after.</li>
+</ul>
+
+<h2 id="challenge">🏆 Challenge</h2>
+<p>Write the <code>on:</code> block for a workflow that should run on pull requests targeting either <code>main</code> or <code>develop</code>, and also on direct pushes to <code>main</code> only — using both <code>push</code> and <code>pull_request</code> with appropriate branch filtering for each.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>What's the practical difference between the push and pull_request events?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">push fires whenever a commit is pushed to a branch, regardless of whether a pull request is involved at all. pull_request fires specifically around pull request activity — opening one, pushing new commits to it — and is tied to the concept of a proposed change being reviewed, not just code changing somewhere.</div>
+</details>
+<details class="faq-item">
+<summary>Why might a repository with many active feature branches specifically need branch filtering on its push trigger?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Without filtering, an on: push trigger fires on every single push to every branch in the repository, which in an active project with many feature branches means the pipeline runs constantly and consumes far more CI time and resources than intended. Filtering to specific branches (usually main) keeps the trigger firing only for pushes that actually matter for that workflow's purpose.</div>
+</details>
+<details class="faq-item">
+<summary>Why would a team want both push and pull_request triggers on main, rather than just one of them?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">pull_request validates a proposed change before it's merged, catching problems while they're still easy to fix or simply avoid merging. push (filtered to main) validates the actual state of main after a merge has happened. Together they cover both the "before" and "after" perspectives, which a single trigger alone can't provide.</div>
+</details>
+<details class="faq-item">
+<summary>What does branches-ignore do differently from branches in a trigger configuration?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">branches specifies which branches the trigger SHOULD fire on — an inclusion list. branches-ignore specifies which branches to explicitly exclude, firing on every branch except the ones matching the given pattern. They represent opposite filtering approaches, and using both together on the same trigger isn't meaningful — you'd choose one or the other based on whether it's easier to list what you want or what you don't want.</div>
+</details>
+<details class="faq-item">
+<summary>Why does branches: ['release/**'] use a wildcard pattern rather than listing exact branch names?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A wildcard pattern like release/** matches any branch name that fits that structure (release/1.0, release/2.0, and so on), without needing to update the workflow file every time a new branch matching that pattern is created. This is especially useful for teams with a consistent branch naming convention, where the SET of matching branches naturally grows over time.</div>
+</details>
+</div>
+</article>
+</body></html>

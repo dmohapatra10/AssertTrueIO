@@ -1,0 +1,206 @@
+<!doctype html>
+<html><head>
+<title>Intelligent Test Selection and Prioritization: What to Run, and in What Order</title>
+<meta name="description" content="Selecting tests genuinely relevant to a code change, then ordering them to surface real problems fastest — two related but distinct pipeline-scale decisions." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/intelligent-test-selection-and-prioritization.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Intelligent Test Selection and Prioritization</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="ai-powered-pipeline-design.html">AI-Powered Pipeline Design</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Two genuinely related but distinct questions: SELECTION asks which tests to run at all; PRIORITIZATION asks, among the selected tests, which order surfaces real problems fastest. This page covers both, since they're two halves of the same "run what matters, efficiently" concern this chapter's opening page raised.</p>
+
+<h2 id="selection-mapping-a-change-to-relevant-tests">Selection — Mapping a Change to Relevant Tests</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def select_relevant_tests(changed_files, test_coverage_map):
+    """Given files changed in a commit and a mapping of which
+    tests exercise which files, return only genuinely relevant
+    tests — this is deterministic, not reasoning-based."""
+    relevant = set()
+    for file in changed_files:
+        relevant.update(test_coverage_map.get(file, []))
+    return relevant
+
+# changed_files = ["src/checkout/discount_validator.py"]
+# test_coverage_map maps files to tests that EXERCISE them —
+# built from real coverage data, e.g. pytest-cov's output
+selected = select_relevant_tests(
+    changed_files=["src/checkout/discount_validator.py"],
+    test_coverage_map=coverage_data,
+)
+# → {"test_discount_code_validation", "test_checkout_flow",
+#    "test_discount_stacking_rejected"} — genuinely fewer than
+# all 488, with real coverage evidence backing each inclusion</code></pre>
+
+<h2 id="why-selection-is-deterministic-not-reasoning-based">Why Selection Is Deterministic, Not Reasoning-Based</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Notice select_relevant_tests uses REAL coverage data — WHICH
+tests actually EXERCISE which files, MEASURED, not GUESSED —
+exactly the SAME exact-vs-fuzzy PRINCIPLE from Chapter 5
+onward. An LLM GUESSING "which tests seem RELATED to discount
+validation" would be STRICTLY weaker than ACTUAL coverage
+data confirming EXACTLY which tests TOUCH that code.</code></pre>
+
+<h2 id="prioritization-ordering-the-selected-tests">Prioritization — Ordering the Selected Tests</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def prioritize_tests(selected_tests, historical_data):
+    """Orders tests to surface real problems FASTEST — tests
+    that fail MORE often, and tests that run FASTER, both get
+    priority, using genuine historical data."""
+    def priority_score(test_name):
+        stats = historical_data.get(test_name, {})
+        fail_rate = stats.get("fail_rate", 0)
+        duration_s = stats.get("avg_duration_s", 60)
+        # Higher fail rate AND lower duration both increase
+        # priority — surface likely problems fast and cheaply
+        return fail_rate / max(duration_s, 1)
+
+    return sorted(selected_tests, key=priority_score, reverse=True)</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># Applied to this page's selected tests:
+test_discount_stacking_rejected: fail_rate=0.15, duration_s=3
+  → priority_score = 0.05
+test_discount_code_validation:   fail_rate=0.08, duration_s=2
+  → priority_score = 0.04
+test_checkout_flow:              fail_rate=0.03, duration_s=45
+  → priority_score = 0.0007
+
+Running discount_stacking_rejected FIRST means a genuine
+problem in the discount-code change surfaces in 3 seconds,
+not after waiting 50 seconds for checkout_flow to finish too.</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why does the priority score divide fail rate by duration, rather than just sorting by fail rate alone? A test with a high fail rate but a long duration doesn't surface problems as fast as a test with a moderate fail rate and a short duration — the genuine goal is fast feedback, not just running the historically riskiest test first regardless of cost. Dividing by duration directly encodes "likely to fail, AND cheap to find out" into a single score, matching this chapter's opening page's own emphasis on speed as a genuine, real value, not just thoroughness for its own sake.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Using an LLM to guess test relevance from file names or descriptions rather than real coverage data. This is exactly the kind of exact-vs-fuzzy mistake Chapter 5 warned against — coverage data provides a genuinely exact answer to "which tests exercise this file," making reasoning-based guessing strictly weaker and unnecessary.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>Selection and prioritization should be run in that order specifically — selecting the relevant subset first, then prioritizing within it — rather than prioritizing the entire 488-test suite and truncating, since the latter risks cutting off genuinely relevant tests that simply score lower on historical fail rate.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Use real, measured coverage data for test selection, never LLM-based guessing about relevance from names or descriptions alone.</li>
+  <li>Prioritize selected tests by a combination of fail rate and duration, optimizing for fast feedback, not just historical risk alone.</li>
+  <li>Select the relevant subset before prioritizing within it, rather than prioritizing the full suite and truncating.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Test selection and prioritization are two related but distinct pipeline-scale decisions — which tests to run, and in what order to run them.</li>
+  <li>Selection should be deterministic, grounded in real coverage data, not reasoning-based guessing about relevance.</li>
+  <li>Prioritization should optimize for fast, cheap detection of real problems, combining fail rate and duration rather than either alone.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Using this page's <code>priority_score</code> formula, compute scores for two hypothetical tests — one with a very high fail rate but very long duration, and one with a moderate fail rate but very short duration — and explain which one the formula correctly prioritizes, connecting to this page's own reasoning about fast feedback.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A teammate proposes using an LLM to read each test's name and docstring, then judge "does this seem related to the discount validator change?" Why is this page's coverage-data approach genuinely better?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Coverage data provides a GENUINELY exact, MEASURED answer to "does THIS test ACTUALLY exercise the changed CODE" — an LLM judging RELEVANCE from a NAME or DOCSTRING is GUESSING at something REAL coverage data can CONFIRM directly, EXACTLY the SAME exact-vs-fuzzy MISTAKE this course has WARNED against SINCE Chapter 5.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What COVERAGE data GENUINELY confirms:
+test_discount_stacking_rejected DIRECTLY calls CODE PATHS
+  within discount_validator.py DURING its EXECUTION — a
+  MEASURED, VERIFIABLE FACT, not an INFERENCE.
+
+What NAME/DOCSTRING-based GUESSING risks:
+A test NAMED "test_pricing_edge_cases" might ACTUALLY exercise
+  the discount VALIDATOR extensively, while a test NAMED
+  "test_discount_helpers" might ACTUALLY test an UNRELATED,
+  DEPRECATED helper FUNCTION that HAPPENS to share
+  VOCABULARY — NAMES and DOCSTRINGS are GENUINELY unreliable
+  PROXIES for ACTUAL code EXECUTION paths.</code></pre>
+<p>This is EXACTLY why THIS page insists SELECTION should be DETERMINISTIC — WHEN an EXACT, MEASURED signal (coverage DATA) is AVAILABLE, REASONING-based GUESSING is STRICTLY weaker, RISKING both FALSE inclusions (WASTED time) and FALSE exclusions (a GENUINELY relevant test MISSED).</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page argue dividing fail rate by duration is GENUINELY better than sorting SOLELY by historical fail rate?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>SORTING by fail RATE alone OPTIMIZES for "MOST likely to FAIL," but this CHAPTER'S actual GOAL (per its OWN opening page) is FAST feedback — a HIGH-fail-rate TEST that takes a LONG time doesn't SURFACE problems any FASTER than a LOW-priority test WOULD, UNDERMINING the ACTUAL goal.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What sorting by FAIL RATE alone would PRODUCE, for THIS
+page's OWN example DATA:
+If test_checkout_flow (fail_rate=0.03) HAPPENED to have a
+  HIGHER fail rate than BOTH discount TESTS, it would RUN
+  FIRST — taking 45 SECONDS BEFORE any RESULT is KNOWN, DESPITE
+  the discount TESTS being BOTH MORE likely to FAIL and FAR
+  CHEAPER to RUN.
+
+What DIVIDING by duration CORRECTLY prioritizes INSTEAD:
+test_discount_stacking_rejected (SCORE 0.05) runs FIRST,
+  surfacing a LIKELY problem in JUST 3 seconds — MATCHING this
+  CHAPTER'S own STATED goal of FAST feedback, not JUST
+  eventual, THOROUGH coverage.</code></pre>
+<p>This is a GENUINELY important DESIGN choice — the METRIC needs to MATCH the ACTUAL goal (FAST detection of REAL problems), and FAIL rate ALONE, WITHOUT accounting for DURATION, would OPTIMIZE for a SUBTLY different, LESS useful GOAL (running the HISTORICALLY riskiest test FIRST, REGARDLESS of HOW long it TAKES to actually TELL you something).</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why this page recommends SELECTING the relevant subset BEFORE prioritizing, rather than prioritizing the FULL 488-test suite and simply TRUNCATING to the top N.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>PRIORITIZING the FULL suite and TRUNCATING would RISK cutting OFF a test that's GENUINELY relevant to the CHANGE (per REAL coverage DATA) simply because it HAPPENS to have a LOWER historical FAIL rate than SOME unrelated test — CONFLATING two GENUINELY separate QUESTIONS (relevance and PRIORITY) into ONE, FLAWED ranking.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What TRUNCATING the FULL, prioritized suite would RISK:
+Suppose test_discount_code_validation (GENUINELY relevant,
+  per COVERAGE data) has a LOWER historical fail RATE than
+  SOME COMPLETELY unrelated K6 performance TEST. PRIORITIZING
+  the FULL suite and TAKING only the TOP N might EXCLUDE the
+  GENUINELY relevant discount TEST entirely, WHILE INCLUDING
+  an UNRELATED test that JUST HAPPENS to SCORE higher.
+
+Why SELECTING FIRST (THIS page's ACTUAL approach) AVOIDS this:
+SELECTION establishes the GENUINELY relevant POOL FIRST, using
+  REAL coverage EVIDENCE — PRIORITIZATION then ONLY reorders
+  WITHIN that ALREADY-relevant POOL, GUARANTEEING every
+  GENUINELY relevant test STILL runs, JUST in a SMARTER ORDER.</code></pre>
+<p>This is a GENUINELY important SEQUENCING point — RELEVANCE (SHOULD this test run AT ALL) and PRIORITY (WHEN should it RUN, GIVEN it's ALREADY selected) are TWO distinct QUESTIONS, and ANSWERING them in the WRONG order RISKS conflating THEM in a WAY that could GENUINELY skip RELEVANT tests.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might it be RISKY to rely EXCLUSIVELY on this page's SELECTION approach for EVERY pipeline run, WITHOUT ever running the FULL suite?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>COVERAGE data can ITSELF be STALE or INCOMPLETE — a GENUINELY subtle, INDIRECT dependency (say, a SHARED configuration VALUE two SEEMINGLY unrelated MODULES both DEPEND on) might NOT be CAPTURED by STANDARD code-coverage TOOLING, meaning SELECTION based PURELY on coverage COULD miss a GENUINELY relevant test.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why COVERAGE data ISN'T a PERFECT, complete SIGNAL:
+STANDARD coverage TOOLS (like pytest-COV) track WHICH lines
+  of CODE a test EXECUTES — but SUBTLE, INDIRECT dependencies
+  (a SHARED environment VARIABLE, a DATABASE schema BOTH
+  MODULES rely ON) might NOT be REFLECTED in LINE-level
+  coverage AT ALL, EVEN though a CHANGE could GENUINELY break
+  a TEST that appears COMPLETELY "unrelated" by COVERAGE
+  metrics ALONE.
+
+Why PERIODICALLY running the FULL suite REMAINS a REASONABLE
+safeguard:
+EXACTLY the SAME "genuinely EXPENSIVE check, RUN PERIODICALLY
+  rather than EVERY time" PRINCIPLE this COURSE established
+  SINCE Chapters 5 and 6 — RUNNING the COMPLETE 488-test SUITE
+  on a PERIODIC schedule (NIGHTLY, or BEFORE a PRODUCTION
+  deploy SPECIFICALLY) CATCHES whatever GENUINELY subtle GAPS
+  coverage-BASED selection MIGHT miss on a TYPICAL, FAST,
+  PER-commit RUN.</code></pre>
+<p>This is a GENUINELY important, HONEST limitation WORTH naming — SELECTION based on COVERAGE data is GENUINELY strong EVIDENCE, but NOT a PERFECT guarantee, and a MATURE pipeline STRATEGY combines FAST, SELECTIVE runs for MOST commits with PERIODIC, FULL runs as a GENUINE safeguard AGAINST what SELECTIVE running MIGHT miss.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you extend THIS page's prioritize_tests function to ALSO account for a test's RECENCY of last FAILURE, not JUST its overall HISTORICAL fail rate?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A GENUINELY useful extension would WEIGHT recent FAILURES more HEAVILY than OLDER ones, since a test that FAILED YESTERDAY is ARGUABLY MORE likely to be GENUINELY problematic RIGHT NOW than ONE whose ONLY historical FAILURE was SIX months AGO, DESPITE both POTENTIALLY having the SAME OVERALL fail RATE.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def priority_score_with_recency(test_name, historical_data,
+                                   current_date):
+    stats = historical_data.get(test_name, {})
+    fail_rate = stats.get("fail_rate", 0)
+    duration_s = stats.get("avg_duration_s", 60)
+    last_failure_date = stats.get("last_failure_date")
+
+    recency_boost = 1.0
+    if last_failure_date:
+        days_since = (current_date - last_failure_date).days
+        if days_since &lt; 7:
+            recency_boost = 2.0  # RECENT failures GENUINELY
+                # warrant MORE attention than OLD, POSSIBLY
+                # already-RESOLVED ones
+
+    return (fail_rate * recency_boost) / max(duration_s, 1)</code></pre>
+<p>This GENUINELY extends this PAGE'S own scoring LOGIC with a REALISTIC, PRACTICAL refinement — a test's OVERALL historical fail RATE treats a FAILURE from SIX months AGO (POSSIBLY already FIXED) the SAME as ONE from YESTERDAY (POSSIBLY still an ACTIVE, ONGOING problem) — WEIGHTING recent FAILURES more HEAVILY produces a GENUINELY more USEFUL priority ORDERING, directly EXTENDING this page's ORIGINAL "FAST, cheap DETECTION of REAL problems" GOAL with a MORE nuanced, TIME-aware SIGNAL.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

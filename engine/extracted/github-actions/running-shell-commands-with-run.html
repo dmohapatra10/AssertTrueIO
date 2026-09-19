@@ -1,0 +1,101 @@
+<!doctype html>
+<html><head>
+<title>Running Shell Commands in GitHub Actions: The run: Key Explained</title>
+<meta name="description" content="Everything the run: key actually supports — single commands, multi-line scripts, working directories, and choosing a specific shell." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/running-shell-commands-with-run.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Running Shell Commands: The run: Key</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="github-hosted-runners-and-runs-on.html">GitHub-Hosted Runners & runs-on</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p><code>run:</code> executes a plain shell command as a step — used constantly throughout every example so far, without ever being explained in its own right. This page covers what it actually supports beyond a single one-line command.</p>
+
+<h2 id="a-single-command">A Single Command</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>- run: npm test</code></pre>
+<p>The simplest form — one command, one line, executed by the runner's default shell.</p>
+
+<h2 id="multi-line-scripts">Multi-Line Scripts</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>- run: |
+    echo "Starting build"
+    npm ci
+    npm run build
+    echo "Build complete"</code></pre>
+<p>The pipe character (<code>|</code>) tells YAML this is a multi-line string, preserving line breaks — each line runs as a separate shell command, in order, within the same step. This is genuinely different from writing four separate steps: it's one step containing a small script, sharing the same shell session throughout.</p>
+
+<h2 id="setting-a-working-directory">Setting a Working Directory</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>- run: npm test
+  working-directory: ./backend</code></pre>
+<p>By default, commands run from the repository's root. <code>working-directory</code> changes that for a specific step — useful for a monorepo with multiple sub-projects, where a command needs to run from inside one specific folder.</p>
+
+<h2 id="choosing-a-specific-shell">Choosing a Specific Shell</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>- run: echo "Hello from PowerShell"
+  shell: pwsh</code></pre>
+<p>The default shell depends on the runner's operating system (bash on Linux and macOS, PowerShell on Windows) — <code>shell:</code> lets you override this explicitly for a specific step, useful when a command genuinely needs a particular shell's specific syntax regardless of the underlying OS.</p>
+
+<h2 id="detailed-example-a-real-multi-line-build-script">Detailed Example — A Real Multi-Line Build Script</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          echo "Installing dependencies..."
+          npm ci
+          echo "Running build..."
+          npm run build
+          echo "Build finished — checking output size"
+          du -sh dist/</code></pre>
+<p>Everything from "Installing dependencies" through the final <code>du -sh</code> command runs as one cohesive step, sharing the same shell session — variables set earlier in the script remain available to later lines, exactly like running these same commands manually, one after another, in a real terminal.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might you choose one multi-line <code>run:</code> step over four separate single-command steps doing the same work? A single multi-line step shares one shell session — a variable set on line 2 is genuinely available on line 4. Four separate steps don't share shell state that way by default; each step starts its own fresh shell invocation. The choice matters specifically when later commands depend on something set up by earlier ones within the same shell context.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Assuming a shell variable set in one <code>run:</code> step is automatically available in a later, separate step. It isn't — each step is its own shell invocation, and shell-level variables don't persist across step boundaries this way (passing actual data between steps deliberately, via GitHub's own step-output mechanism, is covered in a later chapter).</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>The pipe character (<code>|</code>) preserves line breaks exactly; a related character, the greater-than sign (<code>&gt;</code>), folds a multi-line YAML string into one line with spaces instead — genuinely different behavior, worth knowing both exist even though <code>|</code> is far more commonly what you actually want for a multi-line script.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Use a single multi-line <code>run:</code> step when later commands genuinely depend on something set up earlier in the same shell session.</li>
+  <li>Use <code>working-directory</code> explicitly for monorepo-style projects rather than <code>cd</code>-ing manually inside the script itself.</li>
+  <li>Only override <code>shell:</code> when a command genuinely requires a specific shell's syntax — otherwise, trust the sensible per-OS default.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li><code>run:</code> executes plain shell commands — a single line, or a multi-line script using the <code>|</code> character.</li>
+  <li>Commands within one multi-line <code>run:</code> step share the same shell session; separate steps do not share shell state.</li>
+  <li><code>working-directory</code> and <code>shell</code> let you override the default folder and shell for a specific step.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Write a single multi-line <code>run:</code> step that sets a shell variable on its first line and then uses that variable's value on a later line within the same step — confirming for yourself that this genuinely works within one step, unlike across separate steps.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>What's the practical difference between one multi-line run: step and four separate single-line run: steps doing the same commands?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A single multi-line step shares one continuous shell session across all its lines — a variable set early in the script remains available to later lines within that same step. Four separate steps each start their own fresh shell invocation, so shell-level state set in one step doesn't automatically carry over to the next, even though they run in the same job.</div>
+</details>
+<details class="faq-item">
+<summary>Why does the pipe character (|) matter when writing a multi-line command in YAML?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The pipe character tells YAML's parser that the following indented block is a multi-line string with its line breaks preserved exactly as written. Without it, YAML would need a different (and less convenient) way to represent multiple lines, and a related character, the greater-than sign, would instead fold the lines together into one continuous string, which is a genuinely different, usually less useful behavior for a script.</div>
+</details>
+<details class="faq-item">
+<summary>What does the working-directory setting on a step actually change?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It changes which folder that specific step's commands execute from, overriding the default of the repository's root. This is particularly useful in a monorepo containing multiple distinct sub-projects, where a build or test command genuinely needs to run from inside one specific project's folder rather than the overall repository root.</div>
+</details>
+<details class="faq-item">
+<summary>Why might a step need to explicitly set shell: pwsh even on a Windows runner, where PowerShell is already the default?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">While pwsh is indeed the default shell on Windows runners, explicitly setting shell: can still be useful for clarity, or in situations where a workflow needs consistent, explicit behavior regardless of what the underlying runner's default happens to be — making the workflow's actual behavior clear from reading the YAML itself, rather than depending on an implicit, OS-dependent default.</div>
+</details>
+<details class="faq-item">
+<summary>Why doesn't a shell variable set in one step automatically become available in a later, separate step?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Each step is its own independent shell invocation — shell-level variables exist only within the process that step's shell runs in, and that process ends when the step completes. Genuinely passing a value from one step to another requires using GitHub Actions' own dedicated step-output mechanism, which is a deliberate, separate feature from ordinary shell variables, covered in a later chapter on passing information between steps.</div>
+</details>
+</div>
+</article>
+</body></html>

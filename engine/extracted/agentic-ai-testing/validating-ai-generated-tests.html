@@ -1,0 +1,218 @@
+<!doctype html>
+<html><head>
+<title>Validating AI-Generated Tests: The Checkpoint Every Page in This Chapter Needs</title>
+<meta name="description" content="A concrete checklist for reviewing AI-generated scenarios and code before trusting them, and why validation belongs before conversion, not after — closing out this chapter&#x27;s generation pipeline." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/validating-ai-generated-tests.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Validating AI-Generated Tests</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="converting-ai-generated-scenarios-into-automated-tests.html">Converting AI-Generated Scenarios into Automated Tests</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Every page in this chapter has mentioned review in passing. This final page makes it concrete: a genuine checklist for what to actually check before trusting AI-generated scenarios, data, or code — and why this belongs BEFORE conversion into real tests, not as an afterthought once tests already exist.</p>
+
+<h2 id="a-genuine-validation-checklist">A Genuine Validation Checklist</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>For every AI-generated SCENARIO, check:
+
+☐ Is the stated EXPECTED OUTCOME actually correct? (Not just
+  present — CORRECT. An LLM can confidently state a wrong
+  expected outcome, exactly Chapter 2's "confidently, fluently
+  wrong" warning.)
+
+☐ Does it test something the REQUIREMENT actually says, or
+  did the LLM infer something the requirement never stated?
+
+☐ Is it SPECIFIC enough to be genuinely checkable? (Vague
+  scenarios can't be converted into precise assertions.)
+
+For every AI-generated TEST DATA value, check:
+
+☐ Is it genuinely REALISTIC, or an obviously synthetic
+  placeholder that might miss real conditions?
+
+☐ Could it collide with real, production data?
+
+☐ Are any dates RELATIVE to test-run time, not fixed values
+  that will eventually become stale?
+
+For every AI-generated CODE conversion, check:
+
+☐ Do the SELECTORS genuinely correspond to real elements on
+  the real, actual application — not just plausible guesses?
+
+☐ Does the ASSERTION precisely match the scenario's stated
+  expected outcome, not a loose approximation?</code></pre>
+
+<h2 id="why-validation-belongs-before-conversion">Why Validation Belongs BEFORE Conversion</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>❌ Convert first, validate later:
+  Generate 15 scenarios → convert ALL 15 into real Playwright
+  tests → discover during review that 4 of them tested things
+  the requirement never actually specified.
+
+  Cost: real time spent writing code for scenarios that
+  shouldn't have existed in the first place.
+
+✅ Validate first, THEN convert:
+  Generate 15 scenarios → review and validate → discover the
+  same 4 problems, but BEFORE writing any code for them →
+  convert only the 11 genuinely validated scenarios.
+
+  Cost: the SAME review time, but zero wasted code-writing
+  effort on scenarios that were never going to survive review.</code></pre>
+<p>This is genuinely the same principle from Chapter 3's incremental build approach — verify each piece before building the next thing on top of it, rather than discovering a problem several layers downstream from where it actually originated.</p>
+
+<h2 id="a-real-example-of-validation-catching-a-genuine-problem">A Real Example of Validation Catching a Genuine Problem</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>AI-generated scenario (looks reasonable at first glance):
+"Apply a discount code with a NEGATIVE percentage value (-15%)
+— system should reject this as invalid."
+
+VALIDATION catches a real problem: the actual requirement
+NEVER mentions negative percentages as a possibility at all —
+codes are described as HAVING a percentage or fixed amount,
+with no mention of how that value is originally created or
+validated. This scenario tests something the LLM apparently
+INFERRED could go wrong, not something the requirement
+actually specifies correct behavior for.
+
+This isn't necessarily a BAD scenario to eventually explore —
+but it needs to be flagged as "requirement gap, needs
+clarification" (matching the Edge Cases page's own guidance),
+not converted directly into a test asserting behavior nobody
+has actually confirmed is correct.</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might a validation checklist matter MORE for AI-generated tests specifically, compared to tests a human wrote entirely from scratch? A human writing a test from scratch is simultaneously deciding what to test and confirming they actually understand the requirement correctly — the two happen together. AI generation separates these: the LLM decides what to test based on its own interpretation, and a human's understanding of the requirement is never actually exercised unless they deliberately, separately validate the output against their own genuine understanding of what's correct.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Treating a fast pass/fail result from running a converted test as validation. A test can pass reliably while testing something the requirement never actually specified (like the negative-percentage example), or while asserting a subtly wrong expected outcome that happens to match a buggy implementation. Passing tests confirm the CODE matches the TEST — they say nothing about whether the test itself was ever actually correct.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>A genuinely useful validation habit: for any AI-generated scenario, ask "could I point to the EXACT sentence in the requirement that justifies this specific expected outcome?" If you can't point to one, that's a concrete, checkable signal the scenario might be testing an inference rather than something the requirement actually specifies.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Validate every AI-generated scenario, data value, and code conversion against this page's checklist before trusting or converting it further.</li>
+  <li>Validate before converting into real code, not after — catching a problem earlier avoids wasted downstream effort.</li>
+  <li>Treat a scenario testing an inference the requirement never actually states as a genuine requirement gap worth clarifying, not something to silently convert or silently discard.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Validation is a concrete, checkable process — specific things to verify for scenarios, data, and code — not a vague "review it" gesture.</li>
+  <li>Validating before conversion avoids wasting real effort writing code for scenarios that don't survive review.</li>
+  <li>A passing test result is not validation — it confirms code matches the test, not that the test itself was ever actually correct.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Take this chapter's own edge case — "two users applying the same single-use code simultaneously" — and run it through this page's full validation checklist, being explicit about which checklist items you can confidently confirm and which reveal genuine, remaining ambiguity worth flagging before any code gets written.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A teammate says "the converted test passes, so the AI-generated scenario it came from must have been correct." Why is this reasoning flawed?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A passing test only confirms the code matches whatever the test asserts — it says nothing about whether the test's underlying scenario was ever genuinely correct in the first place, exactly this page's core distinction.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A concrete way this reasoning fails:
+Scenario states an INCORRECT expected outcome (perhaps the
+  LLM got the discount CALCULATION subtly wrong when drafting
+  it). The converted test asserts this SAME incorrect value.
+  If the actual application ALSO has a matching bug (or was
+  built based on the same misunderstanding), the test would
+  PASS — while both the test AND the application share the
+  exact same underlying error.
+
+"Passes" here means "code and test agree," which is NOT the
+  same thing as "test and REQUIREMENT agree" — the actual
+  standard that matters.</code></pre>
+<p>This is precisely why this page insists validation happens against the REQUIREMENT (checking whether the expected outcome is actually correct), not just observing whether a test happens to pass — a passing test and a genuinely correct test are related but different things.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Walk through why the "negative percentage" scenario example on this page is a genuine validation catch, not just an overly cautious rejection of a reasonable-sounding test.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>The validation catch isn't about whether negative percentages are a bad thing to think about — it's specifically that the scenario claims a certain behavior is REQUIRED, when the actual requirement never states that at all, making the scenario's "expected outcome" an unconfirmed guess rather than a genuine specification.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What the scenario CLAIMS:
+"System should reject [a negative percentage] as invalid" —
+  stated with the same confidence as any other scenario in
+  this chapter, as if it were a genuine, confirmed requirement.
+
+What the ACTUAL requirement says:
+Nothing at all about negative percentages, or how a code's
+  discount value is validated when it's originally CREATED.
+  The scenario's "should reject" is the LLM's own INFERENCE
+  about what seems reasonable — not something confirmed by
+  the actual, real specification.
+
+Why this matters, concretely:
+If converted directly into a test asserting "should reject,"
+  and the REAL system actually behaves differently (perhaps
+  negative percentages are silently prevented earlier, at
+  CODE-CREATION time, making this scenario moot at the
+  APPLICATION step) — the test could fail for reasons that
+  have nothing to do with a genuine bug at all.</code></pre>
+<p>The validation catch here isn't "this is a bad thing to eventually explore" — it's specifically "this claims certainty the requirement doesn't actually provide," which is exactly the gap this page's checklist is designed to surface before any code gets written based on an unconfirmed assumption.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page argue that validating BEFORE conversion saves genuine effort, rather than just moving the same amount of work earlier?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because the validation work itself is roughly the same either way, but validating first avoids doing ADDITIONAL work (writing real code) for scenarios that validation would have eliminated anyway — the savings come from what's avoided, not from doing the same work faster.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Convert-first approach (LESS efficient):
+Time spent GENERATING 15 scenarios (same either way)
++ Time spent CONVERTING all 15 into real Playwright code
++ Time spent VALIDATING (discovering 4 shouldn't have existed)
++ Time WASTED on the code already written for those 4
+= Genuinely MORE total effort
+
+Validate-first approach (this page's actual recommendation):
+Time spent GENERATING 15 scenarios (identical)
++ Time spent VALIDATING (identical — same 4 problems found)
++ Time spent CONVERTING only the 11 genuinely validated ones
+= LESS total effort — the difference is EXACTLY the code that
+  would have been wasted on the 4 invalid scenarios</code></pre>
+<p>The validation step's OWN cost doesn't change based on ordering — what changes is whether additional, real conversion effort gets spent on scenarios that validation was always going to reject anyway, which is avoidable ONLY if validation happens first.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you explain the "could I point to the exact sentence that justifies this" technique to someone new to validating AI-generated content, using a concrete example from this chapter?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This technique turns a vague "does this seem right" judgment into a genuinely concrete, checkable exercise — either you can point to specific requirement text, or you've identified a real gap worth flagging, with no ambiguous middle ground.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Applying it to a GENUINELY validated scenario:
+"Apply a code in different letter case — still works."
+Can you point to the justifying sentence? YES: "Codes are
+  case-insensitive." — directly, explicitly stated. This
+  scenario PASSES the technique cleanly.
+
+Applying it to the negative-percentage scenario:
+"Negative percentage should be rejected."
+Can you point to the justifying sentence? NO — nothing in the
+  stated requirement addresses this at all. This scenario
+  FAILS the technique, correctly flagging it as an inference
+  rather than a confirmed specification.</code></pre>
+<p>The genuine value of this technique: it replaces a subjective "this feels reasonable" judgment (which an LLM's confident, fluent phrasing can easily influence) with a concrete, objective check — either the justifying text exists in the requirement, or it doesn't, with no room for being talked into trusting something just because it sounds plausible.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Looking back across this entire chapter, how does the validation discipline on this final page connect to Chapter 1's honest discussion of autonomous QA's genuine limitations?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This page is the concrete, practical implementation of Chapter 1's abstract principle — that autonomous QA genuinely speeds up drafting and generation, but doesn't reliably replace human judgment, and that responsible adoption keeps explicit human checkpoints on anything consequential.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Chapter 1's abstract claim:
+"Autonomous QA genuinely speeds up scenario drafting... but
+  doesn't reliably replace human judgment about what actually
+  matters... a genuinely honest workflow keeps explicit human
+  checkpoints" — stated as a general principle, without yet
+  showing exactly WHAT that checkpoint should concretely do.
+
+THIS page's concrete implementation:
+The actual, specific checklist — is the expected outcome
+  correct, is it justified by the real requirement, are dates
+  relative not fixed, do selectors correspond to real elements
+  — is EXACTLY what Chapter 1's "human checkpoint" looks like
+  in genuine, day-to-day practice for test generation
+  specifically, not just an abstract principle anymore.</code></pre>
+<p>This is a deliberate, full-circle connection: this entire chapter has been building toward showing that generation genuinely speeds up drafting (Chapter 1's honest benefit), while this final page shows exactly what the honest limitation — needing real human judgment — concretely requires in practice, closing the loop between principle and practice that this course has maintained since its very first page.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

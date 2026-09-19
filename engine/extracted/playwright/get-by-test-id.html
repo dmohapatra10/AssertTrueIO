@@ -1,0 +1,112 @@
+<!doctype html>
+<html><head>
+<title>Playwright getByTestId(): Complete Guide with Real-World Examples</title>
+<meta name="description" content="How Playwright&#x27;s getByTestId() locator works, why it&#x27;s a deliberate fallback rather than a default, and how to configure a custom test ID attribute." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/get-by-test-id.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1><code class="api-name">getByTestId()</code></h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="locators.html">Locators overview</a>, <a href="get-by-role.html">getByRole()</a></p>
+<article class="content">
+<h2 id="what-is-getbytestid">What is <code>getByTestId()</code>?</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>page.getByTestId(testId: string | RegExp)</code></pre>
+      <p><code>getByTestId()</code> finds an element by a dedicated <code>data-testid</code> attribute — a hook that exists purely for automation, with no meaning to the browser, the user, or assistive technology.</p>
+
+      <h2 id="why-it-exists-and-why-it-s-last-on-the-priority-list">Why it exists — and why it's last on the priority list</h2>
+      <p>Every other locator in this course finds elements the way a <em>user</em> perceives them (a role, a label, visible text). <code>getByTestId()</code> deliberately doesn't — it's a private contract between the app and the test suite. That's exactly why Playwright ranks it last: using it as a default means your tests stop exercising whether the app is actually usable and accessible. It earns its place for the cases nothing else covers cleanly — icon-only elements with no good accessible name, deeply generic containers, or elements you specifically want decoupled from copy/design churn.</p>
+
+      <h2 id="basic-example">Basic Example</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>await page.getByTestId('checkout-submit-button').click();</code></pre>
+
+      <h2 id="configuring-the-attribute-name">Configuring the attribute name</h2>
+      <p>By default Playwright reads <code>data-testid</code>, but this is configurable project-wide:</p>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// playwright.config.ts
+export default defineConfig({
+  use: {
+    testIdAttribute: 'data-qa', // e.g. to match an existing convention
+  },
+});</code></pre>
+      <p>Changing this later is a global, one-line config change — not a find-and-replace across every test file — which is part of why standardizing on it early is worth doing deliberately rather than accidentally.</p>
+
+      <h2 id="detailed-example-icon-only-toolbar">Detailed Example — Icon-Only Toolbar</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>&lt;button data-testid="toolbar-bold"&gt;&lt;svg .../&gt;&lt;/button&gt;
+&lt;button data-testid="toolbar-italic"&gt;&lt;svg .../&gt;&lt;/button&gt;
+&lt;button data-testid="toolbar-underline"&gt;&lt;svg .../&gt;&lt;/button&gt;
+
+await page.getByTestId('toolbar-bold').click();
+await expect(page.getByTestId('editor-content')).toHaveClass(/bold-active/);</code></pre>
+      <p>A better long-term fix here is adding <code>aria-label="Bold"</code> to each button so <code>getByRole('button', { name: 'Bold' })</code> becomes possible — <code>data-testid</code> is a pragmatic bridge, not necessarily the permanent answer.</p>
+
+      <h2 id="real-world-example-test-only-container-scoping">Real-World Example — Test-Only Container Scoping</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('order summary shows correct total', async ({ page }) =&gt; {
+  await page.goto('/checkout');
+
+  const summary = page.getByTestId('order-summary');
+  await expect(summary.getByText('Subtotal')).toBeVisible();
+  await expect(summary.getByTestId('order-total')).toHaveText('$64.98');
+});</code></pre>
+      <p>Using a test ID to scope into a repeated or ambiguous section of the page (here, disambiguating an "order-summary" total from any other dollar amount on the page) is one of the more defensible uses of this locator, even in an otherwise role-first test suite.</p>
+
+      <h2 id="overuse-vs-deliberate-use">❌ Overuse vs. ✅ Deliberate use</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Reaching for data-testid on an ordinary, clearly-labeled button
+await page.getByTestId('submit-btn').click();
+
+// ✅ The button already has a perfectly good accessible name — use it
+await page.getByRole('button', { name: 'Submit' }).click();
+
+// ✅ Deliberate use — no meaningful role/label/text exists here
+await page.getByTestId('color-swatch-4').click();</code></pre>
+
+      <h2 id="common-mistakes">Common Mistakes</h2>
+      <ul>
+        <li><strong>Defaulting to <code>data-testid</code> for every single element</strong> as a team convention "to be safe" — this produces tests that pass even when the app has become genuinely inaccessible, since accessibility gaps never surface as locator failures.</li>
+        <li><strong>Auto-generating test IDs from database IDs or array indices</strong> — <code>data-testid="item-47"</code> tied to a mutable database row is fragile in a different way than CSS selectors, and just as disconnected from user-facing meaning.</li>
+        <li><strong>Letting test IDs leak into production bundles unminified/unnecessarily</strong> when they're only ever needed in test/staging builds — a minor but real performance/cleanliness concern at scale.</li>
+      </ul>
+
+      <h2 id="edge-cases">Edge Cases</h2>
+      <ul>
+        <li><strong>Third-party components you don't control</strong> (e.g., a vendor widget) — you can't add a <code>data-testid</code> to code you don't own, so this locator simply isn't available there; fall back to whatever stable role/text/CSS the vendor's markup does expose.</li>
+      </ul>
+
+      <h2 id="debugging">Debugging</h2>
+      <p>If a test ID locator stops matching after a deploy, check whether the attribute was accidentally stripped by a build step (some minifiers/production configs strip non-standard <code>data-*</code> attributes) before assuming the element was removed entirely.</p>
+
+      <h2 id="best-practices">Best Practices</h2>
+      <ul>
+        <li>Ask "does this element have a real role, label, or text I should use instead?" before adding a test ID — treat it as the last resort it's designed to be.</li>
+        <li>Name test IDs after what the element <em>does</em>, not an internal implementation detail (<code>checkout-submit-button</code>, not <code>btn-7</code>).</li>
+        <li>Standardize the attribute name (<code>data-testid</code> or your own convention) via <code>testIdAttribute</code> in config, once, rather than mixing conventions across the codebase.</li>
+      </ul>
+
+      <h2 id="practice-exercise">Practice Exercise</h2>
+      <p>A settings page has five icon-only toggle switches with no visible text and no <code>aria-label</code>. Propose two different fixes — one purely in the test (using <code>data-testid</code>), and one in the app itself that would let you use <code>getByRole()</code> instead. Explain which you'd actually recommend to the team.</p>
+
+      <h2 id="summary">Summary</h2>
+      <p><code>getByTestId()</code> is a deliberate, configurable escape hatch for elements with no meaningful accessible role, label, or text — not a default. Overusing it trades away the accessibility-checking side benefit that role/label/text-based locators provide for free.</p>
+
+      <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>If getByTestId() is the most stable, refactor-proof locator, why isn't it Playwright's recommended default?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Stability against refactors is only one axis. Because a test ID has no relationship to what a user or screen reader perceives, a suite built entirely on test IDs can pass in full even when the app has serious accessibility gaps — role, label, and text-based locators double as a continuous accessibility check, which is worth more than raw refactor-stability for most teams.</div>
+</details>
+<details class="faq-item">
+<summary>Why is getByTestId() considered a last resort rather than a default?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It has no relationship to what a user or screen reader perceives, so a suite built entirely on test IDs can pass even with real accessibility gaps.</div>
+</details>
+<details class="faq-item">
+<summary>How do you change the attribute Playwright reads for getByTestId()?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Set testIdAttribute in the use block of playwright.config.ts, e.g. to data-qa instead of the default data-testid.</div>
+</details>
+<details class="faq-item">
+<summary>Give an example of a legitimate use for getByTestId().<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">An icon-only button with no accessible name and no way to add one, or scoping into a repeated/ambiguous section of the page.</div>
+</details>
+<details class="faq-item">
+<summary>What's a common mistake when naming test IDs?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Tying them to implementation details like array indices or database IDs (e.g. item-47) instead of what the element does.</div>
+</details>
+</div>
+</article>
+</body></html>

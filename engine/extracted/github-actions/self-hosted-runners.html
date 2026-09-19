@@ -1,0 +1,100 @@
+<!doctype html>
+<html><head>
+<title>Self-Hosted Runners in GitHub Actions: When and Why to Use Them</title>
+<meta name="description" content="What self-hosted runners are, why organizations use them, their real advantages and risks, and the genuine maintenance burden versus GitHub-hosted runners." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/self-hosted-runners.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Self-Hosted Runners</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="advanced-github-actions-and-production-cicd.html">Advanced GitHub Actions & Production CI/CD overview</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>A self-hosted runner is a machine you (or your organization) provide and maintain yourselves, rather than a GitHub-hosted virtual machine provisioned fresh for every job. It runs the exact same GitHub Actions runner software, just on infrastructure you control.</p>
+
+<h2 id="why-do-we-need-it">Why do we need it?</h2>
+<p>GitHub-hosted runners genuinely can't meet every real requirement — specific hardware (a GPU, for instance), access to a private internal network GitHub's own infrastructure has no route to, or license restrictions on certain software that require running on infrastructure the license holder controls.</p>
+
+<h2 id="using-a-self-hosted-runner">Using a Self-Hosted Runner</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  build:
+    runs-on: self-hosted   # instead of ubuntu-latest, windows-latest, etc.
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm test</code></pre>
+<p>Genuinely simple from the workflow's own perspective — the actual complexity lives entirely in setting up and maintaining the runner machine itself, not in the workflow YAML.</p>
+
+<h2 id="real-advantages">Real Advantages</h2>
+<ul>
+  <li><strong>Specific hardware</strong> — a GPU for machine learning workloads, specialized processors GitHub doesn't offer.</li>
+  <li><strong>Private network access</strong> — reaching an internal service, database, or resource with no public route.</li>
+  <li><strong>Cost, at genuine scale</strong> — for an organization running an enormous volume of CI minutes, self-hosted infrastructure can become more economical than paying per-minute for GitHub-hosted runners.</li>
+  <li><strong>Persistent state between runs</strong> — a self-hosted runner isn't automatically destroyed after each job, which can genuinely help with some caching-heavy workloads (though this also introduces the risk covered below).</li>
+</ul>
+
+<h2 id="real-risks">Real Risks</h2>
+<ul>
+  <li><strong>You own the security</strong> — GitHub-hosted runners are provisioned fresh and destroyed after every job; a self-hosted runner, left running, is a genuine, ongoing attack surface you're responsible for securing.</li>
+  <li><strong>Persistent state can leak between runs</strong> — the exact "fresh runner every time" guarantee (Chapter 4) that keeps jobs isolated doesn't automatically hold for a self-hosted runner unless you deliberately maintain it.</li>
+  <li><strong>Genuine, ongoing maintenance</strong> — someone has to keep the machine patched, updated, and actually running — this is real, ongoing operational work GitHub otherwise handles for you entirely.</li>
+</ul>
+
+<h2 id="detailed-example-a-genuine-justified-use-case">Detailed Example — A Genuine, Justified Use Case</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>ShopEasy's actual scenario: their integration tests need to connect
+to an internal database that lives on a private company network,
+with no public internet route to it at all.
+
+GitHub-hosted runner: genuinely CANNOT reach this database — no route exists.
+Self-hosted runner (on the same private network): CAN reach it directly.</code></pre>
+<p>This is a genuinely justified case — no configuration change to a GitHub-hosted runner could solve this; the actual network topology requires infrastructure with real access to that private network.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might a team decide against self-hosted runners even after establishing a genuine technical justification exists? The real, ongoing security and maintenance burden is a genuine cost, not a one-time setup task — a team needs to weigh whether that ongoing operational responsibility is actually worth taking on, versus finding another way to solve the underlying problem (like establishing a secure tunnel or gateway that a GitHub-hosted runner could use instead).</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Reaching for self-hosted runners as a default "more control is always better" choice, without a genuine, specific requirement GitHub-hosted runners can't meet. This takes on real, ongoing security and maintenance responsibility for a benefit that, in many cases, GitHub-hosted runners would have provided just as well, with none of that operational burden.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>A self-hosted runner used for a public repository carries genuine additional risk — anyone who can open a pull request against that repository could potentially get code to execute on your own infrastructure through a workflow triggered by that PR. GitHub's own documentation covers this specific risk and mitigation approaches in real depth, worth reviewing carefully before using self-hosted runners on a public repository.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Reach for self-hosted runners only after confirming a genuine, specific requirement GitHub-hosted runners truly can't meet.</li>
+  <li>Treat a self-hosted runner's security and maintenance as real, ongoing operational responsibility, not a one-time setup task.</li>
+  <li>Be especially cautious using self-hosted runners with public repositories, given the genuine risk of executing untrusted code from external contributors.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>A self-hosted runner is infrastructure you provide and maintain, running the same GitHub Actions software as a GitHub-hosted one.</li>
+  <li>Genuine justifications include specific hardware, private network access, and cost at real scale — not general preference for control.</li>
+  <li>The real cost is ongoing security and maintenance responsibility that GitHub-hosted runners otherwise handle entirely.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>For each of these three scenarios, decide whether self-hosted runners are genuinely justified, and explain why: (1) a team wants slightly faster job startup times, (2) a team needs to run tests against a GPU-accelerated machine learning model, (3) a team is simply curious about self-hosted runners with no specific problem to solve.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why might a team need a self-hosted runner to reach an internal database with no public network route?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">GitHub-hosted runners operate on GitHub's own infrastructure, with no route into a private, internal company network. A self-hosted runner, running on infrastructure that's actually part of (or has access to) that private network, can reach resources a GitHub-hosted runner structurally cannot, regardless of any workflow configuration.</div>
+</details>
+<details class="faq-item">
+<summary>What genuine security responsibility does a team take on by using self-hosted runners that GitHub-hosted runners otherwise handle automatically?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A GitHub-hosted runner is provisioned fresh and completely destroyed after every single job, providing genuine isolation and a clean state automatically. A self-hosted runner, left running across multiple jobs, requires the team to deliberately maintain its security and ensure state doesn't leak between runs — responsibilities GitHub otherwise handles entirely for hosted runners.</div>
+</details>
+<details class="faq-item">
+<summary>Why is using a self-hosted runner on a public repository considered a genuinely higher risk than on a private one?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Anyone who can open a pull request against a public repository can potentially trigger a workflow that executes code on the self-hosted runner's own infrastructure, depending on how the workflow and runner are configured. This means external, untrusted contributors could gain a path to executing something on infrastructure the organization actually owns and controls, a risk that doesn't exist the same way on a private repository with controlled contributors.</div>
+</details>
+<details class="faq-item">
+<summary>Why might cost only become a genuine justification for self-hosted runners "at scale," rather than for a small project?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">GitHub-hosted runners are billed per minute of usage, which is often the most economical choice for a small or moderate volume of CI activity, given the maintenance-free convenience they provide. Self-hosted infrastructure requires real upfront and ongoing investment (hardware, maintenance, security) that only becomes cost-effective relative to per-minute billing once an organization's actual CI usage reaches a genuinely large volume.</div>
+</details>
+<details class="faq-item">
+<summary>Why should a team weigh the ongoing maintenance burden of self-hosted runners even after confirming a genuine technical need exists?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A genuine technical justification (like needing private network access) confirms self-hosted runners could solve the problem, but doesn't automatically mean they're the best solution — the real, ongoing security and maintenance cost is a separate, continuing consideration. A team might reasonably decide an alternative approach, like a secure gateway a GitHub-hosted runner could use, is worth exploring before committing to the ongoing operational responsibility self-hosted infrastructure requires.</div>
+</details>
+</div>
+</article>
+</body></html>

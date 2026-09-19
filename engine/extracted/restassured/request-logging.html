@@ -1,0 +1,139 @@
+<!doctype html>
+<html><head>
+<title>RestAssured Request Logging: log().all(), log().body(), and Targeted Logging</title>
+<meta name="description" content="How to log outgoing RestAssured requests — full logging, and targeted logging of just the body, headers, or params — to confirm exactly what&#x27;s being sent." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/request-logging.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Request Logging</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="logging-in-restassured.html">Logging in RestAssured overview</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>given()
+    .log().all()
+    .contentType(ContentType.JSON)
+    .body(user)
+.when()
+    .post("/users");</code></pre>
+<p><code>.log().all()</code>, placed inside <code>given()</code>, prints the fully resolved outgoing request — method, URL, headers, and body — to the console right before RestAssured sends it. This is the single fastest way to confirm exactly what a request contains, rather than assuming your <code>.header()</code>, <code>.queryParam()</code>, or <code>.body()</code> calls did what you expected.</p>
+
+<h2 id="why-it-s-important">Why it's important</h2>
+<p>A surprising number of "why is my test failing" moments have nothing to do with the API at all — they're a request that isn't actually shaped the way you think it is. A typo'd path parameter, a Content-Type that didn't get set, a body that serialized differently than expected. Request logging resolves these in seconds instead of minutes of guessing.</p>
+
+<h2 id="basic-example-logging-everything">Basic Example — Logging Everything</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>given()
+    .log().all()
+    .pathParam("id", 42)
+    .queryParam("include", "profile")
+.when()
+    .get("/users/{id}");
+
+// Prints something like:
+// Request method: GET
+// Request URI:    /users/42?include=profile
+// Headers:        Accept=*/*
+// Cookies:        &lt;none&gt;
+// Body:           &lt;none&gt;</code></pre>
+
+<h2 id="targeted-logging-just-one-piece">Targeted Logging — Just One Piece</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>given().log().body().body(user).when().post("/users");        // only the body
+given().log().headers().header("Authorization", "Bearer " + t).when().get("/profile"); // only headers
+given().log().params().queryParam("page", 2).when().get("/users"); // only params
+given().log().cookies().when().get("/dashboard");               // only cookies</code></pre>
+<p>Full <code>.log().all()</code> output can be a lot to scan through when you only care about one specific piece — did the body serialize correctly, did a specific header actually get set. The targeted variants print just that one section, which is faster to read when you already know which part you're troubleshooting.</p>
+
+<h2 id="detailed-example-confirming-a-pojo-serialized-correctly">Detailed Example — Confirming a POJO Serialized Correctly</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void debuggingWhatAPojoActuallySerializesTo() {
+    OrderRequest order = new OrderRequest("Wireless Mouse", 2);
+
+    given()
+        .log().body() // print ONLY the serialized JSON body
+        .contentType(ContentType.JSON)
+        .body(order)
+    .when()
+        .post("/orders");
+
+    // Console shows the actual JSON RestAssured generated from the POJO —
+    // confirms field names, nesting, and types all came out as expected
+}</code></pre>
+<p>This is exactly the debugging technique referenced in the Serialization chapter for confirming what JSON a POJO actually produces — seeing the real serialized output is more reliable than assuming it matches your mental model of the class.</p>
+
+<h2 id="real-world-example-debugging-an-unexpected-400">Real-World Example — Debugging an Unexpected 400</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void investigatingAnUnexpectedValidationError() {
+    given()
+        .log().all() // temporarily added while investigating
+        .contentType(ContentType.JSON)
+        .pathParam("id", customerId)
+        .body(newOrder)
+    .when()
+        .post("/customers/{id}/orders")
+    .then()
+        .statusCode(201); // currently failing with 400 — logging helps find out why
+}</code></pre>
+<p>When a request fails unexpectedly, adding <code>.log().all()</code> temporarily is usually the fastest first step — before checking API documentation, before adding more assertions, before assuming the API itself is broken. Confirm what was actually sent first.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Leaving .log().all() permanently in committed test code — floods
+// CI logs with full request dumps for every test, including passing ones
+given().log().all().body(user).when().post("/users").then().statusCode(201);
+
+// ✅ Use it while debugging, remove it (or use conditional logging,
+// covered on the next page) before committing
+given().body(user).when().post("/users").then().statusCode(201);</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Leaving <code>.log().all()</code> in committed code</strong> — floods CI output for every passing test, making genuine failures harder to spot in the noise.</li>
+  <li><strong>Using full <code>.log().all()</code> when a targeted log would answer the question faster</strong> — if you specifically need to confirm the body, <code>.log().body()</code> gets there with less scrolling.</li>
+  <li><strong>Not logging when a request behaves unexpectedly</strong> — guessing at what might be wrong instead of just looking at what was actually sent.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Logging a request with sensitive data</strong> (a real password, a production API key) — be deliberate about what ends up in logs, especially any that might be captured in CI artifacts; consider whether test credentials specifically (not production ones) are what's being logged.</li>
+  <li><strong>Very large request bodies</strong> — full logging can produce a lot of console output for a large payload; targeted logging or truncation may be more practical.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If you're not sure why a request is producing an unexpected response, request logging should be your very first troubleshooting step, before touching assertions or API documentation — confirm what was actually sent before investigating why the server responded the way it did.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Use <code>.log().all()</code> liberally while actively writing or debugging a test.</li>
+  <li>Reach for targeted logging (<code>.log().body()</code>, <code>.log().headers()</code>) when you already know which piece you're troubleshooting.</li>
+  <li>Remove or replace request logging with conditional logging (next page) before committing test code.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Write a test that sends a POST request with a POJO body, a path parameter, and a custom header. Use <code>.log().all()</code> to print the full outgoing request, then switch to using only <code>.log().body()</code> and confirm you can still verify the serialized payload is correct with less console output to scan.</p>
+
+<h2 id="summary">Summary</h2>
+<p>Request logging — full via <code>.log().all()</code>, or targeted via <code>.log().body()</code>/<code>.log().headers()</code>/<code>.log().params()</code>/<code>.log().cookies()</code> — prints exactly what RestAssured is about to send, resolving the large class of test failures that are really about the request being malformed, not the API misbehaving. Use it freely while debugging; remove it before committing.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why might you reach for log().body() instead of log().all() when debugging a serialization issue?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer"><code>.log().all()</code> prints the entire request — method, URL, headers, cookies, and body — which can be a lot of output to scan through when you specifically only care about whether a POJO serialized correctly. <code>.log().body()</code> prints just the body, getting you directly to the information you actually need with less noise to filter through, especially useful when the request has many headers or a large query string that aren't relevant to the question at hand.</div>
+</details>
+<details class="faq-item">
+<summary>Why is request logging usually the first troubleshooting step for an unexpected response?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A surprising number of 'why is my test failing' moments have nothing to do with the API — they're a request that isn't shaped the way you think; confirming what was actually sent resolves this faster than guessing.</div>
+</details>
+<details class="faq-item">
+<summary>When would you reach for .log().body() instead of .log().all()?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">When you already know which specific piece you're troubleshooting — like confirming a POJO serialized correctly — targeted logging gets there with less output to scan through.</div>
+</details>
+<details class="faq-item">
+<summary>Why should .log().all() rarely survive into committed test code?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Left permanently, it floods CI logs with full request dumps for every test, including passing ones, making genuine failures harder to spot in the resulting noise.</div>
+</details>
+<details class="faq-item">
+<summary>What's a legitimate reason to be careful about what request logging captures?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Logging a request containing sensitive data (a real password, a production API key) risks that data ending up in CI logs or artifacts — worth being deliberate about what's actually being logged, especially with test-only vs. real credentials.</div>
+</details>
+</div>
+</article>
+</body></html>

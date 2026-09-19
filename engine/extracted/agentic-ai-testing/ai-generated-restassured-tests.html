@@ -1,0 +1,216 @@
+<!doctype html>
+<html><head>
+<title>AI-Generated RestAssured Tests: From Live API Observation to Real Java Code</title>
+<meta name="description" content="Turning a validated, autonomous API exploration into a real RestAssured Java test — connecting this chapter&#x27;s Python-orchestrated agent work directly to this site&#x27;s RestAssured track." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/ai-generated-restassured-tests.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>AI-Generated RestAssured Tests</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="autonomous-api-testing.html">Autonomous API Testing</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Everything so far in this chapter used Python to orchestrate the agent itself — but ShopEasy's actual regression suite, like this site's own RestAssured track, is genuinely written in Java. This page converts a validated finding into real, production-style RestAssured code.</p>
+
+<h2 id="starting-from-a-validated-finding">Starting From a Validated Finding</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>From the previous page's run — CONFIRMED, worth converting into
+a genuine regression check:
+
+"A valid forward status transition (pending → shipped) succeeds,
+returning 200 with the status field correctly updated."
+
+This is exactly analogous to Chapter 5's conversion page —
+starting from something already REVIEWED, not converting raw,
+unvalidated exploration directly into permanent test code.</code></pre>
+
+<h2 id="the-conversion-real-restassured-java">The Conversion — Real RestAssured Java</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import io.restassured.RestAssured;
+import io.restassured.response.Response;
+import org.junit.jupiter.api.Test;
+import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.equalTo;
+
+public class OrderStatusTransitionTest {
+
+    @Test
+    public void validForwardTransitionSucceeds() {
+        given()
+            .baseUri("https://staging.shopeasy.example.com/api")
+            .contentType("application/json")
+            .body("{\"status\": \"shipped\"}")
+        .when()
+            .patch("/orders/1042/status")
+        .then()
+            .statusCode(200)
+            .body("status", equalTo("shipped"));
+    }
+}</code></pre>
+<p>Genuinely ordinary RestAssured — exactly what's taught in this site's own RestAssured track. The agent's exploration and validation work supplied the WHAT and the confirmed expected behavior; converting it into real Java code uses the same skills as any other RestAssured test.</p>
+
+<h2 id="converting-the-genuinely-interesting-finding-too">Converting the Genuinely Interesting Finding Too</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># The backward-transition finding, ONCE a human confirms
+# whether backward transitions should actually be rejected:
+
+@Test
+public void backwardTransitionShouldBeRejected() {
+    // First, set up a KNOWN state via a confirmed-working
+    // forward transition (using the SAME real schema confirmed
+    // earlier in this chapter)
+    given()
+        .baseUri("https://staging.shopeasy.example.com/api")
+        .contentType("application/json")
+        .body("{\"status\": \"shipped\"}")
+    .when()
+        .patch("/orders/1042/status")
+    .then()
+        .statusCode(200);
+
+    // Now attempt the genuinely questionable backward transition
+    given()
+        .baseUri("https://staging.shopeasy.example.com/api")
+        .contentType("application/json")
+        .body("{\"status\": \"pending\"}")
+    .when()
+        .patch("/orders/1042/status")
+    .then()
+        .statusCode(400);  // EXPECTED once the gap is fixed —
+                             // this test would currently FAIL,
+                             // which is itself a valid, honest
+                             // way to track a confirmed, known gap
+}</code></pre>
+<p>Notice this second test asserts the CORRECTED, intended behavior (a 400 rejection) — not the CURRENT, buggy behavior. This is a deliberate choice, covered next.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might it be genuinely correct to write this second test asserting the behavior the API SHOULD have (400 rejection), even though it will currently FAIL against the real, current API? A test asserting the CURRENT, buggy behavior (200 success) would technically pass today — but it would also be actively documenting and locking in a bug as if it were correct, intended behavior. A test asserting the CORRECT, intended behavior fails today, honestly signaling "this is a known, real gap" — and will automatically start passing the moment someone actually fixes the underlying issue, which is genuinely more useful than a test that would need to be manually rewritten once the fix happens.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Converting every single exploration finding into a permanent test immediately, without distinguishing between confirmed-correct behavior (like the forward transition) and a genuinely open question awaiting human confirmation (like the backward transition). The second test in this page's example should genuinely wait for human confirmation before being merged as a real, permanent regression check — writing it now, marked clearly as reflecting a known open question, is reasonable; treating it as immediately final is not.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>When converting a finding that represents a known, unresolved gap (like the backward-transition case), it's genuinely useful to add a clear code comment or a test-framework "known issue" marker — this keeps the test's honest intent clear to anyone reading the code later, rather than leaving a mysteriously failing test with no context.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Convert only confirmed, validated findings into permanent regression tests, exactly matching Chapter 4's before-conversion validation principle.</li>
+  <li>For a known, unresolved gap, write the test asserting the CORRECT intended behavior, not the current buggy one, with a clear comment explaining why it currently fails.</li>
+  <li>Keep converted RestAssured code genuinely ordinary and idiomatic — exactly what this site's own RestAssured track teaches, with nothing AI-specific baked into the resulting test file.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Converting an agent's API findings into RestAssured code uses exactly the same skills as any other RestAssured test — the agent supplies validated findings, not a different kind of test.</li>
+  <li>A test for a known, unresolved gap should assert the correct, intended behavior, not the current buggy one — genuinely useful even while temporarily failing.</li>
+  <li>Only confirmed, validated findings belong in permanent regression tests, mirroring Chapter 4's validation-before-conversion discipline exactly.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Convert this chapter's earlier finding — an invalid <code>status</code> filter value silently returning zero results rather than an error — into a RestAssured test, deciding for yourself (with reasoning) whether to assert the current behavior or a corrected one, given that this finding was explicitly left as an open question for human review.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A teammate converts the backward-transition finding into a test asserting statusCode(200) — matching the CURRENT, actual API behavior — arguing "the test should pass." What's the real risk in this choice?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This locks in a genuinely uncertain, possibly-buggy behavior as if it were confirmed-correct, exactly the risk this page's own example is designed to avoid — a passing test at the cost of documenting a bug as intended behavior.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>The real, concrete risk:
+Six months from now, someone reviews this test, sees it
+  PASSING, and reasonably assumes backward transitions are
+  INTENTIONALLY supported — the test's mere existence and
+  passing status now serves as implicit, misleading
+  DOCUMENTATION that this behavior is correct, even though
+  it was ORIGINALLY flagged as a genuinely open question no
+  human had actually confirmed.
+
+Why this page's approach is genuinely better:
+Asserting the CORRECT, intended behavior (a 400 rejection)
+  with a clear comment keeps the test HONEST about its actual
+  status — failing, with context explaining why — rather than
+  silently passing while masking a real, unresolved question
+  as settled, correct behavior.</code></pre>
+<p>"The test should pass" isn't automatically the right goal — a test's job is to accurately reflect INTENDED, correct behavior, and sometimes that means honestly failing until the underlying issue is actually resolved, exactly this page's own core argument.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page insist the forward-transition test gets converted immediately, while the backward-transition test explicitly waits for human confirmation? Aren't both just "findings from exploration"?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>They're genuinely different in KIND, not just degree — the forward transition is CONFIRMED, expected, intended behavior with no real ambiguity, while the backward transition is an OPEN QUESTION the agent itself explicitly flagged as needing human review.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Forward transition — genuinely settled:
+"A valid status transition succeeds" is EXACTLY what the order
+  status system is SUPPOSED to do — there's no real ambiguity
+  about whether this should work; it's the API's core,
+  intended purpose functioning correctly.
+
+Backward transition — genuinely open:
+The PREVIOUS page's own report explicitly said "worth
+  confirming whether this is intentional" — this ISN'T settled,
+  confirmed behavior; it's an observed FACT with a genuinely
+  UNRESOLVED question about whether it's correct.</code></pre>
+<p>Converting BOTH with the same immediacy would ignore this real, meaningful difference — exactly matching Chapter 4's validation checklist distinction between "something the requirement clearly specifies" versus "something the AI inferred that needs confirmation" — the forward case is the former, the backward case is genuinely the latter.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why this page uses Java/RestAssured for the CONVERTED tests while the agent's own exploration code (earlier pages) used Python — is this inconsistent?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Not inconsistent — these are genuinely two different jobs, and this page's own opening explicitly names this: Python orchestrates the AGENT'S exploration and reasoning; Java/RestAssured is the LANGUAGE of ShopEasy's actual, permanent regression suite, matching this site's own RestAssured track.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Python's role — orchestrating AGENT reasoning:
+The LLM calls, the exploration loop, the fuzzy validation
+  reasoning — this is genuinely tool-agnostic work that could
+  reasonably be written in Python, JavaScript, or any language
+  capable of calling an LLM API and making HTTP requests.
+
+Java/RestAssured's role — the PERMANENT regression suite:
+Once a finding is CONFIRMED and converted, it becomes an
+  ordinary, permanent test living alongside ShopEasy's EXISTING
+  test suite — which this site's OWN RestAssured track already
+  establishes is written in Java, for reasons entirely
+  unrelated to how the AGENT that DISCOVERED it happened to
+  be built.</code></pre>
+<p>This mirrors Chapter 5's exact same pattern — Python orchestrated that chapter's agent too, while the CONVERTED tests were genuine TypeScript/Playwright, matching THAT site's track's own language. The agent's implementation language and the target test suite's language are genuinely separate, unrelated choices.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might it be a mistake to have the agent itself autonomously decide to convert and merge its own findings directly into the permanent RestAssured test suite, without human involvement?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This would collapse discovery and validation into one autonomous step, exactly the human-checkpoint principle Chapter 1 established for consequential actions — merging code into a real, permanent test suite is precisely the kind of consequential action that principle applies to directly.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What autonomous merging would GENUINELY risk:
+The backward-transition finding, if AUTONOMOUSLY converted
+  and merged with NO human review, might get written asserting
+  the CURRENT (possibly buggy) behavior as correct — since the
+  agent itself has no reliable way to know whether this
+  represents INTENDED design or a genuine gap; only a human
+  with real business context can make that determination.
+
+What THIS page's approach correctly preserves:
+The agent's role is DISCOVERY and DRAFTING — exactly matching
+  Chapter 1's honest description of autonomous QA's genuine
+  strengths — while MERGING a new permanent test into a real
+  suite remains a human-reviewed, consequential action, never
+  something delegated entirely to the agent's own autonomous
+  judgment.</code></pre>
+<p>This is a direct, concrete application of Chapter 2's Guardrails page principle — some actions are consequential enough to require action-level human approval regardless of how confident the agent's own reasoning is, and merging permanent test code is squarely in that category.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you extend this page's approach to also generate a RestAssured test for the case where NO existing schema was available (referenced in the previous "AI Request Construction" page's discussion)?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Given that page's own guidance — an unconfirmed, best-effort guess should be explicitly flagged rather than trusted — the resulting RestAssured test should carry that same explicit uncertainty forward, rather than presenting a guessed structure as confidently as a confirmed one.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+@Disabled("Schema for this endpoint was not confirmed against " +
+          "an existing record or documentation — this test uses " +
+          "a BEST-EFFORT guessed request structure and needs " +
+          "manual verification before enabling.")
+public void createNewResourceWithGuessedSchema() {
+    given()
+        .baseUri("https://staging.shopeasy.example.com/api")
+        .contentType("application/json")
+        .body("{\"guessedField\": \"guessedValue\"}")  // UNCONFIRMED
+    .when()
+        .post("/new-endpoint")
+    .then()
+        .statusCode(201);  // ALSO an assumption, not confirmed
+}</code></pre>
+<p>Using an explicit <code>@Disabled</code> annotation (a real, standard JUnit/RestAssured mechanism) with a clear, honest reason is a genuinely good way to carry the AI Request Construction page's "explicitly flag unconfirmed guesses" principle all the way through to the final, converted code — keeping the test's genuine uncertainty visible rather than letting it quietly disappear once the code looks like any other, fully-confirmed test.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

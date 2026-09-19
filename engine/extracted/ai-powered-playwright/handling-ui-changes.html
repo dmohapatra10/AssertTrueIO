@@ -1,0 +1,91 @@
+<!doctype html>
+<html><head>
+<title>Handling UI Changes</title>
+<meta name="description" content="What happens when a whole flow restructures, breaking several related locators together — a genuinely different scale of problem than one broken selector." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/handling-ui-changes.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Handling UI Changes</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="assertion-healing.html">Assertion Healing</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Why a broader UI redesign is a genuinely different problem than one broken locator</li>
+  <li>Detecting when multiple failures share a common, real cause</li>
+  <li>Proposing a coordinated fix rather than several disconnected ones</li>
+</ul>
+
+<h2 id="introduction-a-different-scale-of-problem">Introduction — A Different Scale of Problem</h2>
+<p>Every earlier page in this chapter handled one broken thing at a time — one locator, one assertion. A genuine UI redesign can break several related elements at once, and healing each in isolation misses something real: they're often symptoms of one underlying, coordinated change, not several independent problems.</p>
+
+<h2 id="why-it-matters-a-concrete-shopsmart-case">Why It Matters — A Concrete ShopSmart Case</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>ShopSmart REDESIGNS checkout, adding a NEW "Gift wrap this
+order?" step BETWEEN shipping and payment. This BREAKS:
+
+  - a locator EXPECTING payment to be the THIRD step
+  - an assertion EXPECTING a SPECIFIC step count
+  - a locator for the "Continue" button, now POSITIONED
+    differently in the NEW flow
+
+THREE separate FAILURES, ONE real, underlying CAUSE — healing
+each INDEPENDENTLY, with NO awareness of the OTHERS, would
+MISS this connection entirely.</code></pre>
+
+<h2 id="step-by-step-implementation-detecting-a-shared-cause">Step-by-Step Implementation — Detecting a Shared Cause</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/detect-related-failures.ts
+import { askClaude } from './ai-client';
+import { Classification } from './classify-failure';
+
+export interface FailureGroup {
+  relatedFailureIndices: number[];
+  sharedCauseHypothesis: string;
+}
+
+export async function detectRelatedFailures(
+  failures: { testName: string; classification: Classification; errorMessage: string }[]
+): Promise&lt;FailureGroup[]&gt; {
+  const prompt = `These test failures occurred in the SAME run:
+${JSON.stringify(failures)}
+
+Group any failures that likely share ONE underlying cause —
+like a single UI redesign breaking multiple tests. For each
+group, state the shared cause hypothesis. Failures with no
+clear relationship should NOT be grouped together.
+
+Respond with ONLY valid JSON:
+{"groups": [{"relatedFailureIndices": [number, ...],
+"sharedCauseHypothesis": string}]}`;
+
+  const raw = await askClaude(prompt);
+  return JSON.parse(raw).groups;
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p>The prompt explicitly instructs against grouping failures with no clear relationship — this matters as much as the grouping itself. Without it, a model might force a connection between genuinely unrelated failures just because they occurred in the same run, producing a false, misleading shared-cause story that sends a human's investigation in the wrong direction.</p>
+
+<h2 id="why-it-matters-a-coordinated-fix-beats-several-disconnected-ones">Why It Matters — A Coordinated Fix Beats Several Disconnected Ones</h2>
+<p>Once ShopSmart's three failures are recognized as one underlying cause, the candidate fix this chapter's earlier pages generate can be proposed together, with shared context — "these three changes all stem from the new gift-wrap step" — rather than as three separate, seemingly unrelated pull requests a human reviewer would need to piece together themselves.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Healing each failure from a UI redesign in complete isolation.</strong> This page's ShopSmart example shows real, useful context gets lost when related failures aren't recognized as connected.</li>
+  <li><strong>Forcing every failure in a run into some group, even when no genuine relationship exists.</strong> The prompt's explicit "should NOT be grouped" instruction exists specifically to prevent this.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Run failure grouping across an entire batch of results before generating individual fixes — grouping first changes what a good fix proposal looks like.</li>
+  <li>Present grouped failures to a human reviewer together, with the shared cause hypothesis stated explicitly, rather than as disconnected individual items.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Simulate three related test failures from a single, hypothetical UI change in your own application. Run them through this page's <code>detectRelatedFailures</code> function and confirm it correctly identifies them as one group, with a reasonable shared-cause hypothesis.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>A broader UI redesign can break several related tests at once — a genuinely different scale of problem than one isolated failure.</li>
+  <li>Detecting a shared underlying cause, rather than healing each failure independently, produces more useful, coordinated fix proposals.</li>
+  <li>Explicitly allowing "no relationship" as a valid outcome prevents false, misleading connections between genuinely unrelated failures.</li>
+</ul>
+</article>
+</body></html>

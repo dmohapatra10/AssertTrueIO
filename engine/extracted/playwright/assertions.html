@@ -1,0 +1,138 @@
+<!doctype html>
+<html><head>
+<title>Playwright Assertions: Web-First Assertions Explained</title>
+<meta name="description" content="Learn how Playwright&#x27;s web-first assertions work, why they auto-retry, and how to choose the right matcher for visibility, text, value, and count checks." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/assertions.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Chapter 6: Assertions</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="actions.html">Actions</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+      <p>Assertions are how a test states what it expects to be true, and Playwright's assertions are "web-first" — built specifically for the reality that a web page keeps changing after an action, instead of assuming state is already final the instant the check runs. Each assertion family gets its own dedicated page:</p>
+      <ol>
+        <li><a href="visibility-and-state-assertions.html">Visibility & State</a> — toBeVisible(), toBeHidden(), toBeEnabled(), toBeDisabled(), toBeChecked()</li>
+        <li><a href="text-and-value-assertions.html">Text & Value</a> — toHaveText(), toContainText(), toHaveValue(), toHaveAttribute()</li>
+        <li><a href="count-url-title-assertions.html">Count, URL & Title</a> — toHaveCount(), toHaveURL(), toHaveTitle()</li>
+        <li><a href="hard-vs-soft-assertions.html">Hard vs Soft Assertions</a> — expect() vs expect.soft()</li>
+      </ol>
+
+      <h2 id="why-is-it-important">Why is it important?</h2>
+      <p>A generic assertion library checks a value once, immediately, and fails if it isn't already correct. On a real web page, a value is often correct half a second later, after a network response resolves or an animation finishes. Web-first assertions close that gap automatically, which removes one of the most common sources of flaky tests.</p>
+
+      <h2 id="how-web-first-assertions-work">How web-first assertions work</h2>
+      <p>Every <code>expect(locator).toX()</code> assertion polls the condition repeatedly until it passes or the timeout is reached — it does not check once and immediately fail.</p>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// If the heading takes 300ms to appear after the click, this still passes —
+// toBeVisible() retries internally instead of checking only once.
+await page.getByRole('button', { name: 'Load results' }).click();
+await expect(page.getByRole('heading', { name: 'Results' })).toBeVisible();</code></pre>
+      <p>This is different from a plain boolean check like <code>if (await locator.isVisible())</code>, which evaluates exactly once with no retry — a common source of flakiness when developers reach for it out of habit instead of an assertion.</p>
+
+      <h2 id="what-expect-actually-does">What expect() actually does</h2>
+      <p><code>expect()</code> itself isn't a Playwright invention — it's the same assertion function shape used by Jest and other JS test frameworks. What makes Playwright's version different is what happens when you call <code>expect(locator)</code> specifically (as opposed to <code>expect(someValue)</code>): passing a <strong>locator</strong> (not an already-resolved value) is what activates web-first, auto-retrying behavior. Passing a plain value — a number, a string returned from an API call — gives you the generic, single-check Jest-style matchers (<code>toEqual()</code>, <code>toContain()</code>) with no retry, because there's nothing on a plain value that would ever change on its own.</p>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// expect(locator) — web-first, retries automatically
+await expect(page.getByRole('heading')).toBeVisible();
+
+// expect(plainValue) — generic Jest-style, checks once, no retry
+const total = await calculateTotal(items);
+expect(total).toBe(64.98);</code></pre>
+      <p>This is the actual mechanism behind the distinction in the table below — it's not that some matchers happen to retry and others don't, it's that <em>what you pass to <code>expect()</code></em> determines the behavior.</p>
+
+      <h2 id="assertion-timeout">Assertion timeout</h2>
+      <p>Every web-first assertion has its own timeout — 5 seconds by default — separate from the overall per-test timeout (30 seconds by default, covered in the Configuration chapter). A test can run for up to 30 seconds total while any single assertion within it only gets 5 seconds to become true before <em>that specific assertion</em> fails.</p>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// playwright.config.ts — change the default for every assertion in the suite
+export default defineConfig({
+  expect: { timeout: 8_000 },
+});
+
+// Override for a single assertion that's known to need longer
+await expect(page.getByText('Report ready')).toBeVisible({ timeout: 20_000 });</code></pre>
+      <p>Raising the global <code>timeout</code> does <strong>not</strong> extend how long an individual assertion waits — that's a separate value, and confusing the two is one of the more common config mistakes (covered further in the Configuration chapter). If one specific assertion genuinely needs longer (waiting on a slow report generation, say), override it locally with the assertion's own <code>timeout</code> option rather than raising the global default for every assertion in the suite.</p>
+
+      <h2 id="why-assertions-are-also-synchronization-mechanisms">Why assertions are also synchronization mechanisms</h2>
+      <p>It's easy to think of assertions purely as "the thing that checks if the test passes," with waiting handled separately. In Playwright, that's not quite right: because <code>expect(locator).toX()</code> polls until the condition is true, <strong>an assertion is simultaneously a wait</strong>. This is why, in a well-written Playwright test, you often don't need any separate waiting step before an assertion — the assertion itself <em>is</em> the synchronization point.</p>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// No separate "wait for the toast" step needed —
+// toBeVisible() IS the wait, not just the check
+await page.getByRole('button', { name: 'Save' }).click();
+await expect(page.getByText('Saved')).toBeVisible();</code></pre>
+      <p>This dual role — check and wait, in one call — is exactly why the Waiting & Synchronization chapter opens by pointing back here: assertions are the first and most common tool for synchronization in Playwright, and explicit <code>waitFor*()</code> methods exist specifically for the narrower set of cases assertions can't cover on their own (a background request with no visible UI signal, for instance).</p>
+
+      <h2 id="core-assertion-categories">Core assertion categories</h2>
+      <table>
+        <thead><tr><th>Category</th><th>Examples</th><th>Use for</th></tr></thead>
+        <tbody>
+          <tr><td><a href="visibility-and-state-assertions.html">State</a></td><td><code>toBeVisible()</code>, <code>toBeHidden()</code>, <code>toBeEnabled()</code>, <code>toBeChecked()</code></td><td>Whether an element is present/interactable</td></tr>
+          <tr><td><a href="text-and-value-assertions.html">Text/Value</a></td><td><code>toHaveText()</code>, <code>toContainText()</code>, <code>toHaveValue()</code></td><td>Content of an element or input</td></tr>
+          <tr><td><a href="text-and-value-assertions.html">Attributes</a></td><td><code>toHaveAttribute()</code>, <code>toHaveClass()</code>, <code>toHaveCSS()</code></td><td>DOM attributes and computed styles</td></tr>
+          <tr><td><a href="count-url-title-assertions.html">Collections</a></td><td><code>toHaveCount()</code></td><td>Number of matching elements</td></tr>
+          <tr><td><a href="count-url-title-assertions.html">Page-level</a></td><td><code>toHaveURL()</code>, <code>toHaveTitle()</code></td><td>Navigation and document state</td></tr>
+          <tr><td>Visual</td><td><code>toHaveScreenshot()</code></td><td>Pixel-level visual regression</td></tr>
+          <tr><td>Generic</td><td><code>toEqual()</code>, <code>toContain()</code>, <code>toMatch()</code></td><td>Plain JS values (not web-first, no retry)</td></tr>
+        </tbody>
+      </table>
+
+      <h2 id="tohavetext-vs-tocontaintext">toHaveText() vs toContainText()</h2>
+      <p>A common early mixup. <code>toHaveText()</code> requires an exact match of the element's full text content; <code>toContainText()</code> checks for a substring.</p>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Fails if there's any extra whitespace/text around "Order confirmed"
+await expect(page.getByRole('status')).toHaveText('Order confirmed');
+
+// Passes even if the element reads "Order confirmed — thank you!"
+await expect(page.getByRole('status')).toContainText('Order confirmed');</code></pre>
+
+      <h2 id="real-world-example-a-search-results-page">Real-world example: a search results page</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import { test, expect } from '@playwright/test';
+
+test('search returns matching, in-stock results', async ({ page }) =&gt; {
+  await page.goto('/search?q=headphones');
+
+  const results = page.getByRole('listitem', { name: /headphones/i });
+
+  await expect(results).toHaveCount(12);
+  await expect(results.first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: '12 results' })).toBeVisible();
+  await expect(page.getByText('Out of stock')).toHaveCount(0);
+});</code></pre>
+      <p>The last line demonstrates a useful pattern: asserting a count of zero is a clean way to confirm something is absent, and it still benefits from auto-retry — important if "out of stock" badges render slightly after the main results.</p>
+
+      <h2 id="common-mistakes">Common mistakes</h2>
+      <ul>
+        <li>Using <code>if (await locator.isVisible())</code> for a check that should be an assertion — this loses auto-retry and produces confusing, timing-dependent failures.</li>
+        <li>Reaching for <code>toEqual()</code> on locator content instead of <code>toHaveText()</code> — generic assertions don't retry, so they need extra manual waiting to be reliable.</li>
+        <li>Chaining several unrelated assertions on the same line before any of them have been given a reason to retry independently — prefer one assertion per meaningful expectation, so failures are easy to pinpoint.</li>
+      </ul>
+
+      <h2 id="best-practices">Best practices</h2>
+      <ul>
+        <li>Always use <code>expect(locator).toX()</code> web-first assertions over manual boolean checks for anything involving the page.</li>
+        <li>Reserve generic assertions (<code>toEqual</code>, <code>toContain</code>) for plain JS values returned from API calls or computed logic, not live page state.</li>
+        <li>Assert on the specific thing that matters (a count, a piece of text) rather than a broad screenshot comparison, unless visual regression is genuinely the point of the test.</li>
+      </ul>
+
+      <h2 id="summary">Summary</h2>
+      <p>Playwright's web-first assertions retry automatically until they pass or time out, which matches how real pages actually update. Prefer them over manual boolean checks, use the right matcher for exact vs partial text, and reserve generic (non-retrying) assertions for plain values, not live page state.</p>
+
+      <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why is expect(locator).toBeVisible() more reliable than if (await locator.isVisible())?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer"><code>toBeVisible()</code> is a web-first assertion that polls the condition repeatedly until it's true or the timeout elapses. <code>isVisible()</code> returns a single boolean at the instant it's called, with no retry — so if the element becomes visible a moment later, the check fails even though the page is behaving correctly.</div>
+</details>
+<details class="faq-item">
+<summary>What determines whether expect() retries or checks once?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">What's passed to it — expect(locator) activates web-first, auto-retrying behavior; expect(plainValue) gives generic, single-check Jest-style matchers.</div>
+</details>
+<details class="faq-item">
+<summary>What's the default assertion timeout, and how is it different from the test timeout?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">5 seconds by default, and it applies per-assertion — separate from the overall per-test timeout (30 seconds by default), which covers everything the test does combined.</div>
+</details>
+<details class="faq-item">
+<summary>In what sense is a web-first assertion also a synchronization mechanism?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Because it polls until the condition is true, an assertion like toBeVisible() IS the wait, not just a check performed after some other wait.</div>
+</details>
+<details class="faq-item">
+<summary>How would you extend an individual assertion's timeout without changing the global default?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Pass { timeout: N } directly to that specific assertion call, e.g. toBeVisible({ timeout: 20000}).</div>
+</details>
+</div>
+</article>
+</body></html>

@@ -1,0 +1,88 @@
+<!doctype html>
+<html><head>
+<title>Browser Interaction</title>
+<meta name="description" content="Closing the Observation loop — capturing what a real page genuinely shows after an action, in a shape the next planning step can actually use." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/browser-interaction.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Browser Interaction</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="mapping-actions-to-playwright.html">Mapping Actions to Playwright</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Capturing a real observation after an action executes</li>
+  <li>Choosing what genuinely matters to observe, not capturing everything indiscriminately</li>
+  <li>Why this observation is what makes planning a dependent step possible at all</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>This chapter's architecture has an Observation step for a real reason: "select a product" can only be planned once something genuine is known about what the search actually returned. This page builds that observation — the bridge between an executed action and the next, dependent step's planning.</p>
+
+<h2 id="step-by-step-implementation">Step-by-Step Implementation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/observe-page.ts
+import { Page } from '@playwright/test';
+
+export interface PageObservation {
+  url: string;
+  visibleHeadings: string[];
+  visibleProductNames: string[];
+}
+
+export async function observePage(page: Page): Promise&lt;PageObservation&gt; {
+  const url = page.url();
+
+  const visibleHeadings = await page
+    .getByRole('heading')
+    .allTextContents();
+
+  const visibleProductNames = await page
+    .getByTestId('product-card')
+    .getByRole('heading')
+    .allTextContents();
+
+  return { url, visibleHeadings, visibleProductNames };
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p>Notice what this function deliberately does NOT capture — full page HTML, every element's full attribute list, network traffic. Capturing everything would genuinely cost more (Chapter 18's token-cost lesson applies directly here) while making the next planning step's prompt noisier, not clearer. <code>visibleProductNames</code> specifically exists because that's exactly what "select a product" needs to reason about — deliberately scoped to the real question at hand.</p>
+
+<h2 id="example-observing-shopsmart-s-search-results">Example — Observing ShopSmart's Search Results</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>await executeAction(searchAction, page);  // from the previous page
+const observation = await observePage(page);
+
+// A REAL observation, after a REAL search for "Laptop":
+// {
+//   url: "https://shopsmart.example.com/search?q=Laptop",
+//   visibleHeadings: ["Search Results"],
+//   visibleProductNames: [
+//     "ProBook 15 Laptop", "UltraLight 13 Laptop",
+//     "Gaming Laptop X200"
+//   ]
+// }</code></pre>
+
+<h2 id="why-it-matters">Why It Matters</h2>
+<p>This observation is now real, genuine information — not a guess about what ShopSmart's search might return, but what it actually, currently returns. This is exactly what this chapter's next-but-one page needs to plan "select a product" honestly, rather than inventing a product name that may not exist.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Capturing the entire page's HTML "just in case it's useful later."</strong> This adds real token cost to every downstream prompt that uses the observation, for information the specific next step usually doesn't need.</li>
+  <li><strong>Observing too late — after deciding the next action, rather than before.</strong> The whole point of this page is that observation happens between actions, feeding directly into the next planning step, not as an afterthought.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Scope what you observe to what the next, genuinely dependent step actually needs — not everything the page happens to contain.</li>
+  <li>Keep observation as a separate, explicit function, called between actions — not folded invisibly into execution or planning code.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Extend <code>PageObservation</code> with a field relevant to ShopSmart's cart page (like visible cart item names and prices). Write the corresponding capture logic, following this page's pattern of scoping tightly to what a specific next step would actually need.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Observation captures real, current information from the browser — the genuine alternative to guessing at what a page might contain.</li>
+  <li>Scoping what's captured to what the next step actually needs keeps observations useful and affordable, rather than comprehensive but noisy.</li>
+  <li>This page is what makes planning a dependent step — like "select a product" — honest, rather than a guess dressed up as a plan.</li>
+</ul>
+</article>
+</body></html>

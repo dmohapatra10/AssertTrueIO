@@ -1,0 +1,116 @@
+<!doctype html>
+<html><head>
+<title>Good vs. Misleading Performance Analysis: Reading k6 Results Correctly</title>
+<meta name="description" content="Applying percentile literacy, error-rate awareness, and functional validation together to read a real k6 summary correctly instead of being misled by a passing threshold." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/good-vs-misleading-performance-analysis.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Good vs. Misleading Performance Analysis</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="custom-metrics-counter-gauge-rate-trend.html">Custom Metrics: Counter, Gauge, Rate, Trend</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>This page pulls together everything from this chapter and from Chapter 1's percentile literacy into the actual skill that matters: correctly reading a real k6 result, and recognizing when a result that technically "passes" is still hiding something worth investigating.</p>
+
+<h2 id="misleading-analysis-1-trusting-the-average-alone">Misleading Analysis #1 — Trusting the Average Alone</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>http_req_duration: avg=210ms</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Full picture:
+http_req_duration: avg=210ms min=95ms med=180ms max=8.4s p(90)=290ms p(95)=6.1s</code></pre>
+<p>The average alone looks completely healthy. The full picture reveals a genuinely alarming p95 — a huge jump from the median, meaning a meaningful fraction of real requests are taking over 6 seconds, invisible to anyone who only glanced at the average. This is Chapter 1's core lesson, made concrete against a real result.</p>
+
+<h2 id="misleading-analysis-2-a-passing-threshold-an-unhealthy-system">Misleading Analysis #2 — A Passing Threshold, an Unhealthy System</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>✓ http_req_duration: p(95)&lt;2000
+Threshold PASSED</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Full picture:
+http_req_duration: p(95)=1,980ms  ← technically under 2000ms, but barely
+http_req_failed: 4.8%             ← no threshold was set on this at all</code></pre>
+<p>The configured threshold passed — but only because it was the only thing checked. A 4.8% error rate, with no threshold defined to catch it, sailed through completely unexamined. A "PASSED" summary only means the specific thresholds you defined were met — it says nothing about anything you didn't think to measure.</p>
+
+<h2 id="misleading-analysis-3-functionally-wrong-but-fast">Misleading Analysis #3 — Functionally Wrong, but Fast</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>http_req_duration: p(95)=180ms  ← excellent
+http_req_failed: 0.1%            ← excellent
+
+But: no functional check() ever verified the actual data returned was correct.</code></pre>
+<p>This is the Chapter 5 lesson, revisited: a test with excellent speed and error-rate numbers can still be sitting on top of a genuine correctness bug — a race condition, wrong data being returned — that no purely speed-and-status-code-focused analysis would ever catch. "Fast and technically successful" is not the same claim as "correct."</p>
+
+<h2 id="detailed-example-a-genuinely-good-analysis-step-by-step">Detailed Example — A Genuinely Good Analysis, Step by Step</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>http_req_duration..........: avg=245ms min=89ms med=210ms max=1.8s p(90)=380ms p(95)=520ms
+http_req_failed.............: 0.3%   ✓ 2985  ✗ 9
+order_creation_success.......: 99.6%  (custom Rate metric)
+http_reqs.....................: 3000   50.0/s
+vus...........................: 100    min=100  max=100</code></pre>
+<p><strong>Step 1 — Percentiles, not just average:</strong> p95 (520ms) is roughly 2.5x the median (210ms) — a real but not alarming tail, worth noting but not immediately concerning on its own.</p>
+<p><strong>Step 2 — Error rate:</strong> 0.3% is low, but not zero — worth a quick check of what those 9 failures actually were, even if the overall rate looks acceptable.</p>
+<p><strong>Step 3 — Functional correctness:</strong> the custom <code>order_creation_success</code> metric (99.6%) confirms orders aren't just fast, they're actually succeeding at the business-logic level too — this is the check that Misleading Analysis #3 was missing entirely.</p>
+<p><strong>Step 4 — Load actually achieved:</strong> <code>vus: min=100, max=100</code> confirms the test genuinely sustained its intended 100 concurrent users throughout, not just momentarily.</p>
+<p>This is what "good analysis" actually looks like — not a single number glanced at, but several distinct signals cross-checked together, each answering a genuinely different question about the system's real behavior under load.</p>
+
+<h2 id="real-world-example-where-a-misleading-read-actually-cost-something">Real-World Example — Where a Misleading Read Actually Cost Something</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Team's conclusion from a quick glance: "avg=210ms, looks great, ship it."
+
+What a full analysis would have shown: p99=4,200ms and a 2% error rate
+concentrated specifically in the checkout endpoint — invisible in the
+glanced-at average, but a real, serious problem for roughly 1 in 50 real
+checkout attempts.</code></pre>
+<p>This is a realistic, common failure mode — not a lack of data (the full data was right there in the summary), but a habit of reading only the most convenient, top-line number instead of the fuller picture the rest of this chapter has been building toward.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ "avg=210ms, threshold passed, ship it" — a shallow, incomplete read
+
+// ✅ Checking percentiles, error rate, functional correctness, and achieved
+// load together before drawing any conclusion about system health</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Stopping at the average</strong> — the single most common shallow read, covered repeatedly throughout this course because it's genuinely the most common real mistake.</li>
+  <li><strong>Treating a passing threshold as proof of overall health</strong> — a threshold only checks exactly what it was configured to check, nothing more.</li>
+  <li><strong>Never cross-referencing speed with functional correctness</strong> — a fast, low-error-rate result can still be sitting on top of a genuine correctness bug.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>A result with excellent percentiles and error rate, but a suspiciously low actual throughput</strong> — worth checking whether the test achieved its intended VU/arrival-rate target at all; a test that silently under-delivered its intended load can produce misleadingly good-looking metrics simply because the system was never actually stressed as intended.</li>
+  <li><strong>Custom metrics that were defined but never actually checked</strong> during analysis — defining a custom metric (from the previous page) only adds value if someone actually looks at it afterward.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a system that "passed" its performance test is later reported as having problems in production, revisit the original analysis and check specifically for the three misleading patterns on this page — an average-only read, an incomplete threshold, or a missing functional check — one of these is very often the actual gap.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Always read percentiles alongside the average, never the average alone.</li>
+  <li>Remember a passing threshold only proves what was explicitly configured — check for anything left unmeasured.</li>
+  <li>Cross-reference speed and error-rate metrics against functional correctness (via checks and custom metrics) before concluding a system is genuinely healthy.</li>
+  <li>Confirm the test actually achieved its intended load level before trusting an unusually good-looking result.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Given a result showing <code>p(95)=310ms</code> (under a 500ms threshold, passing), <code>http_req_failed=1.8%</code> (no threshold defined for this), and no custom functional metrics defined at all, write a short analysis identifying every gap in this result before it could be reasonably called "healthy."</p>
+
+<h2 id="summary">Summary</h2>
+<p>Good performance analysis reads several distinct signals together — percentiles alongside the average, error rate alongside response time, functional correctness alongside both, and confirmation that the intended load was actually achieved. A single glanced-at number, or a passing threshold treated as proof of overall health, is exactly how a genuinely serious problem slips through a test that technically "passed." This is the actual payoff of everything covered since Chapter 1 — not just running a k6 test, but reading its results the way a genuinely careful performance engineer would.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why can a passing k6 threshold still leave a real problem completely undetected?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A threshold only evaluates the exact metric it was configured to check — if a threshold was set on response time but not on error rate, a genuinely serious error-rate problem can exist entirely outside what the threshold examines, and the test will still report "PASSED" truthfully, since nothing configured actually failed. A passing threshold proves only that what was measured met its target, not that everything worth measuring was actually covered.</div>
+</details>
+<details class="faq-item">
+<summary>What's the fastest way to catch a "fast but functionally wrong" result during analysis?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Cross-reference speed and error-rate metrics against functional correctness signals specifically — either check() results or a custom Rate metric tracking business-logic correctness. Speed and status-code metrics alone cannot reveal a correctness bug, since a request can return quickly with a 200 status while still containing genuinely wrong data; only an explicit functional check can catch that.</div>
+</details>
+<details class="faq-item">
+<summary>Why is it worth checking vus (or the achieved arrival rate) even when a result's other metrics look excellent?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Unusually good-looking metrics can sometimes mean the test never actually achieved its intended load level — a misconfiguration or resource constraint that silently under-delivered concurrency would naturally produce better numbers than a genuinely stressed system, but for the wrong reason. Confirming the achieved load matches what was intended rules out this specific, easy-to-miss explanation for a suspiciously clean result.</div>
+</details>
+<details class="faq-item">
+<summary>Why is comparing p95 to the median a useful quick diagnostic, even without a fixed rule for what counts as "too much" difference?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A large gap between p95 and the median signals a meaningful tail of slower requests, distinct from the typical experience — even without a universal numeric threshold for "concerning," a p95 that's several times the median is a signal worth investigating further, while a p95 close to the median suggests fairly uniform performance across requests. It's a quick, useful first-pass signal for whether deeper investigation into tail latency is warranted.</div>
+</details>
+<details class="faq-item">
+<summary>What real cost did the "avg=210ms, looks great, ship it" example on this page illustrate?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A shallow read of the average missed a p99 of 4,200ms and a 2% error rate concentrated specifically in checkout — meaning roughly 1 in 50 real checkout attempts were having a genuinely bad experience, invisible in the top-line average alone. The cost wasn't a lack of available data — the full data was already in the summary — it was a habit of reading only the most convenient number instead of the fuller picture actually available.</div>
+</details>
+</div>
+</article>
+</body></html>

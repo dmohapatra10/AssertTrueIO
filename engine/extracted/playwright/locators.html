@@ -1,0 +1,147 @@
+<!doctype html>
+<html><head>
+<title>Playwright Locators: The Complete Guide to Finding Elements</title>
+<meta name="description" content="Learn how Playwright locators work — auto-waiting, strict mode, the recommended locator priority, chaining, and filtering — before diving into individual locator methods." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/locators.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Chapter 4: Locators</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="architecture.html">Playwright Architecture</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+      <p>A locator is a description of how to find an element on the page — a name and a strategy, not the element itself. Every locator page in this course is a different strategy for describing that "how":</p>
+      <ol>
+        <li><a href="get-by-role.html">getByRole()</a> — accessible role and name</li>
+        <li><a href="get-by-label.html">getByLabel()</a> — form fields by their label</li>
+        <li><a href="get-by-placeholder.html">getByPlaceholder()</a> — inputs by placeholder text</li>
+        <li><a href="get-by-text.html">getByText()</a> — non-interactive elements by visible text</li>
+        <li><a href="get-by-alt-text.html">getByAltText()</a> — images by alt text</li>
+        <li><a href="get-by-title.html">getByTitle()</a> — elements by their title attribute</li>
+        <li><a href="get-by-test-id.html">getByTestId()</a> — a dedicated automation hook</li>
+        <li><a href="locator-and-css-xpath.html">locator() with CSS/XPath</a> — the generic fallback</li>
+        <li><a href="filtering-and-chaining.html">Filtering and chaining</a> — filter(), has, hasText, first()/last()/nth()</li>
+      </ol>
+
+      <h2 id="why-is-it-important">Why is it important?</h2>
+      <p>Locators are the foundation everything else in Playwright is built on — every action (<code>click()</code>, <code>fill()</code>) and every assertion (<code>toBeVisible()</code>) operates on a locator. Getting locator strategy right is the single biggest factor in whether a test suite stays reliable over time or becomes flaky and unmaintainable.</p>
+
+      <h2 id="locator-comparison">Locator Comparison</h2>
+      <table>
+        <thead><tr><th>Locator</th><th>Best Use Case</th><th>Reliability</th></tr></thead>
+        <tbody>
+          <tr><td><a href="get-by-role.html">getByRole()</a></td><td>Accessible, interactive UI elements</td><td>Excellent</td></tr>
+          <tr><td><a href="get-by-label.html">getByLabel()</a></td><td>Form fields with a real label</td><td>Excellent</td></tr>
+          <tr><td><a href="get-by-placeholder.html">getByPlaceholder()</a></td><td>Inputs with no real label</td><td>Good</td></tr>
+          <tr><td><a href="get-by-text.html">getByText()</a></td><td>Non-interactive visible text</td><td>Good</td></tr>
+          <tr><td><a href="get-by-alt-text.html">getByAltText()</a></td><td>Images and image-like elements</td><td>Good</td></tr>
+          <tr><td><a href="get-by-title.html">getByTitle()</a></td><td>Elements with a native title attribute</td><td>Niche</td></tr>
+          <tr><td><a href="get-by-test-id.html">getByTestId()</a></td><td>Stable automation hooks, no accessible name</td><td>Excellent (but non-semantic)</td></tr>
+          <tr><td><a href="locator-and-css-xpath.html">CSS / XPath</a></td><td>Legacy markup, complex DOM relationships</td><td>Medium / Lower</td></tr>
+        </tbody>
+      </table>
+
+      <h2 id="how-to-choose-the-right-locator">How to Choose the Right Locator</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Can I identify the element by role?
+        └─ Yes → getByRole()
+        └─ No
+Is it a form control with a real label?
+        └─ Yes → getByLabel()
+        └─ No
+Is it an image?
+        └─ Yes → getByAltText()
+        └─ No
+Can I identify it by meaningful visible text?
+        └─ Yes → getByText()
+        └─ No
+Is there a stable test ID?
+        └─ Yes → getByTestId()
+        └─ No → locator() with a stable CSS attribute</code></pre>
+
+      <h2 id="locators-are-lazy">Locators are lazy</h2>
+      <p>Creating a locator does not search the page immediately — it just records the description. The actual search happens only when you call an action or assertion on it, and Playwright re-runs that search every time, right before acting.</p>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// No DOM query happens on this line — it's just a description.
+const submitButton = page.getByRole('button', { name: 'Submit' });
+
+// The DOM is queried here, right before clicking, and Playwright
+// auto-waits for the element to exist and be actionable first.
+await submitButton.click();</code></pre>
+      <p>This is why locators survive page navigations and re-renders — the element doesn't need to exist yet when you create the locator, only when you use it.</p>
+
+      <h2 id="auto-waiting">Auto-waiting</h2>
+      <p>Before performing an action, Playwright automatically waits (up to the configured timeout) for the target element to satisfy a set of actionability checks: attached to the DOM, visible, stable (not animating), enabled, and not obscured by another element. This eliminates most of the manual <code>sleep()</code>/explicit-wait code required by older tools.</p>
+
+      <h2 id="strict-mode">Strict mode</h2>
+      <p>By default, calling an action on a locator that matches more than one element throws an error rather than silently acting on the first match. This is a deliberate safety feature — it forces you to write a locator specific enough to be unambiguous.</p>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Throws if the page has more than one button — which one did you mean?
+await page.getByRole('button').click();
+
+// Specific enough to match exactly one element.
+await page.getByRole('button', { name: 'Submit' }).click();</code></pre>
+
+      <h2 id="recommended-locator-priority">Recommended locator priority</h2>
+      <p>Playwright's official guidance ranks locator strategies by how closely they reflect what a user actually perceives, from most to least recommended:</p>
+      <ol>
+        <li><strong>getByRole()</strong> — accessible role and name (button, link, checkbox)</li>
+        <li><strong>getByLabel()</strong> — form fields associated with visible label text</li>
+        <li><strong>getByPlaceholder()</strong> — inputs identified by placeholder text</li>
+        <li><strong>getByText()</strong> — non-interactive elements identified by visible text</li>
+        <li><strong>getByAltText()</strong> — images identified by alt text</li>
+        <li><strong>getByTitle()</strong> — elements with a title attribute</li>
+        <li><strong>getByTestId()</strong> — a dedicated <code>data-testid</code> attribute, for elements with no accessible name (fallback, not first choice)</li>
+      </ol>
+      <p>CSS or XPath selectors (<code>page.locator('.btn-primary')</code>) sit below all of these — they're an escape hatch for cases none of the above cover, not a default habit. CSS selectors couple your tests to implementation details (class names, DOM structure) that change for reasons unrelated to the feature you're testing.</p>
+
+      <h2 id="chaining-and-filtering">Chaining and filtering</h2>
+      <p>Locators can be narrowed by chaining or filtering, which is how you handle repeated components like table rows or list items.</p>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Chaining: search inside a specific row for a button
+const row = page.getByRole('row', { name: 'Order #1042' });
+await row.getByRole('button', { name: 'Cancel' }).click();
+
+// Filtering: find a list item that CONTAINS certain text
+await page.getByRole('listitem')
+  .filter({ hasText: 'Out of stock' })
+  .getByRole('button', { name: 'Notify me' })
+  .click();</code></pre>
+
+      <h2 id="common-mistakes">Common mistakes</h2>
+      <ul>
+        <li>Reaching for CSS selectors first out of habit, before checking whether a role/label/text-based locator would work.</li>
+        <li>Fighting strict-mode errors by adding <code>.first()</code> instead of writing a more specific locator — this hides ambiguity rather than resolving it, and can silently click the wrong element later if the page order changes.</li>
+        <li>Re-querying the DOM manually (e.g., storing a raw element handle) instead of trusting locators to re-resolve automatically — this reintroduces the staleness bugs Playwright's model is designed to avoid.</li>
+      </ul>
+
+      <h2 id="best-practices">Best practices</h2>
+      <ul>
+        <li>Default to <code>getByRole()</code>; drop down the priority list only when a role-based locator genuinely isn't available.</li>
+        <li>Reserve <code>getByTestId()</code> for elements with no meaningful accessible role or text — icon-only buttons, decorative containers.</li>
+        <li>When strict mode complains about multiple matches, narrow the locator (scope it to a row/section) rather than picking an index.</li>
+      </ul>
+
+      <h2 id="summary">Summary</h2>
+      <p>A locator is a lazy, auto-waiting description of how to find an element — not the element itself. Prefer role/label/text-based locators over CSS selectors, respect strict mode as a safety feature rather than working around it, and use chaining/filtering to handle repeated components precisely.</p>
+
+      <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why does Playwright throw an error by default when a locator matches multiple elements, instead of just acting on the first one?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Silently acting on the first match hides ambiguity that often indicates a locator isn't specific enough — and worse, "first match" can silently change if the page's element order changes, causing the test to click the wrong element without failing. Strict mode surfaces that ambiguity immediately as a clear error instead of a subtle, intermittent bug.</div>
+</details>
+<details class="faq-item">
+<summary>What does it mean that a Playwright locator is 'lazy'?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A locator is just a stored description of how to find an element, not a live reference to one. It doesn't need the element to exist when created, and it re-resolves against the live DOM every time it's used.</div>
+</details>
+<details class="faq-item">
+<summary>Why does Playwright rank getByTestId() below getByRole() and getByLabel()?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Role and label locators match what a real user or screen reader perceives, so they double as an accessibility check. A test ID has no semantic meaning to a user, so it doesn't provide that benefit.</div>
+</details>
+<details class="faq-item">
+<summary>What's the risk of using CSS class selectors as your default locator strategy?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Class names are often tied to styling, not meaning, so a purely visual refactor (renaming a class, changing a layout) can silently break tests that have nothing to do with the actual feature.</div>
+</details>
+<details class="faq-item">
+<summary>If two elements match the same locator, what happens when you act on it?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Playwright throws a strict-mode violation rather than silently picking one — this is deliberate, since silently guessing which element you meant would hide real ambiguity bugs.</div>
+</details>
+</div>
+</article>
+</body></html>

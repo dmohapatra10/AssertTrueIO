@@ -1,0 +1,113 @@
+<!doctype html>
+<html><head>
+<title>Collecting Test History</title>
+<meta name="description" content="Real, working code building a genuine history from Playwright&#x27;s own JSON reporter output across many CI runs — the evidence base this chapter&#x27;s detection depends on." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/collecting-test-history.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Collecting Test History</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="common-causes-of-flakiness.html">Common Causes of Flakiness</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Configuring Playwright's own JSON reporter to produce structured, machine-readable results</li>
+  <li>Accumulating results across many real CI runs into genuine history</li>
+  <li>Why this history, not any single run, is the actual evidence base this chapter needs</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>Chapter 9's opening page argued that a single failure alone can't distinguish flakiness from a real defect. This page builds the genuine solution — real history, accumulated across many actual runs, using Playwright's own built-in reporting.</p>
+
+<h2 id="step-by-step-implementation-configuring-the-json-reporter">Step-by-Step Implementation — Configuring the JSON Reporter</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// playwright.config.ts
+import { defineConfig } from '@playwright/test';
+
+export default defineConfig({
+  reporter: [
+    ['list'],
+    ['json', { outputFile: 'test-results/results.json' }],
+  ],
+});</code></pre>
+
+<h2 id="step-by-step-implementation-accumulating-real-history">Step-by-Step Implementation — Accumulating Real History</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/collect-test-history.ts
+import { readFileSync, existsSync, writeFileSync } from 'fs';
+
+export interface TestRunRecord {
+  testName: string;
+  filePath: string;
+  status: 'passed' | 'failed';
+  timestamp: string;
+  commitHash: string;
+  durationMs: number;
+}
+
+const HISTORY_PATH = 'test-data/test-history.json';
+
+export function recordRunResults(
+  resultsJsonPath: string, commitHash: string
+): void {
+  const raw = JSON.parse(readFileSync(resultsJsonPath, 'utf-8'));
+  const history: TestRunRecord[] = existsSync(HISTORY_PATH)
+    ? JSON.parse(readFileSync(HISTORY_PATH, 'utf-8'))
+    : [];
+
+  for (const suite of raw.suites) {
+    for (const spec of suite.specs) {
+      for (const test of spec.tests) {
+        history.push({
+          testName: spec.title,
+          filePath: suite.file,
+          status: test.results[0].status,
+          timestamp: new Date().toISOString(),
+          commitHash,
+          durationMs: test.results[0].duration,
+        });
+      }
+    }
+  }
+
+  writeFileSync(HISTORY_PATH, JSON.stringify(history, null, 2), 'utf-8');
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p>This runs after every real CI execution, appending to a growing, genuine history file — the same committed-JSON-file pattern Chapter 8 used for deterministic test data, applied here to build an actual evidentiary record over time. Each record carries the <code>commitHash</code> it ran against, which is what lets later analysis distinguish "flaky across many different commits" from "started failing right after one specific change."</p>
+
+<h2 id="example-real-accumulated-history-for-shopsmart-s-checkout-test">Example — Real, Accumulated History for ShopSmart's Checkout Test</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// AFTER 50 real CI runs, test-data/test-history.json contains:
+// [
+//   { testName: "completes checkout with valid payment",
+//     status: "passed", commitHash: "a1b2c3d", ... },
+//   { testName: "completes checkout with valid payment",
+//     status: "failed", commitHash: "a1b2c3d", ... },
+//   // SAME test, SAME commit, DIFFERENT outcome — this is
+//   // GENUINE evidence of flakiness, not a guess
+//   ...
+// ]</code></pre>
+
+<h2 id="why-it-matters">Why It Matters</h2>
+<p>Two records with the same test name and the same commit hash, but different outcomes, is real, concrete, unambiguous evidence of flakiness — the code genuinely didn't change between these two runs, yet the outcome did. This is exactly the kind of evidence Chapter 12's opening page argued a single failure alone can never provide.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Only keeping the most recent run's results, overwriting history each time.</strong> This page's whole point is accumulating history across runs — a single, overwritten result provides no evidence of a pattern at all.</li>
+  <li><strong>Omitting <code>commitHash</code> from each record.</strong> Without it, there's no way to distinguish genuine flakiness (same commit, different outcomes) from a real regression that started at a specific, identifiable commit.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Run this collection step after every real CI execution, not just occasionally — genuine history needs consistent, real accumulation.</li>
+  <li>Include commit hash and timestamp on every record — both are what make later analysis genuinely trustworthy.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Configure your own project's JSON reporter and run this page's collection function after your next few real CI runs. Once you have at least ten real records for one test, look for any case where the same commit hash produced different outcomes.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Real, accumulated history — not any single run — is the genuine evidence base flakiness detection requires.</li>
+  <li>Recording commit hash alongside each result is what lets later analysis distinguish genuine flakiness from a real regression tied to a specific change.</li>
+  <li>Two identical-commit, different-outcome records are concrete, unambiguous evidence — exactly what a single failure alone could never provide.</li>
+</ul>
+</article>
+</body></html>

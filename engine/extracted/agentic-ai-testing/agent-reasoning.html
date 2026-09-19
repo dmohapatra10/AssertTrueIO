@@ -1,0 +1,185 @@
+<!doctype html>
+<html><head>
+<title>Agent Reasoning: Deciding the Next Specific Action</title>
+<meta name="description" content="How an AI agent&#x27;s reasoning step evaluates the current real situation and decides one specific next action, distinct from the broader planning step covered previously." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/agent-reasoning.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Agent Reasoning</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="agent-planning.html">Agent Planning</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>If planning is sketching the route before a trip, reasoning is deciding, right now, how to handle the actual road in front of you. Reasoning takes the current plan step, the real, current observation, and whatever's in memory, and decides one specific, concrete next action.</p>
+
+<h2 id="reasoning-in-action">Reasoning in Action</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Current plan step: "Authenticate with valid test credentials"
+
+Current observation (what the agent actually sees right now):
+  A form with two visible fields, one labeled "Email or username"
+  and one labeled "Password", and a button labeled "Log In".
+  No CAPTCHA, no other visible obstacles.
+
+Reasoning process (the "why" behind the decision):
+  "The plan step is 'authenticate.' I can see a genuine login
+  form with clearly labeled fields. There's nothing blocking
+  me. The specific next action: fill the email field first,
+  since it's positioned above the password field and typically
+  needs to be filled first in a standard login flow."
+
+Resulting SPECIFIC action:
+  fill('Email or username', 'testuser@shopeasy.example.com')</code></pre>
+<p>Notice how much more concrete this is than the plan step it came from — "authenticate" became one specific, executable action, chosen based on what's genuinely, currently true about the page.</p>
+
+<h2 id="reasoning-under-genuine-ambiguity">Reasoning Under Genuine Ambiguity</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A harder, more realistic case — the observation isn't clean:
+
+Current observation: TWO forms are visible on the page — one
+labeled "Sign in" and one labeled "Create an account", both
+with email and password fields, positioned side by side.
+
+Reasoning process:
+  "The plan step is 'authenticate' — this implies an EXISTING
+  account, so the correct form is 'Sign in', not 'Create an
+  account'. I'll target the fields within the 'Sign in' section
+  specifically, not just any email/password field on the page."
+
+This is genuine reasoning, not simple pattern-matching — it
+required understanding what 'authenticate' actually implies
+and applying that understanding to disambiguate two visually
+similar options.</code></pre>
+
+<h2 id="how-reasoning-differs-from-planning-concretely">How Reasoning Differs From Planning, Concretely</h2>
+<table>
+<thead><tr><th>Planning</th><th>Reasoning</th></tr></thead>
+<tbody>
+<tr><td>Happens largely before real observation</td><td>Happens using the current, real observation</td></tr>
+<tr><td>Produces a rough, multi-step sequence</td><td>Produces one specific, immediate action</td></tr>
+<tr><td>Revised occasionally (re-planning)</td><td>Happens fresh at essentially every single step</td></tr>
+<tr><td>"What are the rough phases of this task?"</td><td>"Given what I see right now, what do I do next?"</td></tr>
+</tbody>
+</table>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might an agent with excellent planning but genuinely weak reasoning still fail at real tasks, even on a well-understood application like ShopEasy? A rough plan like "authenticate, then add to cart" is only useful if something can correctly translate "authenticate" into the actual right action given the real page in front of it — including handling exactly the kind of genuine ambiguity in this page's two-forms example. A great plan executed by weak, careless reasoning at each step produces the same poor real-world result as no plan at all.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Building reasoning that only pattern-matches on surface-level text ("see a button labeled 'Log In', click it") without genuinely reasoning about context. This breaks exactly in cases like the two-forms example above, where surface pattern-matching alone can't distinguish "Sign in" from "Create an account" — both have superficially similar-looking form fields.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>When reviewing or debugging an agent's reasoning, it's genuinely useful to ask it (or examine its logged reasoning trace) to explain WHY it chose a specific action, not just what it chose. A reasonable-sounding "why" that's based on a genuine misunderstanding is a very different, more diagnosable problem than reasoning that was actually sound but happened to be executed incorrectly.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Give the reasoning step genuinely sufficient, real observation to work with — vague or incomplete context is a common, real cause of poor decisions.</li>
+  <li>Log an agent's reasoning (its "why"), not just its final action — this makes debugging genuinely tractable later.</li>
+  <li>Test reasoning specifically against cases with real ambiguity, not just clean, unambiguous happy paths.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Reasoning takes the current plan step, real observation, and memory, and decides one specific, immediate action — distinct from planning's broader, rougher sequence.</li>
+  <li>Genuine reasoning handles real ambiguity by understanding context, not just matching surface-level text patterns.</li>
+  <li>Reasoning happens fresh at essentially every step, using the most current, real information available — unlike planning, which is revised only occasionally.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>For the plan step "add the product to the cart," and an observation showing a product page with both a "Add to Cart" button and a separate "Buy Now" button, write out the reasoning process that would correctly choose "Add to Cart" over "Buy Now" — being explicit about what specifically distinguishes them for this particular goal.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>An agent correctly identifies a "Sign in" form among two visually similar forms, but a teammate says this is "just pattern matching, not real reasoning." How would you respond?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd distinguish between matching on SURFACE features (button color, position, generic label text) versus understanding what the actual goal implies and using that understanding to disambiguate — the second is genuine reasoning, even if the final action looks similar to what simple pattern matching might occasionally produce by coincidence.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Surface pattern-matching (NOT genuine reasoning):
+"I see a form with email and password fields — click its
+  submit button." — this would pick RANDOMLY between the two
+  visually similar forms, since both match this shallow pattern
+
+Genuine reasoning (what actually happened):
+"The plan step implies an EXISTING account ('authenticate'),
+  which specifically means 'Sign in', not 'Create an account'
+  — I'll target the fields within that specific section."
+  — this correctly disambiguates BECAUSE it understood what
+  the goal actually implies, not because of surface features</code></pre>
+<p>The test for "is this genuine reasoning": does it correctly handle a case where surface pattern-matching would fail or guess randomly? The two-forms example is specifically designed to make that distinction concrete and testable.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page argue that logging an agent's reasoning (the "why"), not just its final action, matters for real debugging?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because the same final action can result from genuinely different underlying reasoning — some sound, some flawed — and only the "why" reveals which one actually happened, which determines what (if anything) actually needs fixing.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Same action, two very different underlying causes:
+Action taken: clicked the "Create an account" form's submit
+  button instead of "Sign in"
+
+Possible reasoning A (a genuine misunderstanding worth fixing):
+  "I'll use whichever form appears first on the page" — reveals
+  a real reasoning gap that needs a prompt/context fix
+
+Possible reasoning B (a correct decision, wrong INPUT):
+  "The plan explicitly said to create a new test account" —
+  reveals the reasoning was actually FINE; the problem is
+  upstream, in what the plan itself specified</code></pre>
+<p>Without the logged "why," both cases look identical from the outside — the same wrong-seeming action — but they need completely different fixes. This is exactly why reasoning traces, not just action logs, matter for genuinely diagnosing agent behavior.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Give an example of a plan step that would require GENUINELY difficult reasoning to execute correctly, and explain specifically what makes it hard.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A genuinely hard example: plan step "verify the discount was applied correctly," on a checkout page showing a subtotal, a line labeled "Promotional discount: -$5.00," and a total — where the discount code applied was supposed to be 15% off a $40 item.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why this is genuinely hard reasoning, not simple lookup:
+The agent needs to independently CALCULATE what 15% of $40
+  actually is ($6.00), compare that to what's actually shown
+  (-$5.00), and recognize this is a GENUINE DISCREPANCY worth
+  flagging — not just confirm that SOME discount line exists.
+
+A shallow, insufficient version of "reasoning":
+"A line labeled 'discount' is present with a negative dollar
+  amount — checkout looks correct." — this would completely
+  MISS the actual, real bug (wrong discount amount applied),
+  despite superficially looking like it verified something</code></pre>
+<p>This example is deliberately chosen to show reasoning doing genuine verification work — actually checking that a real value is CORRECT, not just present — which is meaningfully harder than simply confirming an element exists on the page.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might giving the reasoning step MORE observation detail than it actually needs be counterproductive, not just harmless?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Excess, irrelevant detail can genuinely dilute an LLM's attention and increase the chance it focuses on something irrelevant to the actual decision at hand — more context isn't free, and isn't always strictly better.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Focused, relevant observation for "find the login form":
+"A form with email and password fields, labeled 'Sign in',
+  and a submit button labeled 'Log In'."
+
+Excessively bloated observation for the SAME decision:
+[the entire page's raw HTML, including unrelated footer links,
+  a cookie consent banner's full legal text, unrelated product
+  recommendations, hidden analytics scripts, etc.]
+
+The bloated version doesn't help the reasoner make a BETTER
+decision about the login form specifically — it genuinely
+risks the reasoning process getting distracted by, or
+mis-weighting, entirely irrelevant surrounding content.</code></pre>
+<p>The practical lesson: constructing what the reasoner actually sees is itself a real design decision worth real care — relevant, focused context tends to produce more reliable reasoning than simply including everything available "just in case."</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you test whether an agent's reasoning is genuinely robust, rather than just happening to work on the happy-path cases you've tried so far?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Deliberately construct cases with real ambiguity or edge conditions — similar to this page's two-forms example — rather than only testing against the clean, expected scenario, and check whether the reasoning's stated "why" genuinely reflects correct understanding, not just a lucky correct guess.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Genuinely useful test cases to construct deliberately:
+- Two visually similar elements where only ONE is semantically
+  correct for the current goal (the two-forms example)
+- A page state that's TECHNICALLY valid but unusual (an empty
+  search results page, a partially-loaded page)
+- Conflicting signals (a button that's visually enabled but
+  has a disabled attribute, or vice versa)
+
+For each, check: did the agent choose correctly, AND does its
+logged reasoning show genuine understanding of WHY, or does it
+look like a coincidentally-correct guess that got lucky?</code></pre>
+<p>Testing only happy-path scenarios can hide reasoning that's actually shallow or coincidentally correct — genuinely robust reasoning needs to be verified specifically against cases designed to distinguish real understanding from surface-level pattern luck.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

@@ -1,0 +1,164 @@
+<!doctype html>
+<html><head>
+<title>k6 Executors Explained: constant-vus, ramping-vus, constant-arrival-rate, ramping-arrival-rate</title>
+<meta name="description" content="The four core k6 executors explained precisely — what each one actually controls, and when to choose one over another based on what you&#x27;re really trying to measure." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/k6-executors-explained.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>k6 Executors Explained</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="ramping-and-stages.html">Ramping & Stages</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>An executor is the specific algorithm k6 uses to control how virtual users and iterations are scheduled over the course of a test. Everything covered so far (<code>vus</code>+<code>duration</code>, <code>stages</code>) is actually shorthand for one of two default executors — this page covers all four explicitly, including the two that control load by a genuinely different mechanism: arrival rate instead of VU count.</p>
+
+<h2 id="constant-vus-a-fixed-number-of-virtual-users">constant-vus — A Fixed Number of Virtual Users</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export const options = {
+  scenarios: {
+    my_test: {
+      executor: 'constant-vus',
+      vus: 50,
+      duration: '5m',
+    },
+  },
+};</code></pre>
+<p>This is the explicit form of what <code>vus: 50, duration: '5m'</code> already does behind the scenes — a fixed number of virtual users, each looping through the default function for the full duration. Use this when you genuinely want to control concurrency directly and don't need arrival-rate precision.</p>
+
+<h2 id="ramping-vus-a-changing-number-of-virtual-users-over-time">ramping-vus — A Changing Number of Virtual Users Over Time</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export const options = {
+  scenarios: {
+    my_test: {
+      executor: 'ramping-vus',
+      startVUs: 0,
+      stages: [
+        { duration: '2m', target: 100 },
+        { duration: '5m', target: 100 },
+        { duration: '2m', target: 0 },
+      ],
+    },
+  },
+};</code></pre>
+<p>This is the explicit form of the <code>stages</code> configuration from the previous page — ramping the VU count up and down over time. Use this whenever the traffic pattern being modeled genuinely changes over the test's duration, rather than staying flat.</p>
+
+<h2 id="the-key-limitation-of-vu-based-executors-vus-throughput">The Key Limitation of VU-Based Executors — VUs ≠ Throughput</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>50 VUs against a FAST endpoint (100ms response time):
+  → each VU can complete ~10 iterations per second → high actual throughput
+
+50 VUs against a SLOW endpoint (2000ms response time):
+  → each VU can complete only 0.5 iterations per second → much lower actual throughput</code></pre>
+<p>This is the real limitation both <code>constant-vus</code> and <code>ramping-vus</code> share: the number of VUs controls <em>concurrency</em>, but the actual resulting throughput (requests per second) depends entirely on how fast each iteration completes — which itself depends on the very system performance you're trying to measure. If response times degrade during the test, throughput silently drops too, even though the VU count stayed exactly the same.</p>
+
+<h2 id="constant-arrival-rate-a-fixed-throughput-independent-of-response-time">constant-arrival-rate — A Fixed Throughput, Independent of Response Time</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export const options = {
+  scenarios: {
+    my_test: {
+      executor: 'constant-arrival-rate',
+      rate: 50,
+      timeUnit: '1s',
+      duration: '5m',
+      preAllocatedVUs: 100,
+      maxVUs: 200,
+    },
+  },
+};</code></pre>
+<p>This targets exactly 50 new iterations started per second, regardless of how long each iteration actually takes to complete — k6 automatically adds more virtual users behind the scenes (up to <code>maxVUs</code>) as needed to sustain that rate, even if individual iterations are slow. This is the correct executor when the real requirement is a specific throughput target — "handle 50 requests per second" — rather than a specific concurrency level.</p>
+
+<h2 id="ramping-arrival-rate-a-changing-throughput-target-over-time">ramping-arrival-rate — A Changing Throughput Target Over Time</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export const options = {
+  scenarios: {
+    my_test: {
+      executor: 'ramping-arrival-rate',
+      startRate: 10,
+      timeUnit: '1s',
+      preAllocatedVUs: 50,
+      maxVUs: 300,
+      stages: [
+        { duration: '2m', target: 100 },
+        { duration: '5m', target: 100 },
+        { duration: '2m', target: 0 },
+      ],
+    },
+  },
+};</code></pre>
+<p>This combines arrival-rate control with the ramping behavior from the previous page — the target throughput itself ramps up and down over time, rather than staying fixed. Use this when the real requirement is a changing throughput target — "ramp up to handling 100 checkouts per second during a flash sale" — rather than a changing VU count.</p>
+
+<h2 id="detailed-example-choosing-between-vu-based-and-arrival-rate-based">Detailed Example — Choosing Between VU-Based and Arrival-Rate-Based</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Requirement A: "Simulate 500 concurrent users browsing the site."
+→ This is fundamentally about CONCURRENCY → use constant-vus or ramping-vus.
+
+Requirement B: "The system must handle 200 checkout requests per second at peak."
+→ This is fundamentally about THROUGHPUT → use constant-arrival-rate or ramping-arrival-rate.</code></pre>
+<p>Reading a requirement correctly — is it really about how many users are active at once, or about a specific rate of work being completed — is what determines which pair of executors is actually appropriate, independent of whether the load itself is flat or ramping.</p>
+
+<h2 id="real-world-example-why-arrival-rate-matters-for-an-sla-driven-test">Real-World Example — Why Arrival Rate Matters for an SLA-Driven Test</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>SLA: "The API must sustain 100 requests per second with p95 under 500ms."</code></pre>
+<p>Testing this with <code>constant-vus</code> would only approximate 100 RPS if response times happen to stay exactly at whatever level makes the math work out — a real risk, since the whole point of the test is finding out whether response times hold up. <code>constant-arrival-rate</code> tests this requirement far more directly and honestly: k6 actively works to sustain exactly 100 new iterations per second regardless of how the system responds, which is a much more faithful test of the actual SLA being verified.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Using constant-vus to test a specific throughput SLA — an indirect, unreliable proxy
+export const options = { vus: 50, duration: '5m' }; // hoping this produces ~100 RPS
+
+// ✅ Using constant-arrival-rate to test throughput directly
+export const options = {
+  scenarios: {
+    sla_test: {
+      executor: 'constant-arrival-rate',
+      rate: 100, timeUnit: '1s', duration: '5m',
+      preAllocatedVUs: 150, maxVUs: 300,
+    },
+  },
+};</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Using a VU-based executor to test a specific throughput requirement</strong> — VU count doesn't directly control RPS, since actual throughput depends on response time, which is exactly what you're trying to measure.</li>
+  <li><strong>Setting <code>maxVUs</code> too low for an arrival-rate executor</strong> — if response times degrade during the test, k6 needs more VUs to sustain the target rate; too low a ceiling silently prevents the configured rate from actually being achieved.</li>
+  <li><strong>Not distinguishing a concurrency requirement from a throughput requirement</strong> before choosing an executor — these call for genuinely different tools.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>An arrival-rate test that can't actually sustain its target rate</strong> because <code>maxVUs</code> was reached — k6 will report this, and it's a genuine, important finding (the system, or the test's own VU ceiling, can't keep up), not a configuration bug to just silently increase past without understanding why.</li>
+  <li><strong>A VU-based test where response times vary significantly across the run</strong> — the resulting throughput will vary correspondingly, which is worth reporting explicitly rather than assuming a fixed VU count implies fixed throughput.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If an arrival-rate test isn't achieving its configured rate, check whether <code>maxVUs</code> was hit — k6 reports this explicitly, and it usually means either the system genuinely can't sustain that throughput, or the VU ceiling needs to be raised to give k6 enough headroom to try.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Choose VU-based executors (<code>constant-vus</code>, <code>ramping-vus</code>) when the real requirement is about concurrency.</li>
+  <li>Choose arrival-rate executors (<code>constant-arrival-rate</code>, <code>ramping-arrival-rate</code>) when the real requirement is about a specific throughput target, especially for SLA verification.</li>
+  <li>Set <code>maxVUs</code> generously enough on arrival-rate executors that a degrading response time doesn't artificially cap the achievable rate before the system's real limit is reached.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>For the requirement "the checkout API must sustain 75 orders per second for 10 minutes, even under degraded response times," write the correct k6 executor configuration, and explain why a VU-based executor would be the wrong choice for this specific requirement.</p>
+
+<h2 id="summary">Summary</h2>
+<p>k6 has two VU-based executors (<code>constant-vus</code>, <code>ramping-vus</code>) that control concurrency directly, and two arrival-rate executors (<code>constant-arrival-rate</code>, <code>ramping-arrival-rate</code>) that control throughput directly, automatically adjusting VU count behind the scenes to sustain a target rate. The deciding factor for which pair to use is whether the real requirement is fundamentally about concurrency or about throughput — VU count and requests-per-second are related but genuinely different things, and testing an SLA-style throughput requirement with a VU-based executor is an indirect, less reliable proxy for what you're actually trying to verify.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why doesn't a fixed VU count guarantee a fixed requests-per-second throughput?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Throughput depends on how quickly each iteration completes, which depends on response time — the very thing being measured. If response times degrade during a test, each VU completes fewer iterations per second, silently reducing actual throughput even though the VU count never changed. This is exactly why VU count and RPS are related but not interchangeable.</div>
+</details>
+<details class="faq-item">
+<summary>Why would constant-arrival-rate be a better choice than constant-vus for testing a specific throughput SLA?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">constant-arrival-rate directly targets a specific number of new iterations per second, automatically adding more virtual users behind the scenes as needed to sustain that rate even if individual iterations slow down. constant-vus only indirectly approximates a throughput level, and that approximation breaks down exactly when response times change — which is precisely the scenario an SLA test is meant to probe.</div>
+</details>
+<details class="faq-item">
+<summary>What does it mean if a constant-arrival-rate test reports that it couldn't sustain its configured rate?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It typically means the maxVUs ceiling was reached — k6 needed more virtual users to keep up with the target rate as response times slowed, but was capped by the configured maximum. This is a genuine, important finding: either the system truly can't sustain that throughput at that response time, or the test's own VU ceiling needs to be raised to give k6 enough room to actually attempt it.</div>
+</details>
+<details class="faq-item">
+<summary>How does ramping-arrival-rate differ from ramping-vus?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">ramping-vus changes the number of concurrent virtual users over time according to defined stages; ramping-arrival-rate changes the target throughput (iterations started per second) over time instead, automatically managing however many VUs are needed to hit each stage's rate target. Both use a similar staged structure, but one directly controls concurrency while the other directly controls throughput.</div>
+</details>
+<details class="faq-item">
+<summary>Why might setting maxVUs too low on an arrival-rate executor produce misleading test results?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">If response times degrade during the test, k6 needs additional virtual users to sustain the configured arrival rate. A maxVUs ceiling that's too low can prevent k6 from actually achieving the target rate — not because the system itself couldn't handle it, but because the test's own configuration artificially capped the resources available to attempt it, which could be misread as a system limitation when it's actually a test configuration limitation.</div>
+</details>
+</div>
+</article>
+</body></html>

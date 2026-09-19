@@ -1,0 +1,149 @@
+<!doctype html>
+<html><head>
+<title>RestAssured OAuth 2.0 Authentication: Access Tokens, Refresh Tokens, Client Credentials</title>
+<meta name="description" content="How to test OAuth 2.0-secured APIs with RestAssured — the client credentials flow, access and refresh tokens, and testing token expiration." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/oauth2-authentication.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>OAuth 2.0 Authentication</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="api-key-authentication.html">API Key Authentication</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>OAuth 2.0 is an authorization framework — a formal set of flows for obtaining an access token, rather than a single mechanism like Basic Auth or an API key. For API test automation, you'll almost always be on the <em>consuming</em> side: obtaining a token through one of OAuth's flows, then using it exactly like a Bearer token on every subsequent request.</p>
+
+<h2 id="the-concepts-briefly">The Concepts, Briefly</h2>
+<ul>
+  <li><strong>Access token</strong> — the actual credential used to call protected endpoints, typically short-lived (minutes to hours).</li>
+  <li><strong>Refresh token</strong> — a longer-lived credential used to obtain a new access token without requiring the user to log in again.</li>
+  <li><strong>Client credentials</strong> — a flow specifically for machine-to-machine authentication (no human user involved at all), the flow you'll use most often in test automation, since a test suite is itself a "machine," not a human clicking through a login form.</li>
+  <li><strong>Authorization code</strong> — the flow real end-user-facing applications use (a human logs in through a browser redirect); rarely something you automate directly at the API level, since it involves a browser-based consent screen.</li>
+</ul>
+
+<h2 id="the-client-credentials-flow-what-you-ll-actually-automate-most">The Client Credentials Flow — What You'll Actually Automate Most</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void clientCredentialsFlowObtainsAccessToken() {
+    Response tokenResponse =
+        given()
+            .contentType(ContentType.URLENC)
+            .formParam("grant_type", "client_credentials")
+            .formParam("client_id", System.getenv("OAUTH_CLIENT_ID"))
+            .formParam("client_secret", System.getenv("OAUTH_CLIENT_SECRET"))
+        .when()
+            .post("/oauth/token");
+
+    tokenResponse.then().statusCode(200);
+    String accessToken = tokenResponse.jsonPath().getString("access_token");
+
+    given()
+        .header("Authorization", "Bearer " + accessToken)
+    .when()
+        .get("/api/resource")
+    .then()
+        .statusCode(200);
+}</code></pre>
+<p>This is the shape almost every test-automation-facing OAuth integration takes: a machine-to-machine request (no browser, no human) exchanging a client ID and secret for an access token, which then behaves exactly like any other Bearer token for the rest of the test. <code>ContentType.URLENC</code> and <code>.formParam()</code> are used here specifically because the OAuth token endpoint conventionally expects form-encoded data, not JSON — a detail worth double-checking against the specific provider's documentation.</p>
+
+<h2 id="detailed-example-testing-token-expiration">Detailed Example — Testing Token Expiration</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void expiredAccessTokenIsRejected() {
+    String expiredToken = obtainATokenAndWaitForItToExpire(); // test-specific helper
+
+    given()
+        .header("Authorization", "Bearer " + expiredToken)
+    .when()
+        .get("/api/resource")
+    .then()
+        .statusCode(401);
+}</code></pre>
+<p>Testing expiration directly is often impractical (waiting for a real token to expire is slow), so this is frequently handled instead by requesting a very short-lived token specifically for this test (if the OAuth provider supports a configurable expiry), or by testing against a known-expired token fixture rather than waiting in real time.</p>
+
+<h2 id="real-world-example-using-the-refresh-token-flow">Real-World Example — Using the Refresh Token Flow</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void refreshTokenObtainsNewAccessTokenWithoutReAuthenticating() {
+    Response refreshResponse =
+        given()
+            .contentType(ContentType.URLENC)
+            .formParam("grant_type", "refresh_token")
+            .formParam("refresh_token", storedRefreshToken)
+            .formParam("client_id", System.getenv("OAUTH_CLIENT_ID"))
+        .when()
+            .post("/oauth/token");
+
+    refreshResponse.then().statusCode(200);
+    String newAccessToken = refreshResponse.jsonPath().getString("access_token");
+
+    given()
+        .header("Authorization", "Bearer " + newAccessToken)
+    .when()
+        .get("/api/resource")
+    .then()
+        .statusCode(200);
+}</code></pre>
+<p>Testing the refresh flow explicitly — not just the initial token acquisition — matters because it's a genuinely separate code path in most OAuth implementations, and a bug here specifically breaks "staying logged in," a scenario easy to overlook if you only ever test fresh logins.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Re-running the full client credentials exchange in every single test —
+// slow, and puts unnecessary load on the OAuth provider
+@Test void testA() { String token = obtainAccessToken(); /* ... */ }
+@Test void testB() { String token = obtainAccessToken(); /* ... */ } // re-authenticates again
+
+// ✅ Obtain the token once per test class (or suite), reuse it — the
+// full pattern is covered on the Authentication Reuse page next in this chapter
+@BeforeAll
+static void authenticateOnce() { sharedAccessToken = obtainAccessToken(); }</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Re-authenticating via the full OAuth flow in every single test</strong> instead of reusing a token across a test class or suite — slow, and unnecessarily hammers the OAuth provider.</li>
+  <li><strong>Confusing the client credentials flow with the authorization code flow</strong> — the latter requires a browser-based human interaction and generally isn't something you automate directly at the API level.</li>
+  <li><strong>Hardcoding client ID/secret</strong> instead of reading them from environment variables or a secrets manager.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Scoped access tokens</strong> — some OAuth implementations issue tokens with limited scopes (read-only vs. read-write); worth testing that an insufficiently-scoped token correctly gets a 403 on an action outside its granted scope.</li>
+  <li><strong>Token revocation</strong> — if the API supports explicitly revoking a token, test that a revoked token is immediately rejected on subsequent use, not just that a naturally-expired one is.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If the token endpoint itself returns an unexpected error, log the full request and response — OAuth token endpoints are often strict about exact parameter names and content type, and a small mismatch (JSON body instead of the expected form-encoded data, for instance) produces a confusing error that isn't really about your credentials at all.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Use the client credentials flow for test automation — it's the flow designed for machine-to-machine access with no human involved.</li>
+  <li>Obtain a token once per test class or suite, not per individual test.</li>
+  <li>Test the refresh flow explicitly, not just initial token acquisition.</li>
+  <li>Never hardcode client ID/secret — read from environment variables or a secrets manager.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Using an OAuth 2.0 test provider (many API platforms offer a sandbox), implement the client credentials flow, obtain an access token, and use it to call a protected endpoint — then write a second test confirming an expired or deliberately malformed token is rejected with the correct status code.</p>
+
+<h2 id="summary">Summary</h2>
+<p>OAuth 2.0 is a framework of flows for obtaining tokens, not a single mechanism — for test automation, the client credentials flow (machine-to-machine, no human involved) is what you'll use almost exclusively. Once obtained, an OAuth access token behaves exactly like any other Bearer token for the rest of a test; the real complexity is in the acquisition and refresh flows, not in using the token itself.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why is the client credentials flow the OAuth 2.0 flow you'd typically use in API test automation, rather than the authorization code flow?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The authorization code flow is designed for scenarios where a real human user logs in through a browser and explicitly consents — it involves a redirect to a login/consent screen, which isn't something an API-level test automation tool like RestAssured can meaningfully interact with. The client credentials flow, by contrast, is specifically designed for machine-to-machine authentication with no human or browser involved — a test suite exchanges a client ID and secret directly for an access token via a single API call, which is exactly what an automated test needs.</div>
+</details>
+<details class="faq-item">
+<summary>Why is the client credentials flow the OAuth flow you'd use in test automation, not the authorization code flow?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Authorization code requires a human logging in through a browser-based consent screen — not something an API-level tool like RestAssured can interact with; client credentials is specifically designed for machine-to-machine access with no human involved.</div>
+</details>
+<details class="faq-item">
+<summary>What's the practical difference between an access token and a refresh token?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The access token is the actual credential used to call protected endpoints, typically short-lived; the refresh token is longer-lived and used specifically to obtain a new access token without requiring the user to log in again.</div>
+</details>
+<details class="faq-item">
+<summary>Why might the OAuth token endpoint expect ContentType.URLENC instead of JSON?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Many OAuth providers' token endpoints conventionally expect form-encoded data rather than JSON — a detail worth checking against the specific provider's documentation rather than assuming JSON universally applies.</div>
+</details>
+<details class="faq-item">
+<summary>Why is testing the refresh token flow explicitly, not just initial login, worth doing?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It's often a genuinely separate code path from the initial login flow — a bug here specifically breaks 'staying logged in,' a scenario easy to overlook if only fresh logins are ever tested.</div>
+</details>
+</div>
+</article>
+</body></html>

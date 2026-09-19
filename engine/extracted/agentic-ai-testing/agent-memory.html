@@ -1,0 +1,178 @@
+<!doctype html>
+<html><head>
+<title>Agent Memory: What an Agent Can Actually Recall</title>
+<meta name="description" content="Short-term memory within a single task versus long-term memory across separate runs, why memory needs real limits, and how a genuine memory system is actually built." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/agent-memory.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Agent Memory</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="agent-reasoning.html">Agent Reasoning</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Memory is what an agent can actually refer back to — what it already tried, what it already learned, what already happened. As covered in the LLM page, this isn't something the underlying model provides automatically; it's something the surrounding agent system deliberately captures and re-supplies.</p>
+
+<h2 id="short-term-memory-within-a-single-task">Short-Term Memory — Within a Single Task</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Within ONE checkout-verification task, the agent's short-term
+memory might accumulate:
+
+Step 2: "Filled email field with test credentials"
+Step 4: "Login succeeded — now on the products page"
+Step 6: "Added 'Wireless Mouse' to cart — cart count now shows 1"
+Step 8: "Attempted checkout — blocked by a newsletter modal"
+Step 9: "Dismissed the modal"
+
+By step 10, the reasoner has ALL of this available — it knows
+exactly what's already been tried and what already happened,
+without needing to re-discover any of it from scratch.</code></pre>
+<p>This kind of memory typically exists only for the duration of one task — once the task completes, this specific history usually isn't needed again, though it's often kept as part of the task's final report.</p>
+
+<h2 id="long-term-memory-across-separate-runs">Long-Term Memory — Across Separate Runs</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Genuinely useful long-term memory, persisted BETWEEN separate
+agent runs, days or weeks apart:
+
+"ShopEasy's checkout page's newsletter modal appears roughly
+40% of the time — when it does, dismissing it via the 'X' in
+the top-right corner reliably works."
+
+A future run, encountering the same modal, can use this
+PRE-LEARNED fact rather than genuinely re-discovering it from
+scratch every single time — a real efficiency gain from
+retaining knowledge across runs, not just within one.</code></pre>
+<p>Long-term memory is genuinely more complex to build correctly — it needs to decide what's actually worth retaining (a stable, recurring pattern) versus what was specific to one particular run and shouldn't be assumed to generalize.</p>
+
+<h2 id="why-memory-needs-real-limits">Why Memory Needs Real Limits</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>❌ Naive approach — remember absolutely everything, forever:
+  Every single observation, every reasoning step, every action,
+  across every run, kept indefinitely.
+
+  Real problems this causes:
+  - Genuinely enormous context to include in every future prompt
+    (cost, and actual practical limits on how much text an LLM
+    call can process)
+  - Stale, no-longer-true information treated as still valid
+    ("the checkout page used to have a modal" — but it was
+    removed in a redesign three months ago)
+
+✅ A genuinely deliberate memory design:
+  Short-term: everything from the CURRENT task, discarded once
+    the task completes (or condensed into a brief summary)
+  Long-term: only specific, deliberately-curated, periodically
+    re-validated facts — not an ever-growing raw log</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might "remember absolutely everything forever" actually make an agent's decisions genuinely worse, not just more expensive, compared to a deliberately curated memory? Old, no-longer-true information competing for the reasoner's attention alongside current, accurate information can lead to decisions based on outdated assumptions — a memory system needs to actively manage what's still trustworthy, not just accumulate indefinitely and hope irrelevant or stale entries don't cause harm.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Building long-term memory that stores raw, unvalidated observations from a single run as if they're permanently, generally true. A newsletter modal appearing once doesn't mean it always appears — long-term memory needs some mechanism (repetition across multiple runs, periodic re-validation) before treating something as a genuinely reliable, reusable fact.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>A genuinely useful practical distinction when designing memory: short-term memory answers "what's happened so far in THIS task," while long-term memory answers "what have I reliably learned that's likely still true NEXT time." Confusing these two — treating a one-off observation as a durable, general fact — is a common, real source of agent mistakes.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Keep short-term and long-term memory as genuinely distinct systems, with different retention rules and different levels of trust.</li>
+  <li>Require some form of validation (repetition, explicit confirmation) before promoting a single-run observation into trusted long-term memory.</li>
+  <li>Periodically re-validate long-term memory against current reality — applications change, and stale assumptions are a genuine, real risk.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Short-term memory covers what's happened within the current task; long-term memory covers what's been reliably learned across separate runs over time.</li>
+  <li>Memory needs deliberate limits — unbounded accumulation causes both real cost problems and real correctness problems from stale information.</li>
+  <li>Long-term memory specifically needs some form of validation before a single observation is trusted as a generally reliable fact.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>For an agent that's run ShopEasy's checkout verification test daily for two weeks, describe one genuinely useful long-term memory fact it might have reliably learned, and one observation from a single run that it should specifically NOT treat as a reliable, general fact — with your reasoning for each.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>An agent's long-term memory contains "ShopEasy's checkout always shows a newsletter modal" based on a single observation from one run last month. What's the real risk here, and how would you fix the memory system's design?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>The real risk is treating a single, unvalidated observation as a permanent, general fact — if the modal was actually a temporary A/B test or has since been removed, the agent will waste time on every future run trying to dismiss a modal that no longer exists, or worse, make decisions based on an assumption that's now simply false.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>The actual fix — require validation before trusting:
+Don't promote to long-term memory after ONE observation.
+Instead: "Modal observed in 3 of the last 5 runs" — THIS is
+  genuinely worth trusting as a likely-recurring pattern.
+
+Also: periodically re-check long-term facts against current
+  reality, rather than trusting them indefinitely once stored —
+  "last confirmed: 2 weeks ago" is more honest and useful than
+  treating a fact as permanently, unconditionally true</code></pre>
+<p>The general principle: long-term memory needs a genuine confidence mechanism — repetition, recency, explicit re-validation — not just "I saw this once, so it must always be true."</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page distinguish short-term memory (discarded after the task) from long-term memory (persisted across runs), rather than treating all memory as one system?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because they serve genuinely different purposes and have genuinely different trustworthiness — collapsing them into one system risks treating task-specific details as if they were general, reusable facts, or vice versa.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Short-term memory example: "Filled the email field at step 2."
+  Genuinely true and useful WITHIN this task. Meaningless and
+  potentially confusing if carried forward to a different task
+  next week — that task will have its OWN step 2, unrelated.
+
+Long-term memory example: "The checkout page's modal can be
+  dismissed via the top-right X button."
+  Genuinely useful ACROSS tasks and runs — this is a fact about
+  the application's stable behavior, not about one specific
+  task's specific history.</code></pre>
+<p>Treating these as one undifferentiated pool risks exactly the confusion this page warns about — task-specific noise diluting genuinely reusable, validated knowledge, or transient details being mistakenly treated as permanent facts.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why "remember everything, keep it forever" is a genuinely worse design than a deliberately limited memory system, even though storage itself is cheap.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>The problem isn't storage cost specifically — it's that everything remembered has to be actively considered by the reasoner to be useful, and an ever-growing, unfiltered memory genuinely degrades that process rather than just costing more to store.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Practical costs of unlimited memory, beyond storage:
+- Every prompt to the LLM needs to include RELEVANT memory —
+  an unfiltered, ever-growing memory makes it genuinely harder
+  to include only what's actually relevant to the current step
+- Real LLM context windows have actual, practical size limits —
+  eventually, unfiltered memory simply won't fit
+- STALE entries actively compete with CURRENT, accurate ones
+  for the reasoner's attention, genuinely risking decisions
+  based on outdated assumptions, not just wasted space</code></pre>
+<p>The lesson: memory design is genuinely about curation and relevance, not just retention — a smaller, well-maintained, validated memory is functionally more useful than a larger, unfiltered one, independent of storage cost.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Give a concrete example of information that belongs in short-term memory but would be a genuine mistake to promote to long-term memory, even if it seemed important at the time.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A concrete example: "the checkout page took 8 seconds to load during this specific run." This is genuinely useful within the current task (maybe explaining a subsequent timeout), but would be a real mistake as a general, long-term fact.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why it's fine in short-term memory:
+Explains something specific to THIS run — perhaps the network
+  was briefly slow, or a background process was running. Useful
+  context for THIS task's own reasoning and final report.
+
+Why it's a mistake as long-term memory:
+"ShopEasy's checkout always takes 8 seconds to load" would be
+  a false generalization from ONE data point — the actual load
+  time varies run to run based on genuinely unrelated factors
+  (network conditions, server load at that moment), and treating
+  one measurement as a stable, general fact is simply incorrect.</code></pre>
+<p>The distinguishing test: is this genuinely a stable property of the application itself, or a one-off circumstance of this particular run? Only the former belongs in long-term memory.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How might you design a genuine validation mechanism for promoting an observation from short-term to long-term memory, beyond simply "seen more than once"?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A genuinely more robust approach combines frequency with recency and explicit confidence tracking, rather than a simple binary "seen twice, now trust forever" rule.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A more deliberate validation approach:
+- Track OCCURRENCE COUNT: how many separate runs has this
+  actually been observed in?
+- Track RECENCY: when was it LAST confirmed still true? A
+  fact confirmed yesterday is more trustworthy than one only
+  confirmed 3 months ago, even with the same occurrence count
+- Track CONTRADICTING observations: if a previously "confirmed"
+  fact is contradicted by a NEW observation, that should
+  actively reduce confidence, not just get silently ignored
+- Consider EXPLICIT expiration: some facts (a modal's behavior)
+  are worth re-validating periodically even after being
+  confirmed multiple times, since applications genuinely change</code></pre>
+<p>The deeper principle: long-term memory should behave less like a permanent database and more like a continuously-updated, confidence-weighted belief system — genuinely willing to revise itself when new evidence contradicts what it previously "knew," which is exactly the kind of design real production agentic systems need.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

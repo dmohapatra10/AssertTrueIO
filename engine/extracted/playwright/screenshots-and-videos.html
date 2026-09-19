@@ -1,0 +1,144 @@
+<!doctype html>
+<html><head>
+<title>Playwright Screenshots and Videos: Visual Debugging and Regression Testing</title>
+<meta name="description" content="Learn how to capture screenshots and videos in Playwright, configure automatic capture on failure, and use toHaveScreenshot() for visual regression testing." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/screenshots-and-videos.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Chapter 14: Screenshots and Videos</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="assertions.html">Assertions</a>, <a href="getting-started.html">Getting Started</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Playwright can capture screenshots and record full video of a test run, either on demand or automatically when something goes wrong. This chapter covers manual capture for debugging, configured automatic capture for diagnosing CI failures you can't reproduce locally, and the separate, assertion-based tool for catching visual regressions.</p>
+
+<h2 id="why-it-s-important">Why it's important</h2>
+<p>A failing test's error message tells you what assertion failed, but not always why — a screenshot or video of the actual page state at the moment of failure is often the fastest way to understand a bug, especially one that only reproduces in CI and that you can't easily reproduce on your own machine.</p>
+
+<h2 id="mental-model">Mental Model</h2>
+<p>There are really two unrelated tools that happen to share the word "screenshot":</p>
+<ul>
+  <li><strong><code>page.screenshot()</code></strong> — an action that captures an image to a file. It makes no comparison and can't fail a test by itself; it's purely for human debugging.</li>
+  <li><strong><code>toHaveScreenshot()</code></strong> — a web-first assertion that compares the current render against a stored baseline and fails the test if they differ too much. This is a testing tool, not a debugging aid.</li>
+</ul>
+<p>Confusing these two — expecting a plain <code>screenshot()</code> call to "check" anything, or treating <code>toHaveScreenshot()</code> as just a way to save an image — is a common source of misunderstanding for engineers new to this part of Playwright.</p>
+
+<h2 id="manual-screenshots">Manual Screenshots</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Full page
+await page.screenshot({ path: 'screenshots/dashboard.png', fullPage: true });
+
+// A single element
+await page.getByRole('table').screenshot({ path: 'screenshots/orders-table.png' });</code></pre>
+
+<h2 id="automatic-capture-on-failure">Automatic Capture on Failure</h2>
+<p>Rather than adding manual screenshot calls throughout your suite, configure automatic capture in <code>playwright.config.ts</code> so every test failure gets a screenshot, video, and trace for free:</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// playwright.config.ts
+export default defineConfig({
+  use: {
+    screenshot: 'only-on-failure',
+    video: 'retain-on-failure',
+  },
+});</code></pre>
+<p><code>'only-on-failure'</code> and <code>'retain-on-failure'</code> are deliberately the common defaults — capturing on every single test (<code>'on'</code>) works too, but generates a large volume of artifacts for tests that already passed and told you nothing new.</p>
+
+<h2 id="basic-example-visual-regression-with-tohavescreenshot">Basic Example — Visual Regression With toHaveScreenshot()</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>await expect(page).toHaveScreenshot('dashboard.png');
+
+// Scoped to a single element, more stable than a full-page comparison
+await expect(page.getByRole('navigation')).toHaveScreenshot('nav-bar.png');</code></pre>
+<p>The first run generates the baseline image (with <code>--update-snapshots</code>); every run after that compares against it and fails if the difference exceeds a configurable threshold. This catches unintended visual changes that functional assertions (checking text or attributes) would never notice — a broken layout, a color regression, missing padding.</p>
+
+<h2 id="detailed-example-masking-dynamic-content">Detailed Example — Masking Dynamic Content</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// A dashboard with a live "last updated" timestamp would otherwise
+// fail every comparison, since the timestamp is always different
+await expect(page).toHaveScreenshot('dashboard.png', {
+  mask: [page.getByTestId('last-updated-timestamp')],
+});</code></pre>
+<p><code>mask</code> covers the specified elements with a solid block before comparing, so genuinely dynamic content (timestamps, live counters, ads) doesn't cause constant false failures while the rest of the layout is still meaningfully checked.</p>
+
+<h2 id="real-world-example-catching-a-visual-regression">Real-World Example — Catching a Visual Regression</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import { test, expect } from '@playwright/test';
+
+test('product card layout matches baseline', async ({ page }) =&gt; {
+  await page.goto('/products/wireless-headphones');
+  await expect(page.getByTestId('product-card')).toHaveScreenshot('product-card.png', {
+    maxDiffPixelRatio: 0.02,
+  });
+});</code></pre>
+<p><code>maxDiffPixelRatio</code> allows a small tolerance — useful because font rendering and anti-aliasing can differ very slightly between machines even when nothing about the actual layout changed.</p>
+
+<h2 id="video-configuration-options">Video Configuration Options</h2>
+<table>
+  <thead><tr><th>Value</th><th>Behavior</th></tr></thead>
+  <tbody>
+    <tr><td><code>'off'</code></td><td>Never record (default)</td></tr>
+    <tr><td><code>'on'</code></td><td>Record every test, pass or fail</td></tr>
+    <tr><td><code>'retain-on-failure'</code></td><td>Record every test, but delete the video for tests that passed</td></tr>
+    <tr><td><code>'on-first-retry'</code></td><td>Only record when a test is being retried after an initial failure</td></tr>
+  </tbody>
+</table>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Full-page comparison including a constantly-changing element
+await expect(page).toHaveScreenshot('dashboard.png'); // fails on every run
+
+// ✅ Mask the dynamic part, or scope to a stable region
+await expect(page).toHaveScreenshot('dashboard.png', {
+  mask: [page.getByTestId('live-clock')],
+});</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Using full-page <code>toHaveScreenshot()</code> comparisons for content that includes frequently-changing data</strong> (timestamps, live prices), causing constant false failures.</li>
+  <li><strong>Generating baseline screenshots on a different OS/browser than CI runs on</strong> — font rendering differs enough between platforms to cause consistent, spurious failures.</li>
+  <li><strong>Setting <code>screenshot: 'on'</code> and <code>video: 'on'</code> globally "just in case,"</strong> bloating CI artifact storage with captures from tests that already passed.</li>
+  <li><strong>Not masking known-dynamic regions</strong> before assuming visual regression testing "doesn't work" on a page with live content.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Animations mid-transition at capture time</strong> — Playwright's actionability "stable" check (Chapter 5) helps avoid mid-animation captures for actions, but screenshot comparisons can still occasionally catch a CSS transition partway through; consider disabling animations via a test-only CSS override for the most deterministic results.</li>
+  <li><strong>Scrollbars affecting pixel comparison</strong> — a full-page screenshot's exact dimensions can shift slightly if a scrollbar appears/disappears due to content length changes; scoping to a specific element instead of the whole page avoids this.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>When a visual comparison fails, Playwright generates a diff image alongside the actual and expected screenshots, visible in the HTML report (Chapter 13) — always look at the diff image first; it usually makes the actual cause (a shifted element, a color change, a missing icon) immediately obvious rather than needing to eyeball two full screenshots side by side.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Scope visual comparisons to a specific stable element rather than the whole page, when only part of the UI is actually the concern.</li>
+  <li>Generate and update baseline screenshots in the same environment (often via CI itself) that will later run the comparisons.</li>
+  <li>Mask any genuinely dynamic content rather than avoiding visual testing on pages that have some.</li>
+  <li>Default to <code>'only-on-failure'</code> / <code>'retain-on-failure'</code> for screenshots and video; reserve <code>'on'</code> for a specific debugging session, not permanent config.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Set up a visual regression test for a page that includes a live-updating "X users online" counter, using <code>mask</code> so the comparison remains stable despite the constantly-changing number.</p>
+
+<h2 id="summary">Summary</h2>
+<p>Manual screenshots and automatic on-failure capture are debugging tools for understanding what happened. <code>toHaveScreenshot()</code> is a different, assertion-based tool for catching unintended visual regressions against a stored baseline, with masking and tolerance options to handle genuinely dynamic content — both are useful, but for different purposes.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>What's the difference between page.screenshot() and expect(page).toHaveScreenshot()?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer"><code>page.screenshot()</code> simply captures an image to a file — it makes no comparison and can't fail a test on its own. <code>toHaveScreenshot()</code> is a web-first assertion that compares the current render against a stored baseline image and fails the test if the difference exceeds a threshold, making it a tool for catching visual regressions rather than just capturing state.</div>
+</details>
+<details class="faq-item">
+<summary>What's the actual difference between page.screenshot() and expect(page).toHaveScreenshot()?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">screenshot() just captures an image with no comparison; toHaveScreenshot() is an assertion that compares against a stored baseline and can fail the test.</div>
+</details>
+<details class="faq-item">
+<summary>Why mask dynamic content before running a visual comparison?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A constantly-changing element like a live timestamp would otherwise fail every single comparison, even when the actual layout is correct.</div>
+</details>
+<details class="faq-item">
+<summary>Why generate baseline screenshots in the same environment that will later compare against them?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Font rendering and anti-aliasing differ enough between operating systems to cause consistent, spurious failures otherwise.</div>
+</details>
+<details class="faq-item">
+<summary>What are the recommended defaults for screenshot and video config?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">'only-on-failure' and 'retain-on-failure' — capturing everything for every test wastes storage on runs that already passed and told you nothing new.</div>
+</details>
+</div>
+</article>
+</body></html>

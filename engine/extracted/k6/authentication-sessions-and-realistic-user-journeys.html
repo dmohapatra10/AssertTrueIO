@@ -1,0 +1,39 @@
+<!doctype html>
+<html><head>
+<title>Authentication, Sessions &amp; Realistic User Journeys in k6</title>
+<meta name="description" content="Every k6 authentication mechanism, why setup()-based login can accidentally simulate one shared identity instead of many real users, and a complete browse-to-checkout journey." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/authentication-sessions-and-realistic-user-journeys.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Authentication, Sessions &amp; Realistic User Journeys</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="test-data-correlation-and-dynamic-workflows.html">Test Data, Correlation & Dynamic Workflows</a></p>
+<article class="content">
+<h2 id="a-subtle-bug-hiding-in-an-earlier-example">A Subtle Bug Hiding in an Earlier Example</h2>
+<p>Chapter 2 showed authenticating once inside <code>setup()</code>, sharing the resulting token across every virtual user — correct for a single, shared service-level credential. But if the actual goal is simulating many distinct real users, that same pattern is quietly wrong: <code>setup()</code> runs exactly once for the entire test, so every VU would be using the identical session, not their own. This chapter is about getting that right. Three focused pages:</p>
+<ol>
+  <li><a href="authentication-mechanisms-basic-bearer-apikey-jwt-oauth.html">Authentication Mechanisms: Basic, Bearer, API Key, JWT, OAuth</a> — every mechanism, as k6 syntax</li>
+  <li><a href="session-management-token-reuse-expiration-and-refresh.html">Session Management: Token Reuse, Expiration & Refresh</a> — including the setup() nuance above, done correctly</li>
+  <li><a href="building-a-realistic-user-journey.html">Building a Realistic User Journey</a> — Login → Browse → Search → Add to Cart → Checkout, with each VU as a genuinely distinct user</li>
+</ol>
+
+<h2 id="why-this-matters-more-than-it-sounds-like-it-should">Why This Matters More Than It Sounds Like It Should</h2>
+<p>A test where every virtual user shares one identical session isn't just a technical inaccuracy — it can hide real bugs (a user-isolation problem in the target system would be invisible if every "user" is secretly the same one) and can even produce misleadingly good performance numbers, since the system may cache or reuse resources for a single repeated session far more efficiently than it ever could for hundreds of genuinely distinct ones.</p>
+
+<h2 id="a-quick-preview-of-the-distinction">A Quick Preview of the Distinction</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>❌ One shared login for the whole test (setup(), used naively):
+   All 200 VUs → 1 real session → not realistic user isolation
+
+✅ Each VU authenticates for itself (this chapter's actual approach):
+   200 VUs → 200 real, independent sessions → genuinely realistic</code></pre>
+
+<h2 id="common-mistakes-to-watch-for">Common Mistakes to Watch For</h2>
+<ul>
+  <li><strong>Reusing Chapter 2's <code>setup()</code>-login pattern</strong> for a test meant to simulate many distinct real users, without realizing it produces one shared identity instead.</li>
+  <li><strong>Never handling token expiration</strong> in a longer-running or soak-style test, leading to a wave of authentication failures partway through that look like a system problem but aren't.</li>
+  <li><strong>Treating cookies and bearer tokens as interchangeable</strong> — a real system may combine both, each needing to be handled correctly.</li>
+</ul>
+
+<h2 id="what-you-ll-be-able-to-do">What You'll Be Able to Do</h2>
+<p>By the end of the three pages that follow, you should be able to implement any of k6's common authentication mechanisms correctly, choose the right pattern for per-VU authentication so each virtual user genuinely represents a distinct session, handle token expiration and refresh in a longer test, and build a complete, realistic user journey from login through checkout. Start with Authentication Mechanisms below.</p>
+</article>
+</body></html>

@@ -1,0 +1,202 @@
+<!doctype html>
+<html><head>
+<title>Connecting an AI Agent with RestAssured: API-Calling Tools</title>
+<meta name="description" content="Real tools an agent uses to explore and test a REST API — genuinely simpler than browser tools, with structured JSON responses as a natural fit for AI reasoning." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/connecting-an-ai-agent-with-restassured.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Connecting an AI Agent with RestAssured</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="ai-and-restassured.html">AI + RestAssured overview</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>An agent's API tools are genuinely simpler than its browser tools from Chapter 5 — no locators, no visual layout, just HTTP requests and JSON responses. This page builds that toolkit.</p>
+
+<h2 id="a-genuinely-minimal-api-toolkit">A Genuinely Minimal API Toolkit</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># tools.py
+import requests
+
+BASE_URL = "https://staging.shopeasy.example.com/api"
+
+def make_request(method, endpoint, json_body=None, params=None):
+    response = requests.request(
+        method, f"{BASE_URL}{endpoint}",
+        json=json_body, params=params, timeout=10
+    )
+    return {
+        "status_code": response.status_code,
+        "body": response.json() if response.content else None,
+        "headers": dict(response.headers),
+    }</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>TOOL_DEFINITIONS = [
+    {"name": "make_request",
+     "description": "Makes an HTTP request to the ShopEasy API and returns the status code, response body, and headers.",
+     "input_schema": {"type": "object",
+        "properties": {
+            "method": {"type": "string", "description": "GET, POST, PATCH, or DELETE"},
+            "endpoint": {"type": "string", "description": "e.g. '/orders/1042'"},
+            "json_body": {"type": "object", "description": "Request body for POST/PATCH"},
+            "params": {"type": "object", "description": "Query parameters for GET"}
+        },
+        "required": ["method", "endpoint"]}},
+]</code></pre>
+<p>Genuinely one tool covers essentially every API interaction this agent needs — a real, meaningful contrast with Chapter 5's several distinct browser tools, and worth understanding why.</p>
+
+<h2 id="why-one-tool-is-genuinely-enough-here">Why One Tool Is Genuinely Enough Here</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Browser interactions (Chapter 5) needed SEVERAL distinct
+tools — click, fill, search, filter — because each one
+represents a GENUINELY different kind of user action on a
+visual interface.
+
+API interactions are already UNIFORM at the protocol level —
+every single operation is fundamentally "send an HTTP request,
+get a response back." A single, well-parameterized tool
+genuinely captures this whole space, rather than needing
+separate tools for "get an order," "create an order," "update
+an order's status" — these are all the SAME underlying
+mechanism (an HTTP request), just with different method/
+endpoint/body values.</code></pre>
+
+<h2 id="structured-json-a-natural-fit">Structured JSON — A Natural Fit</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Chapter 5 needed a DEDICATED tool (get_search_results) to turn
+messy page text into structured data for the reasoner.
+
+APIs genuinely don't need this extra step — a JSON response
+IS ALREADY structured data:
+
+{"id": 1042, "status": "pending", "total": 67.43,
+ "items": [{"product_id": 501, "quantity": 2}]}
+
+This is directly usable by the reasoner without any additional
+parsing tool — a genuine, real simplification compared to the
+browser-tools chapter.</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might a single, well-parameterized <code>make_request</code> tool still be consistent with Chapter 2's tool-scoping safety principle, even though it's genuinely more flexible than the narrow, single-purpose tools Chapter 2 generally recommended? The safety principle was never "always use the narrowest possible tool regardless of context" — it was "give an agent only the capability a task genuinely needs." If a task genuinely needs to interact with several different API operations, and those operations share the exact same underlying mechanism, one parameterized tool scoped to a specific, safe base URL and method set can be just as safe as several narrow ones, while avoiding artificial fragmentation of what's genuinely one coherent capability.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Leaving <code>make_request</code>'s <code>method</code> parameter completely unrestricted, allowing an agent to call <code>DELETE</code> on a task that only ever needed <code>GET</code> and <code>POST</code>. Even a single, unified tool should still be scoped to what a specific task genuinely requires — Chapter 2's tool-scoping principle applies to a parameterized tool's actual allowed values, not just to whether separate tools exist.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>Setting a genuine, sensible timeout (this page's example uses 10 seconds) on every API call is a small but real safeguard — an agent waiting indefinitely on a hung request would silently consume a step in Chapter 3's loop without any actual progress, exactly the kind of stuck-loop risk Chapter 2 warned about.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Prefer one well-parameterized tool over several narrow ones when the underlying operations genuinely share the same mechanism, as HTTP requests do.</li>
+  <li>Still scope even a unified tool's allowed parameters (methods, endpoints) to what a specific task genuinely needs.</li>
+  <li>Set a genuine, sensible timeout on every real network call an agent's tools make.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>API tools are genuinely simpler than browser tools — one well-parameterized <code>make_request</code> tool often covers the full space of operations, since they share one underlying mechanism.</li>
+  <li>JSON responses are already structured, removing the need for a dedicated parsing tool that browser text required in Chapter 5.</li>
+  <li>Tool-scoping safety still applies to a unified tool's actual allowed parameter values, not just to whether multiple separate tools exist.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Write a scoped version of <code>make_request</code> that restricts <code>method</code> to only <code>"GET"</code> and <code>"POST"</code> for a task that should never modify or delete existing orders, explicitly rejecting any other method with a clear message.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A teammate argues make_request should be split into get_order, create_order, and update_order_status as separate tools, matching Chapter 5's approach for browser actions. How would you respond?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd point out the genuine difference this page identifies — Chapter 5's browser actions were separate because they represented DIFFERENT underlying mechanisms (clicking vs. typing vs. scrolling), while these three API operations are all the SAME underlying mechanism (an HTTP request) with different parameters.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why SEPARATE tools made sense for BROWSER actions:
+click_element and fill_field use GENUINELY different
+  Playwright APIs internally (.click() vs .fill()) — the
+  underlying MECHANISM itself differs, not just the parameters.
+
+Why ONE tool genuinely makes sense HERE:
+get_order, create_order, and update_order_status would all,
+  internally, just call the SAME requests.request(method, url,
+  json=body) — the only difference is WHICH values get passed
+  in. Splitting these into separate tools would be artificial
+  fragmentation of one genuinely unified mechanism, not a
+  reflection of any real, underlying difference.</code></pre>
+<p>The deeper principle, consistent with earlier chapters: tool boundaries should reflect genuine differences in mechanism, not just differences in what's being accomplished — and this is a genuine case where several DIFFERENT-sounding operations share one real, identical mechanism underneath.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page argue that JSON responses removing the need for a "get_search_results-style" parsing tool is a genuine simplification, not just a minor convenience?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because it removes an entire category of potential failure — Chapter 5 needed a DEDICATED, carefully-designed tool specifically to avoid the reasoner having to parse unstructured text, and that entire class of work and potential error simply doesn't exist for API responses.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What Chapter 5 needed to GUARD against:
+get_page_text() returning messy, unstructured text meant the
+  reasoner risked MISREADING a price or missing a product
+  buried in irrelevant surrounding content — a real, genuine
+  risk that get_search_results() was SPECIFICALLY built to
+  eliminate through dedicated, careful tool design.
+
+What's simply NOT a risk here:
+A JSON response like {"status": "pending", "total": 67.43} is
+  ALREADY perfectly structured — there's no "misreading" risk
+  analogous to parsing unstructured text, because there's
+  nothing to parse in that same sense at all. The simplification
+  isn't just fewer lines of code — it's a genuine ELIMINATION
+  of an entire class of potential error Chapter 5 had to
+  specifically design around.</code></pre>
+<p>This is a genuinely meaningful structural difference between the two surfaces, not just an implementation convenience — API testing's natural structuredness removes work that browser testing's inherent messiness specifically required.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why restricting make_request's method parameter to specific values (rather than accepting any arbitrary string) is a genuine guardrail, not just input validation.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This is a direct, concrete application of Chapter 2's tool-level guardrail category — restricting what the tool itself is CAPABLE of doing, rather than relying on the agent's own reasoning to never attempt a genuinely risky operation.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Without restriction (relying on REASONING alone):
+The agent's INSTRUCTIONS might say "never delete orders" —
+  but this is advisory (per Chapter 2's discussion of
+  instructions vs. tool-level guardrails), and a reasoning
+  error COULD still result in a DELETE call actually executing,
+  since the TOOL itself structurally allows it.
+
+WITH restriction (a genuine tool-level guardrail):
+if method not in ["GET", "POST"]:
+    return "Method not allowed for this task"
+  — this makes a DELETE call structurally IMPOSSIBLE for this
+  specific task's tool instance, regardless of what the
+  reasoning decides — exactly the STRONGER safety guarantee
+  Chapter 2 identified tool-level restrictions as providing,
+  compared to advisory instructions alone.</code></pre>
+<p>This is genuinely the same principle from Chapter 2's Guardrails page, now applied concretely to an API tool's own parameter validation — restricting CAPABILITY, not just hoping reasoning stays within intended bounds.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might a genuine timeout on every API call matter specifically for an agent's own execution loop, beyond the general practice of always setting reasonable timeouts?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This connects directly to Chapter 2's and Chapter 3's discussion of loop-level guardrails — a hung request without a timeout would silently consume real time within the agent's step budget, without the loop's own step-counting mechanism having any way to recognize something is wrong.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What happens WITHOUT a timeout, concretely:
+A single tool call to a genuinely unresponsive endpoint could
+  hang INDEFINITELY — the agent's entire run stalls on this ONE
+  step, never reaching Chapter 3's MAX_STEPS limit (since that
+  limit counts COMPLETED steps, not time spent stuck within
+  one), potentially running far longer than any human intended.
+
+WITH a genuine timeout (this page's 10-second example):
+The stuck request FAILS predictably after a bounded time,
+  returning an observation the reasoner can actually act on
+  ("request timed out") — allowing the loop to genuinely
+  continue, retry, or report the issue, rather than hanging
+  indefinitely on a single unresponsive call.</code></pre>
+<p>This is a genuinely important, concrete detail: Chapter 3's step-count guardrail alone doesn't protect against a SINGLE step taking unboundedly long — a timeout on individual network calls is a complementary, necessary safeguard operating at a different level.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you extend this page's toolkit if a task genuinely needed to test file upload functionality on a different ShopEasy endpoint, and would this need a separate tool?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Genuinely yes — file upload typically uses a different HTTP content type (multipart form data) and a different underlying mechanism than JSON request bodies, matching this page's own principle that separate tools belong to genuinely different mechanisms, not just different endpoints.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def upload_file(endpoint, file_path, field_name="file"):
+    with open(file_path, 'rb') as f:
+        response = requests.post(
+            f"{BASE_URL}{endpoint}",
+            files={field_name: f},
+            timeout=10
+        )
+    return {"status_code": response.status_code,
+            "body": response.json() if response.content else None}</code></pre>
+<p>This genuinely deserves its own tool, distinct from <code>make_request</code>, because <code>requests.post(..., files=...)</code> is a meaningfully different underlying mechanism than <code>requests.request(..., json=...)</code> — exactly matching this page's earlier reasoning about WHY the order-related operations could share one tool (same mechanism) while file upload, using a genuinely different mechanism, reasonably shouldn't be forced into the same unified tool just because both are technically "API calls."</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

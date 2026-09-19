@@ -1,0 +1,181 @@
+<!doctype html>
+<html><head>
+<title>AI Request Construction: Building Valid Requests Without Hardcoded Assumptions</title>
+<meta name="description" content="How an agent builds a genuinely valid request body from a real schema rather than a guessed field name, and a common, real failure mode this specifically prevents." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/ai-request-construction.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>AI Request Construction</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="ai-driven-api-exploration.html">AI-Driven API Exploration</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Constructing a request body — especially for <code>POST</code> or <code>PATCH</code> — genuinely needs correct field names and types, or the request fails for reasons that have nothing to do with the actual behavior being tested. This page is about building requests reliably.</p>
+
+<h2 id="the-real-risk-guessed-field-names">The Real Risk — Guessed Field Names</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>❌ An agent GUESSING at a plausible-sounding request body,
+   without confirming the real schema:
+  make_request(method="POST", endpoint="/orders", json_body={
+    "customer_id": 42,
+    "product_ids": [501, 502],
+    "shipping_address": "123 Main St"
+  })
+
+  → 400 Bad Request: "Unrecognized field 'product_ids' —
+    expected 'items'. Missing required field 'quantity' per item."
+
+The request FAILED — but not because of anything genuinely
+being TESTED. It failed because the agent guessed at field
+names instead of confirming the real, actual schema.</code></pre>
+
+<h2 id="confirming-the-real-schema-first">Confirming the Real Schema First</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>✅ Genuinely reliable construction — confirm before guessing:
+
+Step 1: make_request(method="GET", endpoint="/orders/1042")
+  → 200 OK, body: {"id": 1042, "customer_id": 42, "status":
+    "pending", "items": [{"product_id": 501, "quantity": 2}],
+    "shipping_address": {"street": "123 Main St", "city": "..."}}
+
+REASONING: "This existing order's REAL structure shows the
+field is 'items' (not 'product_ids'), each item has BOTH
+'product_id' AND 'quantity', and 'shipping_address' is a
+NESTED OBJECT, not a flat string. I'll construct my POST
+request matching this REAL, observed structure."
+
+Step 2: make_request(method="POST", endpoint="/orders", json_body={
+    "customer_id": 42,
+    "items": [{"product_id": 501, "quantity": 1}],
+    "shipping_address": {"street": "456 Oak Ave", "city": "..."}
+})
+  → 201 Created — genuinely succeeds, using the REAL schema</code></pre>
+<p>This is genuinely the API-testing equivalent of Chapter 5's live-observation generation — using a REAL, existing example to inform construction, rather than guessing at a plausible-sounding structure.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might a 400 Bad Request response from a guessed request body be genuinely LESS useful information than a 400 from a request built against a confirmed, real schema? A guessed-body failure primarily tells you the AGENT'S GUESS was wrong — it says almost nothing about the actual API's real behavior or correctness. A failure from a request built against a CONFIRMED schema is much more likely to reveal something genuinely meaningful about the API itself (a real validation rule, a real constraint), since the structural guessing error has already been eliminated as the cause.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Treating every 400 Bad Request as a genuine finding about the API's behavior, without first checking whether the request itself was actually well-formed. This page's guessed-body example would produce a technically-true "the API rejected this request" observation that's genuinely useless for understanding the API's real validation logic — it only reveals that the agent's guess was wrong.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>When no existing example is available to confirm a schema against (a genuinely new endpoint with no existing records), it's worth explicitly instructing an agent to try a GET request first, or check for API documentation, rather than immediately attempting a guessed POST — confirming structure before constructing is a genuinely reliable habit worth establishing explicitly.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Confirm a real schema (via an existing record's GET response, or documentation) before constructing a request body, rather than guessing at plausible field names.</li>
+  <li>Distinguish a request failure caused by a genuine structural guess from one that reveals real information about the API's actual behavior.</li>
+  <li>Explicitly instruct an agent to seek a real schema reference before attempting to construct a request for an unfamiliar endpoint.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Constructing a request from guessed field names produces failures that mostly reveal the guess was wrong, not genuine information about API behavior.</li>
+  <li>Confirming a real schema first — from an existing record or documentation — produces genuinely reliable, meaningful request construction.</li>
+  <li>This mirrors Chapter 5's live-observation principle directly: real, confirmed structure beats plausible-sounding assumption, for the exact same underlying reasons.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Using this page's confirmed schema for orders, construct a genuinely valid <code>PATCH</code> request body for updating order 1042's status to <code>"shipped"</code>, being explicit about which real, confirmed fields you're using and why you're confident they're correct.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>An agent's POST request fails with "unrecognized field 'product_ids'." A teammate concludes "the API has a bug — it should accept this field name." Evaluate this conclusion.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This conclusion is very likely wrong, and this page's own example shows exactly why — a rejected guessed field name almost always means the AGENT'S assumption was incorrect, not that the API itself has a bug for failing to accept a name nobody ever specified it should use.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why "the API should accept product_ids" doesn't follow:
+There's no genuine basis for assuming 'product_ids' was ever
+  the INTENDED, correct field name — the agent GUESSED at a
+  plausible-sounding name without confirming it against any
+  real schema. The API rejecting an UNSPECIFIED field name is
+  the API working CORRECTLY (rejecting invalid input), not a
+  bug in the API's own design.
+
+What to actually check INSTEAD:
+Confirm the REAL field name (per this page's approach — check
+  an existing order's structure) — likely reveals 'items' is
+  the CORRECT, intended field name, and the API was correctly
+  rejecting a field name that was never valid in the first
+  place.</code></pre>
+<p>This is exactly the "guessed-body failure reveals almost nothing about real API behavior" point this page makes explicitly — the teammate's conclusion mistakes a guessing error for a genuine finding about the API itself.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page recommend using an EXISTING order's GET response specifically, rather than just asking the LLM to "guess a reasonable order schema"?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because "reasonable-sounding" and "actually correct" are genuinely different things — an LLM's plausible guess (exactly what this page's opening example shows) can be entirely reasonable-SOUNDING while still being wrong about this SPECIFIC API's actual, real field names and structure.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why a "reasonable guess" genuinely isn't reliable here:
+'product_ids' as a field name is a COMPLETELY reasonable guess
+  in the abstract — many APIs genuinely DO use field names
+  like this. The problem isn't that the guess was UNREASONABLE
+  — it's that reasonable-sounding and ACTUALLY CORRECT for
+  THIS SPECIFIC API are simply different questions, and no
+  amount of "reasonableness" in the guess substitutes for
+  genuine confirmation against the real API.
+
+Why an EXISTING order's real structure resolves this:
+It's not a GUESS at all — it's the ACTUAL, observed truth
+  about what this SPECIFIC API's schema genuinely looks like,
+  eliminating the reasonable-vs-correct gap entirely.</code></pre>
+<p>This is a genuinely important distinction worth internalizing broadly: an LLM's plausible-sounding guess and an API's actual, real behavior are two different things, and only genuine observation — not increasingly clever guessing — reliably closes that gap.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>What would you do if NO existing order records were available to confirm the schema against — for instance, testing a genuinely brand-new endpoint with no existing data yet?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This is exactly the scenario this page's "Quick Tip" addresses — when a GET-based reference isn't available, the reasonable fallback is checking for actual API documentation before attempting a guessed construction, and being explicit that any remaining guess is genuinely unconfirmed.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A reasonable escalating approach when NO existing record exists:
+1. Check for REAL API documentation (an OpenAPI/Swagger spec,
+   if the ShopEasy API happens to have one) — genuinely
+   authoritative if available
+2. If no documentation exists either, construct a BEST-EFFORT
+   guess, but EXPLICITLY flag it as unconfirmed: "No existing
+   record or documentation was available to confirm this
+   endpoint's schema — the following request body is a
+   best-effort guess and may fail due to structural
+   assumptions, not necessarily due to a genuine API issue"
+3. Treat ANY resulting failure with EXTRA skepticism about
+   whether it reveals real API behavior, given the explicitly
+   unconfirmed starting point</code></pre>
+<p>The honest answer: sometimes genuine confirmation genuinely isn't available, and the right response is being explicit about that uncertainty (exactly Chapter 2's instructions-page principle about surfacing ambiguity) rather than silently proceeding as if a guess were equally reliable as confirmed knowledge.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why "shipping_address" being a nested object rather than a flat string is a genuinely important detail this page's example catches, beyond just being one more field to get right.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Getting the NESTING structure wrong is a genuinely different, often more subtle kind of error than getting a field NAME wrong — a misnamed field usually produces a clear "unrecognized field" error, while a wrong nesting structure can sometimes produce a more confusing, harder-to-diagnose failure.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A WRONG guess for shipping_address (flat string):
+"shipping_address": "123 Main St"
+This might fail with a genuinely CONFUSING error — perhaps a
+  generic "invalid request body" rather than a clear "expected
+  an object, got a string" — depending on how strictly the API
+  validates types, potentially harder to immediately diagnose
+  than a simple unrecognized-field-name error would be.
+
+The CONFIRMED, correct structure (nested object):
+"shipping_address": {"street": "456 Oak Ave", "city": "..."}
+Matches what the REAL, existing order actually showed —
+  eliminating this entire, potentially confusing category of
+  structural mismatch error before it can even occur.</code></pre>
+<p>This is a genuinely good illustration of why confirming REAL structure matters beyond just field NAMES — nesting, types, and overall shape are all things a guess can get wrong in ways that produce confusing, hard-to-diagnose failures, all of which real observation resolves at once.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How does this page's approach connect to the validation discipline from Chapter 4, applied specifically to request construction rather than test scenarios?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Both pages share the same underlying principle — don't trust a plausible-sounding AI output without checking it against something genuinely authoritative — applied to different artifacts (a test scenario's claimed expected outcome, versus a constructed request's assumed field structure).</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Chapter 4's validation principle:
+"Could I point to the exact sentence in the requirement that
+  justifies this expected outcome?" — checking a SCENARIO'S
+  claim against the REAL, authoritative requirement text.
+
+THIS page's directly analogous principle:
+"Could I point to a REAL, existing example (or documentation)
+  that confirms this REQUEST STRUCTURE?" — checking a
+  CONSTRUCTED request's assumed fields against REAL,
+  authoritative API structure, rather than trusting a
+  plausible-sounding guess.</code></pre>
+<p>Both cases apply the exact same underlying discipline — AI-generated output, however plausible-sounding, needs checking against something genuinely authoritative before being trusted — this page is simply that same principle showing up in a new, concrete context (request construction) rather than a fundamentally new idea.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

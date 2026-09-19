@@ -1,0 +1,144 @@
+<!doctype html>
+<html><head>
+<title>RestAssured Response Header Validation: Content-Type, Caching &amp; Custom Headers</title>
+<meta name="description" content="How to validate response headers with RestAssured — Content-Type, caching directives, rate limits, and custom headers — and why header checks are easy to skip but often carry real contract information." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/response-header-validation.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Response Header Validation</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="status-code-validation.html">Status Code Validation</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>.then()
+    .header("Content-Type", equalTo("application/json; charset=utf-8"));</code></pre>
+<p>Response headers carry metadata alongside the body — content type, caching rules, rate-limit counters, pagination hints. Validating them means asserting that metadata is correct, the same way you'd validate any other part of the response.</p>
+
+<h2 id="why-header-validation-is-easy-to-skip-and-why-that-s-a-mistake">Why header validation is easy to skip — and why that's a mistake</h2>
+<p>Headers feel secondary compared to the body, so they're often the first thing left out of a test. But if an API's real contract includes specific headers — a required <code>Content-Type</code>, a rate-limit header clients depend on, a pagination total in a header rather than the body — skipping header checks means that part of the contract is completely unverified by your suite, even if everything else looks thorough.</p>
+
+<h2 id="basic-example-single-header">Basic Example — Single Header</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>.then()
+    .header("Content-Type", containsString("application/json"));</code></pre>
+
+<h2 id="multiple-headers-at-once">Multiple Headers at Once</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>.then()
+    .headers(
+        "Content-Type", containsString("application/json"),
+        "X-RateLimit-Remaining", notNullValue(),
+        "Cache-Control", containsString("no-cache")
+    );</code></pre>
+<p><code>.headers(...)</code> takes alternating name/matcher pairs, letting you validate several headers in one fluent call instead of chaining multiple separate <code>.header()</code> calls — purely a readability convenience, functionally identical to chaining.</p>
+
+<h2 id="detailed-example-rate-limit-headers">Detailed Example — Rate Limit Headers</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void rateLimitHeadersArePresent() {
+    given()
+    .when()
+        .get("/users")
+    .then()
+        .statusCode(200)
+        .header("X-RateLimit-Limit", notNullValue())
+        .header("X-RateLimit-Remaining", notNullValue());
+}</code></pre>
+<p>Many production APIs expose rate-limit information via headers rather than the body — testing that these headers exist (and, where relevant, that the remaining count decreases across requests) is genuinely useful coverage for any client relying on them to throttle its own request rate.</p>
+
+<h2 id="real-world-example-full-header-status-body-check">Real-World Example — Full Header + Status + Body Check</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>given()
+    .pathParam("id", 2)
+.when()
+    .get("/users/{id}")
+.then()
+    .statusCode(200)
+    .header("Content-Type", containsString("application/json"))
+    .body("data.id", equalTo(2));</code></pre>
+<p>This is the natural shape of a well-rounded validation chain — status, then the headers that matter for this specific endpoint, then body content — each check catching a different class of regression the others wouldn't.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Hardcoding an exact Content-Type string including charset, which
+// can vary slightly between server configurations without being wrong
+.then().header("Content-Type", equalTo("application/json; charset=utf-8"));
+
+// ✅ containsString() is more resilient to harmless formatting differences
+.then().header("Content-Type", containsString("application/json"));</code></pre>
+
+<h2 id="extracting-a-header-s-value-not-just-asserting-it">Extracting a Header's Value (Not Just Asserting It)</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Response response = given().when().get("/users");
+String contentType = response.getHeader("Content-Type");
+String rateLimitRemaining = response.getHeader("X-RateLimit-Remaining");
+
+// Or extract all headers at once
+Headers allHeaders = response.getHeaders();
+for (Header h : allHeaders) {
+    System.out.println(h.getName() + ": " + h.getValue());
+}</code></pre>
+<p>Sometimes you need a header's value for something other than an immediate assertion — passing a pagination cursor into the next request, or logging a rate-limit value for later analysis. <code>.getHeader()</code> reads a single header by name with no pass/fail judgment attached, the same extraction-not-validation distinction covered fully later in this chapter.</p>
+
+<h2 id="real-world-example-using-an-extracted-header-for-pagination">Real-World Example — Using an Extracted Header for Pagination</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Response firstPage = given().queryParam("limit", 20).when().get("/users");
+String nextCursor = firstPage.getHeader("X-Next-Cursor");
+
+if (nextCursor != null) {
+    given()
+        .queryParam("cursor", nextCursor)
+        .queryParam("limit", 20)
+    .when()
+        .get("/users")
+    .then()
+        .statusCode(200);
+}</code></pre>
+<p>Some APIs expose cursor-based pagination entirely through headers rather than the response body — this pattern (extract a header, feed it into the next request) is the RestAssured equivalent of the API chaining pattern covered fully in Chapter 7, just threaded through a header instead of a body field.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Skipping header validation entirely</strong> because it "feels secondary" — a real contract regression in headers goes completely uncaught.</li>
+  <li><strong>Using exact string equality for Content-Type</strong> when a substring check would be more resilient to legitimate formatting variance (charset ordering, casing).</li>
+  <li><strong>Not testing headers that the API's actual clients depend on</strong> (rate limits, pagination) just because they're not in the response body.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Case sensitivity</strong> — HTTP header <em>names</em> are case-insensitive by spec, and RestAssured's <code>.header()</code> lookup respects this; header <em>values</em>, however, are matched exactly as written by whatever matcher you use.</li>
+  <li><strong>Headers that only appear conditionally</strong> (an <code>ETag</code> only on cacheable responses) — don't assert their presence universally if the API's contract doesn't guarantee them on every response.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a header assertion fails unexpectedly, print all response headers with <code>response.getHeaders()</code> or <code>.log().headers()</code> to see the actual full set — a header you expected might be present under slightly different casing or a completely different name than assumed.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Validate headers that are actually part of the API's contract, not exhaustively every header present.</li>
+  <li>Prefer substring/contains matchers for values with legitimate minor formatting variance.</li>
+  <li>Combine header checks with status and body validation in the same logical test, rather than treating headers as a separate, optional concern.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Against a public API that returns pagination info in headers (or simulate one), write a test validating both the <code>Content-Type</code> header and a custom pagination header, alongside a standard status code and body check.</p>
+
+<h2 id="summary">Summary</h2>
+<p>Header validation is often skipped but frequently carries real contract information — content type, caching, rate limits, pagination. <code>.header()</code> and <code>.headers()</code> validate them with the same Hamcrest matcher flexibility as body assertions, and substring matching is usually more resilient than exact equality for values with legitimate minor formatting differences.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why might containsString() be a better choice than equalTo() for validating a Content-Type header?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The exact Content-Type string can include a charset declaration whose exact formatting (ordering, casing) may vary slightly between server configurations without indicating any real problem. <code>containsString("application/json")</code> confirms the meaningful part of the contract without being brittle against that harmless variance.</div>
+</details>
+<details class="faq-item">
+<summary>Why might containsString() be safer than equalTo() for a Content-Type assertion?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The exact Content-Type string can include a charset declaration whose formatting varies slightly between server configurations without being wrong — a substring check avoids being brittle against that harmless variance.</div>
+</details>
+<details class="faq-item">
+<summary>What's the difference between .header() and .headers() in a validation chain?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The plural .headers() takes alternating name/matcher pairs to check several headers in one fluent call — functionally identical to chaining multiple .header() calls, just more compact to read.</div>
+</details>
+<details class="faq-item">
+<summary>Why validate rate-limit headers even though they're not part of the response body?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Many APIs expose rate-limiting purely through headers — testing they exist (and update correctly) is genuine coverage for any client relying on them, which a body-only test would miss entirely.</div>
+</details>
+<details class="faq-item">
+<summary>How would you inspect all headers on a response at once for debugging?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">response.getHeaders() returns them all as a collection, or .log().headers() prints them directly — useful when a header you expected might be present under different casing or naming than assumed.</div>
+</details>
+</div>
+</article>
+</body></html>

@@ -1,0 +1,232 @@
+<!doctype html>
+<html><head>
+<title>The Complete System, End to End: One Real Run, Traced Through Every Layer</title>
+<meta name="description" content="A single, real commit triggering the fully-assembled system — one continuous trace touching every one of the seven layers, showing the whole thing genuinely works together." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/the-complete-system-end-to-end.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>The Complete System, End to End</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="the-observability-security-and-governance-layer.html">The Observability, Security, and Governance Layer</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Every earlier page built one layer, in isolation, with worked examples. This page is the payoff — one real commit, one real trigger, traced continuously through all seven layers, showing the whole assembled system genuinely working together, not just each piece independently.</p>
+
+<h2 id="the-trigger-a-real-commit">The Trigger — A Real Commit</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Commit a3f9c21: "Fix discount stacking validation bug in
+checkout flow" — touches src/checkout/discount_validator.py</code></pre>
+
+<h2 id="layer-5-ci-cd-selection-and-prioritization-chapter-14">Layer 5 — CI/CD Selection and Prioritization (Chapter 14)</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>selected = select_relevant_tests(
+    changed_files=["src/checkout/discount_validator.py"],
+    test_coverage_map=coverage_data)
+# → {"checkout_discount_stacking_verification",
+#    "checkout_and_confirmation_verification"}  — TWO
+# objectives, genuinely relevant per REAL coverage data,
+# not the full 488-test suite</code></pre>
+
+<h2 id="layer-4-mcp-call-with-layer-6-7-s-wrapping-chapters-13-15-16">Layer 4 — MCP Call, With Layer 6/7's Wrapping (Chapters 13, 15, 16)</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>result = mcp_client.call_tool("run_capstone_verification", {
+    "objective": "Verify a second discount code is correctly "
+                 "rejected after one is already applied.",
+})
+# BEHIND this ONE call: an audit record CREATED first
+# (Chapter 16), a run_id GENERATED for tracing (Chapter 15)</code></pre>
+
+<h2 id="layer-1-multi-surface-execution-chapters-4-7">Layer 1 — Multi-Surface Execution (Chapters 4-7)</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># The AGENT'S own reasoning, using Chapter 5'S browser tools:
+# navigate → add item → apply FIRST discount → attempt SECOND
+# discount → observe REJECTION message
+#
+# Step 4 GENUINELY fails: the second discount is NOT rejected
+# — it APPLIES, stacking incorrectly. EXACTLY the bug THIS
+# commit was SUPPOSED to fix.</code></pre>
+
+<h2 id="layer-2-failure-classification-chapters-8-9">Layer 2 — Failure Classification (Chapters 8, 9)</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>classification = classify_capstone_failure(report, client)
+# → surface: "browser", category: "application defect" — the
+# SECOND discount code was accepted when it should have been
+# REJECTED. NOT flaky (Chapter 9'S own isolation-experiment
+# technique confirms: fails CONSISTENTLY across 5 repeated runs).</code></pre>
+
+<h2 id="layer-5-triage-and-retry-decision-chapter-14">Layer 5 — Triage and Retry Decision (Chapter 14)</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>triage = triage_pipeline_failures([report], known_flaky_tests, client)
+# → "urgent" — checkout-related, per Chapter 14'S OWN
+# business-criticality rule
+
+retry_decision = should_retry(report, client)
+# → {"retry": False, "reason": "Classified as 'application
+#    defect' — a retry would NOT resolve this."} — EXACTLY
+# Chapter 9'S warning, correctly honored: this GENUINE bug
+# is NOT masked by a pointless retry</code></pre>
+
+<h2 id="layer-6-dashboard-reflection-chapter-15">Layer 6 — Dashboard Reflection (Chapter 15)</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># The trace AND the classification BOTH feed the SAME
+# three-section dashboard FROM Chapter 15'S own page:
+# APPLICATION HEALTH: pass rate drops, urgent triage item: 1
+# TESTING SYSTEM HEALTH: unaffected — API latency, MCP
+#   connectivity, browser launch all NORMAL
+# AGENT REASONING QUALITY: unaffected — plan was sound,
+#   tool selection correct; the APPLICATION genuinely has
+#   the bug, not the TESTING system</code></pre>
+
+<h2 id="the-genuine-honest-conclusion-this-run-reaches">The Genuine, Honest Conclusion This Run Reaches</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>The COMMIT message CLAIMED to FIX the discount-stacking BUG.
+The SYSTEM'S end-to-end run, ACROSS all seven LAYERS,
+genuinely DISCOVERED the fix was INCOMPLETE — a SECOND
+discount code is STILL incorrectly ACCEPTED. This is EXACTLY
+what the WHOLE, assembled SYSTEM exists to DO: catch a REAL,
+genuine gap between WHAT a commit CLAIMS and WHAT the
+APPLICATION actually DOES, with EVERY layer'S own GENUINE
+contribution (RELEVANT selection, SOUND execution, HONEST
+classification, CORRECT no-retry decision, ACCURATE dashboard
+reflection) visible in ONE continuous trace.</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why is it significant that this single trace shows every layer contributing something GENUINE and DISTINCT, rather than several layers simply repeating the same information? Layer 5's selection narrowed 488 tests to 2 based on real coverage — a genuinely different contribution than Layer 2's classification, which determined WHY the failure happened, which is different again from Layer 5's retry decision, which determined WHAT to do about it. Each layer answers a genuinely different question. A trace where layers merely duplicated each other's findings would suggest redundant, poorly-differentiated architecture — this one shows each layer earning its place.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Treating this end-to-end walkthrough as a hypothetical illustration rather than something that should be genuinely runnable and reproducible against a real system. Every code snippet on this page calls functions this capstone's earlier pages actually defined — the value of this page is specifically that it's not new, illustrative pseudocode.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>When verifying your own assembled version of this system, deliberately introducing a real, known bug (like this page's discount-stacking example) and confirming the full trace correctly surfaces it — end to end, with the correct classification and retry decision — is a genuinely strong integration test, stronger than testing any single layer in isolation.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Verify the complete, assembled system with a real, deliberately-introduced bug, confirming every layer's contribution is visible in one continuous trace.</li>
+  <li>Check that each layer answers a genuinely different question in the trace, rather than several layers redundantly repeating the same finding.</li>
+  <li>Treat end-to-end walkthroughs as executable verification, not illustrative pseudocode, since every function called should already exist from earlier pages.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>This page's single, real trace shows all seven architectural layers genuinely working together, not just independently functioning in isolation.</li>
+  <li>Each layer contributes something genuinely distinct — selection, execution, classification, retry decision, dashboard reflection — confirming the architecture's layered design is sound in practice.</li>
+  <li>The system's real value is demonstrated concretely here: catching a genuine gap between what a commit claims and what the application actually does.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Design a second end-to-end scenario — a commit that genuinely DOES fix its intended bug correctly — and trace it through all seven layers following this page's format, confirming the system correctly reports success rather than false urgency, closing the loop on both the failure and success paths.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A reviewer asks "how do we know this end-to-end trace isn't just illustrative pseudocode dressed up to look real?" How would you respond, using this page's own content?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>EVERY function CALLED in THIS page'S trace — select_RELEVANT_tests, mcp_CLIENT.call_tool, classify_CAPSTONE_failure, triage_PIPELINE_failures, should_RETRY — was GENUINELY defined and DEMONSTRATED working in an EARLIER capstone PAGE, not INVENTED fresh HERE for ILLUSTRATION.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What would make THIS trace ILLUSTRATIVE, if it WERE:
+IF this page CALLED functions with NAMES that SOUNDED
+  plausible but WERE never ACTUALLY defined or TESTED
+  earlier in THIS capstone, it WOULD be essentially
+  HYPOTHETICAL pseudocode, DRESSED up to LOOK like a REAL
+  system.
+
+Why THIS trace is GENUINELY different:
+EVERY single FUNCTION call TRACES back to a SPECIFIC,
+  EARLIER capstone PAGE — select_relevant_TESTS (Layer 5'S
+  own page), classify_capstone_FAILURE (Layer 2'S own
+  page), should_RETRY (ALSO Layer 5) — THIS page GENUINELY
+  reuses, rather than INVENTS, every PIECE it DEMONSTRATES.</code></pre>
+<p>The REVIEWER'S skepticism is REASONABLE and WORTH addressing DIRECTLY — and THIS page'S OWN traceability BACK to EARLIER, ALREADY-demonstrated functions is EXACTLY the EVIDENCE that ANSWERS it, not JUST an ASSERTION that "IT'S real."</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does THIS page argue it'S SIGNIFICANT that each LAYER contributes something GENUINELY distinct, RATHER than SIMPLY confirming ALL seven layers RAN without ERRORS?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>"RAN without ERRORS" would ONLY confirm MECHANICAL functioning — SHOWING each LAYER answers a GENUINELY different QUESTION (RELEVANCE, EXECUTION, classification, RETRY worthiness, DASHBOARD reflection) confirms the ARCHITECTURE'S actual, INTENDED design is WORKING as INTENDED, not JUST that CODE executes without CRASHING.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What "RAN without errors" ALONE would GENUINELY confirm:
+EACH layer'S CODE executed SUCCESSFULLY, TECHNICALLY — a
+  REAL, but NARROW, confirmation.
+
+What SHOWING genuinely DISTINCT contributions ADDITIONALLY
+confirms:
+Layer 5'S SELECTION narrowed 488 tests to 2 (a GENUINE,
+  DIFFERENT contribution FROM). Layer 2'S CLASSIFICATION
+  determined the FAILURE was a REAL application DEFECT
+  (DIFFERENT again FROM). Layer 5'S retry DECISION correctly
+  declined to RETRY (DIFFERENT again). EACH layer is DOING
+  its OWN, GENUINE job, not JUST technically EXECUTING —
+  CONFIRMING the LAYERED architecture ITSELF is SOUND, not
+  JUST that the CODE runs.</code></pre>
+<p>This is a GENUINELY important, DEEPER standard of VERIFICATION — CONFIRMING the SYSTEM'S actual, INTENDED architectural PURPOSE is BEING fulfilled, not JUST that NOTHING crashed, EXACTLY the KIND of rigorous VERIFICATION this ENTIRE course has CONSISTENTLY modeled OVER surface-level "IT works" confirmations.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why THIS page'S scenario SPECIFICALLY uses a BUG that the COMMIT'S OWN message CLAIMED to fix, RATHER than a GENERIC, unrelated test FAILURE.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>THIS scenario DIRECTLY demonstrates the SYSTEM'S most GENUINELY valuable CAPABILITY — catching a REAL gap BETWEEN what a DEVELOPER believes they FIXED and what the APPLICATION actually DOES, EXACTLY the KIND of finding that JUSTIFIES this ENTIRE capstone'S existence.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why a GENERIC, unrelated FAILURE would be a WEAKER
+demonstration:
+A RANDOM, unrelated test FAILURE would SHOW the system CAN
+  detect FAILURES — genuinely USEFUL, but NOT specifically
+  demonstrating the SYSTEM'S most VALUABLE capability:
+  catching a GENUINE gap between INTENDED and ACTUAL
+  behavior.
+
+Why THIS specific scenario is GENUINELY more COMPELLING:
+The COMMIT message CLAIMED "fix DISCOUNT stacking VALIDATION
+  bug" — the SYSTEM'S end-to-end RUN discovered this CLAIM
+  was GENUINELY incomplete. THIS is EXACTLY the kind of
+  REAL, high-value FINDING that JUSTIFIES the FULL,
+  seven-layer INVESTMENT this ENTIRE capstone REPRESENTS —
+  not JUST "a test FAILED," but "a developer'S GENUINE
+  belief about their OWN fix was WRONG, and the SYSTEM
+  CAUGHT it."</code></pre>
+<p>This is a GENUINELY deliberate, WELL-chosen SCENARIO — DEMONSTRATING the SYSTEM'S value SPECIFICALLY through the KIND of finding that MATTERS most in REAL practice, not JUST an ARBITRARY example CHOSEN for CONVENIENCE.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might it be a MISTAKE to assume THIS single, worked EXAMPLE is SUFFICIENT verification that the ENTIRE capstone system is PRODUCTION-ready?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>ONE successful, worked EXAMPLE demonstrates the SYSTEM CAN work CORRECTLY for ONE specific SCENARIO — it DOESN'T confirm the SYSTEM handles EVERY genuine edge CASE, EXACTLY the SAME "ONE passing test DOESN'T confirm COMPREHENSIVE correctness" principle THIS course has APPLIED consistently SINCE its EARLIEST chapters.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What THIS page'S ONE trace GENUINELY confirms:
+The SEVEN-layer architecture CAN work TOGETHER correctly,
+  FOR this SPECIFIC scenario (a BROWSER-surface application
+  DEFECT, correctly CLASSIFIED and CORRECTLY not RETRIED) —
+  a GENUINE, valuable confirmation, but SCOPED to ONE
+  worked EXAMPLE.
+
+What it does NOT confirm:
+WHETHER the SYSTEM handles EVERY genuine EDGE case this
+  COURSE'S sixteen CHAPTERS collectively COVERED — a
+  GENUINELY flaky test (Chapter 9'S own TERRITORY), an
+  API-surface FAILURE requiring Chapter 8'S DIFFERENT
+  evidence-gathering PATH, a PROMPT-injection attempt
+  (Chapter 16), and MANY other SCENARIOS this SINGLE trace
+  simply DOESN'T exercise.</code></pre>
+<p>This is a GENUINELY honest, IMPORTANT limitation WORTH naming EXPLICITLY — THIS page'S value is DEMONSTRATING the ARCHITECTURE genuinely WORKS for ONE real, WELL-CHOSEN scenario, NOT claiming COMPREHENSIVE, production-READY verification ACROSS every POSSIBLE case this COURSE'S sixteen CHAPTERS collectively ADDRESSED.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you design a GENUINE test SUITE specifically to verify THIS end-to-end SYSTEM across MULTIPLE, genuinely DIFFERENT scenario TYPES, addressing the PREVIOUS answer'S honest LIMITATION?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A GENUINELY comprehensive verification SUITE would trace MULTIPLE, DELIBERATELY different SCENARIOS through the FULL system — ONE for EACH of Chapter 8'S SIX failure CATEGORIES, plus Chapter 9'S flaky BEHAVIOR, plus a GENUINE success CASE — CONFIRMING the SYSTEM handles the FULL range this COURSE COLLECTIVELY taught, not JUST ONE representative EXAMPLE.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>END_TO_END_VERIFICATION_SCENARIOS = [
+    {"name": "genuine_success", "expected_classification": None,
+     "expected_retry": None, "expected_triage": "n/a"},
+    {"name": "application_defect", "expected_classification": "application defect",
+     "expected_retry": False, "expected_triage": "urgent"},
+    {"name": "environment_problem", "expected_classification": "environment problem",
+     "expected_retry": True, "expected_triage": "needs_review"},
+    {"name": "flaky_behavior", "expected_classification": "flaky behavior",
+     "expected_retry": False, "expected_triage": "likely_known"},
+    # ... remaining Chapter 8 categories ...
+]
+
+def run_full_end_to_end_verification_suite(scenarios, mcp_client, client):
+    results = []
+    for scenario in scenarios:
+        result = run_and_trace_scenario(scenario, mcp_client, client)
+        results.append({
+            "scenario": scenario["name"],
+            "matched_expected_classification": (
+                result["classification"] == scenario["expected_classification"]),
+            "matched_expected_retry": (
+                result["retry"] == scenario["expected_retry"]),
+        })
+    return results</code></pre>
+<p>This DIRECTLY extends THIS page'S single, WORKED example into a GENUINELY comprehensive VERIFICATION suite — COVERING the FULL range of SCENARIOS this ENTIRE course TAUGHT across Chapters 8 and 9 SPECIFICALLY, providing the KIND of THOROUGH, evidence-BASED confirmation the PREVIOUS answer'S HONEST limitation IDENTIFIED as GENUINELY still needed BEYOND this page'S OWN, single illustrative TRACE.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

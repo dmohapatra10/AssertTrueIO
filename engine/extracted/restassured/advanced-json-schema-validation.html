@@ -1,0 +1,144 @@
+<!doctype html>
+<html><head>
+<title>Advanced JSON Schema Validation in RestAssured</title>
+<meta name="description" content="Beyond the basics — conditional schemas, reusable schema components, and using JSON Schema validation as a deliberate contract-testing strategy across an entire API." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/advanced-json-schema-validation.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Advanced JSON Schema Validation</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="cookie-validation.html">Cookie Validation</a>, <a href="json-schema-validation.html">JSON Schema Validation (fundamentals)</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Chapter 5 covered the basics of JSON Schema validation — a single schema file, matched against a single response. This page goes further: conditional schemas, reusable schema components shared across many schemas, and using schema validation as a deliberate, project-wide contract-testing strategy rather than a one-off structural check.</p>
+
+<h2 id="conditional-schemas-different-rules-for-different-cases">Conditional Schemas — Different Rules for Different Cases</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>{
+  "type": "object",
+  "properties": {
+    "status": { "type": "string", "enum": ["pending", "confirmed", "cancelled"] },
+    "cancelReason": { "type": "string" }
+  },
+  "required": ["status"],
+  "if": {
+    "properties": { "status": { "const": "cancelled" } }
+  },
+  "then": {
+    "required": ["cancelReason"]
+  }
+}</code></pre>
+<p>This schema encodes a real business rule directly into the structural validation: <code>cancelReason</code> is only required when <code>status</code> is <code>"cancelled"</code> — for any other status, it's optional. Without <code>if</code>/<code>then</code>, you'd either have to make <code>cancelReason</code> universally required (wrong — it doesn't apply to a pending order) or universally optional (missing a genuine validation opportunity for the cancelled case specifically).</p>
+
+<h2 id="reusable-schema-components-with-ref">Reusable Schema Components With $ref</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// common-definitions.json
+{
+  "definitions": {
+    "address": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string" },
+        "city": { "type": "string" },
+        "zip": { "type": "string" }
+      },
+      "required": ["street", "city", "zip"]
+    }
+  }
+}</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// order-schema.json
+{
+  "type": "object",
+  "properties": {
+    "id": { "type": "string" },
+    "shippingAddress": { "$ref": "common-definitions.json#/definitions/address" },
+    "billingAddress": { "$ref": "common-definitions.json#/definitions/address" }
+  }
+}</code></pre>
+<p>Once an "address" shape (or any other reusable structure) appears in more than one schema, defining it once and referencing it via <code>$ref</code> avoids the same structural-drift risk that motivated builders and utility methods earlier in this course — if the address shape ever needs to change, there's exactly one definition to update, not several schemas that need to be kept manually in sync.</p>
+
+<h2 id="detailed-example-schema-based-contract-testing-across-an-entire-api">Detailed Example — Schema-Based Contract Testing Across an Entire API</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@ParameterizedTest
+@MethodSource("allEndpointsWithSchemas")
+void everyEndpointResponseMatchesItsSchema(String endpoint, String schemaFile) {
+    given().when().get(endpoint)
+        .then().statusCode(200)
+        .body(matchesJsonSchemaInClasspath(schemaFile));
+}
+
+static Stream&lt;Arguments&gt; allEndpointsWithSchemas() {
+    return Stream.of(
+        Arguments.of("/users", "user-list-schema.json"),
+        Arguments.of("/orders", "order-list-schema.json"),
+        Arguments.of("/products", "product-list-schema.json")
+    );
+}</code></pre>
+<p>This is schema validation used deliberately as a broad, systematic strategy — one parameterized test sweeping across every major endpoint's schema, rather than schema validation appearing as an occasional add-on to individual functional tests. This is genuinely valuable as a contract-regression suite: it catches any endpoint's response shape silently drifting, across the whole API, with relatively little test code to maintain.</p>
+
+<h2 id="real-world-example-schema-validation-in-a-contract-testing-ci-stage">Real-World Example — Schema Validation in a Contract-Testing CI Stage</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># A dedicated CI stage, separate from full functional tests,
+# running ONLY schema validation across every known endpoint —
+# fast, broad, and specifically focused on catching contract drift
+mvn test -Dtest=ContractSchemaTests</code></pre>
+<p>Some teams run schema-based contract tests as their own fast, dedicated CI stage — separate from the fuller functional suite — specifically to catch API contract regressions (a field's type silently changing, a required field disappearing) as early and cheaply as possible, before the slower functional suite even runs. This ties directly into the CI/CD pipeline concepts covered in the Parallel Execution, Reporting & CI/CD chapter.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Duplicating the same "address" shape definition across five separate schema files
+// — a schema change means updating all five, and they can drift out of sync
+// (repeated inline object definition in each schema file)
+
+// ✅ One shared definition, referenced everywhere via $ref
+"shippingAddress": { "$ref": "common-definitions.json#/definitions/address" }</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Duplicating shared sub-structures across multiple schema files</strong> instead of using <code>$ref</code> — reintroduces the same drift risk that reusable POJOs and utility methods solve elsewhere in this course, just at the schema level.</li>
+  <li><strong>Writing an overly rigid schema</strong> that doesn't account for genuinely conditional fields, forcing an awkward choice between over-requiring or under-validating.</li>
+  <li><strong>Only using schema validation as an occasional add-on</strong>, missing the opportunity to run it systematically across an entire API as a dedicated, fast contract-regression check.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Schemas that need to validate against multiple possible valid shapes</strong> (not just conditional fields, but genuinely alternative structures) — JSON Schema's <code>oneOf</code>/<code>anyOf</code> keywords handle this, worth knowing exist even if less commonly needed than <code>if</code>/<code>then</code>.</li>
+  <li><strong>Keeping schemas in sync with an evolving API</strong> — schema drift (the schema itself becoming outdated relative to the real API) is a genuine maintenance burden; treat schema files with the same code-review rigor as test code itself, not as a write-once artifact.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a schema validation failure isn't clear, most JSON Schema validators produce a specific error naming the exact field and rule that failed — read this carefully rather than assuming the schema itself is broken; it's very often correctly catching a genuine response shape problem.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Use <code>$ref</code> for any structure that appears in more than one schema, avoiding duplicated definitions that can drift.</li>
+  <li>Use conditional (<code>if</code>/<code>then</code>) schemas to encode genuine business rules about field requirements, rather than over- or under-constraining.</li>
+  <li>Consider running schema validation as its own fast, dedicated contract-testing CI stage across the whole API, separate from slower functional tests.</li>
+  <li>Treat schema files as maintained artifacts requiring the same review rigor as test code, not write-once documentation.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Design a schema for an order resource where a <code>cancelReason</code> field is required only when <code>status</code> is <code>"cancelled"</code>, using <code>if</code>/<code>then</code>. Then extract a shared "address" definition used by both a <code>shippingAddress</code> and <code>billingAddress</code> field into a separate reusable definition referenced via <code>$ref</code> from both.</p>
+
+<h2 id="summary">Summary</h2>
+<p>Advanced JSON Schema validation goes beyond a single static schema per response: conditional (<code>if</code>/<code>then</code>) rules encode genuine business logic about field requirements, <code>$ref</code>-based reusable components avoid duplicated, drift-prone definitions, and running schema validation systematically across an entire API — potentially as its own dedicated, fast CI stage — turns it from an occasional structural sanity check into a genuine, broad contract-testing strategy.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why might a team run JSON Schema-based contract tests as a separate, dedicated CI stage rather than folding them into the main functional test suite?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Schema validation is fast (no complex business logic to exercise, just structural checking) and broad (can sweep across every endpoint in the API with minimal test code, as shown in the parameterized example on this page) — which makes it an efficient early signal for API contract drift. Running it as its own dedicated, early CI stage means a broken contract (a field's type changing, a required field disappearing) gets caught and reported quickly, before the team invests time running the slower, more expensive full functional suite against an API that's already known to have drifted from its expected contract.</div>
+</details>
+<details class="faq-item">
+<summary>What real problem does a conditional (if/then) schema solve that a flat schema can't?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Encoding a genuine business rule — like 'cancelReason is required only when status is cancelled' — without forcing a false choice between making the field universally required (wrong for other statuses) or universally optional (missing real validation for the cancelled case).</div>
+</details>
+<details class="faq-item">
+<summary>Why use $ref for a shared structure like 'address' across multiple schemas?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Avoids duplicating the same definition across several files, which risks drift — a change to the address shape means updating one shared definition instead of several schemas that could fall out of sync.</div>
+</details>
+<details class="faq-item">
+<summary>Why might a team run schema-based contract tests as a separate, fast CI stage?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Schema validation is fast and broad — an early signal for contract drift that runs before investing time in the slower, more expensive full functional suite against an API that's already known to have drifted.</div>
+</details>
+<details class="faq-item">
+<summary>Can a response pass its JSON Schema while still containing a genuinely wrong value?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Yes — schema validation confirms structure (required fields, correct types), not correctness of specific values; a wrong-but-correctly-typed value would pass schema validation while still failing a targeted value assertion.</div>
+</details>
+</div>
+</article>
+</body></html>

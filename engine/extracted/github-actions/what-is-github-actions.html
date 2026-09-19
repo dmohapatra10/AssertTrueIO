@@ -1,0 +1,110 @@
+<!doctype html>
+<html><head>
+<title>What is GitHub Actions? Workflows, Events, Jobs, Steps, Runners, and Actions Explained</title>
+<meta name="description" content="GitHub Actions&#x27; core vocabulary explained in plain language — workflows, events, jobs, steps, runners, and actions — with a real-world analogy for each." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/what-is-github-actions.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>What is GitHub Actions?</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="what-is-cicd.html">What is CI/CD?</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>GitHub Actions is GitHub's built-in automation platform — it lets you run code automatically in response to things happening in your repository, like a push, a pull request, or a schedule. It's genuinely general-purpose: testing is a common use, but it can build, deploy, send notifications, or run almost any automated task.</p>
+
+<h2 id="why-do-we-need-it">Why do we need it?</h2>
+<p>Without it, ShopEasy's team would need a completely separate service just to run automated tests and deployments — something to watch the repository for changes, something to actually execute the build, somewhere to see the results. GitHub Actions lives directly inside the same platform the code already lives in, with no separate service to set up.</p>
+
+<h2 id="the-vocabulary-with-analogies">The Vocabulary, With Analogies</h2>
+<p>Each of these terms is genuinely simple once you have the right mental picture — the confusion usually comes from encountering them all at once, in DevOps-flavored jargon, with no everyday comparison.</p>
+<ul>
+  <li><strong>Workflow</strong> — the whole automated process, defined in one YAML file. <em>Like a recipe</em> — the complete set of instructions for making one dish.</li>
+  <li><strong>Event</strong> — whatever triggers the workflow to start, like a push or a pull request. <em>Like the moment you decide to start cooking</em> — a guest arriving, a specific time of day.</li>
+  <li><strong>Job</strong> — one distinct stage of the workflow, which can run independently. <em>Like one stage of cooking</em> — preparing the sauce, separate from grilling the meat.</li>
+  <li><strong>Step</strong> — one single instruction inside a job. <em>Like one line in the recipe</em> — "chop the onions," "add to the pan."</li>
+  <li><strong>Runner</strong> — the actual machine that executes the job's steps. <em>Like the kitchen itself</em> — the physical place where the cooking happens.</li>
+  <li><strong>Action</strong> — a pre-built, reusable step someone else already wrote, that you can just use. <em>Like a pre-made sauce you buy instead of making from scratch</em> — someone already solved this specific small problem.</li>
+</ul>
+
+<h2 id="visual-mental-model">Visual Mental Model</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Developer
+   ↓
+git push
+   ↓
+GitHub
+   ↓
+Workflow starts
+   ↓
+Runner starts
+   ↓
+Job
+   ↓
+Steps
+   ↓
+Tests
+   ↓
+Build
+   ↓
+Deploy</code></pre>
+
+<h2 id="detailed-example-naming-every-piece-in-a-real-scenario">Detailed Example — Naming Every Piece in a Real Scenario</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>ShopEasy scenario: "Whenever someone pushes code, automatically run the tests."
+
+Event:    the push itself
+Workflow: the YAML file describing the whole automated process
+Job:      "run-tests" — one distinct stage
+Steps inside that job: "check out the code," "install dependencies," "run the tests"
+Runner:   the actual GitHub-provided machine executing those steps
+Action:   a reusable step like "check out the code" that GitHub already provides,
+          so you don't write that logic yourself</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might you want two separate jobs — say, "run-tests" and "build-app" — instead of putting every single step into one giant job? Jobs can run independently and even in parallel, and if one job's steps have nothing to do with another's, splitting them lets GitHub potentially run them at the same time, and lets a failure in one be understood without wading through unrelated steps.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Assuming an "action" (a reusable step someone else built) is the only way to do anything in a workflow. A huge amount of real workflow logic is just plain shell commands — actions are for genuinely reusable, common tasks (checking out code, setting up a language runtime); your own project-specific logic is often just a regular command, no action needed.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>You don't need to memorize every term perfectly before moving on — the mental model above (push → workflow → runner → job → steps) is the one shape that everything else in this course builds on. If a later page mentions a term that feels fuzzy, it's worth coming back here.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Reach for an existing, well-maintained action for common tasks (checking out code, setting up a language) rather than reinventing that logic yourself.</li>
+  <li>Split genuinely independent work into separate jobs, especially once a workflow starts doing several unrelated things.</li>
+  <li>Get comfortable with the six core terms (workflow, event, job, step, runner, action) before worrying about anything more advanced — they're the foundation every later chapter assumes.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>A workflow is the whole automated process; an event is what starts it.</li>
+  <li>A job is one independent stage; a step is one instruction inside that stage.</li>
+  <li>A runner is the actual machine doing the work; an action is a reusable step someone else already built.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Using the recipe analogy, write your own one-sentence description of what a "job" and a "step" would mean for baking a cake, and identify one part of that process that could reasonably be an "action" (something you'd buy pre-made rather than build from scratch).</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>What's the practical difference between a job and a step in GitHub Actions?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A job is a distinct, independently-runnable stage of a workflow — like preparing a sauce as one stage of cooking. A step is one single instruction inside a job, like one line in a recipe. Jobs can run in parallel with each other by default (unless configured otherwise), while steps within a single job always run in order, one after another.</div>
+</details>
+<details class="faq-item">
+<summary>What is a runner, and why does a workflow need one?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A runner is the actual machine — physical or virtual — that executes a job's steps. Just as a recipe needs an actual kitchen to be cooked in, a workflow's steps need an actual computer to run on; the runner is that computer, whether it's a machine GitHub provides or one an organization manages itself.</div>
+</details>
+<details class="faq-item">
+<summary>Why would you use an action instead of writing a shell command yourself?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">An action is a pre-built, reusable step someone has already written and tested for a common task — like checking out repository code or setting up a specific language runtime. Using it means not reinventing and re-testing that same logic yourself; it's the same reasoning as buying a pre-made sauce instead of making one from scratch when the sauce itself isn't the interesting or unique part of your dish.</div>
+</details>
+<details class="faq-item">
+<summary>What actually triggers a workflow to start running?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">An event — something happening in the repository that the workflow is configured to respond to, like a push, a pull request being opened, or a scheduled time being reached. Without a matching event, a workflow file just sits in the repository, defined but never actually triggered.</div>
+</details>
+<details class="faq-item">
+<summary>Why might a team split "run tests" and "build the application" into two separate jobs rather than one combined job?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">If the two tasks are genuinely independent of each other, separate jobs can potentially run in parallel, reducing overall pipeline time, and a failure in one is easier to understand in isolation without needing to read through an unrelated task's steps mixed into the same job. Splitting work into distinct jobs is a deliberate design choice once tasks don't actually depend on each other's output.</div>
+</details>
+</div>
+</article>
+</body></html>

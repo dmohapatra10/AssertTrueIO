@@ -1,0 +1,188 @@
+<!doctype html>
+<html><head>
+<title>Converting AI-Generated Scenarios into Automated Tests</title>
+<meta name="description" content="Turning a reviewed, drafted test scenario into a real Playwright test, connecting AI-powered generation directly to this site&#x27;s own automation tracks." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/converting-ai-generated-scenarios-into-automated-tests.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Converting AI-Generated Scenarios into Automated Tests</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="test-data-generation.html">Test Data Generation</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Every scenario generated so far is genuinely useful, but it's still just text — a description of what to test, not a running test. This page turns one into real, executable Playwright code, directly connecting this chapter's AI generation work to the automation skills taught in this site's own Playwright track.</p>
+
+<h2 id="starting-from-a-real-reviewed-scenario">Starting From a Real, Reviewed Scenario</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>BOUNDARY CASE (from earlier in this chapter, already reviewed
+by a human per this chapter's own standards):
+
+"Order value exactly at the minimum threshold ($50.00) —
+should qualify for the discount code SUMMER23 (15% off, min
+order $50)."</code></pre>
+
+<h2 id="the-conversion-step-by-step">The Conversion, Step by Step</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>1. Identify the ACTUAL PAGE ACTIONS needed to set up this state
+   (an order totaling exactly $50.00)
+2. Identify the ACTUAL ASSERTION that confirms the expected
+   outcome (the discount is genuinely applied)
+3. Write REAL Playwright code implementing both</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import { test, expect } from '@playwright/test';
+
+test('discount code applies at exact minimum order value', async ({ page }) => {
+  await page.goto('/cart');
+
+  // Set up an order totaling EXACTLY $50.00 — the actual
+  // boundary value from the reviewed scenario
+  await page.getByTestId('add-item-49-99').click();
+  await page.getByLabel('Quantity').fill('1');
+  // (a genuinely realistic cart setup would use real ShopEasy
+  // products whose prices combine to exactly $50.00)
+
+  await page.getByLabel('Discount code').fill('SUMMER23');
+  await page.getByRole('button', { name: 'Apply' }).click();
+
+  // The actual assertion, directly from the scenario's own
+  // stated expected outcome
+  await expect(page.getByText('Discount applied: -$7.50')).toBeVisible();
+});</code></pre>
+<p>This is genuinely ordinary Playwright — exactly what's taught in this site's own Playwright track — the AI-generated scenario simply supplied the WHAT and the expected outcome; converting it into real code is the same skill as writing any other automated test.</p>
+
+<h2 id="can-ai-help-with-the-conversion-itself-too">Can AI Help With the Conversion Itself Too?</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Genuinely, yes — the same LLM that generated the scenario can
+draft the Playwright code too, given the scenario text and
+enough context about the actual application's real selectors
+and structure. But this is EXACTLY where the next page's
+validation discipline matters most:
+
+AI-drafted CODE needs the SAME review AI-drafted SCENARIOS
+needed — does the assertion actually check what the scenario
+claims to verify? Are the selectors genuinely correct for the
+real application, not just plausible-looking guesses?</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might converting a scenario into code be a genuinely good moment to catch problems with the scenario itself, even though the scenario was already reviewed once before conversion? Writing actual, concrete code forces a level of specificity a written scenario doesn't require — "an order exactly at the minimum" is clear as English, but writing the real Playwright code means deciding EXACTLY which products, in exactly what combination, genuinely produce that precise $50.00 total. This concrete specificity sometimes reveals that a reviewed scenario was still subtly ambiguous in a way that only becomes obvious once you try to implement it for real.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Converting a scenario's expected outcome loosely, asserting something adjacent to what the scenario actually specified rather than exactly what it said. If the scenario says "discount applied: -$7.50," the test should assert exactly that specific text or value — not just "some discount text appears somewhere," which would pass even if the wrong amount were shown.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>Keep a direct, traceable link between a converted test and its original scenario — a comment referencing which generated scenario a test implements makes it much easier to later confirm the test still genuinely matches its original intent, especially if the scenario gets revised.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Convert a scenario's expected outcome into a precise, specific assertion — not a loose approximation of what it described.</li>
+  <li>Treat the conversion step as a legitimate opportunity to catch remaining scenario ambiguity, not just a mechanical translation exercise.</li>
+  <li>Apply the same review discipline to AI-drafted code that this chapter has applied to AI-drafted scenarios throughout.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Converting a scenario into a real test uses exactly the same Playwright skills taught elsewhere on this site — AI generation and conversion don't require a fundamentally different automation skill set.</li>
+  <li>The conversion step itself can reveal remaining ambiguity in a scenario, even one that's already been reviewed once.</li>
+  <li>A converted test's assertions should precisely match the scenario's stated expected outcome, not a loose approximation of it.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Convert this chapter's negative case — "apply a code that's expired, showing the specific error 'Code expired', discount not applied" — into real Playwright code, including both the specific error-message assertion and a check that the order total genuinely wasn't discounted.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A converted test asserts page.getByText('discount').toBeVisible() for a scenario that specifically stated "discount applied: -$7.50" as the expected outcome. What's wrong with this conversion?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This is exactly the "loose approximation" mistake this page warns against — the assertion checks for the word "discount" appearing ANYWHERE, which would pass even if the WRONG amount were displayed, completely failing to verify the specific outcome the scenario actually claimed.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why the loose assertion is genuinely insufficient:
+page.getByText('discount').toBeVisible() would PASS even if
+  the page incorrectly showed "Discount applied: -$5.00"
+  (the WRONG amount) — as long as the word "discount" appears
+  somewhere, this test reports success, completely missing a
+  genuine, real bug in the discount CALCULATION itself.
+
+The correct, precise conversion:
+await expect(page.getByText('Discount applied: -$7.50')).toBeVisible();
+  — this specifically verifies the EXACT amount the scenario
+  claimed, catching a wrong-calculation bug the loose version
+  would silently let through undetected.</code></pre>
+<p>The fix directly follows this page's own standard: convert the scenario's PRECISE stated expected outcome into an equally precise assertion, not a vague approximation that happens to be easier to write.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page argue that converting a scenario to code can reveal ambiguity the scenario review process already missed?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because writing real code demands a level of concrete specificity that reviewing English text doesn't force — a scenario can sound completely clear in prose while still leaving genuinely open questions that only surface once you try to implement it exactly.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>The scenario, reviewed and approved as clear:
+"An order exactly at the minimum threshold ($50.00)."
+
+What implementing this ACTUALLY requires deciding:
+Which SPECIFIC products, in what combination, genuinely sum
+  to exactly $50.00? Is this a single item priced at $50.00
+  exactly, or multiple items totaling that amount? Does this
+  matter for the test's actual validity? The scenario's REVIEW
+  never had to answer this, since English doesn't force this
+  level of concrete specificity — but the ACTUAL CODE does.</code></pre>
+<p>This is a genuinely valuable, real property of the conversion step — it's not just mechanical translation, it's an additional layer of forced precision that can catch gaps a purely textual review might reasonably miss.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page suggest keeping a traceable comment linking a converted test back to its original generated scenario?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because a test's code and its original intent can genuinely drift apart over time — someone might later modify the test's implementation without realizing it's no longer accurately testing what the original scenario specified, and a traceable link makes this drift much easier to catch.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Without a traceable link:
+Months later, a developer modifies this test (perhaps to fix
+  a flaky selector), and in the process, subtly changes what
+  it actually asserts — with NOTHING connecting it back to the
+  original scenario's INTENT, there's no easy way for anyone
+  to notice the test has drifted from what it was meant to verify.
+
+WITH a traceable link:
+// Implements: Boundary case — order exactly at $50 minimum
+  A reviewer modifying this test later has an immediate,
+  concrete reference point to check against — "does my change
+  still genuinely match THIS specific scenario's original
+  intent" becomes a direct, answerable question, not a vague
+  guess based on the test's current code alone.</code></pre>
+<p>This is a genuinely practical habit that pays off specifically over TIME, as tests get modified and maintained — the traceability cost is small (one comment), but the value compounds every time someone needs to verify a test still matches its original, intended purpose.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>The page suggests AI can help draft the Playwright code itself, not just the scenario. Why does this page treat that possibility cautiously, rather than as an unambiguous additional time-saver?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because AI-drafted code introduces the exact same category of risk as AI-drafted scenarios — plausible-looking output that might not actually be correct — and this risk doesn't disappear just because the output happens to be code instead of English text.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>The GENUINE risk with AI-drafted Playwright code specifically:
+A plausible-looking selector, like page.getByTestId('add-item-
+  49-99'), might not actually correspond to anything real on
+  the ACTUAL ShopEasy page — the AI is GUESSING at a
+  reasonable-looking selector based on the scenario's own
+  text, not verifying against the real, live application.
+
+Why this matters MORE than it might for scenario text:
+A wrong SCENARIO description is caught easily by a human
+  reading it. A wrong SELECTOR in generated code might not
+  fail loudly and obviously — it could silently target the
+  WRONG element, or fail in a way that's genuinely harder to
+  immediately recognize as "the AI guessed wrong" versus
+  "there's a real bug in the application."</code></pre>
+<p>This is exactly why the page explicitly connects this risk to the NEXT page's validation discipline — AI-assisted code generation is genuinely useful, but treating its output as automatically correct, without the same review rigor applied to scenarios, would be a real, inconsistent double standard.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you explain the relationship between this chapter's test generation work and Chapter 3's QA agent to someone confused about how they're different?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>They solve genuinely different problems that happen to both use an LLM — Chapter 3's agent EXECUTES a task autonomously against a real, live application; this chapter's generation work DRAFTS scenarios and code that a human then reviews and typically runs through traditional, deterministic automation, not an agent's own live reasoning loop.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Chapter 3's QA agent:
+Given a GOAL, it REASONS in real time against the REAL, live
+  application, deciding its own next actions as it goes —
+  genuinely autonomous EXECUTION, with real-time adaptability.
+
+THIS chapter's test generation:
+Given a REQUIREMENT (just text, no live application involved
+  at generation time), it DRAFTS scenarios and code — a human
+  REVIEWS this draft, and the RESULTING test typically runs as
+  ORDINARY, deterministic Playwright automation (like this
+  page's own converted example) — no agent reasoning happens
+  at TEST-RUN time at all, just at DRAFT-GENERATION time.</code></pre>
+<p>The genuinely useful distinction: Chapter 3's agent is autonomous at RUN TIME; this chapter's generation is AI-ASSISTED at DRAFTING TIME, producing something that then runs the traditional, deterministic way — two different, complementary uses of AI in a real QA practice, not competing or redundant approaches.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

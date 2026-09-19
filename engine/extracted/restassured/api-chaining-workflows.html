@@ -1,0 +1,88 @@
+<!doctype html>
+<html><head>
+<title>API Chaining &amp; End-to-End Workflows in RestAssured</title>
+<meta name="description" content="How to chain API requests into realistic end-to-end workflows with RestAssured — extracting and passing dynamic data, managing dependencies, cleanup, and when chaining is (and isn&#x27;t) the right choice." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/api-chaining-workflows.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>API Chaining &amp; End-to-End Workflows</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="role-based-api-testing.html">Role-Based API Testing</a></p>
+<article class="content">
+<h2 id="chaining-requests-into-a-real-workflow">Chaining Requests Into a Real Workflow</h2>
+<p>Real user workflows rarely involve a single API call — creating an account, then logging in, then placing an order, then checking its status is a chain of dependent requests, each one needing data produced by the last. Doing that well is covered across four pages:</p>
+<ol>
+  <li><a href="the-full-crud-chain.html">The Full CRUD Chain</a> — Create → Read → Update → Verify → Delete → Verify Deletion, worked in full</li>
+  <li><a href="extracting-and-passing-dynamic-data.html">Extracting & Passing Dynamic Data</a> — IDs, tokens, and other values that flow between requests</li>
+  <li><a href="dependency-management-and-cleanup.html">Dependency Management & Cleanup</a> — keeping a chain of requests from leaving a mess behind</li>
+  <li><a href="when-to-chain-vs-keep-tests-independent.html">When to Chain vs. Keep Tests Independent</a> — the judgment call everything here builds toward</li>
+</ol>
+
+<h2 id="the-core-pattern">The Core Pattern</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Create User
+    ↓
+Extract User ID
+    ↓
+Get User
+    ↓
+Update User
+    ↓
+Verify User
+    ↓
+Delete User
+    ↓
+Verify Deletion</code></pre>
+<p>This is the shape almost every chained API test takes: a value produced by one step (usually via <code>extract()</code>, from Chapter 4) becomes the input to the next. Nothing here is a new RestAssured API — it's the composition of everything from earlier chapters (request construction, response validation, extraction) into a multi-step scenario.</p>
+
+<h2 id="why-this-matters-beyond-just-testing-multiple-endpoints">Why This Matters Beyond Just "Testing Multiple Endpoints"</h2>
+<p>API chaining isn't really about covering more endpoints in one test — it's about testing that data produced by one operation is correctly usable by the next, which is exactly where integration-level bugs live that no single-endpoint test would ever catch. A user creation endpoint that works perfectly in isolation, paired with a get-user endpoint that also works perfectly in isolation, can still fail when chained — if the ID format one produces doesn't match what the other expects, for instance.</p>
+
+<h2 id="a-quick-preview">A Quick Preview</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Response createResponse =
+    given().body(newUser).when().post("/users");
+
+String userId = createResponse.jsonPath().getString("id");
+
+given()
+    .pathParam("id", userId)
+.when()
+    .get("/users/{id}")
+.then()
+    .statusCode(200)
+    .body("name", equalTo(newUser.getName()));</code></pre>
+<p>This two-step chain — create, then verify by fetching — is the simplest possible version of the pattern this whole chapter goes deep on. Real chains often extend to five or more steps, with cleanup at the end.</p>
+
+<h2 id="common-mistakes-to-watch-for">Common Mistakes to Watch For</h2>
+<ul>
+  <li><strong>Chaining requests that don't actually need to be chained</strong> — creating unnecessary dependencies between tests that would be more robust (and more parallelizable) as independent tests.</li>
+  <li><strong>Not cleaning up resources created mid-chain</strong>, leaving test data accumulating in a shared environment.</li>
+  <li><strong>Extracting without validating first</strong> — the same mistake covered in Chapter 4's Validate vs. Extract page, especially costly in a multi-step chain where a bad extracted value corrupts every subsequent step.</li>
+</ul>
+
+<h2 id="what-you-ll-be-able-to-do">What You'll Be Able to Do</h2>
+<p>By the end of the four pages that follow, you should be able to design a realistic multi-step workflow test, correctly thread extracted values through every step, clean up whatever the chain creates regardless of where the test actually stops, and — just as importantly — recognize when a scenario is better served by independent, isolated tests instead of one long chain. Start with The Full CRUD Chain below.</p>
+      
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>What's the real value of chaining requests, beyond just covering more endpoints in one test?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It tests that data produced by one operation is correctly usable by the next — exactly where integration-level bugs live that no single-endpoint test in isolation would ever catch.</div>
+</details>
+<details class="faq-item">
+<summary>Why might two individually-passing endpoints still fail when chained together?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A create-user endpoint working perfectly alone and a get-user endpoint working perfectly alone can still fail when chained if the ID format one produces doesn't match what the other expects — a mismatch invisible to isolated testing.</div>
+</details>
+<details class="faq-item">
+<summary>What's the risk of not validating an extracted value in the middle of a long chain?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A silently null or wrong extracted value corrupts every subsequent step, producing a confusing failure several steps downstream rather than a clear signal at the actual point of failure.</div>
+</details>
+<details class="faq-item">
+<summary>Why does cleanup deserve its own dedicated discussion within API chaining specifically?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A chain that creates resources needs a reliable plan for removing them, including when the chain itself fails partway through — cleanup logic that only runs on success leaves orphaned data exactly when it's most likely to happen.</div>
+</details>
+<details class="faq-item">
+<summary>Why does chaining matter beyond simply covering more endpoints in a single test?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It specifically tests that data produced by one operation is correctly usable by the next — exactly where integration bugs live that no single-endpoint test, however thorough, could ever catch in isolation.</div>
+</details>
+</div>
+</article>
+</body></html>

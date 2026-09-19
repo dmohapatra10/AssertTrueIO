@@ -1,0 +1,196 @@
+<!doctype html>
+<html><head>
+<title>Log Analysis: What Application and System Logs Add</title>
+<meta name="description" content="Reasoning over server-side logs to find what a stack trace, screenshot, and network trace genuinely can&#x27;t reveal — the server&#x27;s own internal view of what happened." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/log-analysis.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Log Analysis</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="analyzing-screenshots-and-traces-for-failure-diagnosis.html">Analyzing Screenshots and Traces for Failure Diagnosis</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Every evidence source so far has been observable from the CLIENT side — what the browser saw, what request was sent. Server-side logs are genuinely different: they show what the APPLICATION itself was doing internally, information no client-side evidence can ever reveal.</p>
+
+<h2 id="a-scenario-where-client-side-evidence-genuinely-runs-out">A Scenario Where Client-Side Evidence Genuinely Runs Out</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>From the previous page's honest escalation example: screenshot
+shows the EXPECTED state, trace shows a NORMAL 200 response —
+yet the 'Welcome back' text still never appeared. Client-side
+evidence is genuinely exhausted; server logs are the next step.</code></pre>
+
+<h2 id="reading-a-real-server-log">Reading a Real Server Log</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def analyze_server_logs(log_entries, request_timestamp, client):
+    prompt = f"""Here are server log entries around the time of
+a login request at {request_timestamp}, which returned a
+normal 200 status code:
+
+{log_entries}
+
+Does anything in these logs suggest the request was processed
+DIFFERENTLY than a fully successful login — for example, a
+warning, a partial failure, or a fallback path being taken,
+even though the HTTP status code itself was 200?"""
+    result = client.messages.create(
+        model="claude-sonnet-4-6", max_tokens=512,
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return result.content[0].text</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># A genuinely real server log excerpt:
+[INFO] POST /api/login - credentials validated for user 4821
+[WARN] Session cache write failed: connection pool exhausted
+[WARN] Falling back to database-only session storage
+[INFO] POST /api/login - 200 OK (187ms)</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># A genuinely useful finding:
+"The login request itself succeeded (credentials validated,
+200 returned) — but the log shows a WARNING: the session cache
+write FAILED, falling back to database-only storage. This is
+consistent with the symptom — if the frontend's 'Welcome back'
+text depends on reading session data from the CACHE
+specifically, a cache write failure could explain why the
+expected UI state didn't render, DESPITE a fully successful
+200 response. This points toward a genuine, real infrastructure
+issue (cache connectivity) as a plausible root cause — worth
+confirming with whoever owns the caching layer."</code></pre>
+
+<h2 id="why-this-genuinely-couldn-t-have-been-found-earlier">Why This Genuinely Couldn't Have Been Found Earlier</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>The STACK TRACE showed only a client-side timeout.
+The SCREENSHOT showed only what rendered (or didn't).
+The NETWORK TRACE showed only a normal 200 response.
+
+NONE of these client-side sources could show an INTERNAL
+server warning about a cache write failure — this information
+GENUINELY only exists in the server's own logs, which is
+exactly why this evidence source belongs in the diagnostic
+process at all, not as a redundant repeat of earlier pages.</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might a request that returns a completely normal 200 status code still be worth investigating through server logs, rather than treating "200 OK" as proof nothing went wrong on the server side? An HTTP status code reflects whether the SERVER successfully processed and responded to a request at the PROTOCOL level — it says nothing about whether every INTERNAL step the server took while handling that request went smoothly. A server can return a perfectly valid 200 response while having silently taken a degraded fallback path internally, exactly this page's example — the status code and the internal health of the request's handling are genuinely separate questions.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Treating a successful HTTP status code as sufficient confirmation that a request was handled correctly, without checking whether server logs reveal any warnings or fallback behavior that occurred internally despite the successful-looking response.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>When correlating server logs with a specific failure, matching on TIMESTAMP and REQUEST-SPECIFIC identifiers (a request ID, a user ID) is genuinely more reliable than trying to match on vague context alone — this page's example specifically anchors the log search to the request's known timestamp.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Reach for server logs specifically when client-side evidence (trace, screenshot, stack trace) has been genuinely exhausted without a clear explanation.</li>
+  <li>Never treat a successful status code alone as proof a request was handled without any internal issue.</li>
+  <li>Anchor log analysis to specific, known identifiers (timestamp, request ID) rather than searching vaguely.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Server logs reveal internal application behavior that no client-side evidence source — stack trace, screenshot, or network trace — can ever show.</li>
+  <li>A successful HTTP status code doesn't guarantee every internal step of handling that request went smoothly.</li>
+  <li>Log analysis is genuinely the escalation point when client-side evidence has been exhausted, not a redundant repeat of earlier diagnostic steps.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Write a server log excerpt (following this page's format) that would explain the SAME symptom — a successful login response with no visible "Welcome back" text — through a genuinely different internal cause than the cache-fallback example on this page, and explain what real root cause it points toward.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A teammate says "the request returned 200, so the server side is fine — the bug must be in the frontend." Using this page's example, is this reasoning sound?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Not necessarily — this page's own example shows a 200 response coexisting with a genuine, real server-side issue (a cache write failure) that just happened not to affect the HTTP status code itself, meaning "200 = server side is fine" is too strong a conclusion.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What "200 status code" actually confirms:
+The server successfully PROCESSED the request and returned a
+  response at the PROTOCOL level — a genuine, real confirmation,
+  but SCOPED specifically to that layer.
+
+What it does NOT confirm, per this page's own example:
+Whether EVERY internal step (like writing to a session cache)
+  ALSO succeeded — the log excerpt shows a WARNING about a
+  failed cache write, coexisting with a perfectly normal 200
+  response. The teammate's conclusion would have INCORRECTLY
+  ruled out a genuine server-side issue based on a status code
+  that doesn't actually confirm what they're assuming it does.</code></pre>
+<p>The correct response: "200 OK" rules out certain KINDS of server-side failure (a crash, a rejected request) — it doesn't rule out ALL possible server-side issues, exactly the gap this page's log-analysis example is designed to illustrate concretely.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page argue that log analysis specifically belongs AFTER stack trace, screenshot, and network trace analysis, rather than being checked first for every failure?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This mirrors the same cost-ordering principle from the Failure Classification page — client-side evidence is typically cheaper and faster to check, and often sufficient on its own, making server logs a reasonable escalation point rather than a universal first step.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why CLIENT-SIDE evidence often suffices, without needing logs:
+Many failures (a genuinely broken selector, a clear 401
+  rejection with a visible error message) are FULLY explained
+  by the stack trace, screenshot, and network trace alone —
+  reaching for server logs in EVERY case would be unnecessary
+  extra work for failures already clearly explained.
+
+Why THIS page's specific example genuinely NEEDED to escalate:
+The client-side evidence was GENUINELY exhausted — screenshot
+  showed the expected state, trace showed a normal response —
+  with NO remaining client-side explanation. ONLY at this
+  point does reaching for server logs become the reasonable,
+  necessary next step, not a default first move.</code></pre>
+<p>This is a direct, consistent continuation of the "check cheaper evidence sources first" principle established on the Failure Classification page — server logs are genuinely valuable, but reserved for when they're actually needed, not checked reflexively for every single failure regardless of whether cheaper evidence already explains it.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why this page's log-analysis prompt specifically anchors to "around the time of a login request at {request_timestamp}" rather than asking the agent to search all recent logs generally.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Server logs from a real, active application can be genuinely enormous — anchoring to a specific, known timestamp dramatically narrows what's relevant, exactly the same focused-context principle from the previous page's trace-analysis prompt, now applied to logs specifically.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why UNANCHORED log search would be genuinely impractical:
+A busy production or staging server might log THOUSANDS of
+  entries per minute across MANY unrelated requests from OTHER
+  users and OTHER features — searching "all recent logs"
+  without a specific anchor would bury the relevant few lines
+  among a genuinely overwhelming amount of irrelevant content.
+
+Why the TIMESTAMP anchor genuinely solves this:
+Knowing the EXACT request time (from the stack trace or
+  network trace already gathered) lets the log search focus
+  on a NARROW, specific window — exactly the entries that
+  could plausibly relate to THIS SPECIFIC failure, not the
+  application's entire log history.</code></pre>
+<p>This is the same "focused context beats exhaustive context" principle this course has applied consistently since Chapter 2's Reasoning page, now shown solving a genuinely practical, real problem — without an anchor, log analysis at real-world scale would be genuinely impractical, not just less elegant.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might it be risky for an agent to have direct, unrestricted access to production server logs, connecting this to Chapter 2's guardrails discussion?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Production logs can genuinely contain sensitive information — user data, internal system details, sometimes credentials or tokens accidentally logged — meaning broad log access represents a real, meaningful scope-guardrail concern, not just a technical convenience question.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>The GENUINE risk of unrestricted log access:
+Server logs, especially from a REAL production system, can
+  contain PERSONALLY IDENTIFIABLE information, session tokens,
+  or other sensitive data that a QA-focused agent genuinely
+  has no legitimate need to access broadly — exactly the kind
+  of over-broad tool access Chapter 2's Tools page warned
+  against.
+
+A genuinely appropriate scope guardrail:
+Restrict an agent's log access to STAGING environment logs
+  specifically, and/or to log entries matching ONLY a specific,
+  known request ID or timestamp window — narrowing access to
+  exactly what's needed for the CURRENT diagnostic task,
+  rather than broad, standing access to an entire log stream.</code></pre>
+<p>This is a direct, concrete application of Chapter 2's scope-guardrail principle to a genuinely new context — log access is powerful and useful for diagnosis, but exactly the kind of capability that should be deliberately scoped, not granted broadly by default.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you design a follow-up investigation specifically to CONFIRM the cache-write-failure hypothesis from this page's example, rather than treating it as a final, settled conclusion?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>The genuinely rigorous next step is checking whether the SAME pattern (cache write failure warning + missing welcome text) appears CONSISTENTLY across multiple failure instances, not just this one — a single correlated instance is suggestive, not yet confirmed.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A genuinely useful confirmation approach:
+1. Check whether OTHER, recent instances of this same test
+   failing ALSO show the identical cache-write-failure warning
+   in their corresponding server logs — a CONSISTENT pattern
+   across multiple instances is much stronger evidence than
+   one single correlated occurrence.
+2. Check whether the connection-pool-exhaustion issue
+   correlates with load — does it happen MORE during periods
+   of higher traffic, supporting the "exhaustion" explanation
+   specifically?
+3. If possible, check whether MANUALLY reproducing a cache
+   write failure (in a safe, staging-only way) produces the
+   SAME missing-welcome-text symptom, providing direct,
+   causal confirmation rather than just correlation.</code></pre>
+<p>This connects directly to Chapter 4's validation discipline and Chapter 1's honest-uncertainty principle — a single instance of correlated evidence supports a genuine, reasonable HYPOTHESIS, but treating it as a CONFIRMED root cause without this kind of further verification would overstate what's actually been established.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

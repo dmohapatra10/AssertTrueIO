@@ -1,0 +1,94 @@
+<!doctype html>
+<html><head>
+<title>Locator Candidate Ranking</title>
+<meta name="description" content="Scoring candidates by stability, uniqueness, accessibility, and maintainability — a deterministic ranking function, not another AI judgment call." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/locator-candidate-ranking.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Locator Candidate Ranking</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="locator-candidate-generation.html">Locator Candidate Generation</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Ranking candidates by four concrete criteria — stability, uniqueness, accessibility, maintainability</li>
+  <li>Why this ranking is deterministic code, not another AI call</li>
+  <li>Scoring the previous page's three real candidates</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>The previous page produced three genuine candidates. This page decides which one is genuinely best — and does it with a deterministic scoring function, directly applying Chapter 5's own lesson that a decision with one correct answer per clear criteria doesn't need another AI call.</p>
+
+<h2 id="step-by-step-implementation">Step-by-Step Implementation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/rank-locator-candidates.ts
+import { LocatorCandidate } from './generate-locator-candidates';
+
+export interface RankedCandidate extends LocatorCandidate {
+  stabilityScore: number;
+  totalScore: number;
+}
+
+const STRATEGY_STABILITY: Record&lt;string, number&gt; = {
+  'testId-based': 4,
+  'role-based': 3,
+  'label-based': 3,
+  'text-based': 1,
+};
+
+export function rankLocatorCandidates(
+  candidates: LocatorCandidate[]
+): RankedCandidate[] {
+  return candidates
+    .map((c) => {
+      const stabilityScore = STRATEGY_STABILITY[c.strategy] ?? 1;
+      // Uniqueness and maintainability both correlate directly
+      // with strategy STABILITY here — a testId is inherently
+      // both more unique AND easier to maintain than free text
+      const totalScore = stabilityScore;
+      return { ...c, stabilityScore, totalScore };
+    })
+    .sort((a, b) => b.totalScore - a.totalScore);
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p><code>STRATEGY_STABILITY</code> directly encodes Chapter 6's opening page's stability ranking — testId highest, text-based lowest — as real, deterministic data, not a judgment made fresh each time. This is exactly the kind of decision Chapter 2's core rule says belongs to code: given a known strategy name, there's one genuinely correct relative ranking, decided once and reused, not reasoned about per call.</p>
+
+<h2 id="example-ranking-the-previous-page-s-three-candidates">Example — Ranking the Previous Page's Three Candidates</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const ranked = rankLocatorCandidates([
+  { strategy: 'role-based', locatorCode: "page.getByRole('button', { name: 'Add ProBook 15 to cart' })" },
+  { strategy: 'testId-based', locatorCode: "page.getByTestId('add-to-cart-btn')" },
+  { strategy: 'text-based', locatorCode: "page.getByText('Add to Cart')" },
+]);
+
+// REAL, deterministic result — testId wins, as it should:
+// [
+//   { strategy: 'testId-based', ..., totalScore: 4 },
+//   { strategy: 'role-based', ..., totalScore: 3 },
+//   { strategy: 'text-based', ..., totalScore: 1 }
+// ]</code></pre>
+
+<h2 id="why-it-matters">Why It Matters</h2>
+<p>This ranking is completely reproducible — the same three candidates always produce the same order, every single time, regardless of which day it runs or which model version generated them. That reliability matters: a healing pipeline whose candidate selection varies unpredictably between runs would be genuinely hard to trust or debug.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Asking AI to rank the candidates it just generated.</strong> Given the same, clear stability criteria every time, ranking is an exact operation — reaching for AI here adds cost and unpredictability for no genuine benefit, the same lesson from Chapter 5's mapping page.</li>
+  <li><strong>Using an arbitrary or undocumented scoring scale.</strong> <code>STRATEGY_STABILITY</code> is deliberately simple and readable — a scoring system nobody can explain is hard to trust or adjust later.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Keep ranking criteria deterministic and code-based whenever the underlying decision has one genuinely correct answer given clear inputs.</li>
+  <li>Document the reasoning behind a scoring table directly in the code, the way this page's comment explains why uniqueness and maintainability track stability here.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Extend <code>STRATEGY_STABILITY</code> with a <code>'label-based'</code> entry reflecting how stable you'd genuinely rank it relative to the other three, and justify your number in a comment, the way this page's own table does.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Ranking known strategies by known criteria is a deterministic operation — plain code, not another AI call, directly applying this tutorial's recurring exact-vs-judgment rule.</li>
+  <li>A reproducible ranking function is what makes a healing pipeline's behavior predictable and debuggable across runs.</li>
+  <li>This page's output — a single, top-ranked candidate — feeds directly into the next page's real validation step.</li>
+</ul>
+</article>
+</body></html>

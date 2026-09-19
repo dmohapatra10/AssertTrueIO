@@ -1,0 +1,90 @@
+<!doctype html>
+<html><head>
+<title>Identifying the Failed Step</title>
+<meta name="description" content="Pinpointing exactly which action in a long, real sequence is the genuine point of failure — deterministic detection first, AI reasoning only for the ambiguous cases." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/identifying-the-failed-step.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Identifying the Failed Step</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="screenshot-and-network-analysis.html">Screenshot and Network Analysis</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Finding the exact failing action deterministically, before reaching for AI</li>
+  <li>Why this specific question rarely needs AI reasoning at all</li>
+  <li>Handling the genuinely ambiguous case, where more than one action shows a problem</li>
+</ul>
+
+<h2 id="introduction-applying-chapter-5-s-core-rule-here">Introduction — Applying Chapter 5's Core Rule Here</h2>
+<p>"Which action failed" sounds like it might need judgment, especially across a long sequence. It usually doesn't — this page applies Chapter 5's own exact-versus-judgment rule directly: an action either has a recorded error or it doesn't, which is a deterministic check, not a reasoning task.</p>
+
+<h2 id="step-by-step-implementation-the-deterministic-case">Step-by-Step Implementation — The Deterministic Case</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/find-failed-action.ts
+import { TraceAction } from './extract-trace-data';
+
+export function findFailedAction(actions: TraceAction[]): {
+  index: number; action: TraceAction
+} | null {
+  const failedIndex = actions.findIndex((a) =&gt; a.error);
+  if (failedIndex === -1) return null;
+  return { index: failedIndex, action: actions[failedIndex] };
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p>This is deliberately simple, plain code — no AI call anywhere in it. A trace action either has an <code>error</code> field populated or it doesn't; finding the first one that does is an exact operation with one correct answer, exactly like Chapter 5's locator-to-Playwright mapping. Reaching for AI here would add cost and latency for a question that's already fully answered by the data itself.</p>
+
+<h2 id="example-finding-the-failure-in-shopsmart-s-timeline">Example — Finding the Failure in ShopSmart's Timeline</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const result = findFailedAction(actions);
+
+// { index: 3, action: { type: "waitForSelector", ...,
+//   error: "Timeout 30000ms exceeded" } }
+// EXACTLY the ONE action with a recorded error — no reasoning
+// needed, just a REAL, deterministic search</code></pre>
+
+<h2 id="why-it-matters-the-genuinely-ambiguous-case">Why It Matters — The Genuinely Ambiguous Case</h2>
+<p>Sometimes more than one action shows a problem — a network request failed early, and a later action also recorded a timeout. Here, "which one actually caused the failure" genuinely is a judgment call, since the deterministic search alone can't say whether the early network failure caused the later timeout, or whether they're unrelated. This is exactly where this chapter's earlier, sequence-aware AI analysis earns its place.</p>
+
+<h2 id="step-by-step-implementation-the-genuinely-ambiguous-case">Step-by-Step Implementation — The Genuinely Ambiguous Case</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import { askClaude } from './ai-client';
+
+export async function resolveAmbiguousFailurePoint(
+  actions: TraceAction[], candidateIndices: number[]
+): Promise&lt;{ primaryFailureIndex: number; reasoning: string }&gt; {
+  const prompt = `Multiple actions in this sequence show
+problems, at indices: ${candidateIndices.join(', ')}
+Full sequence: ${JSON.stringify(actions)}
+
+Determine which is the GENUINE, primary point of failure —
+the others may be DOWNSTREAM consequences, not independent
+causes. Explain your reasoning.
+
+Respond with ONLY valid JSON:
+{"primaryFailureIndex": number, "reasoning": string}`;
+
+  const raw = await askClaude(prompt);
+  return JSON.parse(raw);
+}</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Using AI to find the failed action even in the simple, single-failure case.</strong> This is exactly the kind of exact, deterministic question that doesn't need it — Chapter 5's rule applies directly.</li>
+  <li><strong>Treating every action with a recorded issue as an independent, equally-likely cause.</strong> This page's ambiguous case exists because later problems are often downstream consequences of an earlier one, not separate failures.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Always try the deterministic search first — reach for AI reasoning only when genuinely more than one candidate exists.</li>
+  <li>When resolving ambiguity, explicitly ask the model to consider which candidates might be downstream consequences, not just list them as equally likely.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Run <code>findFailedAction</code> against several real traces from your own project. For any case where it returns a result, confirm this deterministic approach was sufficient — then construct or find a genuinely ambiguous case with multiple candidate failures, and run <code>resolveAmbiguousFailurePoint</code> against it.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Finding the single failed action in a sequence is usually a deterministic search, not a task needing AI judgment — the same rule Chapter 5 established for locator mapping.</li>
+  <li>Genuine ambiguity arises specifically when multiple actions show problems, where AI reasoning about downstream consequences earns a real place.</li>
+  <li>Trying the deterministic approach first, and reaching for AI only when it's genuinely insufficient, keeps this step both fast and honest about when reasoning is actually needed.</li>
+</ul>
+</article>
+</body></html>

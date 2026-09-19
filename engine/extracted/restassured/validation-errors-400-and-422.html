@@ -1,0 +1,141 @@
+<!doctype html>
+<html><head>
+<title>RestAssured Validation Errors: 400 Bad Request &amp; 422 Unprocessable Entity</title>
+<meta name="description" content="Testing input validation in RestAssured — missing fields, wrong data types, invalid formats, and malformed JSON — and the real difference between 400 and 422." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/validation-errors-400-and-422.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Validation Errors: 400 &amp; 422</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="error-handling-negative-testing.html">Error Handling & Negative Testing overview</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>The most common category of negative test — sending a request that's wrong in some way and confirming the API correctly rejects it, rather than silently accepting bad data or crashing.</p>
+
+<h2 id="400-vs-422-the-real-distinction">400 vs. 422 — The Real Distinction</h2>
+<p><code>400 Bad Request</code> conventionally means the request is malformed at the protocol/syntax level — invalid JSON, a completely wrong data type where a specific type is required. <code>422 Unprocessable Entity</code> means the request is syntactically well-formed (valid JSON, correct types) but semantically invalid — a business rule violation, like an email that's syntactically a string but doesn't match a valid email pattern. Not every API observes this distinction consistently — some use 400 for everything — but where an API does distinguish them, your negative tests should assert the specific code that API actually uses, not assume one universally.</p>
+
+<h2 id="missing-required-field">Missing Required Field</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void missingRequiredNameFieldReturns400() {
+    Map&lt;String, Object&gt; incompleteUser = Map.of("email", "john@example.com");
+    // "name" deliberately omitted
+
+    given().body(incompleteUser).when().post("/users")
+        .then().statusCode(400)
+        .body("error", containsString("name"));
+}</code></pre>
+
+<h2 id="invalid-data-type">Invalid Data Type</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void wrongTypeForQuantityFieldReturns400() {
+    String malformedBody = """
+    { "item": "Mouse", "quantity": "not-a-number" }
+    """;
+
+    given().contentType(ContentType.JSON).body(malformedBody).when().post("/orders")
+        .then().statusCode(400);
+}</code></pre>
+<p>Notice this uses a raw string body (from the Request Body Construction page) rather than a POJO — a POJO with a strongly-typed <code>int quantity</code> field literally can't represent this scenario, since Java's own type system prevents assigning a string to an int field. Testing wrong-type input specifically requires bypassing your own POJO's type safety.</p>
+
+<h2 id="invalid-email-format">Invalid Email Format</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@ParameterizedTest
+@ValueSource(strings = {"not-an-email", "missing-at-sign.com", "@no-local-part.com", "spaces in@email.com"})
+void invalidEmailFormatsAreRejected(String invalidEmail) {
+    User user = UserBuilder.aUser().withEmail(invalidEmail).build();
+    given().body(user).when().post("/users").then().statusCode(anyOf(is(400), is(422)));
+}</code></pre>
+<p>This combines the parameterized testing pattern from Chapter 10 with the builder pattern from the same chapter — four format variants, one test method, each overriding only the field actually under test.</p>
+
+<h2 id="malformed-json">Malformed JSON</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void malformedJsonSyntaxReturns400() {
+    String brokenJson = "{ \\"name\\": \\"John\\", }"; // trailing comma — invalid JSON syntax
+
+    given().contentType(ContentType.JSON).body(brokenJson).when().post("/users")
+        .then().statusCode(400);
+}</code></pre>
+<p>This is a genuinely different category of failure from an invalid field value — the request body isn't valid JSON <em>at all</em>, which should fail before the API even attempts to interpret the fields inside it. A well-behaved API returns 400 here specifically because parsing failed, not because of any particular field's content.</p>
+
+<h2 id="real-world-example-a-full-field-by-field-validation-sweep">Real-World Example — A Full Field-by-Field Validation Sweep</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@ParameterizedTest
+@CsvSource({
+    "'', valid@example.com, 30, Name is required",
+    "John, '', 30, Email is required",
+    "John, not-an-email, 30, Invalid email format",
+    "John, valid@example.com, -5, Age must be positive",
+    "John, valid@example.com, abc, Age must be a number"
+})
+void fieldValidationRulesAreEnforced(String name, String email, String age, String expectedErrorFragment) {
+    Map&lt;String, Object&gt; user = new HashMap&lt;&gt;();
+    user.put("name", name.isEmpty() ? null : name);
+    user.put("email", email.isEmpty() ? null : email);
+    user.put("age", age);
+
+    given().body(user).when().post("/users")
+        .then().statusCode(anyOf(is(400), is(422)))
+        .body("error", containsString(expectedErrorFragment));
+}</code></pre>
+<p>Five distinct validation rules, tested in one parameterized method, each asserting both the status code AND that the error message actually names the right problem — not just "something failed," but "the API correctly identified <em>which</em> thing failed."</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Only testing that an invalid request returns SOME 4xx code
+given().body(badData).when().post("/users").then().statusCode(greaterThanOrEqualTo(400));
+
+// ✅ Asserting the SPECIFIC status code the API's documented contract promises
+given().body(badData).when().post("/users").then().statusCode(400);</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Asserting a loose "any 4xx" status</strong> instead of the specific code the API's contract actually promises — misses a real regression where the API starts returning the wrong (but still 4xx) code.</li>
+  <li><strong>Testing only one invalid variant per field</strong> when several distinct invalid formats exist — a parameterized sweep catches more than a single hardcoded bad example.</li>
+  <li><strong>Assuming a POJO can represent every invalid-input scenario</strong> — wrong-type and malformed-JSON tests specifically need raw string bodies, since Java's type system prevents constructing the invalid case through a POJO.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Boundary values</strong> (an age of exactly 0, or a string at exactly the maximum allowed length) — worth testing explicitly, since off-by-one validation bugs are common right at a boundary.</li>
+  <li><strong>Extra, unexpected fields</strong> in the request — some APIs silently ignore them, others reject the request; know which your API does and test accordingly.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a validation test fails with an unexpected status, check whether the API actually distinguishes 400 from 422 consistently, or uses one code for everything — don't assume the distinction from this page applies universally without confirming against the specific API's actual behavior.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Assert the specific status code an API's contract promises, not a loose "any 4xx" range.</li>
+  <li>Use parameterized tests to sweep multiple invalid variants per field rather than one hardcoded example.</li>
+  <li>Assert on the error message content, not just the status code, confirming the API correctly identifies which field failed.</li>
+  <li>Use raw string bodies specifically for wrong-type and malformed-JSON scenarios that a POJO can't represent.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Write a parameterized test covering five distinct validation failures for a hypothetical "create product" endpoint (missing name, negative price, invalid category, price as a string instead of a number, and malformed JSON), asserting both the correct status code and that each error message identifies the specific problem.</p>
+
+<h2 id="summary">Summary</h2>
+<p>Validation error testing covers missing fields, wrong types, invalid formats, and malformed JSON — each testable with the right tool (builders and parameterized tests for format variants, raw string bodies for type/syntax violations that a POJO can't represent). Assert the specific status code an API's contract promises, and verify the error message actually identifies the right problem, not just that something failed.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why would you use a raw JSON string instead of a POJO to test that an API correctly rejects a wrong data type, like a string where a number is expected?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A POJO is defined with specific Java types for each field — if quantity is declared as an <code>int</code>, Java's own compiler prevents you from ever assigning a string to it, so there's no way to construct a POJO instance representing that invalid state in the first place. Testing this specific scenario requires bypassing the POJO entirely and sending a raw, deliberately malformed JSON string as the request body, which is the only way to actually produce a request containing the wrong type for the API to reject.</div>
+</details>
+<details class="faq-item">
+<summary>Why can't a strongly-typed POJO represent a 'wrong data type' test scenario?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">If a field is declared as an int, Java's compiler prevents assigning a string to it — there's no way to construct that invalid POJO state; this specific test needs a raw string body instead.</div>
+</details>
+<details class="faq-item">
+<summary>Why is malformed JSON syntax a genuinely different failure category from an invalid field value?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The request body isn't valid JSON at all, so a well-behaved API should fail before even attempting to interpret any fields inside it — a different code path than field-level validation.</div>
+</details>
+<details class="faq-item">
+<summary>Why assert on error message content, not just the status code, for a validation test?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A 400 could mean a missing name, an invalid email, or malformed JSON — three different problems, all producing the same code; the message confirms the API caught the SPECIFIC problem the test introduced.</div>
+</details>
+<details class="faq-item">
+<summary>Why combine a parameterized test with a builder for multi-format validation testing?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The builder supplies sensible defaults for every field not under test, while the parameterized data varies just the one field being tested — each test overrides only what's actually relevant to it.</div>
+</details>
+</div>
+</article>
+</body></html>

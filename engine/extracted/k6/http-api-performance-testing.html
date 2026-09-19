@@ -1,0 +1,42 @@
+<!doctype html>
+<html><head>
+<title>HTTP/API Performance Testing: Building a Realistic End-to-End Workflow</title>
+<meta name="description" content="Chaining multiple API calls into a genuine user journey — login, browse, order, verify — with cookies, response extraction, and why performance tests should validate correctness too." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/http-api-performance-testing.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>HTTP/API Performance Testing</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="virtual-users-scenarios-workload-modeling.html">Virtual Users, Scenarios & Workload Modeling</a></p>
+<article class="content">
+<h2 id="chaining-requests-into-a-real-user-journey">Chaining Requests Into a Real User Journey</h2>
+<p>Every request built so far has been isolated — one GET, one POST, tested on its own. Almost no real system is exercised that way; a real user logs in, browses, adds something to a cart, and checks out — a chain of dependent calls, each one needing data the last one produced. Three focused pages:</p>
+<ol>
+  <li><a href="building-a-realistic-end-to-end-workflow.html">Building a Realistic End-to-End Workflow</a> — Login → Get Token → Get Products → Create Order → Get Order, worked in full</li>
+  <li><a href="cookies-in-performance-tests.html">Cookies in Performance Tests</a> — session cookies, cookie jars, and when they actually matter for load</li>
+  <li><a href="why-performance-tests-should-validate-functionality-too.html">Why Performance Tests Should Validate Functionality Too</a> — the idea this whole chapter is really in service of</li>
+</ol>
+
+<h2 id="what-s-genuinely-new-here-vs-already-covered">What's Genuinely New Here vs. Already Covered</h2>
+<p>The individual HTTP methods, headers, query parameters, and request bodies were already covered in depth earlier — nothing about the syntax of a single request changes here. What's new is putting several of those requests together into a workflow that actually resembles how a real system gets used, with data flowing from one response into the next request, session state (cookies) persisting across the chain, and — critically — checking that each step did the right thing, not just that it responded fast.</p>
+
+<h2 id="a-quick-preview-of-the-shape-this-takes">A Quick Preview of the Shape This Takes</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Login (POST) → extract token
+      ↓
+Get Products (GET, authenticated) → extract a product ID
+      ↓
+Create Order (POST, authenticated) → extract order ID
+      ↓
+Get Order (GET, authenticated) → verify it matches what was ordered</code></pre>
+<p>This is a genuinely realistic shape — nearly any e-commerce, banking, or SaaS workflow follows some version of it. The next page builds this exact chain, explained step by step.</p>
+
+<h2 id="common-mistakes-to-watch-for">Common Mistakes to Watch For</h2>
+<ul>
+  <li><strong>Testing each endpoint in total isolation</strong>, never as a connected workflow — misses exactly the kind of integration problem that only shows up when data flows between real, dependent steps.</li>
+  <li><strong>Ignoring cookies entirely</strong> in APIs that actually rely on session state, then wondering why a chained workflow behaves differently than production.</li>
+  <li><strong>Treating "fast" and "correct" as the same thing</strong> — a workflow that completes quickly but silently returns wrong data at one step is still a real problem, just an invisible one to a test that only checks response time.</li>
+</ul>
+
+<h2 id="what-you-ll-be-able-to-do">What You'll Be Able to Do</h2>
+<p>By the end of the three pages that follow, you should be able to build a genuinely realistic, multi-step workflow test with data correctly flowing between steps, handle session cookies where an API depends on them, and — most importantly — explain concretely why a performance test that never checks correctness is measuring something less useful than it appears to be. Start with Building a Realistic End-to-End Workflow below.</p>
+</article>
+</body></html>

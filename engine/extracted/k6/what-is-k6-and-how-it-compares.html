@@ -1,0 +1,116 @@
+<!doctype html>
+<html><head>
+<title>What is k6? Architecture &amp; How It Compares to JMeter, Gatling, and Locust</title>
+<meta name="description" content="What k6 actually is, why teams choose it for load testing, how its architecture works, and an honest comparison against JMeter, Gatling, and Locust." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/what-is-k6-and-how-it-compares.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>What is k6? Architecture &amp; Tool Comparison</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="getting-started-with-k6.html">Getting Started with k6 overview</a></p>
+<article class="content">
+<h2 id="what-is-k6">What is k6?</h2>
+<p>k6 is an open-source load-testing tool where test scripts are written in JavaScript, but executed by a Go-based engine under the hood — not by a JavaScript runtime like Node.js. This hybrid design is deliberate: JavaScript makes scripting approachable for most engineers, while the Go engine underneath is what lets k6 generate genuinely high load efficiently, using far less memory per virtual user than a typical JavaScript runtime would.</p>
+
+<h2 id="why-k6-is-used">Why k6 Is Used</h2>
+<ul>
+  <li><strong>Developer-friendly scripting</strong> — JavaScript is a language most engineers already know, unlike some older tools' XML-based or proprietary configuration formats.</li>
+  <li><strong>Efficient at scale</strong> — the Go engine can simulate a large number of virtual users from a single machine without the heavy per-thread overhead that plagues some older tools.</li>
+  <li><strong>CLI-first, automation-friendly</strong> — designed from the ground up to run in CI/CD pipelines, not just as a GUI application a human clicks through.</li>
+  <li><strong>Built-in metrics and thresholds</strong> — performance criteria (Chapter 7) are a first-class part of a k6 script, not a separate reporting tool bolted on afterward.</li>
+</ul>
+
+<h2 id="how-k6-works-the-architecture">How k6 Works — The Architecture</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Your JavaScript test script
+        ↓
+k6's Go-based engine (interprets and executes your script)
+        ↓
+Real HTTP requests sent to your target system
+        ↓
+Metrics collected and aggregated in real time</code></pre>
+<p>Your script never runs as literal Node.js — k6 uses its own JavaScript engine (goja) embedded inside the Go binary. This is exactly why not every npm package works inside a k6 script (covered in the next page) — you're writing JavaScript, but running inside k6's own execution environment, not a full Node.js one.</p>
+
+<h2 id="k6-vs-jmeter">k6 vs. JMeter</h2>
+<p>JMeter is older, GUI-first, and configuration is typically done through XML or its visual test-plan builder rather than code. It's mature and widely used, but scripting in a GUI-first tool tends to be less natural for engineers who think in code — and JMeter's JVM-based, thread-per-virtual-user architecture is generally more resource-intensive at high concurrency than k6's model.</p>
+
+<h2 id="k6-vs-gatling">k6 vs. Gatling</h2>
+<p>Gatling is also code-first and performance-oriented, but scripts are written in Scala (or Java/Kotlin in newer versions) — a real barrier for teams without JVM language experience. Gatling and k6 are philosophically similar (both code-first, both built for serious load generation) — the practical deciding factor is usually which language ecosystem your team already lives in.</p>
+
+<h2 id="k6-vs-locust">k6 vs. Locust</h2>
+<p>Locust is Python-based and also code-first, with a genuinely different concurrency model (event-driven, using Python's gevent) compared to k6's Go-based approach. For a team already deep in Python tooling, Locust's language fit is a real advantage; for a team more comfortable in JavaScript, or wanting k6's built-in threshold/CI-first design, k6 is often the more natural choice.</p>
+
+<h2 id="detailed-example-a-genuine-decision-point">Detailed Example — A Genuine Decision Point</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Team A: Primarily JavaScript/TypeScript engineers, wants performance tests
+        that live alongside their existing test suite, CI-first workflow.
+        → k6 is a strong natural fit.
+
+Team B: Long-established JMeter test plans, dedicated performance engineering
+        team comfortable with its GUI, deep investment in JMeter plugins.
+        → Switching tools has a real cost; JMeter may remain the pragmatic choice.
+
+Team C: Python-heavy data/backend team, wants performance tests that reuse
+        existing Python utility code.
+        → Locust's language fit may outweigh k6's other advantages.</code></pre>
+<p>There's no universally "best" tool here — the right choice depends on what a team already knows, what they're testing, and what already exists. k6's genuine strengths are JavaScript accessibility, efficient resource usage at scale, and being built CI-first from day one — not that it's objectively superior to every alternative in every situation.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Choosing a tool purely because it's popular or trending
+"Everyone uses k6 now, let's just use it" — ignores your team's actual skills and needs
+
+// ✅ Choosing based on genuine fit
+"Our team already writes JavaScript, wants CI-first performance tests,
+ and needs efficient high-concurrency load generation — k6 fits."</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Assuming k6 scripts run in a full Node.js environment</strong> — they run in k6's own embedded JavaScript engine, which has real, specific limitations covered in the next page.</li>
+  <li><strong>Choosing a tool based on trends rather than actual team fit</strong> — language familiarity and existing infrastructure investment matter more than which tool is currently most popular.</li>
+  <li><strong>Assuming a GUI-based tool is inherently easier</strong> — for engineers who already think in code, a code-first tool like k6 is often genuinely faster to work with once past the initial learning curve.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>A team with significant existing investment in another tool's test plans</strong> — the migration cost of switching tools is real and worth weighing honestly against whatever k6 might offer, rather than assuming a rewrite is automatically worth it.</li>
+  <li><strong>Needing a specific protocol k6 doesn't support well</strong> — while k6 covers HTTP/WebSocket and other common protocols, a team testing a highly specialized protocol should verify k6's actual support before committing.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a familiar npm package doesn't work inside a k6 script, don't assume k6 is broken — check first whether the package relies on Node.js-specific APIs, since k6's JavaScript engine is not Node.js and doesn't support everything a typical npm package might expect.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Choose a load-testing tool based on genuine team fit — language familiarity, existing infrastructure, CI/CD needs — not popularity alone.</li>
+  <li>Understand that k6 scripts run in k6's own JavaScript engine, not Node.js, before assuming any JavaScript library will work unmodified.</li>
+  <li>Weigh migration cost honestly against expected benefit when considering switching from an established tool.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>For your own team (or a hypothetical one), list which of k6, JMeter, Gatling, or Locust would be the most natural fit, and justify the choice based on language familiarity, existing infrastructure, and CI/CD workflow — not based on which tool is most popular.</p>
+
+<h2 id="summary">Summary</h2>
+<p>k6 is a JavaScript-scripted, Go-executed load-testing tool designed to be developer-friendly, efficient at high concurrency, and CI-first from the ground up. It isn't objectively superior to JMeter, Gatling, or Locust — each fits a genuinely different team context, and the right choice depends on language familiarity, existing tooling investment, and workflow needs rather than which tool happens to be trending.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why does k6 use JavaScript for scripting but Go for execution, instead of just running on Node.js?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">JavaScript makes scripting approachable for most engineers, since it's a language they likely already know. But the Go engine underneath is what lets k6 generate genuinely high load efficiently — Go's concurrency model uses far less memory and overhead per virtual user than a typical JavaScript runtime would need, which matters enormously once you're trying to simulate thousands of concurrent users from a single machine.</div>
+</details>
+<details class="faq-item">
+<summary>What's the main architectural difference between k6 and JMeter that affects performance at scale?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">JMeter traditionally uses a thread-per-virtual-user model on the JVM, which becomes resource-intensive at high concurrency — each thread carries real memory and context-switching overhead. k6's Go-based engine handles concurrency far more efficiently, generally allowing more virtual users to be simulated from the same hardware compared to JMeter's threading model.</div>
+</details>
+<details class="faq-item">
+<summary>Is k6 always the "better" choice compared to Gatling or Locust?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">No — the right tool depends on genuine team fit, not an objective ranking. A team already deep in the JVM ecosystem may find Gatling's Scala/Java scripting a more natural fit despite k6's other advantages; a Python-heavy team may prefer Locust for the same reason. k6's real strengths are JavaScript accessibility, efficient scaling, and CI-first design — valuable specifically for teams where those strengths actually matter.</div>
+</details>
+<details class="faq-item">
+<summary>Why might an npm package that works fine in a Node.js project fail inside a k6 script?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">k6 scripts don't run inside Node.js — they run inside k6's own embedded JavaScript engine (goja), which doesn't implement every Node.js-specific API. A package relying on Node-specific functionality (certain built-in modules, for instance) may simply not work inside a k6 script, even though the same code runs fine in a normal Node.js environment.</div>
+</details>
+<details class="faq-item">
+<summary>What would justify a team switching from an established JMeter test suite to k6, and what would argue against it?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A genuine case for switching might include a team that's primarily JavaScript-fluent, wants performance tests integrated tightly into a CI-first workflow, or is hitting real resource limits with JMeter's threading model at high concurrency. Arguing against it: significant existing investment in JMeter test plans, a team already comfortable and productive with JMeter's GUI, or reliance on specific JMeter plugins without a clear k6 equivalent — the migration cost is real and needs to be weighed honestly against the actual expected benefit.</div>
+</details>
+</div>
+</article>
+</body></html>

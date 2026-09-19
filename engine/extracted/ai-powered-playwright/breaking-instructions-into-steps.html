@@ -1,0 +1,104 @@
+<!doctype html>
+<html><head>
+<title>Breaking Instructions into Steps</title>
+<meta name="description" content="Real, working code that decomposes one multi-step ShopSmart instruction into an ordered, structured list of atomic steps — the first real piece of this chapter&#x27;s pipeline." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/breaking-instructions-into-steps.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Breaking Instructions into Steps</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="natural-language-testing.html">Natural Language Testing</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Decomposing one instruction into a real, ordered list of atomic steps</li>
+  <li>Why each step needs to be genuinely atomic — one clear action, not a bundle</li>
+  <li>Marking which steps depend on a previous step's real result</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>Before anything can be planned or executed, the instruction needs to become a real, structured list — this page builds that first, genuinely necessary piece.</p>
+
+<h2 id="step-by-step-implementation">Step-by-Step Implementation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/break-into-steps.ts
+import { askClaude } from './ai-client';
+
+export interface InstructionStep {
+  order: number;
+  description: string;
+  dependsOnPreviousResult: boolean;
+}
+
+export async function breakIntoSteps(
+  instruction: string
+): Promise&lt;InstructionStep[]&gt; {
+  const prompt = `Break this instruction into atomic steps —
+each step should be ONE clear action, not a bundle of several:
+
+"${instruction}"
+
+For each step, mark dependsOnPreviousResult TRUE if it needs
+information from what actually happened in a PREVIOUS step
+(like "select A product" needing to know what a search
+actually returned), FALSE if it can be planned independently.
+
+Respond with ONLY valid JSON:
+{"steps": [{"order": number, "description": string,
+"dependsOnPreviousResult": boolean}]}`;
+
+  const raw = await askClaude(prompt);
+  const parsed = JSON.parse(raw);
+  if (!Array.isArray(parsed.steps)) {
+    throw new Error(`Expected {"steps": [...]} but got: ${raw.slice(0, 200)}`);
+  }
+  return parsed.steps;
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p><code>dependsOnPreviousResult</code> is this page's genuinely important addition — it's what later pages use to decide whether a step's action can be planned immediately, or must wait for a real observation first. Marking this explicitly, rather than inferring it later, keeps that decision visible and reviewable, not buried inside a later step's logic.</p>
+
+<h2 id="expected-result">Expected Result</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const steps = await breakIntoSteps(
+  'Login to ShopSmart, search for "Laptop", select a product, ' +
+  'add it to the cart, and verify the cart total.'
+);
+
+// Real output:
+// [
+//   { order: 1, description: "Log in to ShopSmart",
+//     dependsOnPreviousResult: false },
+//   { order: 2, description: "Search for 'Laptop'",
+//     dependsOnPreviousResult: false },
+//   { order: 3, description: "Select a product from the search results",
+//     dependsOnPreviousResult: true },
+//   { order: 4, description: "Add the selected product to the cart",
+//     dependsOnPreviousResult: true },
+//   { order: 5, description: "Verify the cart total reflects the added item",
+//     dependsOnPreviousResult: true }
+// ]</code></pre>
+
+<h2 id="why-it-matters">Why It Matters</h2>
+<p>Notice steps 3 through 5 are all marked as dependent — genuinely accurate, since each one needs a real result from the step before it. Steps 1 and 2 aren't — logging in and searching can both be fully planned without needing to observe anything first. This distinction is exactly what later pages in this chapter use to decide when to check the real page before proceeding.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Letting a step bundle multiple actions.</strong> "Select a product and add it to the cart" as one step hides a real dependency — the add-to-cart action needs the product that was actually selected, which is itself uncertain until search results are seen.</li>
+  <li><strong>Guessing at <code>dependsOnPreviousResult</code> later instead of deciding it here.</strong> Marking it explicitly, at this stage, keeps the decision visible and easy to review — inferring it implicitly later hides that reasoning inside code nobody reviews as a design decision.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Keep each step to one clear, atomic action — if you're tempted to use "and" inside a step's description, it's probably two steps.</li>
+  <li>Review the <code>dependsOnPreviousResult</code> flags by eye before trusting them — this small, structured field carries real weight in later pages.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Run this page's function against your own five-step instruction from the previous page's exercise. Check whether the <code>dependsOnPreviousResult</code> flags match your own honest assessment from that earlier exercise.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Breaking an instruction into atomic, ordered steps is the real, necessary first piece of this chapter's pipeline.</li>
+  <li>Marking dependency explicitly, at this stage, is what lets later pages decide when a real observation is genuinely required before proceeding.</li>
+  <li>A step that bundles multiple actions hides real dependencies — atomic steps keep them visible.</li>
+</ul>
+</article>
+</body></html>

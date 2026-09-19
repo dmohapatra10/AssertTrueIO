@@ -1,0 +1,95 @@
+<!doctype html>
+<html><head>
+<title>AI Locator Suggestions</title>
+<meta name="description" content="Giving AI real, structural page information and asking it to suggest a replacement locator — the first real step of this chapter&#x27;s healing pipeline." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/ai-locator-suggestions.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>AI Locator Suggestions</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="why-locators-break.html">Why Locators Break</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Capturing real, structural page information a model can genuinely reason from</li>
+  <li>Asking for a single locator suggestion, with real context</li>
+  <li>Why this page's single suggestion still isn't enough on its own</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>This page builds the "AI Analysis" step from this chapter's architecture — given a broken locator and real information about the current page, ask the model to suggest what might have replaced it.</p>
+
+<h2 id="step-by-step-implementation">Step-by-Step Implementation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/suggest-locator.ts
+import { Page } from '@playwright/test';
+import { askClaude } from './ai-client';
+
+export async function capturePageStructure(
+  page: Page
+): Promise&lt;string&gt; {
+  const buttons = await page.getByRole('button').all();
+  const buttonInfo = await Promise.all(
+    buttons.map(async (b) => ({
+      accessibleName: await b.getAttribute('aria-label') ?? await b.textContent(),
+      testId: await b.getAttribute('data-testid'),
+    }))
+  );
+  return JSON.stringify({ buttons: buttonInfo });
+}
+
+export async function suggestLocator(
+  brokenLocatorDescription: string, page: Page
+): Promise&lt;string&gt; {
+  const structure = await capturePageStructure(page);
+
+  const prompt = `A Playwright locator broke:
+"${brokenLocatorDescription}"
+
+Real, current page structure: ${structure}
+
+Suggest ONE replacement locator, as a Playwright locator call
+(like page.getByRole('button', { name: '...' })), using ONLY
+elements that actually appear in the structure given above.
+
+Respond with ONLY the locator call text, nothing else.`;
+
+  return askClaude(prompt);
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p><code>capturePageStructure</code> genuinely matters here — without it, the model would be suggesting a locator blind, working only from general patterns rather than what ShopSmart's page actually, currently contains. This is the same discipline Chapter 3's <code>LOGIN_PAGE_STRUCTURE</code> established, applied here to a page whose structure is being read live, not hardcoded.</p>
+
+<h2 id="example-healing-the-previous-page-s-broken-button">Example — Healing the Previous Page's Broken Button</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const suggestion = await suggestLocator(
+  "getByRole('button', { name: 'Add to Cart' })", page
+);
+
+// A REAL, plausible suggestion, grounded in the ACTUAL,
+// captured button structure:
+// "page.getByRole('button', { name: 'Add ProBook 15 to cart' })"</code></pre>
+
+<h2 id="why-it-matters-and-why-this-alone-isn-t-enough">Why It Matters — And Why This Alone Isn't Enough</h2>
+<p>This single suggestion is genuinely useful, and it's also exactly the kind of AI output Chapter 1 warned sounds equally confident whether right or wrong. One suggestion, accepted blindly, is still a real risk — this chapter's next two pages exist specifically to turn one guess into several genuine candidates, ranked and checked, rather than trusting this page's output alone.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Asking for a suggestion without capturing real page structure first.</strong> Without it, the model has no genuine, current information — it would fall back to general patterns, risking exactly the hallucination Chapter 1 described.</li>
+  <li><strong>Treating this page's single suggestion as the final answer.</strong> It's the first step of a longer pipeline, not the whole solution — this chapter's next pages exist for a real reason.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Always capture real, current page structure before asking for a suggestion — never let the model reason from general training patterns alone.</li>
+  <li>Treat a single suggestion as a genuine starting point, not a trusted final answer — this chapter's remaining pages show why.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Extend <code>capturePageStructure</code> to also capture form field labels, not just buttons. Then simulate a broken locator for one of ShopSmart's form fields and run <code>suggestLocator</code> against it.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Capturing real, structural page information is what lets a suggestion be genuinely grounded, rather than a plausible-sounding guess.</li>
+  <li>One suggestion is a real starting point — not, on its own, something this chapter trusts as a final answer.</li>
+  <li>This page builds exactly the "AI Analysis" step from this chapter's architecture; the next two pages build "Candidate Locators" and validation on top of it.</li>
+</ul>
+</article>
+</body></html>

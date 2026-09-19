@@ -1,0 +1,153 @@
+<!doctype html>
+<html><head>
+<title>RestAssured Authentication &amp; Authorization Errors: 401 &amp; 403</title>
+<meta name="description" content="Systematically testing invalid tokens, expired tokens, missing authorization, and insufficient permissions in RestAssured — the full negative-testing sweep for auth." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/authentication-and-authorization-errors.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Authentication &amp; Authorization Errors</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="validation-errors-400-and-422.html">Validation Errors: 400 & 422</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Chapter 6 covered authentication mechanisms and role-based testing in depth. This page revisits that territory specifically through the negative-testing lens — a systematic sweep of every way an authenticated or authorized request can correctly fail, gathered in one place.</p>
+
+<h2 id="401-missing-authorization">401 — Missing Authorization</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void noAuthorizationHeaderReturns401() {
+    given()
+    .when()
+        .get("/profile") // no Authorization header at all
+    .then()
+        .statusCode(401);
+}</code></pre>
+
+<h2 id="401-invalid-token">401 — Invalid Token</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void malformedTokenReturns401() {
+    given()
+        .header("Authorization", "Bearer this-is-not-a-real-token")
+    .when()
+        .get("/profile")
+    .then()
+        .statusCode(401);
+}</code></pre>
+
+<h2 id="401-expired-token">401 — Expired Token</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void expiredTokenReturns401() {
+    String expiredToken = obtainATokenWithVeryShortExpiry();
+    waitUntilExpired(expiredToken);
+
+    given()
+        .header("Authorization", "Bearer " + expiredToken)
+    .when()
+        .get("/profile")
+    .then()
+        .statusCode(401);
+}</code></pre>
+<p>These three are genuinely distinct failure modes an API might handle with subtly different (or buggy) logic — missing entirely, present-but-garbage, and present-but-expired. Testing all three separately, rather than assuming "one 401 test covers auth failures," is what actually exercises each code path.</p>
+
+<h2 id="403-insufficient-permissions">403 — Insufficient Permissions</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void regularUserCannotAccessAdminEndpoint() {
+    given()
+        .header("Authorization", "Bearer " + TokenManager.getTokenForRole("user"))
+    .when()
+        .get("/admin/users")
+    .then()
+        .statusCode(403); // authenticated, just not authorized for THIS
+}</code></pre>
+<p>The critical distinction from every 401 test above: this token is completely valid — the user is genuinely, successfully authenticated. The failure is purely about permission, which is exactly why it's 403, not 401 — a distinction worth being precise about in every assertion, since conflating the two hides which actual problem a real bug represents.</p>
+
+<h2 id="real-world-example-a-complete-auth-negative-testing-sweep">Real-World Example — A Complete Auth Negative-Testing Sweep</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Nested
+class AuthenticationFailures {
+    @Test void noToken_returns401() {
+        given().when().get("/profile").then().statusCode(401);
+    }
+    @Test void malformedToken_returns401() {
+        given().header("Authorization", "Bearer garbage").when().get("/profile").then().statusCode(401);
+    }
+    @Test void expiredToken_returns401() {
+        given().header("Authorization", "Bearer " + expiredToken).when().get("/profile").then().statusCode(401);
+    }
+}
+
+@Nested
+class AuthorizationFailures {
+    @Test void userRoleCannotAccessAdminEndpoint() {
+        given().header("Authorization", "Bearer " + userToken).when().get("/admin/users").then().statusCode(403);
+    }
+    @Test void managerCannotAccessAnotherManagersTeamData() {
+        given().header("Authorization", "Bearer " + managerToken)
+            .pathParam("teamId", otherTeamId).when().get("/teams/{teamId}").then().statusCode(403);
+    }
+}</code></pre>
+<p>Grouping authentication failures and authorization failures into separate nested test classes (JUnit 5's <code>@Nested</code>) makes the distinction structurally visible in the test suite itself, not just something you have to remember conceptually — anyone reading the test report immediately sees which category a given failure belongs to.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ One generic "unauthorized" test, missing the distinct failure modes
+@Test void unauthorizedAccessIsRejected() {
+    given().when().get("/profile").then().statusCode(401); // only covers ONE of three distinct scenarios
+}
+
+// ✅ Testing missing, invalid, AND expired tokens as three distinct cases
+@Test void noToken_returns401() { /* ... */ }
+@Test void invalidToken_returns401() { /* ... */ }
+@Test void expiredToken_returns401() { /* ... */ }</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Writing one generic "auth fails correctly" test</strong> instead of covering missing, invalid, and expired tokens as distinct scenarios — each can fail independently due to different underlying bugs.</li>
+  <li><strong>Using 401 where 403 is actually correct</strong>, or vice versa, in test assertions — conflates two genuinely different failure categories.</li>
+  <li><strong>Only testing role-level authorization</strong>, never data-scoping authorization (a manager blocked from another manager's data specifically) — the subtler, easier-to-miss bug class from Chapter 6.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>A token valid for a different environment</strong> (a QA token used against staging) — worth testing if your API is supposed to enforce this boundary.</li>
+  <li><strong>A revoked (not just expired) token</strong> — a genuinely different scenario from natural expiration; test it separately if your API supports explicit revocation.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If an auth-negative test returns an unexpected status, first confirm which of the three token states (missing, invalid, expired) the test actually constructed — it's easy to accidentally send a still-valid token when the intent was to test an expired one, producing a confusing 200 instead of the expected 401.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Test missing, invalid, and expired tokens as three distinct scenarios, not one generic "auth fails" test.</li>
+  <li>Use 401 specifically for identity failures, 403 specifically for permission failures — never conflate them in assertions.</li>
+  <li>Cover both role-level and data-scoping authorization failures, per the Role-Based API Testing page in Chapter 6.</li>
+  <li>Consider grouping auth-negative tests structurally (nested classes, tagged categories) to make the distinction visible in test reports.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Write a complete authentication/authorization negative-testing sweep for a hypothetical protected endpoint: no token, malformed token, expired token (all 401), and an authenticated-but-wrong-role request (403) — organizing them to make the 401-vs-403 distinction structurally clear.</p>
+
+<h2 id="summary">Summary</h2>
+<p>A thorough authentication/authorization negative-testing sweep covers three distinct 401 scenarios (missing, invalid, expired token) and 403 for permission failures on a genuinely valid, authenticated identity — plus data-scoping authorization from Chapter 6. Treating these as one generic "auth fails" test misses the distinct failure modes each represents.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why should a negative test suite cover missing, invalid, and expired tokens as three separate tests rather than one test that covers "auth failure" generically?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Each represents a genuinely different code path on the server — checking for a token's presence, verifying its signature/validity, and checking its expiration timestamp are typically three separate pieces of logic, any of which could independently contain a bug. A single generic test (say, only testing a missing token) provides zero coverage for the other two code paths — an expired-token check could be completely broken while that one test still passes, since it never actually exercised that logic. Testing all three separately is what actually verifies each independent piece of authentication logic works correctly.</div>
+</details>
+<details class="faq-item">
+<summary>Why test missing, invalid, and expired tokens as three separate tests rather than one generic 'auth fails' test?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Each is typically a genuinely separate code path on the server (presence check, signature validation, expiration check) — a single generic test provides zero coverage for the other two independently-buggy paths.</div>
+</details>
+<details class="faq-item">
+<summary>Why is a 401 test fundamentally different from a 403 test in what it proves?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A 401 test proves the API correctly rejects an unauthenticated or badly-authenticated request; a 403 test uses a completely VALID identity and proves the API correctly enforces permission boundaries — different logic, different bugs possible.</div>
+</details>
+<details class="faq-item">
+<summary>Why organize auth-negative tests into separate nested classes for authentication vs. authorization?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It makes the 401-vs-403 distinction structurally visible in the test suite itself, so anyone reading the test report immediately sees which category a given failure belongs to.</div>
+</details>
+<details class="faq-item">
+<summary>What's a data-scoping authorization test, and why is it easy to miss?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Confirming a manager is blocked from ANOTHER manager's team data specifically, not just that the manager role generally has access to team reports — role-level testing alone wouldn't catch this subtler, instance-specific gap.</div>
+</details>
+</div>
+</article>
+</body></html>

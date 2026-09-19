@@ -1,0 +1,110 @@
+<!doctype html>
+<html><head>
+<title>AI Latency and Token Usage</title>
+<meta name="description" content="Real, concrete numbers for how long different call types in this track actually take, and how tokens are counted — the honest arithmetic behind every earlier chapter&#x27;s cost mentions." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/ai-latency-and-token-usage.html" />
+</head><body>
+<p class="difficulty">Advanced</p>
+<h1>AI Latency and Token Usage</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="performance-cost-and-reliability.html">Performance, Cost and Reliability overview</a></p>
+<article class="content">
+<h2>What You'll Learn</h2>
+<ul>
+  <li>How tokens are actually counted, concretely</li>
+  <li>Real, relative latency differences between call types this track has already built</li>
+  <li>Measuring your own real usage directly from the API's own response</li>
+</ul>
+
+<h2>Introduction</h2>
+<p>Every earlier chapter mentioned cost in passing. This page gets concrete — not with specific dollar figures, which change over time and go stale in a written tutorial, but with the real, durable mechanics behind them: how usage is actually measured, and the relative differences between call types that hold true regardless of current pricing.</p>
+
+<h2>How It Works — Tokens, Concretely</h2>
+<pre><code>A TOKEN is roughly 3-4 CHARACTERS of English text — NOT a
+word, NOT a character. "checkout" is ONE token. "unexpectedly"
+is genuinely TWO or three.
+
+EVERY real API response includes ACTUAL usage numbers:
+{
+  usage: {
+    input_tokens: 1204,
+    output_tokens: 187
+  }
+}
+
+THIS is the REAL, ground-truth number — not an estimate, the
+EXACT count the call actually used, EVERY time.</code></pre>
+
+<h2>Step-by-Step Implementation — Measuring Your Own Real Usage</h2>
+<pre><code>// src/measure-token-usage.ts
+import { anthropic } from './ai-client';
+
+export async function callAndLogUsage(prompt: string) {
+  const response = await anthropic.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 500,
+    messages: [{ role: 'user', content: prompt }],
+  });
+
+  console.log(`Input: ${response.usage.input_tokens} tokens, ` +
+    `Output: ${response.usage.output_tokens} tokens`);
+
+  return response;
+}</code></pre>
+
+<h2>Why It Matters — Relative Latency, Real and Durable</h2>
+<pre><code>Roughly, from FASTEST to SLOWEST, across THIS track's own
+call types — relative ORDER holds even as absolute numbers
+CHANGE over time:
+
+  Chapter 5's simple ACTION mapping (short prompt, short
+  response)                                    → fastest
+
+  Chapter 6's LOCATOR classification (moderate prompt)
+                                                 → fast
+
+  Chapter 9's FULL failure analysis (multiple sequential
+  calls: classify, root-cause, confidence)
+                                                 → slower, since
+                                                   it's SEVERAL
+                                                   calls, not one
+
+  Chapter 17's VISION calls (image data adds real,
+  genuine processing time beyond text ALONE)
+                                                 → slowest per
+                                                   call</code></pre>
+
+<h2>Example — Comparing Two Real Calls From This Track</h2>
+<pre><code>// Chapter 6'S locator ranking (DETERMINISTIC, no AI, Chapter
+// 6'S own lesson) — ZERO tokens, ZERO latency, since it's
+// PLAIN code:
+rankLocatorCandidates(candidates); // instant
+
+// Chapter 9'S full analyzeFailureCompletely — MULTIPLE
+// sequential AI calls (classify, THEN root-cause, THEN
+// confidence) — genuinely SLOWER, since each call WAITS
+// for the PREVIOUS one's result before it can even START
+await analyzeFailureCompletely(testInfo, [], []);</code></pre>
+
+<h2>Common Mistakes</h2>
+<ul>
+  <li><strong>Assuming every AI call costs roughly the same.</strong> A short classification call and a multi-step sequential analysis pipeline are genuinely different in both latency and token usage — treating them as equivalent leads to real, avoidable surprises.</li>
+  <li><strong>Estimating token usage instead of reading it from the actual response.</strong> The API returns exact, real numbers every time — there's no reason to guess when ground truth is already available in <code>response.usage</code>.</li>
+</ul>
+
+<h2>Best Practices</h2>
+<ul>
+  <li>Log real usage numbers from <code>response.usage</code> during development, so cost decisions are grounded in actual data, not assumptions.</li>
+  <li>Think in relative terms — which call types in your own suite are genuinely heavier than others — rather than memorizing specific dollar amounts that will go stale.</li>
+</ul>
+
+<h2>Hands-On Exercise</h2>
+<p>Add this page's <code>callAndLogUsage</code> wrapper around three different real calls from earlier chapters in your own project — a simple classification, a multi-step analysis, and a vision call if you've built Chapter 17's examples. Compare the real, logged token counts and note which is genuinely heaviest.</p>
+
+<h2>Key Takeaways</h2>
+<ul>
+  <li>A token is roughly 3-4 characters, and every real API response includes exact, ground-truth usage numbers — no need to estimate.</li>
+  <li>Relative latency differences between call types — simple mapping, classification, multi-step analysis, vision — are durable even as absolute pricing and speed change over time.</li>
+  <li>Measuring real usage directly from your own calls is more reliable than assuming or memorizing figures that go stale.</li>
+</ul>
+</article>
+</body></html>

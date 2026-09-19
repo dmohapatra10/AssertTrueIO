@@ -1,0 +1,73 @@
+<!doctype html>
+<html><head>
+<title>Traditional Playwright Assertions</title>
+<meta name="description" content="A real, no-AI refresher on Playwright&#x27;s own assertion library — the deterministic foundation every later page in this chapter builds on or deliberately extends." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/traditional-playwright-assertions.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Traditional Playwright Assertions</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="ai-powered-assertions.html">AI-Powered Assertions overview</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Playwright's own core assertion methods, with real ShopSmart examples</li>
+  <li>Why auto-retrying assertions are already a genuinely robust foundation</li>
+  <li>What this foundation can't do on its own — setting up the rest of this chapter</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>No AI on this page, deliberately — the same choice Chapter 6 made with locator fundamentals. Before this chapter shows where AI genuinely helps with assertions, it's worth being clear about how strong Playwright's own assertion library already is on its own.</p>
+
+<h2 id="how-it-works-the-core-assertion-methods">How It Works — The Core Assertion Methods</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>await expect(page.getByTestId('cart-total')).toHaveText('$49.98');
+  // Exact TEXT match — genuinely correct or not, nothing fuzzy
+
+await expect(page.getByRole('button', { name: 'Add to Cart' })).toBeVisible();
+  // Exact VISIBILITY check
+
+await expect(page).toHaveURL(/\/order-confirmed/);
+  // Exact URL pattern match
+
+await expect(page.getByTestId('cart-item')).toHaveCount(3);
+  // Exact COUNT match
+
+await expect(page.getByRole('button', { name: 'Add to Cart' })).toBeDisabled();
+  // Exact STATE match</code></pre>
+
+<h2 id="why-it-matters-auto-retry-is-already-a-real-strength">Why It Matters — Auto-Retry Is Already a Real Strength</h2>
+<p>Every one of these assertions auto-retries for a real, configurable timeout — Playwright doesn't check once and fail immediately if a value hasn't updated yet. This already solves a huge class of timing-related test flakiness, entirely without AI. It's worth being genuinely clear about this before layering anything else on top: reliability against timing issues was never the gap AI needs to fill.</p>
+
+<h2 id="example-shopsmart-s-cart-total-fully-deterministic">Example — ShopSmart's Cart Total, Fully Deterministic</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('cart total updates after adding an item', async ({ page }) => {
+  await page.goto('/products/probook-15');
+  await page.getByRole('button', { name: 'Add to Cart' }).click();
+
+  // Playwright RETRIES this check until the total updates, or
+  // the timeout is reached — no AI needed, no judgment call,
+  // exactly ONE correct value to match against
+  await expect(page.getByTestId('cart-total')).toHaveText('$899.00');
+});</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Checking a value once with a manual read instead of an auto-retrying assertion.</strong> This reintroduces exactly the timing flakiness Playwright's own assertion library already solves.</li>
+  <li><strong>Assuming this chapter exists because traditional assertions are somehow weak.</strong> They're genuinely strong for anything with one known, correct value — this chapter's real focus is the narrower cases where they're not the right tool.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Default to Playwright's own auto-retrying assertions for anything with a known, exact expected value.</li>
+  <li>Reach for the rest of this chapter's techniques only once you've confirmed a check genuinely has no single correct value — the next pages cover exactly how to recognize that.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>List five assertions from your own test suite. For each, confirm it has exactly one correct expected value — and if any don't, set them aside; this chapter's later pages are about exactly that kind of case.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Playwright's own assertion library is a genuinely strong, deterministic, auto-retrying foundation — not a gap AI needs to fill.</li>
+  <li>Every assertion on this page has exactly one correct answer, which is precisely why none of them need AI.</li>
+  <li>This chapter's remaining pages are about the narrower, genuinely different case where no single correct value exists to match against.</li>
+</ul>
+</article>
+</body></html>

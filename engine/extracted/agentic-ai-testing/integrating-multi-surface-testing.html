@@ -1,0 +1,205 @@
+<!doctype html>
+<html><head>
+<title>Integrating Multi-Surface Testing: Generation, Browser, API, and Performance Together</title>
+<meta name="description" content="Wiring Chapters 4 through 7&#x27;s tools into one agent&#x27;s TOOL_DEFINITIONS list, and the one real integration question that arises: how the agent chooses between surfaces." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/integrating-multi-surface-testing.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Integrating Multi-Surface Testing</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="building-the-core-agent.html">Building the Core Agent</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Layer 1 of this capstone's architecture combines four chapters' worth of capability — Chapter 4's test generation, Chapter 5's browser tools, Chapter 6's API tools, Chapter 7's performance tools — into one agent's tool set. Each piece already exists; this page is about the genuine integration question that arises once they're combined.</p>
+
+<h2 id="one-combined-tool-set">One Combined Tool Set</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>MULTI_SURFACE_TOOL_DEFINITIONS = [
+    # Chapter 5's browser tools
+    {"name": "find_and_click", "description": "..."},
+    {"name": "fill_field", "description": "..."},
+    {"name": "get_page_summary", "description": "..."},
+    # Chapter 6's API tools
+    {"name": "make_api_request", "description": "..."},
+    {"name": "validate_against_schema", "description": "..."},
+    # Chapter 7's performance tools
+    {"name": "run_load_test", "description": "..."},
+    {"name": "analyze_load_test_results", "description": "..."},
+]
+
+capstone_agent = QAAgent(
+    objective="Verify checkout completes correctly and the "
+              "order confirmation API returns the expected total.",
+    instructions=SHOPEASY_QA_INSTRUCTIONS,
+    tools=MULTI_SURFACE_TOOL_DEFINITIONS,  # ALL four chapters'
+                                             # tools, COMBINED
+    client=client, model="claude-sonnet-4-6",
+)</code></pre>
+
+<h2 id="the-genuine-integration-question-surface-selection">The Genuine Integration Question — Surface Selection</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>GIVEN this OBJECTIVE ("verify checkout COMPLETES correctly
+AND the order CONFIRMATION API returns the EXPECTED total"),
+the AGENT genuinely needs to DECIDE: click THROUGH the browser
+checkout FLOW (Chapter 5'S tools), THEN call the CONFIRMATION
+API DIRECTLY (Chapter 6'S tools) — a GENUINELY new REASONING
+challenge NEITHER chapter, TAUGHT in ISOLATION, needed to
+ADDRESS. Chapter 12'S OWN "Testing Agent PLANNING" techniques
+are EXACTLY what VERIFIES this combined PLAN is SOUND.</code></pre>
+
+<h2 id="chapter-4-s-generation-feeding-the-combined-agent">Chapter 4's Generation, Feeding the Combined Agent</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># Chapter 4'S OWN test-scenario GENERATION now produces
+# scenarios that GENUINELY span MULTIPLE surfaces:
+generated_scenario = generate_test_scenarios(
+    requirement="Checkout must complete and the confirmation "
+                "API must reflect the correct discounted total.",
+    client=client
+)
+# → "Browser: add item, apply discount, complete checkout.
+#    API: verify GET /orders/{id} shows the discounted total,
+#    not the pre-discount price." — ONE scenario, GENUINELY
+# requiring BOTH Chapter 5 AND Chapter 6'S tools TOGETHER</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why does combining these four chapters' tools genuinely require Chapter 12's plan-verification techniques, when each chapter's own testing (Chapters 5, 6, 7 individually) never needed to check cross-surface plan soundness? Each individual chapter's agent only ever needed to plan within ONE surface — Chapter 5's agent only ever needed a browser-only plan, Chapter 6's only an API-only plan. Once an agent's tool set spans multiple surfaces, a genuinely new question arises that no single chapter's testing addressed: does the agent's plan correctly sequence actions ACROSS surfaces, not just within one? This is a real, new verification need created specifically by integration, not present in any individual piece.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Assuming that combining tool definitions from four different chapters is purely mechanical — concatenating lists — with no new reasoning challenge for the agent. This page's own checkout-and-API example shows a genuine, new planning question emerges specifically from the combination, not from any individual chapter's tools.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>When first testing a multi-surface agent, deliberately using an objective that requires BOTH surfaces (like this page's checkout-and-confirmation example) — rather than an objective that happens to only need one — is a genuinely useful way to confirm the integration is actually working, not just that each tool set still functions independently.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Combine tool definitions from multiple chapters into one list, but recognize this creates a genuinely new cross-surface planning challenge.</li>
+  <li>Use Chapter 12's plan-verification techniques specifically to confirm multi-surface plans are sound, not just individually-scoped ones.</li>
+  <li>Test with objectives that genuinely require multiple surfaces together, to confirm integration works, not just that each surface's tools still function in isolation.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Layer 1 combines Chapters 4 through 7's tools into one agent's tool set, mechanically straightforward to wire together.</li>
+  <li>Combining surfaces creates a genuinely new reasoning challenge — cross-surface plan sequencing — that no individual chapter's isolated testing addressed.</li>
+  <li>Chapter 12's plan-verification techniques are directly applicable to checking this new, integration-specific concern.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Write a second multi-surface objective, combining Chapter 7's performance tools with Chapter 5's browser tools (for example, verifying a page loads within an acceptable time AND its content displays correctly) — and describe what a sound cross-surface plan for this objective would need to include.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A teammate says "we already tested browser tools in Chapter 5 and API tools in Chapter 6 — combining them needs no additional testing." What does this page's reasoning suggest is genuinely missing from this claim?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Chapter 5 and 6'S testing EACH confirmed their OWN tools WORK correctly WITHIN their OWN surface — NEITHER chapter EVER tested WHETHER an agent can SOUNDLY sequence actions ACROSS both SURFACES together, EXACTLY the GENUINELY new question THIS page identifies.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What Chapter 5 and 6'S EXISTING testing GENUINELY confirmed:
+find_and_click WORKS correctly (Chapter 5). make_api_request
+  WORKS correctly (Chapter 6). BOTH individually VALIDATED,
+  GENUINELY solid FOUNDATIONS.
+
+What NEITHER chapter'S testing COULD have confirmed:
+WHETHER an agent GIVEN both TOOL sets SIMULTANEOUSLY can
+  SOUNDLY decide WHEN to use browser ACTIONS versus API
+  CALLS, and SEQUENCE them CORRECTLY for a COMBINED
+  objective — THIS is a GENUINELY new QUESTION only the
+  INTEGRATED system CREATES, which NEITHER chapter'S
+  ISOLATED testing was EVER designed to ANSWER.</code></pre>
+<p>The TEAMMATE'S claim CONFUSES "EACH piece works" WITH "the COMBINATION works CORRECTLY" — EXACTLY the SAME kind of GAP Chapter 12'S OWN opening PAGE warned about (a CORRECT-looking outcome from UNSOUND reasoning), now APPLIED to CROSS-surface planning SPECIFICALLY.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page argue THIS integration question is "GENUINELY new," RATHER than something Chapter 12'S OWN Testing Agent PLANNING page already COVERED?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Chapter 12'S OWN plan-TESTING example used a SINGLE-surface OBJECTIVE (browser-ONLY login VERIFICATION) — the TECHNIQUE itself is DIRECTLY reusable HERE, but the SPECIFIC scenario THIS page introduces (CROSS-surface sequencing) is a NEW APPLICATION of that technique, NOT something Chapter 12 already TESTED directly.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What Chapter 12'S ORIGINAL example COVERED:
+A SINGLE-surface plan (login VERIFICATION, using ONLY
+  browser TOOLS) — CONFIRMED sound via evaluate_plan_quality,
+  but NEVER involving MULTIPLE surfaces TOGETHER.
+
+What THIS page'S SCENARIO genuinely ADDS:
+Applying that SAME evaluate_plan_quality TECHNIQUE to a
+  GENUINELY new KIND of plan — ONE spanning BOTH browser AND
+  API actions — TESTING whether the TECHNIQUE (and the
+  AGENT'S planning CAPABILITY) generalizes to THIS new,
+  cross-SURFACE scenario, which Chapter 12 NEVER specifically
+  EXERCISED.</code></pre>
+<p>This is a GENUINELY important, PRECISE distinction — Chapter 12'S TECHNIQUE is REUSABLE, but THIS specific SCENARIO (cross-SURFACE planning) is a NEW application of IT, exactly WHY this page NEEDS to explicitly RAISE and ADDRESS it, RATHER than assuming Chapter 12 already SETTLED this SPECIFIC question.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why Chapter 4'S generated SCENARIO in this page'S example EXPLICITLY specifies BOTH "browser" and "API" STEPS, rather than LEAVING the AGENT to figure OUT the surface SPLIT entirely on its OWN.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Chapter 4'S GENERATION was ALWAYS meant to produce a GENUINELY useful STARTING point for the AGENT'S OWN reasoning, NOT a COMPLETE substitute for IT — EXPLICITLY suggesting the SURFACE split GIVES the agent'S reasoning a REASONABLE starting STRUCTURE, while the AGENT itself STILL needs to VERIFY and EXECUTE that PLAN soundly.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why COMPLETELY leaving surface SELECTION to the AGENT alone
+would be GENUINELY riskier:
+An agent REASONING from SCRATCH about "SHOULD I use browser
+  or API TOOLS for THIS objective" adds AN additional layer
+  of UNCERTAINTY the GENERATION step COULD reasonably
+  reduce, per Chapter 2'S OWN principle that a good PLAN is
+  GOAL-oriented but STILL provides USEFUL structure.
+
+Why the GENERATED scenario'S EXPLICIT surface hints are
+GENUINELY helpful, NOT prescriptive:
+The GENERATED scenario SUGGESTS "browser FOR checkout, API
+  FOR confirmation" — but the AGENT'S OWN reasoning STILL
+  needs to VERIFY this makes SENSE and EXECUTE it CORRECTLY,
+  EXACTLY the SAME "appropriately ROUGH, not OVERLY specific"
+  balance Chapter 2 ESTABLISHED for GOOD planning GENERALLY.</code></pre>
+<p>This is a GENUINELY useful DIVISION of labor — Chapter 4'S generation PROVIDES a REASONABLE starting STRUCTURE, REDUCING (but not ELIMINATING) the AGENT'S OWN reasoning BURDEN, EXACTLY the SAME balance Chapter 2 ESTABLISHED between "TOO specific" and "TOO vague" planning GUIDANCE.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might it be a MISTAKE to assume ADDING more SURFACES (say, Chapter 7'S performance TOOLS too) to THIS already-combined AGENT is SIMPLY "more of the SAME" integration WORK?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>EACH additional SURFACE genuinely MULTIPLIES the CROSS-surface REASONING complexity, NOT just ADDS to it LINEARLY — WITH three SURFACES (browser, API, PERFORMANCE) instead of TWO, the AGENT now needs to REASON about MORE possible SEQUENCING combinations, NOT just "one MORE tool SET."</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why TWO surfaces (THIS page'S example) already CREATES
+genuine complexity:
+THE agent needs to DECIDE: browser FIRST or API FIRST? Do
+  ANY steps DEPEND on EACH other'S RESULTS? A GENUINELY
+  real, but BOUNDED, reasoning CHALLENGE.
+
+Why THREE surfaces GENUINELY compounds this, RATHER than
+simply ADDING to it:
+WITH performance TESTING also IN the mix, the AGENT now
+  potentially needs to REASON about WHETHER a load TEST
+  should run BEFORE, AFTER, or INDEPENDENTLY of the
+  browser/API SEQUENCE — a GENUINELY larger SPACE of
+  possible, SOUND orderings to CONSIDER, not JUST "one
+  additional TOOL to occasionally USE."</code></pre>
+<p>This is a GENUINELY important, PRACTICAL scaling CONCERN — INTEGRATION complexity DOESN'T grow LINEARLY with the NUMBER of combined SURFACES, and a TEAM should EXPECT (and TEST for) GENUINELY increasing planning CHALLENGES as MORE surfaces GET combined, not ASSUME each ADDITION is EQUALLY simple.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you DESIGN a genuine TEST specifically to VERIFY the combined AGENT correctly HANDLES a scenario WHERE the browser and API STEPS genuinely DEPEND on each OTHER'S results (not JUST run INDEPENDENTLY)?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A GENUINELY useful test CONSTRUCTS an OBJECTIVE where the API STEP'S correct EXECUTION SPECIFICALLY requires DATA obtained FROM the browser STEP FIRST — DIRECTLY verifying GENUINE cross-surface DATA flow, not JUST two INDEPENDENT actions HAPPENING to occur in THE same run.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def test_cross_surface_data_dependency(agent, page):
+    """Verifies the agent correctly passes information
+    obtained via browser tools into a subsequent API call,
+    rather than treating the two surfaces as independent."""
+    agent.set_objective(
+        "Complete checkout via the browser, note the resulting "
+        "order confirmation number shown on screen, then verify "
+        "via the API that THIS SPECIFIC order number shows the "
+        "correct status."
+    )
+    report = agent.run(page)
+
+    # A genuinely correct execution should show the API call's
+    # PARAMETERS reflect the order number OBSERVED from the
+    # browser step, not a hardcoded or guessed value
+    api_call_step = next(
+        s for s in report["full_history"]
+        if s["action"]["name"] == "make_api_request"
+    )
+    browser_observed_order_number = extract_order_number_from_history(
+        report["full_history"])
+    return {
+        "genuinely_used_observed_data": (
+            browser_observed_order_number in
+            str(api_call_step["action"]["input"])
+        ),
+    }</code></pre>
+<p>This DIRECTLY tests the GENUINELY hardest version of CROSS-surface integration — NOT just SEQUENCING two INDEPENDENT actions, but VERIFYING the AGENT correctly CARRIES information FROM one SURFACE into the OTHER, EXACTLY the KIND of rigorous, EVIDENCE-based verification Chapter 12'S OWN testing PHILOSOPHY (verify PROCESS, not JUST outcome) would RECOMMEND applying to THIS specific, genuinely NEW integration CAPABILITY.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

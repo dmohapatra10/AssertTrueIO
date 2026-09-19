@@ -1,0 +1,98 @@
+<!doctype html>
+<html><head>
+<title>AI Pull Request Comments</title>
+<meta name="description" content="Posting the previous page&#x27;s failure analysis directly as a real PR comment — so a developer sees the reasoning without opening a separate CI artifact at all." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/ai-pull-request-comments.html" />
+</head><body>
+<p class="difficulty">Advanced</p>
+<h1>AI Pull Request Comments</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="ai-failure-analysis-in-ci.html">AI Failure Analysis in CI</a></p>
+<article class="content">
+<h2>What You'll Learn</h2>
+<ul>
+  <li>Posting failure analysis directly as a real, visible PR comment</li>
+  <li>Updating an existing comment rather than accumulating a new one per push</li>
+  <li>Why comment placement genuinely changes whether analysis actually gets read</li>
+</ul>
+
+<h2>Introduction</h2>
+<p>The previous page's analysis lives in a CI artifact — genuinely useful, but requiring a developer to navigate to it deliberately. This page moves the same content to where a developer is already looking: the pull request itself.</p>
+
+<h2>Step-by-Step Implementation</h2>
+<pre><code># .github/workflows/ai-playwright-tests.yml (extended further)
+      - name: Post failure analysis as PR comment
+        if: steps.run_tests.outcome == 'failure' && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('test-results/failure-analysis.md', 'utf-8');
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find(c =&gt; c.body.includes('&lt;!-- ai-failure-analysis --&gt;'));
+
+            const body = '&lt;!-- ai-failure-analysis --&gt;\n## 🤖 AI Failure Analysis\n\n' + report;
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                comment_id: existing.id, body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: context.issue.number, body,
+              });
+            }</code></pre>
+
+<h2>Code Explanation</h2>
+<p>The hidden <code>&lt;!-- ai-failure-analysis --&gt;</code> marker is the genuinely important detail — it's how the script recognizes its own previous comment on a later push, updating it in place rather than posting a new comment every single time. Without this, a PR with several pushes would accumulate a growing wall of near-duplicate comments, which teams learn to scroll past rather than read.</p>
+
+<h2>Example — What a Developer Actually Sees</h2>
+<pre><code>## 🤖 AI Failure Analysis
+
+## ❌ completes checkout with valid payment
+
+**Failure:** expect(locator).toBeVisible() failed — Order
+Confirmed heading not found
+
+**Root cause:** The heading's accessible name likely changed
+
+**Confidence:** 🟡 medium
+
+**Recommended action:** Run Chapter 6's locator healing
+pipeline against this locator...
+
+[Screenshot](...) [Video](...) [Trace](...)</code></pre>
+<p>This appears directly in the pull request's conversation, exactly where a developer is already reading review comments — no separate navigation to a CI artifact required.</p>
+
+<h2>Why It Matters — Placement Genuinely Changes Whether Analysis Gets Read</h2>
+<p>An artifact a developer has to deliberately seek out competes with everything else demanding their attention during a busy day; a comment already sitting in the PR they're already reviewing does not. This isn't a cosmetic difference — it's the real, practical reason this page exists as a separate step from the previous one, rather than treating the artifact as sufficient on its own.</p>
+
+<h2>Common Mistakes</h2>
+<ul>
+  <li><strong>Posting a new comment on every push without checking for an existing one.</strong> This page's marker-based update logic exists specifically to prevent comment spam that trains a team to ignore these comments entirely.</li>
+  <li><strong>Posting the full, raw analysis with no formatting.</strong> Markdown rendering in the PR comment (headers, emoji, links) is what makes this genuinely scannable — the same discipline Chapter 9's report page established.</li>
+</ul>
+
+<h2>Best Practices</h2>
+<ul>
+  <li>Always check for and update an existing comment rather than posting a new one on every run — the marker-comment pattern this page uses is a reliable way to do this.</li>
+  <li>Keep the comment itself as scannable as Chapter 9's original markdown report — this is the same content, just relocated to somewhere more visible.</li>
+</ul>
+
+<h2>Hands-On Exercise</h2>
+<p>Add this page's PR comment step to a real workflow, triggering it with a deliberately failing test across two separate pushes to the same PR. Confirm the second push updates the existing comment rather than creating a duplicate.</p>
+
+<h2>Key Takeaways</h2>
+<ul>
+  <li>Posting analysis directly as a PR comment puts it where a developer is already looking, rather than requiring a separate, deliberate navigation step.</li>
+  <li>A hidden marker comment is what enables updating in place across multiple pushes, preventing comment spam that would otherwise get ignored.</li>
+  <li>Where analysis appears is not a cosmetic detail — it's a real, practical factor in whether it actually gets read at all.</li>
+</ul>
+</article>
+</body></html>

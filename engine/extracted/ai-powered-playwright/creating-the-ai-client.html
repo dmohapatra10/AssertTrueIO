@@ -1,0 +1,94 @@
+<!doctype html>
+<html><head>
+<title>Creating the AI Client</title>
+<meta name="description" content="A real, reusable AI client module wrapping the Anthropic SDK with the system prompt every later chapter&#x27;s code calls into — built once, imported everywhere." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/creating-the-ai-client.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Creating the AI Client</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="configuring-environment-variables.html">Configuring Environment Variables</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Building a real, reusable AI client module</li>
+  <li>Setting the system prompt this whole tutorial's ShopSmart context lives in</li>
+  <li>Why this module exists once, rather than being recreated in every file that needs AI</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>Chapter 2 introduced the system prompt as standing behavior for an entire session. This page builds it for real — one module, imported everywhere this tutorial needs to talk to the model, so every later chapter's code shares the same consistent behavior.</p>
+
+<h2 id="step-by-step-implementation">Step-by-Step Implementation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/ai-client.ts
+import Anthropic from '@anthropic-ai/sdk';
+import { config } from './config';
+
+export const anthropic = new Anthropic({
+  apiKey: config.anthropicApiKey,
+});
+
+export const SHOPSMART_SYSTEM_PROMPT = `You are a QA testing
+assistant helping test ShopSmart, a realistic e-commerce
+application with login, registration, product search and
+filtering, product details, cart management, checkout, payment
+simulation, order history, and user profile features.
+
+Always respond with valid, well-formed content in the exact
+format requested. Never invent details about ShopSmart's actual
+implementation that weren't explicitly provided to you. When
+generating Playwright code, use only locators and page structure
+that were explicitly given — never guess at a selector.`;
+
+export async function askClaude(userPrompt: string): Promise&lt;string&gt; {
+  const message = await anthropic.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 1024,
+    system: SHOPSMART_SYSTEM_PROMPT,
+    messages: [{ role: 'user', content: userPrompt }],
+  });
+
+  const textBlock = message.content.find(
+    (block) => block.type === 'text'
+  );
+  if (!textBlock || textBlock.type !== 'text') {
+    throw new Error('Expected a text response but got none.');
+  }
+  return textBlock.text;
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p>Two design choices here matter beyond just working code. First, <code>SHOPSMART_SYSTEM_PROMPT</code> explicitly says "never invent details" and "never guess at a selector" — a direct, concrete application of Chapter 1's honest treatment of hallucination risk, baked into every single call this client makes. Second, <code>askClaude</code> returns a plain string, but does real work first: it checks the response actually contains a text block before returning it, rather than assuming the shape blindly.</p>
+
+<h2 id="expected-result">Expected Result</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// A quick manual check — src/try-client.ts
+import { askClaude } from './ai-client';
+
+askClaude('In one sentence, what is ShopSmart?').then(console.log);
+
+// $ npx ts-node src/try-client.ts
+// "ShopSmart is a realistic e-commerce application used to
+//  demonstrate AI-powered Playwright test automation."</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Creating a new <code>Anthropic</code> client instance in every file that needs one.</strong> This module exists specifically so there's one client, one system prompt, used consistently everywhere.</li>
+  <li><strong>Assuming <code>message.content[0]</code> is always a text block.</strong> A real response can contain other block types — this page's explicit check is what makes the function's return type genuinely trustworthy, not just usually correct.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Put hallucination-reducing instructions directly in the system prompt, where they apply to every call automatically, rather than repeating them in each individual request.</li>
+  <li>Validate the shape of an AI response before using it, the same way you'd validate any external API's response.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Build this page's <code>ai-client.ts</code> yourself, then run the manual check script. Try asking it something ShopSmart-specific it couldn't genuinely know ("what color is ShopSmart's checkout button?") and notice whether the system prompt's "never invent details" instruction actually shows up in how it responds.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>One AI client module, imported everywhere, keeps behavior consistent across this entire tutorial's later code.</li>
+  <li>The system prompt is where hallucination-reducing instructions genuinely belong — applied automatically to every call, not repeated per request.</li>
+  <li>Validating a response's actual shape before using it is the same discipline you'd apply to any external API, not something unique to AI.</li>
+</ul>
+</article>
+</body></html>

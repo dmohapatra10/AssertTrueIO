@@ -1,0 +1,138 @@
+<!doctype html>
+<html><head>
+<title>AI-Generated Failure Reports</title>
+<meta name="description" content="Turning a complete analysis into a genuinely CI-friendly report — scannable, linked to real evidence artifacts, and closing this chapter with real interview questions." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/ai-generated-failure-reports.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>AI-Generated Failure Reports</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="evidence-based-failure-analysis.html">Evidence-Based Failure Analysis</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Turning a complete analysis into a genuinely CI-friendly report</li>
+  <li>Linking real evidence artifacts rather than embedding everything as text</li>
+  <li>Chapter 9's closing interview questions</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>The previous page's structured analysis is genuinely useful data — this page turns it into something a human skimming a CI run's output can actually use in seconds, not a wall of JSON.</p>
+
+<h2 id="step-by-step-implementation">Step-by-Step Implementation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/generate-failure-report.ts
+import { CompleteAnalysis } from './complete-failure-analysis';
+import { EvidenceBundle } from './capture-evidence';
+
+export function generateMarkdownReport(
+  testName: string, analysis: CompleteAnalysis, bundle: EvidenceBundle
+): string {
+  const confidenceEmoji = { high: '🟢', medium: '🟡', low: '🔴' }[analysis.confidence];
+
+  return `## ❌ ${testName}
+
+**Failure:** ${analysis.failure}
+
+**Root cause:** ${analysis.rootCause}
+
+**Evidence:** ${analysis.evidence}
+
+**Confidence:** ${confidenceEmoji} ${analysis.confidence}
+
+**Recommended action:** ${analysis.recommendedAction}
+
+${bundle.screenshotPath ? `[Screenshot](${bundle.screenshotPath})` : ''}
+${bundle.videoPath ? `[Video](${bundle.videoPath})` : ''}
+${bundle.tracePath ? `[Trace](${bundle.tracePath})` : ''}
+`;
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p>Notice the evidence links at the bottom point to real files — the screenshot, video, and trace this chapter's second page captured — rather than trying to describe their contents in text. This directly follows Chapter 9's own earlier lesson: binary evidence stays valuable as a directly-reviewable artifact, and a report's job is pointing to it clearly, not replacing it.</p>
+
+<h2 id="example-a-real-complete-report">Example — A Real, Complete Report</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>## ❌ checkout completes successfully
+
+**Failure:** expect(locator).toBeVisible() failed — Order
+Confirmed heading not found
+
+**Root cause:** The heading's accessible name likely changed
+
+**Evidence:** Zero matches immediately, no console or network
+errors — consistent with a structural or textual change
+
+**Confidence:** 🟡 medium
+
+**Recommended action:** Run Chapter 6's locator healing
+pipeline against this locator, then manually verify the
+accessible name change was intentional
+
+[Screenshot](test-results/checkout-failure-1.png)
+[Video](test-results/checkout-failure-1.webm)
+[Trace](test-results/checkout-failure-1-trace.zip)</code></pre>
+
+<h2 id="why-it-matters-this-is-genuinely-ci-friendly">Why It Matters — This Is Genuinely CI-Friendly</h2>
+<p>A developer reviewing a failed CI run sees, in seconds, what broke, why, how confident the analysis is, and exactly what to do next — with one click to the actual screenshot or trace if they want to verify it themselves. This is the real payoff of every earlier page in this chapter: evidence that was always available, turned into something genuinely fast to act on.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Embedding a full trace file's contents as text in the report.</strong> This defeats the whole point of linking — reports should stay scannable, with heavy evidence one click away, not inline.</li>
+  <li><strong>Omitting the confidence indicator from the report's visible summary.</strong> Burying it means a reviewer treats every finding with the same weight, exactly what Chapter 9's previous page warned against.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Keep reports scannable — a human should understand the gist in seconds, with full evidence available but not forced into view.</li>
+  <li>Surface confidence visibly and prominently — it should be impossible to miss when skimming a report.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Generate a real report using this page's function for a failure from your own test suite, running this chapter's complete pipeline end to end. Post it somewhere your team would actually see it — a pull request comment or a CI summary — and gauge honestly whether it's genuinely faster to act on than your team's current failure output.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>A genuinely CI-friendly report is scannable in seconds, with heavy evidence linked rather than embedded.</li>
+  <li>Confidence needs to be visible and prominent in the report, not just present in the underlying data.</li>
+  <li>This chapter's real payoff is turning evidence that was always available, since Chapter 9's opening page, into something genuinely fast to act on.</li>
+</ul>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Beginner: What real evidence does Playwright's TestInfo object provide beyond the error message alone?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>TestInfo includes the failure status, the full error object with message and stack trace, and attachments — screenshot, video, and trace file paths, when configured to capture them. Console logs and network activity aren't part of TestInfo directly; they need active listeners set up during the test itself. Most teams read only the error message, leaving considerably more available evidence unused on a typical failure.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Beginner: Why does this chapter capture evidence comprehensively but send only a selected subset to AI for analysis?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>These are genuinely different decisions with different costs. Comprehensive capture is cheap — Playwright's config handles screenshots, video, and trace with minimal overhead. Sending everything to AI for every failure has a real, ongoing cost in money and latency, and often adds noise rather than useful signal, since most console logs or network history from a typical failure are irrelevant to why it happened. Selecting deliberately keeps analysis fast and affordable without meaningfully sacrificing quality.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Intermediate: Explain the genuine difference between failure classification and root cause analysis, using this chapter's own locator failure example.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Classification answers "what kind of problem is this" — in this chapter's example, "Locator Failure." Root cause analysis answers "why did this specific instance happen" — the accessible name likely changed, evidenced by zero matches immediately rather than a timeout pattern. Knowing the category alone doesn't tell you what to actually check first; the root cause points directly at it, which is why they're built as two separate, sequential steps rather than one combined output.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Intermediate: Why does analyzeRootCause explicitly request alternativeExplanations that were considered and ruled out, rather than just the winning explanation?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A root cause that's simply the first plausible story is less trustworthy than one where genuine alternatives were considered and explicitly ruled out with a reason. This mirrors good human debugging practice, and it gives a reviewer real, useful information: what possibilities have already been checked, so their own investigation doesn't waste time re-verifying something the analysis already addressed. It also makes a weak analysis more visible — an explanation with no genuine alternatives considered is easier to recognize as under-supported.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Advanced: Why does this chapter assess confidence as a separate step, after classification and root cause are already complete, rather than having the model rate its own confidence during the initial classification call?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A confidence rating produced alongside the initial reasoning risks overstating certainty before alternatives have been fully worked through — the model hasn't yet gone through the process of considering and ruling out other explanations. Assessing confidence only after the root cause analysis is complete means the rating reflects a genuinely more informed judgment, based on the full reasoning chain rather than a first impression. This mirrors Chapter 7's own discipline for judgment calls: a considered evaluation is more honest than one made in the same breath as the initial classification.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Scenario-based: A teammate proposes auto-filing a bug ticket for every "Application Defect" classification this pipeline produces, regardless of confidence level. How would you respond, using this chapter's own reasoning?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd point to this chapter's own reasoning about why confidence is a first-class part of the analysis, not an afterthought: a high-confidence "Application Defect" finding, well-supported by specific evidence, might reasonably warrant automatic filing. A low-confidence one on the same category should route to a human for review first, since the evidence doesn't directly support the conclusion as strongly. Auto-filing regardless of confidence treats every finding with the same certainty, which risks flooding the development team with tickets for classifications that were genuine but weakly-supported guesses — exactly the scenario this chapter's confidence field exists to distinguish, and exactly why it belongs in the visible report, not just the underlying data.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

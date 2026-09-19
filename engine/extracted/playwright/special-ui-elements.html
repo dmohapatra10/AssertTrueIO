@@ -1,0 +1,144 @@
+<!doctype html>
+<html><head>
+<title>Playwright and Special UI: Shadow DOM, Tooltips, Toasts, Loading States</title>
+<meta name="description" content="How to reliably test Shadow DOM components, tooltips, toast messages, loading indicators, and other dynamic content in Playwright — the naive approach, why it breaks, and the recommended pattern for each." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/special-ui-elements.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Special UI Elements</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="dialogs.html">Dialogs</a>, <a href="wait-for-selector-and-timeout.html">waitForSelector() & waitForTimeout()</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+  <p>Five UI patterns that don't fit neatly into forms, tables, or dialogs, but show up constantly in real applications and each break naive automation in a different way: Shadow DOM components, tooltips, toast messages, loading indicators, and generically "dynamic" content. This page works through each one the same way — the problem, a naive attempt, why it's unreliable, and the recommended fix.</p>
+
+  <h2 id="shadow-dom">Shadow DOM</h2>
+  <p><strong>The problem:</strong> some components (native <code>&lt;video&gt;</code> controls, web components built with custom elements, some design-system libraries) render their internals inside a <em>shadow root</em> — a separate, encapsulated DOM tree attached to a host element, invisible to plain CSS selectors that don't know to look inside it.</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Naive — a plain CSS selector often can't see inside a shadow root
+await page.locator('.play-button').click(); // may silently match nothing</code></pre>
+  <p><strong>Why it's unreliable:</strong> traditional CSS selectors and older automation tools generally can't pierce shadow boundaries at all, so this either finds nothing (a clear failure) or, worse, matches an unrelated element with a similar class name elsewhere on the page.</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ✅ Recommended — Playwright's locator engine pierces OPEN shadow roots automatically
+await page.getByRole('button', { name: 'Play' }).click();
+
+// If a role-based locator isn't available, CSS still works — Playwright's own
+// CSS engine (unlike the browser's native querySelector) already searches through
+// open shadow roots without special syntax
+await page.locator('.play-button').click(); // works here specifically because Playwright's engine handles it</code></pre>
+  <p><strong>Explanation:</strong> unlike a browser's native <code>document.querySelector()</code>, Playwright's own locator engine is shadow-DOM-aware by default for <em>open</em> shadow roots (the common case) — most of the time, the same locators from the Locators chapter just work without any special handling. <em>Closed</em> shadow roots (deliberately inaccessible even to JavaScript) are the genuine exception; there's no supported way to reach inside one from outside the component.</p>
+  <p><strong>Common mistakes:</strong> assuming a failed locator means the selector is wrong, when the real issue is a closed shadow root with no accessible path in; reaching for a browser extension or manual <code>querySelector</code> workaround before trying Playwright's own (already shadow-aware) locators first.</p>
+
+  <h2 id="tooltips">Tooltips</h2>
+  <p><strong>The problem:</strong> a tooltip typically only exists in the DOM while its trigger element is hovered or focused — asserting on it requires first producing that state, which a plain assertion can't do on its own.</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Naive — asserting on a tooltip that was never triggered
+await expect(page.getByRole('tooltip')).toBeVisible(); // times out — nothing triggered it</code></pre>
+  <p><strong>Why it's unreliable:</strong> this isn't a timing problem auto-waiting can fix — the tooltip genuinely doesn't exist yet because nothing has hovered its trigger. No amount of retrying changes that.</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ✅ Recommended — trigger the hover state first, then assert
+await page.getByRole('button', { name: 'Info' }).hover();
+await expect(page.getByRole('tooltip')).toBeVisible();
+await expect(page.getByRole('tooltip')).toHaveText('Applies to orders over $50');</code></pre>
+  <p><strong>Explanation:</strong> this is the Actions chapter's <code>hover()</code> applied to its most common real use case — the assertion can only succeed once the precondition (hover) that would make a tooltip exist has actually happened.</p>
+  <p><strong>Common mistakes:</strong> forgetting the hover step entirely; asserting immediately after hover without accounting for a deliberate tooltip-appearance delay some design systems add (extend the assertion's timeout rather than adding a hard wait, per the Waiting chapter).</p>
+
+  <h2 id="toast-messages">Toast Messages</h2>
+  <p><strong>The problem:</strong> a toast is often visible for only a few seconds before auto-dismissing, and it renders after an action completes — asserting too early misses it, asserting too late misses it in the other direction.</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Naive — assumes the toast is already there without waiting for it,
+// or asserts and moves on without confirming it also disappears correctly
+await page.getByRole('button', { name: 'Save' }).click();
+const toastText = await page.getByRole('status').textContent(); // may run before the toast renders</code></pre>
+  <p><strong>Why it's unreliable:</strong> reading content with a plain, non-retrying call like <code>textContent()</code> immediately after the triggering click races against the toast's own render timing — it can run before the toast exists at all.</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ✅ Recommended — a web-first assertion waits for the toast to appear,
+// and (if relevant) a second assertion confirms it disappears again
+await page.getByRole('button', { name: 'Save' }).click();
+await expect(page.getByRole('status')).toHaveText('Changes saved');
+await expect(page.getByRole('status')).toBeHidden({ timeout: 5000 });</code></pre>
+  <p><strong>Explanation:</strong> this is the Assertions chapter's auto-retry doing exactly what it's for — <code>toHaveText()</code> polls until the toast appears with the right content, and a second, separate assertion (with an appropriately generous timeout) confirms the auto-dismiss behavior actually happens rather than assuming it.</p>
+  <p><strong>Common mistakes:</strong> using a one-time read (<code>textContent()</code>, <code>innerText()</code>) instead of a retrying assertion; not testing that a toast actually disappears, only that it appears.</p>
+
+  <h2 id="loading-indicators">Loading Indicators</h2>
+  <p><strong>The problem:</strong> a spinner or skeleton screen appears and disappears around an async operation — the test needs to wait for the <em>real content</em> that replaces it, not for a fixed amount of time that guesses how long loading takes.</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Naive — guessing how long loading takes
+await page.getByRole('button', { name: 'Load more' }).click();
+await page.waitForTimeout(2000);
+await expect(page.getByRole('listitem')).toHaveCount(20);</code></pre>
+  <p><strong>Why it's unreliable:</strong> this is the exact anti-pattern covered at length in the Waiting chapter — too short and it fails under real network variance, too long and it wastes time on every run even when loading finished quickly.</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ✅ Recommended — wait for the spinner to disappear, or better, wait directly
+// for the real content that indicates loading actually finished
+await page.getByRole('button', { name: 'Load more' }).click();
+await expect(page.getByTestId('loading-spinner')).toBeHidden();
+await expect(page.getByRole('listitem')).toHaveCount(20);</code></pre>
+  <p><strong>Explanation:</strong> asserting on the spinner's disappearance is a reasonable middle ground, but asserting directly on the resulting content (the actual list items) is usually stronger — it's possible for a spinner to disappear due to a bug while the real content still never loads, and a content-based assertion catches that; a spinner-only assertion wouldn't.</p>
+  <p><strong>Common mistakes:</strong> waiting only for the spinner to vanish without also confirming the real content arrived; using <code>waitForTimeout()</code> "temporarily" and never replacing it.</p>
+
+  <h2 id="dynamic-content-general-case">Dynamic Content (General Case)</h2>
+  <p><strong>The problem:</strong> content that changes without a full page navigation — a live notification count, a price that updates via WebSocket, a comment that appears after another user posts it — has no natural moment to "wait for navigation to finish," because nothing is navigating.</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Naive — reading a value once, assuming it's already current
+const count = await page.getByTestId('notification-count').textContent();
+expect(count).toBe('3'); // may read a stale value from before the update arrived</code></pre>
+  <p><strong>Why it's unreliable:</strong> a plain read captures whatever's in the DOM at that exact instant — if the update hasn't arrived yet (a WebSocket message still in flight, a polling interval that hasn't fired), the test reads the old value and fails, even though the feature is working correctly and would update a moment later.</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ✅ Recommended — a web-first assertion waits for the value to become correct
+await expect(page.getByTestId('notification-count')).toHaveText('3');</code></pre>
+  <p><strong>Explanation:</strong> this is the general principle underlying every specific case on this page — whenever content can change independently of any action the test itself performs, a retrying assertion (or, for cases with no visible signal at all, an explicit network wait from the Waiting chapter) is the correct tool, never a one-time read.</p>
+  <p><strong>Common mistakes:</strong> defaulting to a one-time read-and-compare pattern out of habit from non-web testing contexts; not recognizing that "dynamic content" isn't a special case requiring new APIs — it's the same auto-retry principle from the Assertions chapter, just applied to content that updates for reasons other than a direct user action.</p>
+
+  <h2 id="real-world-example-combining-several-of-these">Real-World Example — Combining Several of These</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('saving a comment shows a toast and updates the live count', async ({ page }) =&gt; {
+  await page.goto('/post/123');
+
+  await page.getByLabel('Comment').fill('Great article!');
+  await page.getByRole('button', { name: 'Post comment' }).click();
+
+  // Toast: appears, then confirms the count updated dynamically
+  await expect(page.getByRole('status')).toHaveText('Comment posted');
+  await expect(page.getByTestId('comment-count')).toHaveText('43');
+
+  // Loading indicator: the comment list itself finishes refreshing
+  await expect(page.getByTestId('comments-loading')).toBeHidden();
+  await expect(page.getByText('Great article!')).toBeVisible();
+});</code></pre>
+
+  <h2 id="common-mistakes-across-all-five">Common Mistakes (Across All Five)</h2>
+  <ul>
+    <li><strong>Reaching for a fixed <code>waitForTimeout()</code></strong> as the default response to any of these patterns, instead of identifying the specific real signal (hover state, content change, element disappearance) to wait on.</li>
+    <li><strong>Using a one-time read</strong> (<code>textContent()</code>, <code>innerText()</code>, a boolean <code>isVisible()</code> check) where a retrying <code>expect()</code> assertion is what's actually needed.</li>
+    <li><strong>Assuming a failed locator on a web-component-based UI means the locator is wrong</strong>, without first checking whether a closed shadow root is the real cause.</li>
+    <li><strong>Testing only that something appears, never that it correctly disappears</strong> (tooltips, toasts, loading states all have a lifecycle with two ends, not one).</li>
+  </ul>
+
+  <h2 id="best-practices">Best Practices</h2>
+  <ul>
+    <li>Trust Playwright's locators to handle open shadow roots automatically — don't reach for special syntax unless a specific case proves it's actually needed.</li>
+    <li>Always trigger the real precondition (hover, click) before asserting on state that only exists because of it.</li>
+    <li>Prefer asserting on real resulting content over just a loading indicator's disappearance, when both are available.</li>
+    <li>Treat "dynamic content" as the same auto-retry principle from the Assertions chapter, not a separate category needing new tools.</li>
+  </ul>
+
+  <h2 id="practice-exercise">Practice Exercise</h2>
+  <p>Write a test for a page with a bell icon that shows a tooltip on hover ("3 unread notifications"), and clicking it opens a panel that takes a moment to load its content — cover the tooltip, the loading state, and the final loaded content, each with the correct waiting strategy from this page.</p>
+
+  <h2 id="summary">Summary</h2>
+  <p>Shadow DOM, tooltips, toasts, loading indicators, and general dynamic content each look like a special case requiring new tools, but every one of them resolves to the same principles covered earlier in this course: Playwright's locators are shadow-DOM-aware by default, and web-first assertions (not one-time reads or fixed sleeps) are the correct way to wait for any of these patterns to reach the state a test cares about.</p>
+
+  <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why does a naive textContent() read on a live-updating notification count sometimes fail intermittently, even though the feature works correctly?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer"><code>textContent()</code> captures whatever value is in the DOM at the exact instant it's called, with no retry. If the update (from a WebSocket message, a poll, or any async source) hasn't arrived yet at that instant, the read captures a stale value and the test fails — even though the real application would have shown the correct value a moment later. A web-first assertion like <code>toHaveText()</code> polls until the value becomes correct or a timeout is reached, which is why it's reliable for exactly this kind of content.</div>
+</details>
+<details class="faq-item">
+<summary>Why do Playwright's locators usually work fine on Shadow DOM components without special syntax?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Playwright's own locator engine is shadow-DOM-aware by default for open shadow roots, unlike a browser's native querySelector.</div>
+</details>
+<details class="faq-item">
+<summary>Why does asserting on a tooltip immediately, with no prior action, always fail?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The tooltip genuinely doesn't exist yet — nothing has hovered its trigger — so no amount of retrying an assertion changes that; the hover has to happen first.</div>
+</details>
+<details class="faq-item">
+<summary>What's the risk of only asserting a loading spinner's disappearance, not the resulting content?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A spinner could disappear due to a bug while the real content never actually loads — a content-based assertion catches that, a spinner-only one doesn't.</div>
+</details>
+<details class="faq-item">
+<summary>Why is reading dynamic content with textContent() unreliable?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It captures a snapshot at that exact instant with no retry, so it can read a stale value if the real update (a WebSocket message, a poll) hasn't arrived yet.</div>
+</details>
+</div>
+</article>
+</body></html>

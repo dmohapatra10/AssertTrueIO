@@ -1,0 +1,115 @@
+<!doctype html>
+<html><head>
+<title>Job Dependencies in GitHub Actions: needs: In Depth</title>
+<meta name="description" content="The full needs: syntax — single and multiple dependencies — and deciding which jobs in a real pipeline genuinely need to wait versus which can run in parallel." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/job-dependencies-with-needs-in-depth.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Job Dependencies: needs: In Depth</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="job-dependencies-conditions-and-data-flow.html">Job Dependencies, Conditions & Data Flow overview</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>By default, every job in a workflow runs in parallel (established back in Chapter 1's mental model). <code>needs:</code> is the deliberate override — it makes a job wait for one or more other jobs to finish first.</p>
+
+<h2 id="a-single-dependency">A Single Dependency</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps: [...]
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps: [...]</code></pre>
+<p><code>deploy</code> won't even start until <code>build</code> has finished — this is the exact pattern already used in earlier chapters for artifact download and conditional deployment.</p>
+
+<h2 id="multiple-dependencies">Multiple Dependencies</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  build: [...]
+  unit-tests: [...]
+  api-tests: [...]
+
+  deploy:
+    needs: [build, unit-tests, api-tests]
+    runs-on: ubuntu-latest
+    steps: [...]</code></pre>
+<p><code>deploy</code> now waits for all three listed jobs to finish — not just one. This is genuinely different from three separate single-dependency chains; all three run in parallel with each other, and <code>deploy</code> waits for the slowest of them.</p>
+
+<h2 id="detailed-example-deciding-what-s-actually-parallel-in-the-real-pipeline">Detailed Example — Deciding What's Actually Parallel in the Real Pipeline</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps: [...]
+
+  unit-tests:
+    needs: build
+    runs-on: ubuntu-latest
+    steps: [...]
+
+  api-tests:
+    needs: build          # runs in PARALLEL with unit-tests — both only need build
+    runs-on: ubuntu-latest
+    steps: [...]
+
+  ui-tests:
+    needs: build           # ALSO runs in parallel with the other two
+    runs-on: ubuntu-latest
+    steps: [...]
+
+  deploy:
+    needs: [unit-tests, api-tests, ui-tests]   # waits for ALL THREE
+    runs-on: ubuntu-latest
+    steps: [...]</code></pre>
+<p>This is genuinely different from the hub page's simple linear diagram — <code>unit-tests</code>, <code>api-tests</code>, and <code>ui-tests</code> all only depend on <code>build</code>, not on each other, so they run in parallel once <code>build</code> finishes. <code>deploy</code> is the only job that needs to wait for all three. This structure finishes noticeably faster than a strict sequential chain, without sacrificing any genuine ordering requirement.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why is deliberately identifying genuine independence between jobs (rather than just chaining everything sequentially "to be safe") worth the extra thought? A strictly sequential chain of five jobs takes the sum of all five durations. The parallelized version above takes roughly <code>build</code> + the <em>slowest</em> of the three test jobs + <code>deploy</code> — often a significant, real time savings, especially as a pipeline grows more test jobs over time.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Adding <code>needs:</code> between two jobs that don't actually have a genuine dependency, purely out of caution. This needlessly serializes work that could have run in parallel, slowing the pipeline down for no real correctness benefit — <code>needs:</code> should reflect an actual, genuine requirement, not a defensive habit.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>A job with <code>needs:</code> runs by default only if every job it depends on succeeded — this default (and how to deliberately override it, for instance to run cleanup regardless of outcome) is covered fully on this chapter's final page.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Base <code>needs:</code> relationships on genuine data or ordering requirements, not caution — ask "does this job actually need something the other one produces or guarantees?"</li>
+  <li>Look for genuine independence between jobs (like separate test suites that don't depend on each other) and let them run in parallel.</li>
+  <li>Use a list (<code>needs: [job1, job2]</code>) when a job genuinely depends on more than one other job finishing first.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li><code>needs:</code> overrides the default parallel-jobs behavior, making a job wait for one or more specific others.</li>
+  <li>Multiple dependencies run in parallel with each other; the dependent job waits for the slowest of them.</li>
+  <li>Deliberately identifying genuine independence between jobs can meaningfully reduce a pipeline's total runtime.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>For a pipeline with a <code>lint</code> job, a <code>build</code> job, a <code>unit-tests</code> job (needing <code>build</code>), and an <code>integration-tests</code> job (needing <code>build</code>), sketch out (in plain English) which jobs could run in parallel with each other and which must wait, assuming <code>lint</code> is genuinely independent of everything else.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>What does needs: [build, unit-tests, api-tests] actually require before the dependent job starts?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The dependent job waits until all three listed jobs have finished — not just one of them. Those three jobs themselves run in parallel with each other (assuming no dependency exists between them), and the dependent job specifically waits for whichever of the three takes the longest to complete.</div>
+</details>
+<details class="faq-item">
+<summary>Why might a pipeline with three independent test jobs, each only depending on a build job, finish faster than one with the same three jobs chained sequentially?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">When each test job only depends on build (not on each other), all three can run simultaneously once build finishes, and the total added time is just the duration of the slowest one. A sequential chain instead adds up the full duration of every single job one after another, which takes meaningfully longer overall for no genuine correctness benefit.</div>
+</details>
+<details class="faq-item">
+<summary>Why is adding needs: between two jobs "just to be safe" considered a genuine mistake rather than harmless caution?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">An unnecessary needs: relationship forces two genuinely independent jobs to run sequentially instead of in parallel, needlessly increasing the pipeline's total runtime without providing any real correctness benefit. needs: should reflect an actual, genuine requirement — one job truly depending on another's output or completion — not a defensive habit applied without real justification.</div>
+</details>
+<details class="faq-item">
+<summary>By default, does a job with needs: run if one of its dependencies fails?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">By default, no — a job with needs: only runs if every job it depends on succeeded. This default behavior, and how to deliberately override it for situations like cleanup or notification jobs that should run regardless of outcome, is covered in full on the final page of this chapter.</div>
+</details>
+<details class="faq-item">
+<summary>In the real pipeline example on this page, why does deploy specifically need all three test jobs listed, rather than just one?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Deployment should genuinely only happen once every category of testing (unit, API, UI) has actually confirmed success — depending on only one of the three would mean deployment could proceed even if one of the other test suites hadn't finished or had failed, which defeats the purpose of running all three categories of tests before deploying in the first place.</div>
+</details>
+</div>
+</article>
+</body></html>

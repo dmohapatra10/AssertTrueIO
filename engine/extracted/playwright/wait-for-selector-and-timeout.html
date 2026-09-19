@@ -1,0 +1,118 @@
+<!doctype html>
+<html><head>
+<title>Playwright waitForSelector() and waitForTimeout(): Legacy Wait and the Anti-Pattern</title>
+<meta name="description" content="Why waitForSelector() is mostly legacy in modern Playwright, when it&#x27;s still legitimately used, and why waitForTimeout() is an anti-pattern to avoid in real tests." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/wait-for-selector-and-timeout.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>waitForSelector() & waitForTimeout()</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="wait-for-request-and-response.html">waitForRequest() & waitForResponse()</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>page.waitForSelector(selector: string, options?: { state?: 'attached'|'visible'|'hidden'|'detached' })
+page.waitForTimeout(timeout: number)</code></pre>
+  <p>Both predate the modern locator-based API. <code>waitForSelector()</code> waits for an element matching a CSS/text selector to reach a given state. <code>waitForTimeout()</code> just pauses for a fixed number of milliseconds — no condition, no signal, just a delay.</p>
+
+  <h2 id="why-waitforselector-is-mostly-legacy-now">Why waitForSelector() is mostly legacy now</h2>
+  <p>Every locator already waits automatically when you act on it or assert against it — <code>await expect(locator).toBeVisible()</code> does everything <code>waitForSelector(sel, { state: 'visible' })</code> does, with a clearer, more consistent API and better error messages. <code>waitForSelector()</code> still exists and works, but a modern Playwright test written from scratch rarely needs to reach for it directly.</p>
+
+  <h2 id="basic-example-old-vs-modern">Basic Example — Old vs. Modern</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Legacy style
+await page.waitForSelector('.results-list', { state: 'visible' });
+
+// Modern equivalent — same effect, better locator semantics
+await expect(page.locator('.results-list')).toBeVisible();</code></pre>
+
+  <h2 id="when-waitforselector-still-has-a-legitimate-use">When waitForSelector() Still Has a Legitimate Use</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Waiting for an element to be REMOVED, in a context where you don't
+// already have a locator instance you want to keep re-querying
+await page.waitForSelector('.loading-overlay', { state: 'detached' });</code></pre>
+  <p>It occasionally shows up in scripts using the lower-level Playwright Library API without the Test framework's locator conveniences, or in codebases migrating from older Playwright versions. If you're writing new Playwright Test code today, prefer the locator-plus-assertion pattern.</p>
+
+  <h2 id="waitfortimeout-why-it-s-an-anti-pattern">waitForTimeout() — Why It's an Anti-Pattern</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Anti-pattern — do not do this in real test code
+await page.getByRole('button', { name: 'Submit' }).click();
+await page.waitForTimeout(3000); // guessing how long is "enough"
+await expect(page.getByText('Success')).toBeVisible();</code></pre>
+  <p>A fixed sleep is both unreliable and slow: too short, and it fails intermittently the moment CI is under load or the network is slower than usual; too long, and it wastes real wall-clock time on every single test run, even when the actual condition was ready in a fraction of that time. Multiply that wasted time across a suite with hundreds of tests and it becomes a genuinely significant, avoidable slowdown.</p>
+
+  <h2 id="the-one-legitimate-use-of-waitfortimeout">The One Legitimate Use of waitForTimeout()</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Acceptable: temporarily, while interactively debugging in headed mode,
+// to visually observe what's happening at a specific point
+await page.waitForTimeout(2000); // TEMP — remove before committing</code></pre>
+  <p><code>waitForTimeout()</code> is genuinely useful as a debugging tool — pausing briefly while watching a headed browser run to see what's on screen at a given moment. It should never survive into committed test code as an actual synchronization strategy.</p>
+
+  <h2 id="real-world-example-replacing-a-timeout-based-wait">Real-World Example — Replacing a Timeout-Based Wait</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Before: guessing
+await page.getByRole('button', { name: 'Generate report' }).click();
+await page.waitForTimeout(5000);
+await expect(page.getByText('Report ready')).toBeVisible();
+
+// After: waiting for the real signal
+const [response] = await Promise.all([
+  page.waitForResponse((res) =&gt; res.url().includes('/api/reports') && res.status() === 200),
+  page.getByRole('button', { name: 'Generate report' }).click(),
+]);
+await expect(page.getByText('Report ready')).toBeVisible();</code></pre>
+  <p>This mirrors the pattern from the previous page — almost every <code>waitForTimeout()</code> in a real codebase can be replaced with either a content assertion (if one exists) or a specific network wait, once you identify what the fixed delay was actually approximating.</p>
+
+  <h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Fixed delay, no real signal
+await page.waitForTimeout(2000);
+
+// ✅ Wait for the thing that actually indicates readiness
+await expect(page.getByText('Report ready')).toBeVisible();</code></pre>
+
+  <h2 id="common-mistakes">Common Mistakes</h2>
+  <ul>
+    <li><strong>Leaving debug <code>waitForTimeout()</code> calls in committed code</strong> — easy to forget after using it temporarily during local debugging.</li>
+    <li><strong>Using <code>waitForSelector()</code> out of old habit</strong> in new code instead of the more idiomatic locator-plus-assertion pattern.</li>
+    <li><strong>Treating a <code>waitForTimeout()</code> that "fixed" a flaky test as a real fix</strong> — it usually just widens the timing window enough to hide the underlying race most of the time, not eliminate it.</li>
+  </ul>
+
+  <h2 id="edge-cases">Edge Cases</h2>
+  <ul>
+    <li><strong>Genuinely fixed, known delays</strong> (a UI that deliberately shows a spinner for a minimum of exactly 1 second regardless of actual load time) — even here, asserting on the spinner's disappearance is more robust than hardcoding the same 1000ms elsewhere, since it stays correct if that minimum duration changes.</li>
+  </ul>
+
+  <h2 id="debugging">Debugging</h2>
+  <p>If you find a <code>waitForTimeout()</code> in an existing test, don't just delete it — figure out what real condition it was approximating (a network response? a content change? an animation finishing?) and replace it with a wait on that specific thing.</p>
+
+  <h2 id="best-practices">Best Practices</h2>
+  <ul>
+    <li>Treat any <code>waitForTimeout()</code> found in test code as a bug to fix, not a working solution to leave alone.</li>
+    <li>Use <code>waitForSelector()</code> only in Playwright Library (non-Test) contexts, or when maintaining older code — write new Test-framework code with locators and assertions instead.</li>
+    <li>When removing a <code>waitForTimeout()</code>, identify the real signal it was standing in for before replacing it.</li>
+  </ul>
+
+  <h2 id="practice-exercise">Practice Exercise</h2>
+  <p>Given a test containing <code>await page.waitForTimeout(2000);</code> right after a click that triggers a toast notification, rewrite it using a proper assertion, and explain what signal you're now actually waiting on instead of a guess.</p>
+
+  <h2 id="summary">Summary</h2>
+  <p><code>waitForSelector()</code> is largely superseded by locators plus web-first assertions in modern Playwright Test code. <code>waitForTimeout()</code> is an anti-pattern for real synchronization — useful only as a temporary, interactive debugging aid — and should always be replaced with a wait on a real signal (a network response, a content change) before code is committed.</p>
+
+  <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A test uses waitForTimeout(3000) and passes reliably in CI. Why would you still flag it in code review?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Passing reliably today doesn't mean the wait is correct — it means the fixed delay happens to be long enough under current conditions. It's still both slower than necessary (paying the full 3 seconds even when the real condition resolves faster) and fragile against any future slowdown (a slower CI runner, a heavier page) that could push the real timing past the hardcoded value. Replacing it with a wait on the actual signal removes both risks.</div>
+</details>
+<details class="faq-item">
+<summary>Why is waitForSelector() considered mostly legacy in modern Playwright Test code?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A locator combined with a web-first assertion achieves the same effect with clearer semantics and better error messages.</div>
+</details>
+<details class="faq-item">
+<summary>Is there ever a legitimate use for waitForTimeout()?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">As a temporary aid during interactive debugging in headed mode — it should never survive into committed test code as an actual synchronization strategy.</div>
+</details>
+<details class="faq-item">
+<summary>A test passes reliably in CI using waitForTimeout(3000) — why still flag it in review?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Passing today just means the delay happens to be long enough currently; it's both slower than necessary and fragile against any future slowdown.</div>
+</details>
+<details class="faq-item">
+<summary>What should you do when you find a waitForTimeout() in existing code?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Identify the real condition it was approximating and replace it with a wait on that specific signal, rather than deleting it blindly.</div>
+</details>
+</div>
+</article>
+</body></html>

@@ -1,0 +1,191 @@
+<!doctype html>
+<html><head>
+<title>Page Object Model in Playwright: Encapsulating Locators and Actions</title>
+<meta name="description" content="How to build a Page Object Model in Playwright — encapsulating locators and actions, combining POM with fixtures, and the anti-patterns to avoid like assertion-heavy page objects." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/page-object-model.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Page Object Model</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="fixtures.html">Fixtures</a>, <a href="projects-and-environments.html">Projects & Environments</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+  <p>The Page Object Model (POM) wraps a page's locators and interactions in a class, so tests call readable, intention-revealing methods (<code>loginPage.signIn(email, password)</code>) instead of repeating raw locator chains everywhere. This is where this course shifts from "how do I write a test" to "how do I build a maintainable suite of many tests."</p>
+
+  <h2 id="why-it-s-important">Why it's important</h2>
+  <p>Without POM, the same locator (say, the "Add to cart" button) gets duplicated across dozens of tests. When that button's accessible name or structure changes, every duplicated copy needs updating. With POM, it's defined once, and every test that uses it automatically benefits from the fix.</p>
+
+  <h2 id="basic-example-a-simple-page-object">Basic Example — A Simple Page Object</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// pages/login-page.ts
+import { Page, Locator } from '@playwright/test';
+
+export class LoginPage {
+  readonly page: Page;
+  readonly emailInput: Locator;
+  readonly passwordInput: Locator;
+  readonly signInButton: Locator;
+
+  constructor(page: Page) {
+    this.page = page;
+    this.emailInput = page.getByLabel('Email');
+    this.passwordInput = page.getByLabel('Password');
+    this.signInButton = page.getByRole('button', { name: 'Sign in' });
+  }
+
+  async goto() {
+    await this.page.goto('/login');
+  }
+
+  async signIn(email: string, password: string) {
+    await this.emailInput.fill(email);
+    await this.passwordInput.fill(password);
+    await this.signInButton.click();
+  }
+}</code></pre>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// login.spec.ts
+import { test, expect } from '@playwright/test';
+import { LoginPage } from './pages/login-page';
+
+test('valid credentials redirect to the dashboard', async ({ page }) =&gt; {
+  const loginPage = new LoginPage(page);
+  await loginPage.goto();
+  await loginPage.signIn('user@example.com', 'correct-horse-battery-staple');
+
+  await expect(page).toHaveURL('/dashboard');
+});</code></pre>
+  <p>Notice the assertion stays in the test, not the page object — a deliberate boundary covered in detail below.</p>
+
+  <h2 id="combining-pom-with-fixtures">Combining POM With Fixtures</h2>
+  <p>The cleanest real-world pattern (foreshadowed in the Fixtures chapter) injects page objects as fixtures instead of instantiating them manually in every test:</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// fixtures.ts
+import { test as base } from '@playwright/test';
+import { LoginPage } from './pages/login-page';
+import { DashboardPage } from './pages/dashboard-page';
+
+type Pages = { loginPage: LoginPage; dashboardPage: DashboardPage };
+
+export const test = base.extend&lt;Pages&gt;({
+  loginPage: async ({ page }, use) =&gt; { await use(new LoginPage(page)); },
+  dashboardPage: async ({ page }, use) =&gt; { await use(new DashboardPage(page)); },
+});
+export { expect } from '@playwright/test';</code></pre>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// login.spec.ts
+import { test, expect } from './fixtures';
+
+test('valid credentials redirect to the dashboard', async ({ loginPage, dashboardPage }) =&gt; {
+  await loginPage.goto();
+  await loginPage.signIn('user@example.com', 'correct-horse-battery-staple');
+  await expect(dashboardPage.welcomeHeading).toBeVisible();
+});</code></pre>
+  <p>No manual <code>new LoginPage(page)</code> anywhere in the test file — the fixture handles construction, and every test that needs the page object just declares it as a parameter.</p>
+
+  <h2 id="a-base-page-for-shared-behavior">A Base Page for Shared Behavior</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// pages/base-page.ts
+export class BasePage {
+  constructor(protected page: Page) {}
+
+  async waitForToast(text: string) {
+    await expect(this.page.getByRole('status')).toHaveText(text);
+  }
+}
+
+// pages/login-page.ts
+export class LoginPage extends BasePage {
+  // inherits waitForToast() automatically
+}</code></pre>
+  <p>A base page is worth introducing once several page objects share genuinely common behavior (a toast helper, a nav bar present on every page) — but see the anti-patterns below for how this can be overdone.</p>
+
+  <h2 id="component-objects-reusable-ui-pieces">Component Objects — Reusable UI Pieces</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// components/nav-bar.ts
+export class NavBar {
+  constructor(private page: Page) {}
+
+  async goToOrders() {
+    await this.page.getByRole('link', { name: 'Orders' }).click();
+  }
+}
+
+// A page object can compose a shared component rather than duplicating it
+export class DashboardPage extends BasePage {
+  readonly navBar: NavBar;
+  constructor(page: Page) {
+    super(page);
+    this.navBar = new NavBar(page);
+  }
+}</code></pre>
+  <p>Component objects address the same "structure that appears on many pages" problem POM solves at the page level, applied to a shared header, sidebar, or modal that appears across many different pages.</p>
+
+  <h2 id="anti-pattern-vs-recommended">❌ Anti-Pattern vs. ✅ Recommended</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Assertions living inside the page object
+class LoginPage {
+  async signIn(email, password) {
+    // ...
+    await expect(this.page).toHaveURL('/dashboard'); // hides what the test actually verifies
+  }
+}
+
+// ✅ Page objects perform actions; tests own their own assertions
+class LoginPage {
+  async signIn(email, password) { /* actions only, no expect() calls */ }
+}
+test('...', async ({ page }) =&gt; {
+  await loginPage.signIn(...);
+  await expect(page).toHaveURL('/dashboard'); // visible, explicit, in the test
+});</code></pre>
+
+  <h2 id="common-mistakes-what-not-to-do">Common Mistakes (What NOT to Do)</h2>
+  <ul>
+    <li><strong>Giant page objects</strong> covering an entire large application in one class — split by logical page or feature area instead, mirroring how a user would actually navigate.</li>
+    <li><strong>Assertions inside page objects</strong> — this hides what a test is actually verifying behind a method name, and makes tests harder to read and debug. Page objects should expose locators and perform actions; tests should own their own <code>expect()</code> calls.</li>
+    <li><strong>Business logic mixed with UI interaction</strong> — a page object method that calculates a discounted price and asserts on it is doing two unrelated jobs; keep page objects focused purely on interacting with the DOM.</li>
+    <li><strong>Excessive inheritance chains</strong> (a page object extending a class that extends another class three levels deep) — prefer composition (component objects) over deep inheritance for shared behavior.</li>
+    <li><strong>Over-abstraction</strong> — wrapping a single, simple <code>page.goto('/settings')</code> in an elaborate page object with no other meaningful behavior adds indirection without benefit.</li>
+  </ul>
+
+  <h2 id="edge-cases">Edge Cases</h2>
+  <ul>
+    <li><strong>A page object needing conditional behavior across environments</strong> (a feature flag hidden in one environment) — keep this logic explicit and visible, ideally as a clearly named method or parameter, not silently branching inside a shared method.</li>
+    <li><strong>Very simple pages with almost no interaction</strong> — not every page needs a page object; a one-line <code>page.goto('/about')</code> plus a direct assertion in the test is often clearer than a page object with a single trivial method.</li>
+  </ul>
+
+  <h2 id="debugging">Debugging</h2>
+  <p>If a test fails inside a page object method and the failure is hard to trace, check whether the method is doing too much — a page object method that does five things in sequence makes it unclear which one actually failed; breaking it into smaller, named methods (or using <code>test.step()</code> around the call site) usually helps.</p>
+
+  <h2 id="best-practices">Best Practices</h2>
+  <ul>
+    <li>Page objects encapsulate locators and actions; tests own assertions.</li>
+    <li>Inject page objects via fixtures rather than manual instantiation in every test.</li>
+    <li>Use composition (component objects) for shared UI pieces rather than deep inheritance.</li>
+    <li>Don't create a page object for every page reflexively — reserve it for pages with genuine, reused interaction complexity.</li>
+  </ul>
+
+  <h2 id="practice-exercise">Practice Exercise</h2>
+  <p>Build a <code>CheckoutPage</code> page object with methods for filling shipping details and submitting payment (no assertions inside it), inject it via a fixture, and write two tests using it — one for successful checkout, one for a declined card — with each test owning its own assertions.</p>
+
+  <h2 id="summary">Summary</h2>
+  <p>Page Object Model encapsulates locators and actions behind readable methods, reducing duplication and centralizing updates when the UI changes. Combine it with fixtures for clean injection, use composition over deep inheritance for shared UI pieces, and keep assertions in tests, not page objects — the single most important discipline for keeping a POM-based suite maintainable.</p>
+
+  <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why is it generally considered an anti-pattern to put expect() assertions inside page object methods?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It hides what a test is actually verifying behind a method call, making tests harder to read and their failures harder to diagnose — a reader has to open the page object to discover what's being checked. Keeping assertions in the test itself makes the test's intent explicit at the call site, and keeps the page object focused on a single responsibility: interacting with the page, not verifying outcomes.</div>
+</details>
+<details class="faq-item">
+<summary>Why is putting expect() assertions inside page object methods considered an anti-pattern?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It hides what a test is actually verifying behind a method call, making the test's intent and failures harder to read and diagnose.</div>
+</details>
+<details class="faq-item">
+<summary>What's the cleanest way to make page objects available to tests?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Inject them via fixtures rather than manually instantiating them with `new` in every test file.</div>
+</details>
+<details class="faq-item">
+<summary>When would you use composition (component objects) over inheritance for shared page behavior?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">For UI pieces that appear across many unrelated pages, like a shared nav bar — composition avoids deep, fragile inheritance chains.</div>
+</details>
+<details class="faq-item">
+<summary>Is it worth creating a page object for every single page in an app?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">No — reserve it for pages with genuine, reused interaction complexity; a one-line goto() plus a direct assertion is often clearer for trivial pages.</div>
+</details>
+</div>
+</article>
+</body></html>

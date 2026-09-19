@@ -1,0 +1,137 @@
+<!doctype html>
+<html><head>
+<title>Testing Tables in Playwright: Rows, Cells, Sorting, and Pagination</title>
+<meta name="description" content="How to reliably find rows and cells in Playwright, validate specific row data by content instead of position, and test sorting and pagination." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/tables.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Tables</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="forms.html">Forms</a>, <a href="filtering-and-chaining.html">Filtering & Chaining</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+  <p>Tables — order lists, user management grids, inventory dashboards — are one of the densest, most repeated-element-heavy structures in real applications, which makes them a natural stress test for the filtering and chaining patterns from the Locators chapter. This page applies those patterns specifically to rows, cells, sorting, and pagination.</p>
+
+  <h2 id="why-it-s-important">Why it's important</h2>
+  <p>The single biggest mistake in table testing is finding a row by its position (<code>nth(2)</code>) instead of its content. Position-based tests break the moment sort order changes, a new row is added, or the table re-renders in a different order — all of which happen constantly in real, data-driven tables.</p>
+
+  <h2 id="finding-a-row-by-content">Finding a Row by Content</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const row = page.getByRole('row').filter({ hasText: 'Wireless Mouse' });
+await expect(row).toBeVisible();</code></pre>
+  <p>This is the pattern from the <a href="filtering-and-chaining.html">Filtering & Chaining</a> page, applied specifically to tables — always the starting point for a table test, rather than <code>nth()</code>.</p>
+
+  <h2 id="reading-a-specific-cell">Reading a Specific Cell</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const row = page.getByRole('row').filter({ hasText: 'Wireless Mouse' });
+const priceCell = row.getByRole('cell').nth(2); // 3rd column — position within the ROW is fine here
+
+await expect(priceCell).toHaveText('$29.99');</code></pre>
+  <p>Note the distinction: <code>nth()</code> to find the <em>row</em> among many rows is fragile (order-dependent). <code>nth()</code> to find a <em>column</em> within an already-uniquely-identified row is fine, since column order within a table is structural, not data-dependent, and rarely changes without the whole feature changing.</p>
+
+  <h2 id="basic-example-acting-within-a-row">Basic Example — Acting Within a Row</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const row = page.getByRole('row').filter({ hasText: 'Wireless Mouse' });
+await row.getByRole('button', { name: 'Edit' }).click();</code></pre>
+
+  <h2 id="detailed-example-asserting-row-count-and-contents-together">Detailed Example — Asserting Row Count and Contents Together</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('search filters the table to matching rows only', async ({ page }) =&gt; {
+  await page.goto('/inventory');
+  await page.getByRole('searchbox').fill('mouse');
+
+  const rows = page.getByRole('row').filter({ hasNotText: 'Product Name' }); // exclude header row
+  await expect(rows).toHaveCount(2);
+  await expect(rows.filter({ hasText: 'Wireless Mouse' })).toBeVisible();
+  await expect(rows.filter({ hasText: 'Bluetooth Mouse' })).toBeVisible();
+});</code></pre>
+  <p><code>hasNotText</code> excluding the header row is a common, useful pattern — many tables render the header as a <code>&lt;tr&gt;</code> too, and it would otherwise count toward <code>toHaveCount()</code> unexpectedly.</p>
+
+  <h2 id="real-world-example-sorting">Real-World Example — Sorting</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('clicking the Price header sorts ascending', async ({ page }) =&gt; {
+  await page.goto('/inventory');
+  await page.getByRole('columnheader', { name: 'Price' }).click();
+
+  const priceCells = page.getByRole('row').filter({ hasNotText: 'Product Name' })
+    .getByRole('cell').nth(2); // simplified — see note below
+
+  const prices = await priceCells.allTextContents();
+  const numericPrices = prices.map((p) =&gt; parseFloat(p.replace('$', '')));
+  expect(numericPrices).toEqual([...numericPrices].sort((a, b) =&gt; a - b));
+});</code></pre>
+  <p><code>allTextContents()</code> resolves every matching element's text at once into a plain array — the right tool when a test needs to reason about a whole column's data together (like verifying sort order), rather than checking one row at a time.</p>
+
+  <h2 id="pagination">Pagination</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('pagination shows the next page of results', async ({ page }) =&gt; {
+  await page.goto('/inventory');
+
+  await expect(page.getByRole('row')).toHaveCount(11); // 10 rows + header
+  const firstPageFirstItem = await page.getByRole('row').nth(1).textContent();
+
+  await page.getByRole('button', { name: 'Next page' }).click();
+
+  await expect(page).toHaveURL(/page=2/);
+  const secondPageFirstItem = await page.getByRole('row').nth(1).textContent();
+  expect(secondPageFirstItem).not.toBe(firstPageFirstItem);
+});</code></pre>
+  <p>Confirming the content actually changed (not just the URL or page number label) catches the real bug this kind of test is meant to catch — a "Next" button that updates the URL but silently fails to fetch new data.</p>
+
+  <h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Positional — breaks if sort order or row insertion changes
+await page.getByRole('row').nth(3).getByRole('button', { name: 'Delete' }).click();
+
+// ✅ Content-based — correct regardless of order
+await page.getByRole('row').filter({ hasText: 'Wireless Mouse' })
+  .getByRole('button', { name: 'Delete' }).click();</code></pre>
+
+  <h2 id="common-mistakes">Common Mistakes</h2>
+  <ul>
+    <li><strong>Using <code>nth()</code> to find a row</strong> instead of filtering by content — the most common table-testing anti-pattern.</li>
+    <li><strong>Forgetting the header row counts as a <code>&lt;tr&gt;</code></strong> in many implementations, throwing off <code>toHaveCount()</code> expectations by one.</li>
+    <li><strong>Asserting sort/filter results only by count</strong>, not content — a table showing the right number of rows with the wrong data would pass a count-only check.</li>
+    <li><strong>Not handling pagination when a test expects to find a row</strong> that's actually on a different page than the one currently displayed.</li>
+  </ul>
+
+  <h2 id="edge-cases">Edge Cases</h2>
+  <ul>
+    <li><strong>Virtualized/windowed tables</strong> (only rendering visible rows for performance, common in very large datasets) — rows outside the current scroll position may not exist in the DOM at all yet; scrolling the container into view before asserting is necessary here.</li>
+    <li><strong>Tables built from <code>&lt;div&gt;</code>s instead of semantic <code>&lt;table&gt;</code>/<code>&lt;tr&gt;</code>/<code>&lt;td&gt;</code></strong> — <code>getByRole('row')</code> won't match unless proper ARIA roles (<code>role="row"</code>, <code>role="cell"</code>) are applied; check the actual accessibility tree if role-based locators don't match a visually table-like layout.</li>
+  </ul>
+
+  <h2 id="debugging">Debugging</h2>
+  <p>If <code>getByRole('row')</code> matches zero rows on something that's visually a table, inspect the accessibility tree directly — a <code>&lt;div&gt;</code>-based table needs explicit ARIA roles to be discoverable this way; without them, a CSS-based fallback locator (from the <a href="locator-and-css-xpath.html">locator() and CSS/XPath</a> page) may be the pragmatic option.</p>
+
+  <h2 id="best-practices">Best Practices</h2>
+  <ul>
+    <li>Always find rows by content (<code>filter({ hasText })</code>), never by position, unless order is genuinely and stably part of what's being tested.</li>
+    <li>Exclude header rows explicitly when asserting counts on tables that render headers as regular rows.</li>
+    <li>Use <code>allTextContents()</code> when a test needs to reason about a whole column together, like verifying sort order.</li>
+    <li>Verify pagination by content change, not just URL or page-number label change.</li>
+  </ul>
+
+  <h2 id="practice-exercise">Practice Exercise</h2>
+  <p>Write a test that finds a specific row by product name, reads its quantity cell, increments the quantity via an in-row input, and asserts the row's total price cell updates correctly — all without using <code>nth()</code> to locate the row itself.</p>
+
+  <h2 id="summary">Summary</h2>
+  <p>Reliable table testing means finding rows by content rather than position, using <code>nth()</code> only for structurally stable things like column index within an already-identified row, and verifying sorting/pagination by actual data change rather than superficial signals like a page number label.</p>
+
+  <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why is page.getByRole('row').nth(2) considered a fragile way to find a specific row, and what's the alternative?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer"><code>nth(2)</code> depends entirely on the row's current position, which can change due to sorting, filtering, or new rows being added — none of which necessarily reflect a bug in the feature under test. Filtering by content, like <code>getByRole('row').filter({ hasText: 'Wireless Mouse' })</code>, identifies the row by what makes it meaningfully unique, so the test remains correct regardless of where that row happens to currently sit in the table.</div>
+</details>
+<details class="faq-item">
+<summary>Why is finding a table row by nth() considered fragile?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It depends on the row's current position, which can shift due to sorting or new rows — unrelated to the actual feature being tested.</div>
+</details>
+<details class="faq-item">
+<summary>When is nth() actually acceptable in a table test?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">For selecting a column within an already-uniquely-identified row — structural, not data-dependent, and rarely changes.</div>
+</details>
+<details class="faq-item">
+<summary>Why exclude the header row when asserting a table's row count?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Many implementations render the header as its own &lt;tr&gt;, which would otherwise inflate the count by one.</div>
+</details>
+<details class="faq-item">
+<summary>How do you verify pagination actually fetched new data, not just changed the page label?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Compare the actual content (e.g. the first item's text) between pages, not just the URL or displayed page number.</div>
+</details>
+</div>
+</article>
+</body></html>

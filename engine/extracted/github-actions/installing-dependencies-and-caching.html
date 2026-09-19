@@ -1,0 +1,113 @@
+<!doctype html>
+<html><head>
+<title>Installing Dependencies &amp; Caching in GitHub Actions</title>
+<meta name="description" content="Installing project dependencies correctly across npm, pip, and Maven, and why caching them can dramatically cut pipeline time — using both built-in setup-action caching and actions/cache directly." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/installing-dependencies-and-caching.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Installing Dependencies &amp; Caching</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="setting-up-programming-languages.html">Setting Up Programming Languages: Java, Node.js & Python</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Once a language is set up, a real project needs its actual dependencies installed before anything can build or run. This page covers installing them correctly, and — genuinely important for pipeline speed — not redoing that work from scratch on every single run.</p>
+
+<h2 id="installing-dependencies-by-ecosystem">Installing Dependencies, By Ecosystem</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># Node.js
+- run: npm ci   # NOT npm install — see note below
+
+# Python
+- run: pip install -r requirements.txt
+
+# Java (Maven)
+- run: mvn install</code></pre>
+<p><code>npm ci</code> specifically (not <code>npm install</code>) is the correct choice in CI — it installs exactly what's locked in <code>package-lock.json</code>, failing loudly if that file and <code>package.json</code> are out of sync, rather than silently updating anything. This genuine, deliberate strictness is exactly what a CI pipeline should want.</p>
+
+<h2 id="why-caching-matters">Why Caching Matters</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Without caching: every single run downloads and installs every
+                 dependency from scratch — genuinely slow, and
+                 repeated identically on every run.
+
+With caching:    dependencies already downloaded in a previous run
+                 are reused, skipping most of that repeated work.</code></pre>
+<p>For a project with a substantial dependency tree, this can be the difference between a pipeline taking two minutes versus ten — a genuinely significant, real cost multiplied across every single run.</p>
+
+<h2 id="built-in-caching-via-the-setup-actions">Built-in Caching via the Setup Actions</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>- uses: actions/setup-node@v4
+  with:
+    node-version: 20
+    cache: 'npm'</code></pre>
+<p>The simplest option — <code>setup-node</code>, <code>setup-python</code>, and others accept a <code>cache</code> option directly, handling the caching logic for you with no separate configuration needed.</p>
+
+<h2 id="manual-caching-with-actions-cache">Manual Caching With actions/cache</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>- uses: actions/cache@v4
+  with:
+    path: ~/.m2/repository
+    key: maven-${{ hashFiles('**/pom.xml') }}
+    restore-keys: maven-</code></pre>
+<p>For ecosystems without built-in setup-action caching (like Maven), <code>actions/cache</code> handles it directly — <code>path</code> is what to cache, <code>key</code> determines when a cached version is considered valid (here, based on a hash of <code>pom.xml</code> — if that file changes, the cache key changes too, correctly invalidating the old cache), and <code>restore-keys</code> provides a fallback to a partial match if no exact key match exists.</p>
+
+<h2 id="detailed-example-a-fully-cached-node-js-job">Detailed Example — A Fully Cached Node.js Job</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+      - run: npm ci
+      - run: npm test</code></pre>
+<p>The first run populates the cache normally, taking the full install time. Every subsequent run (as long as <code>package-lock.json</code> hasn't changed) reuses that cache, making <code>npm ci</code> noticeably faster — genuinely valuable across the dozens or hundreds of runs a real, active project accumulates over time.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why does the cache <code>key</code> in the manual <code>actions/cache</code> example include a hash of <code>pom.xml</code>, rather than being a fixed, unchanging string? If <code>pom.xml</code> changes (a dependency version bumped, a new dependency added), the previously cached dependencies are no longer necessarily correct for the new configuration. Hashing the file that defines dependencies means the cache automatically invalidates itself exactly when it actually needs to, without any manual intervention.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Using <code>npm install</code> instead of <code>npm ci</code> in a CI pipeline. <code>npm install</code> can silently modify the lock file and install slightly different versions than what's actually locked — exactly the kind of subtle, non-reproducible behavior a CI pipeline should actively avoid, since a pipeline's whole point is producing consistent, trustworthy results.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>A cache that never gets invalidated (a fixed key that never changes) is arguably worse than no cache at all — it can silently serve genuinely stale dependencies indefinitely. Always base a cache key on something that changes exactly when the cache should actually be invalidated, like a lock file's hash.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Use the ecosystem's strict, lock-file-respecting install command in CI (<code>npm ci</code>, not <code>npm install</code>) — reproducibility matters more here than convenience.</li>
+  <li>Prefer a setup action's built-in <code>cache</code> option when available — it's simpler and handles the details correctly.</li>
+  <li>For ecosystems needing manual <code>actions/cache</code>, always base the cache key on a hash of the actual dependency-defining file, never a fixed string.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Use <code>npm ci</code>, not <code>npm install</code>, in CI — strict, lock-file-respecting, reproducible.</li>
+  <li>Caching dependencies can dramatically reduce pipeline time across many runs, especially for projects with substantial dependency trees.</li>
+  <li>A cache key should be based on something that changes exactly when the cache should invalidate — typically a hash of the lock file or dependency definition.</li>
+</ul>
+
+<h2 id="challenge">🏆 Challenge</h2>
+<p>Write a complete <code>actions/cache</code> configuration for caching Python's pip packages, using <code>~/.cache/pip</code> as the path and a hash of <code>requirements.txt</code> as the key — following the exact same pattern shown for Maven in this page's example.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why is npm ci preferred over npm install specifically in a CI environment?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">npm ci installs exactly what's specified in package-lock.json and fails loudly if that file is out of sync with package.json, rather than silently resolving and potentially modifying the lock file the way npm install can. This strictness produces reproducible, trustworthy installs — exactly what a CI pipeline needs — rather than risking subtly different dependency versions between runs.</div>
+</details>
+<details class="faq-item">
+<summary>Why does basing a cache key on a hash of the dependency file (like package-lock.json or pom.xml) matter?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">When the dependency-defining file changes — a version bump, a new dependency — the previously cached dependencies may no longer be correct for the new configuration. A cache key derived from that file's hash automatically changes whenever the file changes, correctly invalidating the old cache and forcing a fresh install, without needing any manual cache-management step.</div>
+</details>
+<details class="faq-item">
+<summary>What's the practical risk of using a cache key that never changes?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A fixed, unchanging cache key means the cache is never invalidated, even after the actual dependency requirements change — the pipeline could keep silently reusing genuinely outdated dependencies indefinitely. This can mask real problems or cause the CI environment to drift out of sync with what a fresh install would actually produce, defeating much of the value of running CI in the first place.</div>
+</details>
+<details class="faq-item">
+<summary>Why might a project using Maven need to configure actions/cache manually, rather than relying on a built-in caching option the way setup-node offers?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Not every language's setup action includes a built-in caching option — availability depends on what that specific action's maintainers have implemented. For ecosystems without this built-in convenience, actions/cache provides the same underlying caching capability, just requiring the path, key, and restore-keys to be configured explicitly rather than through a single, simpler option.</div>
+</details>
+<details class="faq-item">
+<summary>What's the purpose of restore-keys in an actions/cache configuration?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">restore-keys provides a fallback mechanism — if no cache exactly matches the current key, GitHub Actions can still restore the closest previous cache matching a broader prefix, rather than starting completely from scratch. This means even when the exact cache key has changed (because a dependency file changed slightly), much of the previous cache can still be reused as a starting point, rather than losing all caching benefit entirely.</div>
+</details>
+</div>
+</article>
+</body></html>

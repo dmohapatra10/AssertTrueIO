@@ -1,0 +1,144 @@
+<!doctype html>
+<html><head>
+<title>k6 Scenarios: Running Multiple Workloads in One Test</title>
+<meta name="description" content="How k6 scenarios let you run genuinely different load patterns simultaneously in one test — different user behaviors, different executors, different functions, all at once." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/scenarios-multiple-workloads.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Scenarios: Multiple Workloads in One Test</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="k6-executors-explained.html">k6 Executors Explained</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Every example so far has run one executor, one workload, for the whole test. Real traffic is rarely this uniform — a real application simultaneously serves browsing users, checkout users, and API clients, each with genuinely different behavior and load characteristics. <code>scenarios</code> is k6's mechanism for running several distinct workloads at once, in the same test.</p>
+
+<h2 id="the-basic-shape-of-scenarios">The Basic Shape of Scenarios</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export const options = {
+  scenarios: {
+    browsing_users: {
+      executor: 'constant-vus',
+      vus: 100,
+      duration: '10m',
+      exec: 'browseProducts',
+    },
+    checkout_users: {
+      executor: 'constant-arrival-rate',
+      rate: 20,
+      timeUnit: '1s',
+      duration: '10m',
+      preAllocatedVUs: 50,
+      exec: 'checkout',
+    },
+  },
+};
+
+export function browseProducts() {
+  http.get('https://test-api.example.com/products');
+}
+
+export function checkout() {
+  http.post('https://test-api.example.com/checkout', payload);
+}</code></pre>
+<p>Each named scenario gets its own executor, its own configuration, and its own function (via the <code>exec</code> key) — <code>browsing_users</code> and <code>checkout_users</code> run <em>simultaneously</em>, each with a completely different load pattern and completely different behavior, both contributing to the same overall test run and reported together.</p>
+
+<h2 id="why-this-matters-modeling-genuinely-mixed-traffic">Why This Matters — Modeling Genuinely Mixed Traffic</h2>
+<p>A single-workload test can only approximate real traffic, which is almost never uniform — some users are just browsing (low-intensity, high-volume), others are actively checking out (lower-volume, but performance-critical since it's directly tied to revenue). Testing these as one blended, average workload can hide how the system behaves under the specific combination that actually matters — like checkout performance specifically degrading while overall "average" numbers still look acceptable.</p>
+
+<h2 id="detailed-example-different-executors-for-different-user-types">Detailed Example — Different Executors for Different User Types</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export const options = {
+  scenarios: {
+    casual_browsers: {
+      executor: 'ramping-vus',
+      startVUs: 0,
+      stages: [
+        { duration: '5m', target: 200 },
+        { duration: '10m', target: 200 },
+        { duration: '5m', target: 0 },
+      ],
+      exec: 'browse',
+    },
+    api_integration_clients: {
+      executor: 'constant-arrival-rate',
+      rate: 50,
+      timeUnit: '1s',
+      duration: '20m',
+      preAllocatedVUs: 60,
+      exec: 'apiCall',
+    },
+  },
+};</code></pre>
+<p>These two scenarios use genuinely different executor types — <code>ramping-vus</code> for browsing users whose numbers naturally ramp with a traffic pattern, and <code>constant-arrival-rate</code> for API clients whose behavior is better modeled as a steady, specific request rate. Mixing executor types within the same test, across different scenarios, is exactly how you model traffic sources that don't behave the same way as each other.</p>
+
+<h2 id="real-world-example-isolating-a-specific-scenario-s-impact">Real-World Example — Isolating a Specific Scenario's Impact</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>k6 output, broken down per scenario:
+  casual_browsers....: p95=180ms, 0.1% errors
+  api_integration_clients: p95=2,400ms, 4.2% errors  ← the real problem</code></pre>
+<p>Because k6 reports metrics broken down per scenario (similar in spirit to how <code>group()</code> breaks results down by workflow step), a problem specific to one traffic type is immediately visible rather than hidden inside a blended average — here, API integration clients are clearly struggling while casual browsing traffic is fine, a distinction a single combined workload would have obscured.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ One blended workload approximating "average" mixed traffic —
+// hides which specific traffic type is actually struggling
+export const options = { vus: 150, duration: '15m' };
+
+// ✅ Separate scenarios modeling each genuinely distinct traffic type
+export const options = {
+  scenarios: {
+    browsing: { executor: 'constant-vus', vus: 100, duration: '15m', exec: 'browse' },
+    checkout: { executor: 'constant-arrival-rate', rate: 10, timeUnit: '1s',
+                duration: '15m', preAllocatedVUs: 30, exec: 'checkout' },
+  },
+};</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Blending genuinely different traffic types into one averaged workload</strong> — hides which specific type of traffic is actually struggling under load.</li>
+  <li><strong>Forgetting the <code>exec</code> key</strong> — without it, every scenario defaults to running the same default function, defeating the purpose of having multiple distinct scenarios in the first place.</li>
+  <li><strong>Over-engineering scenarios for a simple test</strong> that genuinely only has one uniform traffic type — scenarios add real value once traffic is genuinely mixed, not as a default structure for every test regardless of need.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Scenarios that are meant to start at different times</strong>, not all simultaneously — k6 supports a <code>startTime</code> option per scenario for exactly this, letting one workload begin partway through another's execution.</li>
+  <li><strong>Resource contention between scenarios</strong> — since scenarios run genuinely simultaneously on the same machine generating load, a very resource-intensive scenario can affect the load generator's own capacity to accurately drive another scenario; monitoring the load generator itself (Chapter 12) matters more once multiple scenarios are combined.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If overall test results look mediocre but it's unclear why, check whether the test is actually using scenarios to separate distinct traffic types — a blended single-workload test can hide exactly which specific traffic pattern is responsible for a poor result, in the same way a script without <code>group()</code> hides which specific step is slow.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Use scenarios once real traffic is genuinely mixed — different user types with different behavior and load characteristics — not as a default structure for every test.</li>
+  <li>Match each scenario's executor to what that specific traffic type is actually about (concurrency vs. throughput), rather than using the same executor for every scenario by default.</li>
+  <li>Review per-scenario metrics separately, not just the overall blended result, to catch a problem specific to one traffic type.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Design a scenarios configuration for an e-commerce site with two genuinely distinct traffic types: casual browsing (modeled as a ramping VU count) and a fixed-rate stream of automated inventory-check API calls (modeled as a constant arrival rate) — running simultaneously for 15 minutes.</p>
+
+<h2 id="summary">Summary</h2>
+<p><code>scenarios</code> lets k6 run multiple genuinely distinct workloads simultaneously in one test, each with its own executor, configuration, and function — modeling mixed real-world traffic far more faithfully than one blended, averaged workload could. Per-scenario reporting means a problem specific to one traffic type is immediately visible, rather than hidden inside an overall average that looks acceptable while one specific, important traffic pattern is actually struggling.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why might testing browsing traffic and checkout traffic as one blended workload hide a real problem?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A blended workload's overall metrics represent an average across genuinely different behaviors — if checkout specifically degrades under load while browsing stays fast, the combined average could still look acceptable, masking a serious problem in the one traffic type that's most directly tied to revenue. Separate scenarios report metrics independently per traffic type, making a checkout-specific problem immediately visible instead of averaged away.</div>
+</details>
+<details class="faq-item">
+<summary>What does the exec key control within a scenario definition?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It specifies which exported function that specific scenario should run, instead of defaulting to the script's default function. Without setting exec explicitly, every scenario in a multi-scenario test would run the same function, which defeats the purpose of defining multiple scenarios meant to represent genuinely different behaviors in the first place.</div>
+</details>
+<details class="faq-item">
+<summary>Why might two scenarios in the same test use different executor types from each other?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Different traffic types are often fundamentally different in nature — casual browsing might be best modeled by a ramping VU count that mirrors how many people are actively on the site, while automated API integration traffic might be better modeled as a constant arrival rate representing a steady stream of requests. Matching each scenario's executor to what that specific traffic type is actually about produces a more faithful overall test than forcing every scenario to use the same executor type.</div>
+</details>
+<details class="faq-item">
+<summary>Why is it not always a good idea to use scenarios, even though they're more powerful than a single workload?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Scenarios add real value specifically when traffic is genuinely mixed — multiple distinct user types or behaviors that would be poorly represented by one blended workload. For a simple test where traffic genuinely is uniform, introducing multiple scenarios adds configuration complexity without a corresponding benefit, since there's no real mixed-traffic problem for the added structure to actually solve.</div>
+</details>
+<details class="faq-item">
+<summary>What's a genuine risk of running multiple resource-intensive scenarios simultaneously from the same load-generating machine?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Since scenarios run genuinely simultaneously and share the same underlying machine's resources, a very resource-intensive scenario can affect the load generator's own capacity to accurately drive load for another scenario running alongside it — potentially producing results that reflect a load-generator bottleneck rather than a genuine limitation of the system actually being tested. This connects directly to the principle, covered in a later chapter, that the load generator itself must not become the bottleneck.</div>
+</details>
+</div>
+</article>
+</body></html>

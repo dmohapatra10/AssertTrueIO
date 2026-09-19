@@ -1,0 +1,112 @@
+<!doctype html>
+<html><head>
+<title>GitHub Actions Mental Model: From Repository to Running Pipeline</title>
+<meta name="description" content="The complete chain from a repository event to actual running steps — Repository, Workflow, Event, Job, Runner, Steps, Actions — and how they genuinely relate." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/github-actions-mental-model.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>GitHub Actions Mental Model</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="what-is-github-actions.html">What is GitHub Actions?</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>The previous page introduced six terms individually. This page connects them into one coherent chain — the actual relationship between a repository, a workflow, an event, a job, a runner, and the steps that finally do real work.</p>
+
+<h2 id="the-full-relationship">The Full Relationship</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Repository
+   ↓
+Workflow
+   ↓
+Event
+   ↓
+Job
+   ↓
+Runner
+   ↓
+Steps
+   ↓
+Actions / Commands</code></pre>
+<p>Read top to bottom, this is: a repository <em>contains</em> one or more workflow files; each workflow <em>listens for</em> a specific event; when that event happens, the workflow's jobs are scheduled; each job gets assigned a runner; the runner executes that job's steps, in order; and each step is either a plain command or a reusable action.</p>
+
+<h2 id="where-a-workflow-file-actually-lives">Where a Workflow File Actually Lives</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>your-repository/
+└── .github/
+    └── workflows/
+        └── ci.yml</code></pre>
+<p>GitHub looks specifically inside <code>.github/workflows/</code> for YAML files — this exact folder path is not a convention you can change; it's how GitHub Actions discovers what workflows exist in your repository at all.</p>
+
+<h2 id="detailed-example-tracing-a-real-push-through-the-whole-chain">Detailed Example — Tracing a Real Push Through the Whole Chain</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>1. A developer runs `git push` to ShopEasy's repository.
+2. GitHub notices this matches a "push" event a workflow is listening for.
+3. GitHub reads the workflow file in .github/workflows/, finds the job(s) defined in it.
+4. GitHub requests a runner (a fresh virtual machine) to execute that job.
+5. The runner starts up, and begins executing the job's steps in order.
+6. Step 1 might check out the repository's code.
+7. Step 2 might install dependencies.
+8. Step 3 might actually run the test suite.
+9. The job finishes — success or failure is reported back to GitHub,
+   visible in the repository's Actions tab.</code></pre>
+<p>Every single piece from the previous page's vocabulary appears somewhere in this trace — this is the whole point of learning the terms first: now they describe something concrete you can actually follow, step by step.</p>
+
+<h2 id="real-world-example-multiple-jobs-in-the-same-workflow">Real-World Example — Multiple Jobs in the Same Workflow</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>One workflow, triggered by one push event, can define MULTIPLE jobs:
+
+Event: push
+  Job 1: "lint" — checks code style
+  Job 2: "test" — runs the test suite
+  Job 3: "build" — builds the application
+
+By default, GitHub runs jobs 1, 2, and 3 in PARALLEL, on separate runners,
+unless you explicitly tell it one job must wait for another.</code></pre>
+<p>This default — parallel unless told otherwise — is worth internalizing early, since it directly affects how fast your pipeline finishes and comes up again explicitly once dependent, ordered jobs are introduced later in this course.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>If "lint," "test," and "build" all run in parallel by default, and "lint" fails, does that automatically stop "test" and "build" from running? Not by default — each job runs independently unless you've explicitly configured one to depend on another. This is a genuinely common early surprise, and it's exactly why job dependencies (covered later in this course) exist as a deliberate feature, not an automatic behavior.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Assuming a workflow file placed anywhere in the repository will be picked up. GitHub only looks in <code>.github/workflows/</code> — a YAML file sitting in the repository root, or in any other folder, is simply invisible to GitHub Actions, no matter how correctly it's written.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>The Actions tab in a GitHub repository shows every workflow run, its status, and — critically — the full log output of every single step. This is where you'll spend a huge amount of time once workflows start failing in ways that aren't obvious from the YAML alone.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Always place workflow files in exactly <code>.github/workflows/</code> — there's no alternative location GitHub will recognize.</li>
+  <li>Think deliberately about which jobs genuinely need to run in order versus which can safely run in parallel — don't assume one or the other by default.</li>
+  <li>Get comfortable navigating a repository's Actions tab early — it's the primary tool for understanding what actually happened during a run.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>A workflow file must live in <code>.github/workflows/</code> to be recognized at all.</li>
+  <li>The chain is: repository → workflow → event → job → runner → steps → actions/commands.</li>
+  <li>Multiple jobs in one workflow run in parallel by default, not in sequence.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Without writing any real YAML yet, sketch out (on paper, or in a text file) what jobs a workflow for ShopEasy might need if the requirement is "run tests and check code style whenever code is pushed, and only build the application if both of those succeed." Identify which jobs could run in parallel and which genuinely need to wait for another.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why does a workflow file placed in the wrong folder simply never run?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">GitHub Actions specifically looks inside .github/workflows/ to discover workflow files — this isn't a configurable convention, it's how the platform finds workflows at all. A YAML file anywhere else in the repository, no matter how correctly written, is invisible to GitHub Actions, since it never even gets read as a workflow definition.</div>
+</details>
+<details class="faq-item">
+<summary>If a workflow defines three jobs triggered by the same push event, do they run one after another by default?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">No — by default, GitHub Actions runs all jobs within a workflow in parallel, on separate runners, unless you explicitly configure one job to depend on another. This default often surprises people expecting jobs to naturally run in the order they're listed in the YAML file.</div>
+</details>
+<details class="faq-item">
+<summary>In the full chain from repository to running steps, what specifically does a runner do?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The runner is the actual machine — provided by GitHub or self-hosted by an organization — that gets assigned to a specific job and executes that job's steps in order. It sits between "a job has been scheduled" and "the actual commands or actions in that job are running," providing the real computing environment where the work happens.</div>
+</details>
+<details class="faq-item">
+<summary>Where would you look to see exactly what happened during a specific workflow run, including full output from every step?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The repository's Actions tab shows every workflow run along with its status, and drilling into a specific run reveals the complete log output for every individual step within every job. This is the primary tool for understanding what actually happened, especially once something fails in a way that isn't obvious just from reading the workflow's YAML.</div>
+</details>
+<details class="faq-item">
+<summary>If "lint" and "test" are two separate parallel jobs and "lint" fails, does "test" automatically stop?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Not by default — each job runs independently unless a dependency between them has been explicitly configured. "Test" will continue running and complete on its own timeline regardless of whether "lint" passed or failed, since nothing in a default parallel setup connects the two jobs' outcomes to each other.</div>
+</details>
+</div>
+</article>
+</body></html>

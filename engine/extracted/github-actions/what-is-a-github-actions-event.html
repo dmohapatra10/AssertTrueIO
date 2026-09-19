@@ -1,0 +1,82 @@
+<!doctype html>
+<html><head>
+<title>What is a GitHub Actions Event? Event-Driven Automation Explained</title>
+<meta name="description" content="The concept of event-driven automation in GitHub Actions — what an event actually is, where the on: key fits, and why thinking in events changes how you design a workflow." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/what-is-a-github-actions-event.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>What is a GitHub Actions Event?</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="events-and-workflow-triggers.html">Events & Workflow Triggers overview</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>An event is something that happens in a repository — a push, someone opening a pull request, a scheduled time being reached — that a workflow can be configured to respond to. Chapter 1 already used one event (<code>push</code>) without dwelling on the concept; this page makes it explicit before the rest of this chapter covers each event type in depth.</p>
+
+<h2 id="why-do-we-need-it">Why do we need it?</h2>
+<p>Without events, a workflow would need to be triggered manually every single time, defeating the entire point of automation. Event-driven design means the workflow itself declares what it cares about, and GitHub handles noticing when that thing actually happens — you never have to remember to "go run the tests," because the push itself is what starts them.</p>
+
+<h2 id="real-world-analogy">Real-World Analogy</h2>
+<p>Think of a smoke detector — it doesn't need someone to periodically check "is there smoke right now?" It's wired to react automatically the moment smoke actually appears. An event-driven workflow works the same way: it sits quietly until its specific event happens, then reacts immediately, without anyone needing to remember to check.</p>
+
+<h2 id="where-events-fit-in-a-workflow">Where Events Fit in a Workflow</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>on: push   # this "on:" key is where an event is declared</code></pre>
+<p>The <code>on:</code> key is always where a workflow declares which event (or events) it's listening for. Everything else in this chapter is really about the different ways this one key can be configured.</p>
+
+<h2 id="detailed-example-the-same-event-different-reactions">Detailed Example — The Same Event, Different Reactions</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Event: a push happens on the repository
+
+Workflow A's reaction: run the full test suite
+Workflow B's reaction: send a notification to a chat channel
+Workflow C's reaction: nothing at all — it's listening for a different event</code></pre>
+<p>The same real-world event can trigger zero, one, or many different workflows, each reacting however its own YAML file defines. A repository isn't limited to one workflow per event type — multiple workflow files can all listen for the same push event and do genuinely different things.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>If ShopEasy's repository has three separate workflow files, all with <code>on: push</code>, what happens when someone pushes code? All three trigger, independently and typically in parallel — GitHub doesn't merge them into one, and none of them know about the others by default. This matters once a repository grows to have several genuinely independent automated processes.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Thinking of an event as something you have to actively "check for" inside your workflow's logic. You don't — the event is declared once, in <code>on:</code>, and GitHub Actions itself handles noticing when it occurs. Nothing inside your steps needs to ask "did a push happen?" — by the time any step runs, that's already been established.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>The Actions tab shows exactly which event triggered each specific run — useful for confirming a workflow actually fired for the reason you expected, especially once a workflow responds to more than one event type.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Think in terms of "what real-world event should trigger this automation" before writing any YAML — the event choice shapes everything downstream.</li>
+  <li>Remember that multiple workflow files can all react to the same event independently — a repository isn't limited to one response per event type.</li>
+  <li>Use the Actions tab to confirm which event actually triggered a specific run when debugging unexpected behavior.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>An event is something that happens in a repository that a workflow can react to automatically.</li>
+  <li>The <code>on:</code> key is where a workflow declares which event(s) it's listening for.</li>
+  <li>Multiple independent workflows can all react to the same event, each with its own separate logic.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>List three real events that happen in a typical software team's daily work (not necessarily GitHub-specific) that could reasonably trigger some kind of automated reaction, and for each, describe in one sentence what that automated reaction might usefully be.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why is event-driven automation preferable to manually triggering every workflow run?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Manual triggering depends on someone remembering to do it every single time, which reintroduces exactly the kind of human-dependent unreliability CI/CD exists to eliminate. Event-driven automation means the workflow reacts automatically the moment its declared event actually happens, with no one needing to remember anything.</div>
+</details>
+<details class="faq-item">
+<summary>If a repository has three separate workflow files that all listen for the push event, what happens on a single push?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">All three workflows trigger independently — GitHub doesn't merge them into one combined workflow, and by default none of them are aware of the others running. Each executes its own separate logic in response to the same underlying event, which means a repository can have several genuinely independent automated processes all reacting to the same kind of event.</div>
+</details>
+<details class="faq-item">
+<summary>Does a workflow's steps need to explicitly check whether its triggering event actually occurred?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">No — by the time any step in a workflow actually runs, GitHub has already confirmed the declared event occurred; that's the entire reason the workflow started executing at all. The steps themselves don't need any logic to verify this, since the on: declaration and GitHub's own event detection already handled it before the workflow even began.</div>
+</details>
+<details class="faq-item">
+<summary>Where would you look to confirm exactly which event triggered a specific workflow run?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The repository's Actions tab shows this directly for every recorded run, which becomes especially useful once a single workflow is configured to respond to more than one type of event, and you need to confirm which specific one actually caused a particular run to start.</div>
+</details>
+<details class="faq-item">
+<summary>What's the practical significance of the on: key in a workflow file?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The on: key is specifically where a workflow declares which event or events it's listening for — it's the single point in the YAML file that determines when this workflow will actually be triggered at all. Every other part of the workflow (jobs, steps) only ever runs as a consequence of this declaration being satisfied.</div>
+</details>
+</div>
+</article>
+</body></html>

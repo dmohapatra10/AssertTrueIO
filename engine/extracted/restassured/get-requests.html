@@ -1,0 +1,131 @@
+<!doctype html>
+<html><head>
+<title>RestAssured GET Requests: Fetching Data, Pagination, and Filtering</title>
+<meta name="description" content="A deep guide to GET requests in RestAssured — fetching single resources, filtered collections, and paginated lists, with realistic test scenarios." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/get-requests.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>GET Requests</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="building-http-requests.html">Building HTTP Requests overview</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>given()
+.when()
+    .get("/users/2")
+.then()
+    .statusCode(200);</code></pre>
+<p>GET retrieves data without changing anything on the server — no request body, and by REST convention, no side effects. This is the method behind almost every "read" scenario you'll automate: fetching a single resource, listing a filtered collection, paging through results.</p>
+
+<h2 id="why-it-s-important">Why it's important</h2>
+<p>GET is usually the first method engineers reach for, since it's the simplest and safest — but "simple" doesn't mean there's nothing to get wrong. Query parameter construction, pagination correctness, and knowing exactly what a "not found" response should look like are where most real GET-related bugs in test suites actually live.</p>
+
+<h2 id="basic-example-fetching-a-single-resource">Basic Example — Fetching a Single Resource</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>given()
+    .pathParam("id", 2)
+.when()
+    .get("/users/{id}")
+.then()
+    .statusCode(200)
+    .body("data.id", equalTo(2));</code></pre>
+
+<h2 id="detailed-example-fetching-a-filtered-collection">Detailed Example — Fetching a Filtered Collection</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>given()
+    .queryParam("status", "active")
+    .queryParam("role", "admin")
+.when()
+    .get("/users")
+.then()
+    .statusCode(200)
+    .body("data.status", everyItem(equalTo("active")))
+    .body("data.role", everyItem(equalTo("admin")));</code></pre>
+<p>Notice the assertion checks that <em>every</em> returned item actually satisfies both filters — not just that the response came back non-empty. This catches a partially-broken filter (one that correctly narrows by status but ignores role) that a simple "results exist" assertion would miss entirely.</p>
+
+<h2 id="real-world-example-pagination-correctness">Real-World Example — Pagination Correctness</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void paginationReturnsDistinctPages() {
+    Response page1 = given().queryParam("page", 1).queryParam("limit", 10).when().get("/products");
+    Response page2 = given().queryParam("page", 2).queryParam("limit", 10).when().get("/products");
+
+    List&lt;Integer&gt; page1Ids = page1.jsonPath().getList("data.id", Integer.class);
+    List&lt;Integer&gt; page2Ids = page2.jsonPath().getList("data.id", Integer.class);
+
+    assertThat(page1Ids, hasSize(10));
+    assertThat(Collections.disjoint(page1Ids, page2Ids), is(true)); // no overlap between pages
+}</code></pre>
+<p>This is the single most valuable pagination test you can write, and the one most often skipped: confirming the item count is correct doesn't catch a broken pagination implementation that silently returns the same page of data regardless of the <code>page</code> parameter. Checking that the actual IDs differ between pages catches that class of bug directly.</p>
+
+<h2 id="testing-the-empty-result-case">Testing the Empty-Result Case</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void searchWithNoMatchesReturnsEmptyArrayNot404() {
+    given()
+        .queryParam("q", "zzz-no-such-product-exists-zzz")
+    .when()
+        .get("/products/search")
+    .then()
+        .statusCode(200) // still 200 — a search with no matches is not an error
+        .body("data", hasSize(0));
+}</code></pre>
+<p>A search or filter returning zero matches is a legitimate, successful outcome — it should return 200 with an empty array, not an error status. This is an easy case to leave completely uncovered, since most manual testing naturally gravitates toward queries that actually return something.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Only checking that SOME results came back — a broken filter that ignores
+// the "role" parameter entirely would still pass this
+.then().body("data", hasSize(greaterThan(0)));
+
+// ✅ Confirming every result actually satisfies the filter
+.then().body("data.role", everyItem(equalTo("admin")));</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Only checking result count after a filtered or paginated request</strong>, not the actual content — a count can be correct while the underlying data is wrong (a repeated page, an ignored filter).</li>
+  <li><strong>Never testing the empty-result case</strong> for a search or filter endpoint — an easy path to leave uncovered.</li>
+  <li><strong>Assuming a GET has literally zero side effects on every real API</strong> — while this is the REST convention, a poorly designed API occasionally violates it (a GET that increments a view counter); worth confirming for APIs you don't control.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Very large limit/page-size values</strong> — worth testing that the API caps them sensibly rather than allowing a client to force an unbounded response.</li>
+  <li><strong>A GET for a resource that was recently deleted</strong> — should return 404, not a stale cached copy; worth testing explicitly if the API has any caching layer.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a GET returns unexpected data, log the fully resolved URL with <code>.log().all()</code> to confirm the query parameters were actually encoded and sent the way you expect, rather than assuming the <code>.queryParam()</code> calls were interpreted correctly.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Validate actual returned content for filtered/paginated requests, not just counts.</li>
+  <li>Test the empty-result case explicitly for any search or filter endpoint.</li>
+  <li>For pagination, confirm consecutive pages return genuinely different data, not just the right count.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Write a test that fetches three pages of a paginated endpoint and asserts that no item ID appears on more than one page, confirming pagination doesn't silently duplicate results.</p>
+
+<h2 id="summary">Summary</h2>
+<p>GET requests retrieve data without side effects. Beyond the basic single-resource fetch, real GET testing means validating that filters actually filter (checking every returned item, not just the count), that pagination returns genuinely distinct pages, and that an empty result set is treated as a valid 200, not an error.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why is asserting only the item count insufficient when testing a paginated or filtered GET endpoint?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A correct count can coexist with wrong data — a broken pagination implementation might return the same items regardless of the requested page, or a broken filter might return the right number of items while ignoring the filter criteria entirely. Asserting on the actual returned content (specific IDs across pages, or that every item satisfies the filter) is what actually catches those bugs; count alone doesn't.</div>
+</details>
+<details class="faq-item">
+<summary>Why should a pagination test check actual item IDs across pages, not just that each page returns the right count?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A broken implementation could silently return the same page of data regardless of the page parameter — the count would still be correct while the underlying data is wrong; checking IDs differ catches that specific bug.</div>
+</details>
+<details class="faq-item">
+<summary>Is it acceptable for a search with no matches to return a 404?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">No — a search or filter returning zero results is a legitimate, successful outcome and should return 200 with an empty array, not an error status.</div>
+</details>
+<details class="faq-item">
+<summary>Why test that every item in a filtered result satisfies the filter, not just that results came back non-empty?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A partially broken filter (correctly narrowing by one criterion but ignoring another) would still pass a simple non-empty check; asserting every item actually matches catches that partial failure.</div>
+</details>
+<details class="faq-item">
+<summary>What's a legitimate reason a GET request might have a side effect, despite REST convention?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A poorly designed API might increment a view counter or similar on a GET — worth confirming for third-party APIs you don't control, rather than assuming REST convention is always followed strictly.</div>
+</details>
+</div>
+</article>
+</body></html>

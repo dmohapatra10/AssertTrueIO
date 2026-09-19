@@ -1,0 +1,86 @@
+<!doctype html>
+<html><head>
+<title>Configuring Environment Variables</title>
+<meta name="description" content="Real, working credential configuration — the .env file, dotenv loading, and .gitignore setup this entire tutorial&#x27;s code depends on, done safely from the start." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/configuring-environment-variables.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Configuring Environment Variables</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="project-setup-and-dependencies.html">Project Setup and Dependencies</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Setting up real, working credential configuration with <code>.env</code> and <code>dotenv</code></li>
+  <li>Why this specific setup is non-negotiable, not a nicety</li>
+  <li>Making sure a real credential can never end up in version control</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>An API key hardcoded directly in source code is a genuine, real security risk the moment that code is committed anywhere — a private repo included, since access controls change and history persists. This page sets up the correct pattern once, used unchanged for the rest of this tutorial.</p>
+
+<h2 id="step-by-step-implementation">Step-by-Step Implementation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># .env — a REAL file, in your project root, NEVER committed
+ANTHROPIC_API_KEY=sk-ant-your-real-key-here
+SHOPSMART_BASE_URL=https://shopsmart.example.com
+SHOPSMART_TEST_EMAIL=test-user@shopsmart-test.example.com
+SHOPSMART_TEST_PASSWORD=your-test-password-here</code></pre>
+
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># .gitignore — add THIS before your first commit, not after
+.env
+node_modules/
+test-results/
+playwright-report/</code></pre>
+
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/config.ts — loads and validates environment variables
+// ONCE, so every other file can trust they're genuinely present
+import dotenv from 'dotenv';
+dotenv.config();
+
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(
+      `Missing required environment variable: ${name}. ` +
+      `Copy .env.example to .env and fill in real values.`
+    );
+  }
+  return value;
+}
+
+export const config = {
+  anthropicApiKey: requireEnv('ANTHROPIC_API_KEY'),
+  shopSmartBaseUrl: requireEnv('SHOPSMART_BASE_URL'),
+  shopSmartTestEmail: requireEnv('SHOPSMART_TEST_EMAIL'),
+  shopSmartTestPassword: requireEnv('SHOPSMART_TEST_PASSWORD'),
+};</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p><code>requireEnv</code> fails loudly and immediately if a required variable is genuinely missing, rather than letting a later, confusing error surface deep inside an AI client or a Playwright test. Every other file in this tutorial imports <code>config</code> from this one module, rather than reading <code>process.env</code> directly — a single, genuine source of truth for configuration.</p>
+
+<h2 id="expected-result">Expected Result</h2>
+<p>Running a small script that imports <code>config</code> and logs <code>config.shopSmartBaseUrl</code> should print your real value — and running the same script with <code>ANTHROPIC_API_KEY</code> deliberately removed from <code>.env</code> should fail immediately, with the clear error message above, not a cryptic downstream failure.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Adding <code>.gitignore</code> after your first commit.</strong> If <code>.env</code> was ever committed, it's in your repository's history — removing it later doesn't erase that; the key should be considered compromised and rotated.</li>
+  <li><strong>Reading <code>process.env</code> directly, scattered across many files.</strong> This makes it easy to forget a required variable somewhere, and much harder to see, in one place, exactly what configuration your whole system depends on.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Create <code>.gitignore</code> with <code>.env</code> listed before your very first commit, not after.</li>
+  <li>Fail loudly and immediately on missing configuration, rather than letting it surface later as a confusing runtime error.</li>
+  <li>Commit a <code>.env.example</code> file with variable names but no real values, so teammates know exactly what to configure.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Create your own <code>.env</code>, <code>.gitignore</code>, and <code>src/config.ts</code> following this page's pattern. Then deliberately remove one required variable and confirm you get this page's clear error message, not a cryptic one — that confirms the validation is genuinely working, not just present.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Credentials belong in <code>.env</code>, never hardcoded in source — and <code>.gitignore</code> needs to exclude it before the first commit, not after.</li>
+  <li>Validating required configuration once, in one place, with a clear error message, is genuinely better than letting missing config surface as a confusing failure elsewhere.</li>
+  <li>Every later chapter's code imports this same <code>config</code> module, rather than reading environment variables directly.</li>
+</ul>
+</article>
+</body></html>

@@ -1,0 +1,103 @@
+<!doctype html>
+<html><head>
+<title>AI Trace Analysis</title>
+<meta name="description" content="Sending the full extracted action timeline to AI for analysis — genuinely deeper than Chapter 9&#x27;s single-error analysis, since the model can reason about sequence, not just a final message." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/ai-trace-analysis.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>AI Trace Analysis</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="extracting-relevant-information.html">Extracting Relevant Information</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Sending a full action timeline to AI, not just a final error message</li>
+  <li>Why sequence and timing let the model reason about causes a single error can't reveal</li>
+  <li>Applying Chapter 9's selective-sending discipline to a genuinely larger evidence source</li>
+</ul>
+
+<h2 id="introduction-genuinely-deeper-than-chapter-9">Introduction — Genuinely Deeper Than Chapter 9</h2>
+<p>Chapter 9's analysis worked from an error message and a few stack frames. This page sends the entire, ordered sequence of actions leading up to a failure — letting the model reason about what happened across the whole run, not just at the final, failing moment.</p>
+
+<h2 id="step-by-step-implementation">Step-by-Step Implementation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/analyze-trace-with-ai.ts
+import { askClaude } from './ai-client';
+import { TraceAction } from './extract-trace-data';
+
+export interface TraceAnalysis {
+  summary: string;
+  suspiciousActions: number[];
+  likelyCause: string;
+}
+
+export async function analyzeTraceTimeline(
+  actions: TraceAction[]
+): Promise&lt;TraceAnalysis&gt; {
+  // Chapter 9's OWN selective-sending discipline, applied HERE:
+  // send the FULL sequence, but TRIM verbose selector strings,
+  // which add real TOKEN cost without adding real SIGNAL
+  const summarized = actions.map((a, i) => ({
+    index: i, type: a.type, durationMs: a.durationMs,
+    hasError: !!a.error,
+  }));
+
+  const prompt = `Full action timeline from a failed Playwright
+test, in order:
+${JSON.stringify(summarized)}
+
+Analyze the SEQUENCE, not just the final failure. Look for
+actions with unusually long durations, or a pattern across
+MULTIPLE actions that suggests what went wrong.
+
+Respond with ONLY valid JSON:
+{"summary": string, "suspiciousActions": [number, ...],
+"likelyCause": string}`;
+
+  const raw = await askClaude(prompt);
+  return JSON.parse(raw);
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p>Notice <code>summarized</code> deliberately strips full selector strings before sending — Chapter 9's token-cost discipline applied here to a genuinely larger evidence source than a single error message. <code>suspiciousActions</code> returns indices, not full descriptions, letting the calling code look up full detail from the original <code>actions</code> array only for the specific steps flagged as worth investigating.</p>
+
+<h2 id="example-analyzing-shopsmart-s-full-checkout-timeline">Example — Analyzing ShopSmart's Full Checkout Timeline</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const analysis = await analyzeTraceTimeline(actions);
+
+// A REAL analysis, reasoning across the WHOLE sequence:
+// {
+//   summary: "Five actions completed normally, but the final
+//     waitForSelector took 30 seconds before timing out — no
+//     errors in the preceding actions suggest anything was
+//     already broken earlier in the sequence.",
+//   suspiciousActions: [3],
+//   likelyCause: "The Order Confirmed heading never appeared
+//     within the timeout — since prior actions succeeded
+//     normally, this points to either the heading's locator
+//     changing, or the confirmation page not loading."
+// }</code></pre>
+
+<h2 id="why-it-matters-sequence-reveals-what-a-single-error-can-t">Why It Matters — Sequence Reveals What a Single Error Can't</h2>
+<p>Chapter 9's analysis, working from the error alone, could reasonably suspect several causes. This chapter's sequence-aware analysis can rule some out directly — since every action before the failing one completed with no errors and normal timing, a cascading earlier problem becomes much less likely, narrowing the genuinely plausible explanations before the next page even looks at a screenshot.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Sending the full, unsummarized action array, selectors included, for every analysis.</strong> This repeats exactly the cost problem Chapter 9's selective-sending page addressed — genuinely necessary here too, at a larger scale.</li>
+  <li><strong>Only looking at the failing action, ignoring the sequence before it.</strong> This throws away exactly the information that makes trace analysis genuinely more powerful than Chapter 9's single-error approach.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Summarize verbose fields (like full selector strings) before sending a full timeline — the same cost discipline from Chapter 9, applied at trace scale.</li>
+  <li>Return indices for flagged actions, not full descriptions, letting calling code look up detail only when genuinely needed.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Run this page's function against a real, extracted timeline from your own project. Compare its <code>likelyCause</code> against what Chapter 9's simpler, error-only analysis would have concluded for the same failure — note anything the sequence-aware version caught that the simpler one couldn't have.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Sending a full action sequence, not just a final error, lets the model reason about timing and pattern across an entire run.</li>
+  <li>Chapter 9's selective-sending discipline still applies — summarizing verbose fields before sending keeps this genuinely larger evidence source affordable.</li>
+  <li>Sequence-aware analysis can rule out explanations a single-error analysis couldn't, narrowing what's genuinely plausible before deeper investigation.</li>
+</ul>
+</article>
+</body></html>

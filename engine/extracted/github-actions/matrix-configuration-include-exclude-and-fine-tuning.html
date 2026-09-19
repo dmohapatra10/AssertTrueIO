@@ -1,0 +1,122 @@
+<!doctype html>
+<html><head>
+<title>GitHub Actions Matrix Configuration: include, exclude, fail-fast &amp; max-parallel</title>
+<meta name="description" content="Fine-tuning a matrix build — adding extra one-off combinations with include, removing specific ones with exclude, and controlling fail-fast and parallelism behavior." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/matrix-configuration-include-exclude-and-fine-tuning.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Matrix Configuration: include, exclude &amp; Fine-Tuning</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="what-is-a-matrix-testing-versions-and-operating-systems.html">What is a Matrix? Testing Multiple Versions & OSes</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>A plain matrix generates every combination of every dimension — sometimes that's exactly right, and sometimes you genuinely need to exclude a specific, known-incompatible combination, or add one extra combination that doesn't fit the regular pattern. <code>include</code> and <code>exclude</code> handle exactly this.</p>
+
+<h2 id="exclude-removing-specific-combinations">exclude — Removing Specific Combinations</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>strategy:
+  matrix:
+    node-version: [18, 20, 22]
+    os: [ubuntu-latest, windows-latest]
+    exclude:
+      - node-version: 18
+        os: windows-latest</code></pre>
+<p>This still generates the full 3×2 combinations, then removes exactly the one specified — Node 18 on Windows never actually runs, while the other five combinations proceed normally. Genuinely useful when one specific combination is known to be unsupported or irrelevant.</p>
+
+<h2 id="include-adding-extra-non-standard-combinations">include — Adding Extra, Non-Standard Combinations</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>strategy:
+  matrix:
+    node-version: [18, 20, 22]
+    os: [ubuntu-latest]
+    include:
+      - node-version: 20
+        os: macos-latest
+        experimental: true</code></pre>
+<p>This adds one extra combination — Node 20 on macOS — that doesn't fit the regular pattern of "every Node version × every OS," along with an extra <code>experimental: true</code> flag only present on this specific combination.</p>
+
+<h2 id="fail-fast-stopping-the-whole-matrix-on-one-failure">fail-fast — Stopping the Whole Matrix on One Failure</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>strategy:
+  fail-fast: true    # DEFAULT — one failure cancels all other matrix jobs
+  matrix:
+    node-version: [18, 20, 22]</code></pre>
+<p>By default, if any single matrix combination fails, GitHub cancels the rest of the still-running combinations immediately, rather than letting them all finish. This saves CI time when a failure is likely to affect every combination anyway, but it also means you might not see results from combinations that were still genuinely running when the cancellation happened.</p>
+
+<h2 id="setting-fail-fast-false">Setting fail-fast: false</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>strategy:
+  fail-fast: false   # let every combination run to completion, regardless
+  matrix:
+    node-version: [18, 20, 22]</code></pre>
+<p>Genuinely useful when you want complete information from every combination — for instance, discovering that a bug affects Node 18 specifically but not 20 or 22, information you'd lose if the whole matrix stopped early after the first failure.</p>
+
+<h2 id="max-parallel-limiting-concurrent-matrix-jobs">max-parallel — Limiting Concurrent Matrix Jobs</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>strategy:
+  max-parallel: 2   # only 2 matrix combinations run at once, not all simultaneously
+  matrix:
+    node-version: [18, 20, 22, 23]</code></pre>
+<p>By default, every matrix combination runs simultaneously (subject to your account's overall concurrency limits). <code>max-parallel</code> deliberately throttles this — useful when a matrix's combined resource usage (hitting a shared external service, for instance) could genuinely be a problem if every combination ran at the exact same moment.</p>
+
+<h2 id="detailed-example-all-four-combined-for-a-real-scenario">Detailed Example — All Four, Combined for a Real Scenario</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>strategy:
+  fail-fast: false        # want to see EVERY combination's actual result
+  max-parallel: 3          # limit concurrent runs against a shared test database
+  matrix:
+    node-version: [18, 20, 22]
+    os: [ubuntu-latest, windows-latest]
+    exclude:
+      - node-version: 18
+        os: windows-latest   # known unsupported combination
+    include:
+      - node-version: 22
+        os: macos-latest
+        experimental: true    # extra, non-standard combination to also check</code></pre>
+<p>This produces a genuinely deliberate, fine-tuned set of combinations — not just "every possible pairing," but exactly the set that reflects what's actually meaningful to test, with controlled concurrency and full visibility into every result.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might <code>fail-fast: false</code> be worth its extra CI time cost for a matrix specifically testing compatibility across versions? If the whole point of the matrix is discovering exactly <em>which</em> versions have a problem, stopping early after the first failure defeats that purpose — you'd know something failed, but not whether it's isolated to one version or affects all of them, which is precisely the information a compatibility matrix exists to reveal.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Leaving <code>fail-fast</code> at its default (<code>true</code>) for a matrix genuinely meant to reveal version-specific or OS-specific behavior, then being confused when several combinations show as "cancelled" rather than actually completing — losing exactly the granular information the matrix was built to provide.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p><code>exclude</code> only removes combinations that would otherwise be generated by the matrix's own dimensions — it can't add something new. Anything genuinely outside the regular pattern needs <code>include</code> instead.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Use <code>exclude</code> for known-incompatible or irrelevant combinations, keeping the matrix's core dimensions clean.</li>
+  <li>Use <code>include</code> sparingly, for genuinely one-off combinations that don't fit the regular pattern.</li>
+  <li>Set <code>fail-fast: false</code> when the actual goal is discovering which specific combinations have a problem, not just whether any do.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li><code>exclude</code> removes specific combinations the matrix would otherwise generate; <code>include</code> adds extra, non-standard ones.</li>
+  <li><code>fail-fast: true</code> (the default) cancels remaining matrix jobs after any single failure; <code>false</code> lets every combination finish.</li>
+  <li><code>max-parallel</code> deliberately limits how many matrix combinations run simultaneously.</li>
+</ul>
+
+<h2 id="challenge">🏆 Challenge</h2>
+<p>For a matrix testing Python 3.10, 3.11, and 3.12 on Ubuntu and Windows, write the configuration to exclude Python 3.10 on Windows (a known unsupported combination) and add an extra Python 3.13 pre-release combination on Ubuntu only, using <code>include</code>.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>What's the practical difference between exclude and include in a matrix configuration?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">exclude removes a specific combination that the matrix's own dimensions would otherwise generate — it can only subtract from what already exists. include adds an entirely new, extra combination that doesn't need to fit the regular pattern of the matrix's dimensions at all, potentially introducing values or flags not present anywhere else in the matrix.</div>
+</details>
+<details class="faq-item">
+<summary>Why might fail-fast: false be the right choice for a matrix specifically testing version compatibility?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The actual purpose of a compatibility matrix is discovering which specific combinations have a problem, not just whether any combination fails at all. With the default fail-fast: true, a single early failure cancels the remaining combinations, potentially hiding whether the problem is isolated to one version or affects several — exactly the granular information fail-fast: false preserves by letting every combination run to completion.</div>
+</details>
+<details class="faq-item">
+<summary>What does max-parallel actually control, and why might a team deliberately set it lower than the number of matrix combinations?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">max-parallel limits how many matrix combinations run simultaneously, rather than letting every combination execute at the exact same time by default. A team might set it lower when the combined resource usage of all combinations running at once could genuinely strain a shared resource, like an external test database or a rate-limited third-party service.</div>
+</details>
+<details class="faq-item">
+<summary>Can exclude be used to add a matrix combination that wouldn't otherwise exist from the matrix's own dimensions?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">No — exclude can only remove combinations that the matrix's dimensions would already generate; it has no capability to introduce something new. Adding a genuinely extra, non-standard combination requires include instead, which is specifically designed to add combinations outside the regular pattern.</div>
+</details>
+<details class="faq-item">
+<summary>What happens to still-running matrix jobs when one combination fails, under the default fail-fast setting?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Under the default fail-fast: true, GitHub Actions cancels the remaining, still-running matrix combinations as soon as any single one fails, rather than letting them continue to completion. This saves CI time in situations where a failure likely affects every combination, but it also means results from the cancelled combinations are never actually obtained for that run.</div>
+</details>
+</div>
+</article>
+</body></html>

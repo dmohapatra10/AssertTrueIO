@@ -1,0 +1,146 @@
+<!doctype html>
+<html><head>
+<title>RestAssured PATCH Requests: Partial Resource Updates</title>
+<meta name="description" content="A deep guide to PATCH requests in RestAssured — partial update semantics, when PATCH is and isn&#x27;t idempotent, and testing that omitted fields stay untouched." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/patch-requests.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>PATCH Requests</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="put-requests.html">PUT Requests</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>given()
+    .contentType(ContentType.JSON)
+    .pathParam("id", orderId)
+    .body(Map.of("quantity", 5)) // ONLY the field changing
+.when()
+    .patch("/orders/{id}")
+.then()
+    .statusCode(200);</code></pre>
+<p>PATCH applies a partial update — only the fields included in the payload change; everything else on the resource stays exactly as it was. This is the natural counterpart to the previous page's PUT, and choosing between them correctly matters directly for data integrity.</p>
+
+<h2 id="why-it-s-important">Why it's important</h2>
+<p>PATCH is generally the safer default for "update one or two fields" scenarios, since it doesn't carry PUT's risk of silently clobbering fields you forgot to include. But PATCH has its own subtlety worth understanding: unlike PUT, it isn't always idempotent.</p>
+
+<h2 id="basic-example">Basic Example</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>given()
+    .contentType(ContentType.JSON)
+    .pathParam("id", orderId)
+    .body(Map.of("quantity", 5))
+.when()
+    .patch("/orders/{id}")
+.then()
+    .statusCode(200)
+    .body("quantity", equalTo(5));</code></pre>
+
+<h2 id="detailed-example-confirming-omitted-fields-stay-untouched">Detailed Example — Confirming Omitted Fields Stay Untouched</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void patchOnlyChangesSpecifiedFields() {
+    Response created = given()
+        .body(Map.of("item", "Wireless Mouse", "quantity", 1, "giftNote", "For Alex"))
+        .when().post("/orders");
+    String id = created.jsonPath().getString("id");
+
+    given()
+        .pathParam("id", id)
+        .body(Map.of("quantity", 5)) // ONLY quantity
+    .when()
+        .patch("/orders/{id}");
+
+    Response fetched = given().pathParam("id", id).when().get("/orders/{id}");
+    fetched.then()
+        .body("quantity", equalTo(5))              // changed, as intended
+        .body("giftNote", equalTo("For Alex"))      // UNCHANGED — proves this was a real partial update
+        .body("item", equalTo("Wireless Mouse"));   // UNCHANGED
+}</code></pre>
+<p>That second and third assertion are doing the real work here — confirming the field you intentionally changed changed is necessary but not sufficient; confirming fields you <em>didn't</em> touch are still correct is what actually proves the update was genuinely partial and didn't accidentally affect anything else.</p>
+
+<h2 id="why-patch-isn-t-always-idempotent">Why PATCH Isn't Always Idempotent</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// A simple field-replacement PATCH IS idempotent — sending it twice
+// produces the same end state as sending it once
+given().body(Map.of("status", "confirmed")).when().patch("/orders/{id}"); // idempotent
+
+// A RELATIVE-change PATCH is NOT idempotent — applying it twice
+// produces a DIFFERENT result than applying it once
+given().body(Map.of("increment", 1)).when().patch("/orders/{id}/quantity"); // NOT idempotent</code></pre>
+<p>This distinction is worth testing explicitly if your API supports relative-change PATCH operations (increment/decrement style, common in inventory or counter APIs) — don't assume PATCH is safe to retry blindly the way PUT is, without first confirming which flavor a specific endpoint implements.</p>
+
+<h2 id="real-world-example-testing-idempotence-or-the-lack-of-it-directly">Real-World Example — Testing Idempotence (or the Lack of It) Directly</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void relativePatchIsNotIdempotent() {
+    Response before = given().pathParam("id", id).when().get("/orders/{id}");
+    int startingQuantity = before.jsonPath().getInt("quantity");
+
+    given().pathParam("id", id).body(Map.of("increment", 1)).when().patch("/orders/{id}/quantity");
+    given().pathParam("id", id).body(Map.of("increment", 1)).when().patch("/orders/{id}/quantity");
+
+    Response after = given().pathParam("id", id).when().get("/orders/{id}");
+    // Called twice — quantity should have increased by 2, NOT stayed the same
+    // (which is what a genuinely idempotent operation would do)
+    assertThat(after.jsonPath().getInt("quantity"), equalTo(startingQuantity + 2));
+}</code></pre>
+<p>Writing this test explicitly documents and verifies the API's actual (non-idempotent) behavior — useful both as regression coverage and as living documentation for anyone reading the test later, wondering whether this specific endpoint is safe to retry.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Sending the full resource to a PATCH endpoint, unnecessary and
+// risking accidentally overwriting a field that changed between read and write
+given().body(fullOrderObject).when().patch("/orders/{id}");
+
+// ✅ Send only what's actually changing
+given().body(Map.of("quantity", 5)).when().patch("/orders/{id}");</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Sending a full resource payload to PATCH</strong> unnecessarily — defeats the point of partial updates, and can reintroduce PUT-style overwrite risk if the payload is stale.</li>
+  <li><strong>Assuming all PATCH operations are idempotent</strong> — true for simple field-replacement patches, not guaranteed for relative/incremental ones.</li>
+  <li><strong>Only asserting the changed field</strong>, never confirming untouched fields stayed that way — misses exactly the bug class PATCH testing needs to catch.</li>
+  <li><strong>Not checking which PATCH format an API expects</strong> — some APIs expect a plain partial JSON object (shown throughout this page), others expect a formal JSON Patch document (an array of operations); check the API's documentation.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>JSON Patch format</strong> (RFC 6902) — some APIs expect PATCH bodies as an array of explicit operations (<code>[{"op": "replace", "path": "/quantity", "value": 5}]</code>) rather than a plain partial object; this is a distinct, more formal convention worth recognizing if you encounter it.</li>
+  <li><strong>Patching a field to null explicitly</strong> vs. omitting it — some APIs distinguish "set this field to null" from "don't touch this field," which matters for how you construct the payload.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a PATCH test fails because an unexpected field changed, check whether the payload accidentally included more than intended — a full-object payload sent to what should have been a targeted PATCH is the most common cause.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Send only the fields actually changing — don't pad a PATCH payload with unchanged fields.</li>
+  <li>Always assert both the changed field and at least one deliberately-unchanged field, to prove the update was genuinely partial.</li>
+  <li>Confirm whether a specific PATCH endpoint is idempotent before assuming it's safe to retry — don't extend PUT's idempotence guarantee to PATCH by default.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Create a resource with three fields, PATCH only one of them, and write assertions confirming the changed field has its new value while the other two remain exactly as they were originally set.</p>
+
+<h2 id="summary">Summary</h2>
+<p>PATCH updates only the fields included in its payload, leaving everything else untouched — the safer default for single-field updates compared to PUT's full-replacement risk. Simple field-replacement PATCHes are typically idempotent, but relative/incremental ones (increment-by-N style) are not — a distinction worth testing explicitly rather than assuming.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Give an example of a PATCH operation that is NOT idempotent, and explain why.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A PATCH that applies a relative change — like <code>{"increment": 1}</code> against a quantity field — is not idempotent, because applying it twice produces a different result than applying it once (the value increases by 2, not 1). This contrasts with a simple field-replacement PATCH like <code>{"status": "confirmed"}</code>, which IS idempotent — setting the same absolute value twice produces the identical end state both times. The distinction matters for retry safety: a relative PATCH should never be blindly retried after an ambiguous failure, since a duplicate application produces a genuinely different, incorrect result.</div>
+</details>
+<details class="faq-item">
+<summary>Is PATCH always idempotent?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">No — a simple field-replacement PATCH usually is, but a relative-change PATCH (like {"increment": 1}) is not, since applying it twice produces a different result than applying it once.</div>
+</details>
+<details class="faq-item">
+<summary>Why send only the changing field to PATCH instead of the full resource?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Sending the full resource defeats PATCH's purpose and risks accidentally overwriting a field that changed between when you read the resource and when you wrote the update.</div>
+</details>
+<details class="faq-item">
+<summary>What does asserting an unchanged field after a PATCH actually prove?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">That the update was genuinely partial — the changed field updated correctly AND everything else was left alone, which a check of only the changed field can't confirm on its own.</div>
+</details>
+<details class="faq-item">
+<summary>What's JSON Patch (RFC 6902) and how does it differ from a plain partial object?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Some APIs expect PATCH bodies as a formal array of explicit operations (like [{"op":"replace","path":"/quantity","value":5}]) rather than a simple partial JSON object — a distinct, more formal convention worth recognizing if encountered.</div>
+</details>
+</div>
+</article>
+</body></html>

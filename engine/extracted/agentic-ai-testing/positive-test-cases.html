@@ -1,0 +1,181 @@
+<!doctype html>
+<html><head>
+<title>Positive Test Cases: Confirming Things Work as Intended</title>
+<meta name="description" content="What genuinely counts as a positive test case, why &#x27;the happy path&#x27; is often too narrow a definition, and how to prompt AI for genuinely complete positive coverage." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/positive-test-cases.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Positive Test Cases</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="from-requirement-to-test-scenario.html">From Requirement to Test Scenario</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>A positive test case confirms a feature works correctly when used as intended — but "as intended" is genuinely broader than just the single most obvious path, which is exactly where a first-pass generation attempt often falls short.</p>
+
+<h2 id="beyond-the-happy-path">Beyond "The Happy Path"</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>❌ A single, narrow positive case (this page's earlier example
+   from the previous page only had two):
+  "Apply a valid percentage code to a qualifying order."
+
+✅ Genuinely complete positive coverage, for the SAME requirement:
+  1. Apply a valid PERCENTAGE code — discount calculated correctly
+  2. Apply a valid FIXED-AMOUNT code — exact amount deducted
+  3. Apply a code in a DIFFERENT letter case than it was created
+     with — still works (case-insensitivity is a real, intended
+     behavior, not just an edge case to tolerate)
+  4. Apply a code to an order EXACTLY at the minimum threshold —
+     genuinely qualifies (this is also a boundary case, covered
+     on its own page — genuinely useful scenarios can belong to
+     more than one category)
+  5. Apply a code, then successfully complete checkout — the
+     discount persists through to the final order</code></pre>
+<p>Notice how many of these come directly from re-reading the requirement itself, checking each explicitly stated behavior — percentage discounts, fixed discounts, case-insensitivity — has its own positive confirmation, not just the single most obvious "a code works" case.</p>
+
+<h2 id="a-genuinely-useful-prompt-specifically-for-positive-coverage">A Genuinely Useful Prompt Specifically for Positive Coverage</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def generate_positive_cases(requirement, client):
+    prompt = f"""Given this requirement, list EVERY distinct
+INTENDED behavior it describes, then write one positive test
+case confirming each one works correctly. Don't just cover the
+most obvious case — make sure every explicitly stated behavior
+in the requirement has its own confirming test case.
+
+Requirement:
+{requirement}
+"""
+    response = client.messages.create(
+        model="claude-sonnet-4-6", max_tokens=1024,
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return response.content[0].text</code></pre>
+<p>The instruction to first list every distinct intended behavior, then confirm each one, is doing real work here — it forces a genuinely systematic pass through the requirement rather than free-associating a few obvious scenarios.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might "apply a code in a different letter case" genuinely belong as a positive test case, rather than feeling like an edge case at first glance? The requirement explicitly states codes are case-insensitive — that's a real, intended behavior the feature is SUPPOSED to have, not an unusual situation being tolerated. A positive case confirms intended behavior works; since case-insensitivity is explicitly intended, testing it with mixed-case input is confirming the feature does what it's supposed to, which is exactly the definition of a positive case, even though it might initially feel like it belongs elsewhere.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Writing only one positive case per feature — "it works with valid input" — and treating that as sufficient positive coverage. A feature with several distinct intended behaviors (as ShopEasy's discount codes genuinely have: percentage vs. fixed, case-insensitivity, minimum thresholds) needs a positive case confirming each one, not just a single generic "valid input works" check.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>A genuinely useful technique for finding positive cases you might have missed: go through the requirement sentence by sentence, and for each one, ask "is there a positive case that specifically confirms THIS sentence's behavior?" Any sentence without a matching case is a real, concrete gap.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Treat every explicitly stated intended behavior in a requirement as needing its own positive confirmation, not just the single most obvious path.</li>
+  <li>Prompt AI generation to systematically enumerate behaviors first, then confirm each — rather than free-associating scenarios.</li>
+  <li>Recognize that a scenario can genuinely belong to more than one category (like the minimum-threshold example being both positive and boundary).</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Positive test cases confirm intended behavior works — genuinely broader than just "the happy path," covering every distinct behavior a requirement describes.</li>
+  <li>A systematic, sentence-by-sentence pass through the requirement reveals positive cases a single free-form generation attempt often misses.</li>
+  <li>Some scenarios legitimately belong to multiple categories at once — this isn't a classification error, just a genuine overlap worth noting.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Go through this chapter's discount-code requirement sentence by sentence yourself, and write one positive test case for each distinct behavior it describes — checking your list against this page's own five examples to see if you found any it didn't include, or vice versa.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A generated list has only one positive case: "valid code applies discount correctly." A reviewer says this is insufficient. What specifically would you ask the reviewer to clarify, and how would you fix the generation prompt?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd ask the reviewer to identify which SPECIFIC intended behaviors from the requirement aren't represented by that single generic case — a vague "insufficient" isn't actionable on its own, but this page's systematic approach makes the gap concrete.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Likely gaps the reviewer would identify, checking against the
+requirement sentence by sentence:
+- Percentage discount specifically confirmed? NO — only a
+  generic "code" is mentioned, not which TYPE
+- Fixed-amount discount specifically confirmed? NO — same issue
+- Case-insensitivity specifically confirmed? NO — not mentioned
+  at all in the single generic case
+
+Fixed prompt (per this page's actual recommendation):
+"List EVERY distinct intended behavior, then write one
+  positive case confirming EACH one" — forces exactly this
+  systematic coverage instead of one generic case standing in
+  for several genuinely distinct behaviors.</code></pre>
+<p>The fix isn't just "generate more cases" vaguely — it's applying this page's specific technique of enumerating behaviors first, which turns a vague "insufficient" critique into a concrete, checkable gap analysis.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page argue that "apply a code in a different letter case" is a positive case, when it might initially feel more like testing an unusual or edge situation?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because the actual test of "is this positive or edge" is whether the behavior being tested is EXPLICITLY INTENDED by the requirement, not whether the input itself feels unusual to a human reading it casually.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>The requirement explicitly states: "Codes are case-insensitive."
+
+This means mixed-case input ISN'T an unusual situation the
+  system happens to handle gracefully — it's an EXPLICITLY
+  DESIGNED, intended behavior. Testing it confirms the feature
+  works exactly as specified, which is precisely what a
+  positive case does, regardless of whether the specific INPUT
+  (mixed case) feels superficially "unusual."
+
+Contrast with a GENUINE edge case (covered on its own page):
+Something the requirement DOESN'T explicitly address, where
+  correct behavior isn't clearly, explicitly specified —
+  that's the real distinguishing signal for "edge," not just
+  whether an input looks unusual on the surface.</code></pre>
+<p>This distinction — explicitly intended vs. genuinely unspecified — is the real, principled way to classify a scenario, rather than relying on a surface-level feeling of "does this seem normal or unusual."</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why a scenario like "order value exactly at the minimum threshold" can legitimately belong to both positive AND boundary categories, rather than needing to pick exactly one.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>The categories describe genuinely different DIMENSIONS of a scenario — "positive vs. negative" is about whether the outcome should succeed or fail; "boundary" is about WHERE on a range the specific input sits. A single scenario can genuinely be characterized along both dimensions at once.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>"Order value exactly at the minimum threshold":
+
+As a POSITIVE case: the EXPECTED OUTCOME is success — the
+  order genuinely qualifies for the discount at exactly this
+  value, confirming the feature works correctly at this point.
+
+As a BOUNDARY case: the INPUT VALUE is specifically chosen at
+  the EDGE of a valid range (exactly the minimum), rather than
+  a comfortably-mid-range value — this is what makes it a
+  boundary test specifically, regardless of whether the
+  expected outcome is success or failure.</code></pre>
+<p>These aren't competing classifications needing a single "correct" answer — they're describing two genuinely different aspects of the same scenario, and a mature test-scenario list can and should recognize this overlap rather than forcing artificial either/or categorization.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might prompting for positive cases with "list every distinct intended behavior first" produce more reliable results than simply asking for "comprehensive positive test cases"?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>"Comprehensive" is a genuinely vague instruction that doesn't give the LLM a concrete method for achieving completeness — the two-step "list behaviors, then confirm each" instruction provides an actual, systematic process, which tends to produce more reliable, checkable results.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Vague instruction: "generate comprehensive positive test cases"
+Doesn't specify WHAT would make the result comprehensive —
+  leaves the LLM to decide on its own criteria for
+  "comprehensive," which can vary and may not systematically
+  cover the requirement's actual distinct behaviors.
+
+Concrete, two-step instruction (this page's actual approach):
+"List every distinct intended behavior, THEN write one case
+  confirming each" — gives an explicit, checkable METHOD. A
+  human reviewer can verify: did the first list genuinely
+  capture every behavior in the requirement? Does each item
+  in that list have a corresponding test case? This is a
+  concrete, auditable process, not just a vague quality target.</code></pre>
+<p>The general lesson, useful well beyond just positive cases: prompting for a specific PROCESS, not just a vague quality outcome, tends to produce results that are both more complete and more genuinely checkable by a human reviewer afterward.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you know whether your positive test case list is genuinely complete, versus just longer than a first attempt?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Completeness isn't about length — it's specifically about whether every distinct behavior explicitly stated in the requirement has at least one corresponding positive case, checkable through a direct, requirement-by-requirement comparison, not by simply counting how many cases were generated.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A genuinely useful completeness check:
+1. Go through the REQUIREMENT sentence by sentence (this
+   page's own recommended technique)
+2. For each sentence describing an intended behavior, confirm
+   AT LEAST ONE generated positive case specifically tests it
+3. Any requirement sentence with NO matching case is a real,
+   concrete gap — regardless of how many OTHER cases exist
+
+A longer list ISN'T automatically more complete:
+10 variations all testing percentage discounts, with ZERO
+  cases for fixed-amount discounts or case-insensitivity, is
+  LESS complete than a shorter, 3-case list that touches each
+  distinct behavior once — length alone is a poor, misleading
+  proxy for genuine coverage.</code></pre>
+<p>The real standard is requirement-behavior coverage, not case count — a systematic, sentence-by-sentence check against the actual requirement is the only reliable way to confirm genuine completeness, matching this page's own recommended technique.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

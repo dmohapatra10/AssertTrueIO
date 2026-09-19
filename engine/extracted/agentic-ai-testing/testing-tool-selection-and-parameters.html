@@ -1,0 +1,205 @@
+<!doctype html>
+<html><head>
+<title>Testing Tool Selection and Parameters: The Right Tool, Called Correctly</title>
+<meta name="description" content="Two genuinely distinct failure points in every tool call — choosing the wrong tool, and calling the right tool with wrong parameters — with real tests for each." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/testing-tool-selection-and-parameters.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Testing Tool Selection and Parameters</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="testing-agent-planning.html">Testing Agent Planning</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Every single tool call an agent makes has two genuinely separate ways to go wrong — calling the WRONG tool entirely, or calling the RIGHT tool with WRONG parameters. Both need their own, distinct tests.</p>
+
+<h2 id="testing-tool-selection-did-it-pick-the-right-tool">Testing Tool Selection — Did It Pick the Right Tool?</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def test_tool_selection(observation_context, expected_tool_category, client):
+    prompt = f"""Given this situation an agent is reasoning
+about: {observation_context}
+
+The agent has these tools available: click_element, fill_field,
+get_page_text. Which tool SHOULD it use next, and does this
+match the EXPECTED category: {expected_tool_category}?"""
+    result = client.messages.create(
+        model="claude-sonnet-4-6", max_tokens=200,
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return result.content[0].text
+
+# A genuine test case:
+test_tool_selection(
+    observation_context="Currently on the login page, email "
+        "field is empty, need to authenticate.",
+    expected_tool_category="fill_field (to enter credentials)",
+    client=client
+)</code></pre>
+
+<h2 id="testing-tool-parameters-called-correctly">Testing Tool Parameters — Called Correctly?</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def test_tool_parameters(actual_tool_call, page_context):
+    # This part is GENUINELY deterministic — checking whether
+    # the SPECIFIC parameters used actually correspond to
+    # something REAL on the page, exactly Chapter 5's own
+    # AI Locator Selection verification approach
+    if actual_tool_call["tool"] == "click_element":
+        role = actual_tool_call["input"]["role"]
+        name = actual_tool_call["input"]["name"]
+        matches = page_context.locator(f"[role='{role}']", has_text=name)
+        return {
+            "valid": matches.count() &gt;= 1,
+            "issue": None if matches.count() &gt;= 1 else
+                f"No element found matching role='{role}', name='{name}'",
+        }</code></pre>
+
+<h2 id="a-genuine-case-where-selection-passes-but-parameters-fail">A Genuine Case Where Selection Passes but Parameters Fail</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Situation: on the checkout page, ready to place the order.
+
+TOOL SELECTION check: PASSES — the agent correctly chose
+  click_element (the right CATEGORY of tool for this situation).
+
+TOOL PARAMETERS check: FAILS — it called click_element(role=
+  'button', name='Place Order'), but the REAL page's button is
+  actually labeled 'Confirm Purchase' — the RIGHT TOOL, called
+  with a PARAMETER that doesn't correspond to anything real.
+
+This is exactly why BOTH checks are genuinely necessary —
+selection testing alone would have reported this as fully
+correct, completely missing the real, parameter-level problem.</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why does tool-parameter testing use deterministic, exact checking (locating a real page element) rather than an LLM reasoning about whether the parameters "seem right"? Whether a specific role and name combination matches a real, existing element on the actual page is a genuinely exact, checkable fact — exactly the same exact-vs-fuzzy distinction from Chapter 5 onward. Reasoning about whether parameters "seem plausible" would be strictly weaker than actually checking them against the real page, exactly the same principle that made Chapter 5's AI Locator Selection page use deterministic strategies rather than asking an LLM to guess whether a locator seems reasonable.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Testing only tool selection (did it choose the right category of action) without also testing tool parameters (did it call that tool with values that actually correspond to something real). This page's checkout example shows these are genuinely independent failure points — passing one doesn't confirm the other.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>Tool-parameter testing can often reuse the exact same locator-verification logic already built into an agent's own tools (Chapter 5's <code>find_and_click</code> pattern) — if a tool call would have failed to find a matching element at execution time, that's the same signal this kind of test should also catch, just verified independently before or alongside actual execution.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Test tool selection and tool parameters as two genuinely separate checks — passing one never confirms the other.</li>
+  <li>Use exact, deterministic verification for parameters wherever a real, checkable fact exists (like whether an element genuinely exists), not LLM judgment about plausibility.</li>
+  <li>Reuse an agent's own tool-level verification logic where possible, rather than building entirely separate parameter-checking code.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Tool selection (right category of action) and tool parameters (correct values for that action) are genuinely independent failure points needing separate tests.</li>
+  <li>Parameter testing should use exact, deterministic verification against real page state wherever possible, not fuzzy plausibility judgment.</li>
+  <li>A tool call can pass selection testing while completely failing parameter testing, exactly this page's own checkout-button example.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Write a genuine test case (following this page's <code>test_tool_selection</code> pattern) for a situation where the agent should choose <code>get_page_text</code> rather than <code>click_element</code> or <code>fill_field</code>, and explain what observation context would make this the clearly correct tool category.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>An agent's test suite reports "tool selection: 100% correct" for a recent run. A reviewer asks whether this means the run is fully verified. What would you tell them, using this page's checkout example?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd say no — 100% correct tool SELECTION says nothing about whether the tools were called with correct PARAMETERS, exactly this page's own checkout-button example, where selection passed completely while parameters failed entirely.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What "100% tool selection correct" GENUINELY confirms:
+At EVERY step, the agent chose the RIGHT CATEGORY of action —
+  click_element for clicking, fill_field for filling, etc. A
+  genuinely real, useful confirmation, but SCOPED specifically
+  to CATEGORY choice.
+
+What it does NOT confirm, per THIS page's own example:
+Whether the SPECIFIC PARAMETERS used (role='button', name=
+  'Place Order') actually correspond to something REAL on the
+  page — the checkout example shows this can FAIL COMPLETELY
+  even with PERFECT tool selection, since 'Place Order' didn't
+  match the REAL button labeled 'Confirm Purchase' at all.</code></pre>
+<p>The reviewer needs BOTH metrics — selection AND parameters — before considering a run's tool usage fully verified; either one alone leaves a genuine, real gap the other is specifically designed to catch.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page's test_tool_parameters function use deterministic page-element lookup rather than asking an LLM "does this parameter seem correct"?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Whether a specific role/name combination matches a REAL element is a genuinely exact, checkable fact — an LLM asked to judge "plausibility" would be doing STRICTLY WEAKER verification than actually checking against the real page, exactly the same reasoning Chapter 5 applied to locator strategy design.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What an LLM "does this SEEM correct" judgment could MISS:
+"role='button', name='Place Order'" SOUNDS entirely plausible
+  as a checkout button's parameters — an LLM with NO ACCESS to
+  the REAL page might judge this as GENUINELY reasonable,
+  completely missing that the ACTUAL page uses different text.
+
+What DETERMINISTIC lookup catches RELIABLY, every time:
+matches.count() &gt;= 1 — this DIRECTLY checks reality, not
+  PLAUSIBILITY. If the REAL page doesn't have a MATCHING
+  element, this check FAILS, REGARDLESS of how "reasonable"
+  the parameter might have SOUNDED to an LLM with no direct
+  access to verify against the actual, current page.</code></pre>
+<p>This is exactly the same principle from Chapter 5's own locator-strategy design — when a genuinely exact, checkable fact is available (does a real element exist), use deterministic verification; reserve LLM reasoning for questions that genuinely require judgment, which "does this element exist" simply isn't.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why "the right tool, called with wrong parameters" and "the wrong tool entirely" represent genuinely different underlying agent problems, not just two flavors of the same mistake.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>These point to genuinely different parts of the agent's reasoning process — wrong TOOL selection suggests a failure in understanding WHAT KIND of action the situation calls for; wrong PARAMETERS with the RIGHT tool suggests the agent understood the action type correctly but failed at GROUNDING it in the actual, current page state.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>WRONG tool selection — a HIGHER-LEVEL reasoning problem:
+Choosing fill_field when the situation actually calls for
+  click_element suggests the agent MISUNDERSTOOD what KIND of
+  interaction the situation requires — a problem with its
+  OVERALL situational understanding.
+
+RIGHT tool, WRONG parameters — a DIFFERENT, more SPECIFIC
+problem:
+Correctly choosing click_element, but with parameters that
+  don't match anything real, suggests the agent understood
+  WHAT to do (click something) but failed specifically at
+  IDENTIFYING WHICH real element to target — a problem with
+  GROUNDING its correct high-level understanding in the actual,
+  current page.</code></pre>
+<p>Recognizing this distinction matters practically — fixing a TOOL SELECTION problem might mean improving how the agent reasons about SITUATIONS broadly, while fixing a PARAMETER problem might mean improving how it OBSERVES or GROUNDS itself in the CURRENT page specifically — genuinely different fixes for genuinely different underlying issues.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might tool-parameter testing be considered MORE directly reusable from an agent's own production code than tool-selection testing?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Parameter verification (does a real element exist matching these values) is EXACTLY the same check Chapter 5's own tools already perform when actually executing — this page's testing logic can literally reuse that same verification, while tool-SELECTION testing needs a genuinely separate, dedicated evaluation the production agent doesn't otherwise perform.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why PARAMETER testing logic OVERLAPS directly with PRODUCTION
+code:
+Chapter 5's find_and_click already CHECKS "does a MATCHING
+  element exist" as PART OF its normal, real EXECUTION — this
+  page's test_tool_parameters is essentially performing the
+  SAME check, just POTENTIALLY run INDEPENDENTLY for
+  VERIFICATION purposes, rather than as PART of actual
+  execution.
+
+Why SELECTION testing needs GENUINELY separate logic:
+The PRODUCTION agent doesn't normally ASK ITSELF "was choosing
+  fill_field over click_element THE RIGHT CATEGORY of choice
+  here" as a DISTINCT, explicit step — it just REASONS and
+  ACTS. Evaluating SELECTION QUALITY requires a GENUINELY NEW,
+  DEDICATED evaluation process this page's test_tool_selection
+  function specifically adds.</code></pre>
+<p>This is a genuinely useful practical distinction for implementation effort — parameter testing can often be BUILT CHEAPLY by reusing existing production verification logic, while selection testing typically requires building genuinely NEW evaluation capability specifically for testing purposes.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you design a test specifically for the case where an agent selects the RIGHT tool, with PARAMETERS that match a REAL element — but the WRONG real element (a genuine ambiguity case from Chapter 5)?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This connects directly to Chapter 5's own multiple-matches scenario — testing this specifically requires checking not just "does SOME matching element exist" but "does the SPECIFIC element that would be targeted genuinely correspond to what the SITUATION actually calls for."</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def test_correct_specific_element(actual_tool_call, page_context,
+                                     intended_target_description, client):
+    role = actual_tool_call["input"]["role"]
+    name = actual_tool_call["input"]["name"]
+    matches = page_context.locator(f"[role='{role}']", has_text=name)
+
+    if matches.count() &gt; 1:
+        # Chapter 5's OWN multiple-matches scenario — genuinely
+        # ambiguous, needs REASONING to check if the RIGHT one
+        # was likely targeted, not just that SOME match exists
+        prompt = f"""Multiple elements match role='{role}',
+name='{name}'. The agent needed to target: {intended_target_description}.
+Without additional context in the tool call, can we confirm
+which SPECIFIC element would actually be clicked, and is this
+GENUINELY ambiguous?"""
+        result = client.messages.create(model="claude-sonnet-4-6",
+            max_tokens=200, messages=[{"role": "user", "content": prompt}])
+        return result.content[0].text
+    return {"valid": matches.count() == 1, "issue": None}</code></pre>
+<p>This extends this page's deterministic parameter-checking to explicitly handle the genuinely harder case Chapter 5 identified — MULTIPLE matches existing means simple existence-checking (this page's main approach) isn't sufficient; genuinely determining whether the CORRECT specific element would be targeted needs additional REASONING about the actual, intended target, exactly the kind of nuanced verification this chapter's overall approach to agent testing is built to handle.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

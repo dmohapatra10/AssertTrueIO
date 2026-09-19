@@ -1,0 +1,102 @@
+<!doctype html>
+<html><head>
+<title>Workflow Permissions &amp; Least Privilege in GitHub Actions</title>
+<meta name="description" content="How the permissions: key works, why least privilege matters for CI/CD specifically, and configuring exactly the access a workflow needs — no more." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/workflow-permissions-and-least-privilege.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Workflow Permissions &amp; Least Privilege</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="the-github-token-explained.html">GITHUB_TOKEN: The Automatic Token Explained</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Least privilege means giving something exactly the access it needs to do its job — no more. In GitHub Actions, this is configured through the <code>permissions:</code> key, controlling what <code>GITHUB_TOKEN</code> is actually allowed to do for a given workflow or job.</p>
+
+<h2 id="why-do-we-need-it">Why do we need it?</h2>
+<p>A workflow with excessive permissions is a genuine liability — if that workflow is ever compromised (through a malicious dependency, a vulnerable third-party action, or any other route), the damage is limited by what its token could actually do. A workflow that only ever reads code but has been granted write access to everything is carrying real, unnecessary risk for no benefit.</p>
+
+<h2 id="setting-permissions-at-the-workflow-level">Setting Permissions at the Workflow Level</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>permissions:
+  contents: read
+  pull-requests: write</code></pre>
+<p>Placed at the top of a workflow file, this applies to every job within it — here, read-only access to repository contents, and write access specifically to pull requests (for commenting, for instance).</p>
+
+<h2 id="setting-permissions-at-the-job-level">Setting Permissions at the Job Level</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  comment-only:
+    permissions:
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: echo "commenting..."</code></pre>
+<p>Job-level permissions override the workflow-level default for that specific job — useful when different jobs in the same workflow genuinely need different levels of access.</p>
+
+<h2 id="the-restrictive-default-permissions">The Restrictive Default — permissions: {}</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>permissions: {}</code></pre>
+<p>This grants no permissions at all — the most restrictive possible starting point. A genuinely disciplined approach starts here and adds back exactly what's actually needed, rather than starting broad and hoping to remember to narrow it later.</p>
+
+<h2 id="detailed-example-excessive-vs-minimal-permissions">Detailed Example — ❌ Excessive vs. ✅ Minimal Permissions</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>❌ Excessive — this job only needs to run tests, but has full write access:
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  packages: write
+
+✅ Minimal — matching what the job actually does:
+permissions:
+  contents: read</code></pre>
+<p>A job that only checks out code and runs tests has no genuine need for write access to anything — <code>contents: read</code> is fully sufficient, and everything else in the excessive version is unused, unnecessary risk.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might starting from <code>permissions: {}</code> and adding back exactly what's needed be a better habit than starting from a broad default and trying to remember to narrow it later? Starting restrictive forces you to actually think through and justify every single permission a job needs, at the moment you're writing it — starting broad and narrowing later depends on remembering to come back and do that work, which is easy to skip once something is already working.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Granting broad permissions "to avoid dealing with permission errors later," rather than figuring out the actual minimum a workflow needs. This is exactly the kind of shortcut that turns a routine CI pipeline into a genuine security liability if that workflow, or any dependency it uses, is ever compromised.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>If a workflow fails with a permissions-related error, the fix is adding exactly the specific permission it's missing — not reflexively granting broad access "to make the error go away." The error message itself usually names the specific permission that's actually required.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Start from the most restrictive permissions possible, adding back only what's genuinely required for that specific workflow or job.</li>
+  <li>Set permissions at the job level when different jobs in the same workflow genuinely need different access levels.</li>
+  <li>Treat a permissions error as a signal to add exactly the missing permission, not an invitation to grant broad access.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Least privilege means granting exactly the access a workflow needs — no more, limiting the damage if something ever goes wrong.</li>
+  <li><code>permissions:</code> can be set at the workflow level (applying to all jobs) or overridden at the job level.</li>
+  <li>Starting from <code>permissions: {}</code> and adding back specific needs is more disciplined than starting broad and narrowing later.</li>
+</ul>
+
+<h2 id="challenge">🏆 Challenge</h2>
+<p>For a workflow with two jobs — one that only runs tests (needing to read repository contents), and another that creates a GitHub release after tests pass (needing to write releases) — write the appropriate <code>permissions:</code> configuration for each job separately, following least-privilege principles throughout.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>What does the principle of least privilege actually mean in the context of GitHub Actions permissions?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It means granting a workflow or job exactly the access it needs to perform its actual task, and nothing more. If a job only reads code and runs tests, it should only have read access to contents — granting it write access to issues, packages, or other resources it never actually touches provides no benefit while adding genuine, unnecessary risk.</div>
+</details>
+<details class="faq-item">
+<summary>Why does starting from permissions: {} and adding back specific needs tend to produce more secure workflows than starting broad?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Starting restrictive forces a deliberate decision and justification for every single permission actually granted, at the moment the workflow is written. Starting broad and planning to narrow permissions later depends on remembering to actually do that follow-up work, which is easy to overlook once the workflow is already functioning — restrictive-by-default is a more reliable habit than optimistic-then-narrow.</div>
+</details>
+<details class="faq-item">
+<summary>Why might two different jobs within the same workflow need different permissions: configurations?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Different jobs often perform genuinely different tasks with different real access needs — a test job might only need to read repository contents, while a separate release job genuinely needs write access to create a release. Setting permissions at the job level, rather than only at the workflow level, allows each job to have exactly the access appropriate to what it actually does.</div>
+</details>
+<details class="faq-item">
+<summary>Why is granting broad permissions "to avoid permission errors" considered a genuinely risky shortcut rather than harmless convenience?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Excessive permissions mean that if the workflow itself, or any dependency or third-party action it uses, is ever compromised, the potential damage is limited only by whatever broad access was granted — rather than being genuinely contained to what the task actually needed. This turns a routine convenience shortcut into a real, magnified security exposure if anything ever goes wrong.</div>
+</details>
+<details class="faq-item">
+<summary>If a job-level permissions: block is defined, does it combine with the workflow-level permissions or replace it?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A job-level permissions: configuration overrides the workflow-level default for that specific job, rather than combining or merging with it — similar to how job-level and step-level env values override broader scopes rather than merging. This means a job with its own permissions: block is governed entirely by that job-specific configuration, not by whatever the workflow-level setting specifies.</div>
+</details>
+</div>
+</article>
+</body></html>

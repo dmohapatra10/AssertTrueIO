@@ -1,0 +1,131 @@
+<!doctype html>
+<html><head>
+<title>Playwright waitForRequest() and waitForResponse() Explained</title>
+<meta name="description" content="How to wait for specific network requests and responses in Playwright, matching by URL or predicate, and combining with Promise.all to avoid race conditions." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/wait-for-request-and-response.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>waitForRequest() & waitForResponse()</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="wait-for-url-and-load-state.html">waitForURL() & waitForLoadState()</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>page.waitForRequest(urlOrPredicate, options?: { timeout?: number })
+page.waitForResponse(urlOrPredicate, options?: { timeout?: number })</code></pre>
+  <p>These wait for a specific network request to be sent, or a specific response to be received, matched either by URL (string or regex) or a predicate function. This is the right tool whenever a UI update depends on a background API call with no reliable visible signal to wait on instead.</p>
+
+  <h2 id="why-it-s-important">Why it's important</h2>
+  <p>A debounced search, an autosave, a background job kickoff — all of these can update the UI in ways that are hard to pin down with a content assertion alone, especially when the "before" and "after" states look superficially similar. Waiting for the actual network exchange is the most direct, reliable signal available.</p>
+
+  <h2 id="basic-example">Basic Example</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const response = await page.waitForResponse((res) =&gt;
+  res.url().includes('/api/orders') && res.status() === 200
+);
+console.log(await response.json());</code></pre>
+
+  <h2 id="the-race-condition-trap">The Race Condition Trap</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Race condition — the click might fire the request BEFORE waitForResponse
+// starts listening, causing this to hang until timeout
+await page.getByRole('button', { name: 'Place order' }).click();
+await page.waitForResponse((res) =&gt; res.url().includes('/api/orders'));
+
+// ✅ Set up the listener and the triggering action together with Promise.all —
+// this guarantees the listener is active before the click can fire the request
+const [response] = await Promise.all([
+  page.waitForResponse((res) =&gt; res.url().includes('/api/orders')),
+  page.getByRole('button', { name: 'Place order' }).click(),
+]);</code></pre>
+  <p>This is one of the most common real bugs in Playwright suites that use network waiting — starting the wait <em>after</em> the triggering action is a race that usually works locally (where everything is fast) and fails intermittently in CI (where timing varies more). The <code>Promise.all</code> pattern eliminates the race by registering the listener and firing the action essentially simultaneously.</p>
+
+  <h2 id="detailed-example-matching-by-method-and-status">Detailed Example — Matching by Method and Status</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const [response] = await Promise.all([
+  page.waitForResponse((res) =&gt;
+    res.url().includes('/api/cart/items') &&
+    res.request().method() === 'POST' &&
+    res.status() === 201
+  ),
+  page.getByRole('button', { name: 'Add to cart' }).click(),
+]);
+
+await expect(page.getByTestId('cart-count')).toHaveText('1');</code></pre>
+  <p>Matching on method and status, not just URL, avoids accidentally matching a different request to the same endpoint (e.g., an unrelated GET happening around the same time).</p>
+
+  <h2 id="real-world-example-waiting-for-a-request-not-the-response">Real-World Example — Waiting for a Request (Not the Response)</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('closing the tab triggers an analytics beacon', async ({ page, context }) =&gt; {
+  await page.goto('/article/123');
+
+  const [request] = await Promise.all([
+    page.waitForRequest((req) =&gt; req.url().includes('/api/analytics/view')),
+    page.waitForTimeout(100), // page fires the beacon shortly after load
+  ]);
+
+  expect(request.postDataJSON()).toMatchObject({ articleId: '123' });
+});</code></pre>
+  <p><code>waitForRequest()</code> is less common than <code>waitForResponse()</code> but useful when what matters is confirming a request was <em>sent</em> at all — analytics/tracking calls being the most typical case — rather than anything about its response.</p>
+
+  <h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Guessing how long a background request takes
+await page.getByRole('button', { name: 'Save' }).click();
+await page.waitForTimeout(1500);
+await expect(page.getByText('Saved')).toBeVisible();
+
+// ✅ Wait for the real signal
+const [response] = await Promise.all([
+  page.waitForResponse((res) =&gt; res.url().includes('/api/save')),
+  page.getByRole('button', { name: 'Save' }).click(),
+]);
+await expect(page.getByText('Saved')).toBeVisible();</code></pre>
+
+  <h2 id="common-mistakes">Common Mistakes</h2>
+  <ul>
+    <li><strong>Starting the wait after the triggering action</strong> instead of using <code>Promise.all</code> — a classic race condition that's intermittent, not consistently broken, which makes it especially confusing to debug.</li>
+    <li><strong>Matching only by URL</strong> when multiple requests to the same endpoint happen close together (e.g., polling) — add method/status/payload checks to the predicate for precision.</li>
+    <li><strong>Using this for requests that already have a clear UI signal</strong> — if a loading spinner reliably disappears when the request completes, a content assertion is simpler and just as reliable.</li>
+  </ul>
+
+  <h2 id="edge-cases">Edge Cases</h2>
+  <ul>
+    <li><strong>Requests that fail or time out server-side</strong> — <code>waitForResponse()</code> resolves once any response arrives, including error statuses; check <code>res.status()</code> explicitly in the predicate if only success should satisfy the wait.</li>
+    <li><strong>Multiple similar concurrent requests</strong> (e.g., a page firing several analytics calls at once) — a precise predicate checking multiple fields is essential to avoid matching the wrong one.</li>
+  </ul>
+
+  <h2 id="debugging">Debugging</h2>
+  <p>Trace Viewer's Network tab (Chapter 15) shows every request and response in a failed test's timeline — use it to confirm the exact URL, method, and status of the request you're trying to match before finalizing a predicate.</p>
+
+  <h2 id="best-practices">Best Practices</h2>
+  <ul>
+    <li>Always pair <code>waitForRequest()</code>/<code>waitForResponse()</code> with the triggering action via <code>Promise.all</code> to avoid the race condition.</li>
+    <li>Match on more than just URL when precision matters — method, status, and payload shape are all available on the response/request object.</li>
+    <li>Reserve this for cases with no reliable UI signal to wait on instead — prefer content assertions when one exists.</li>
+  </ul>
+
+  <h2 id="practice-exercise">Practice Exercise</h2>
+  <p>Write a test that clicks a "Refresh" button triggering a GET request to <code>/api/dashboard/stats</code>, using <code>Promise.all</code> to avoid a race condition, and asserts the response status is 200 before checking the updated UI.</p>
+
+  <h2 id="summary">Summary</h2>
+  <p><code>waitForRequest()</code> and <code>waitForResponse()</code> wait for specific network activity matched by URL or a predicate — the most direct tool when a UI update depends on a background call with no reliable visible signal. Always pair them with the triggering action via <code>Promise.all</code> to avoid a race condition where the request fires before the listener is registered.</p>
+
+  <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>What's wrong with calling an action first and then awaiting waitForResponse() afterward?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">This creates a race condition — if the request fires and completes before <code>waitForResponse()</code> starts listening, the wait never sees it and hangs until timeout. Wrapping both the action and the wait in <code>Promise.all</code> registers the listener and triggers the action together, so the listener is guaranteed to be active before the request can be sent.</div>
+</details>
+<details class="faq-item">
+<summary>Why is starting a wait after the triggering action a common bug?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It creates a race condition — if the request fires and completes before the listener is registered, the wait hangs until timeout.</div>
+</details>
+<details class="faq-item">
+<summary>How do you avoid that race condition?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Wrap the wait and the triggering action together in Promise.all so the listener is guaranteed active before the action can fire the request.</div>
+</details>
+<details class="faq-item">
+<summary>How would you make a response predicate more precise than matching by URL alone?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Check method and status too, e.g. res.request().method() === 'POST' && res.status() === 201, to avoid matching an unrelated concurrent request.</div>
+</details>
+<details class="faq-item">
+<summary>When would you use waitForRequest() instead of waitForResponse()?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">When what matters is confirming a request was sent at all — like an analytics beacon — rather than anything about its response.</div>
+</details>
+</div>
+</article>
+</body></html>

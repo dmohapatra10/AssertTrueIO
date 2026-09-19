@@ -1,0 +1,123 @@
+<!doctype html>
+<html><head>
+<title>Playwright Actions: click, fill, and the Full Interaction API</title>
+<meta name="description" content="Learn how Playwright actions work — actionability checks, the full list of interaction methods, and how to choose the right one for forms, buttons, and file inputs." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/actions.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Chapter 5: Actions</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="locators.html">Locators</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+      <p>Actions are the methods that actually interact with the page: clicking, typing, checking a box, selecting from a dropdown, uploading a file. Every action in this chapter is called on a locator, and every one of them waits for the target element to be truly ready before doing anything. Each action gets its own dedicated page:</p>
+      <ol>
+        <li><a href="click-and-dblclick.html">click() and dblclick()</a></li>
+        <li><a href="fill-and-press-sequentially.html">fill() and pressSequentially()</a></li>
+        <li><a href="press.html">press()</a> — single keys and key combinations</li>
+        <li><a href="check-and-uncheck.html">check() and uncheck()</a></li>
+        <li><a href="select-option.html">selectOption()</a></li>
+        <li><a href="hover.html">hover()</a></li>
+        <li><a href="set-input-files.html">setInputFiles()</a></li>
+        <li><a href="drag-to.html">dragTo()</a></li>
+        <li><a href="actionability-and-force.html">Actionability checks and force</a></li>
+      </ol>
+
+      <h2 id="why-is-it-important">Why is it important?</h2>
+      <p>Actions are where most flaky-test problems in other frameworks come from — clicking a button before it's rendered, typing into a field before it's enabled. Playwright's actionability checks exist specifically to eliminate that entire category of bug, but only if you understand what they check and don't work around them.</p>
+
+      <h2 id="actionability-checks">Actionability checks</h2>
+      <p>See <a href="actionability-and-force.html">Actionability Checks and force</a> for the full deep dive. In short, before most actions, Playwright automatically waits (up to the timeout) for the element to be:</p>
+      <ul>
+        <li><strong>Attached</strong> — present in the DOM</li>
+        <li><strong>Visible</strong> — has non-zero size and no <code>visibility: hidden</code>/<code>display: none</code></li>
+        <li><strong>Stable</strong> — not still animating or transitioning</li>
+        <li><strong>Enabled</strong> — not disabled</li>
+        <li><strong>Receives events</strong> — not obscured by another element (e.g., a loading overlay)</li>
+      </ul>
+      <p>If any check keeps failing past the timeout, Playwright throws a clear, specific error naming which check failed — a major debugging advantage over a generic "element not found."</p>
+
+      <h2 id="the-core-action-methods">The core action methods</h2>
+      <table>
+        <thead><tr><th>Method</th><th>Use for</th></tr></thead>
+        <tbody>
+          <tr><td><a href="click-and-dblclick.html"><code>click()</code> / <code>dblclick()</code></a></td><td>Buttons, links, any clickable element</td></tr>
+          <tr><td><a href="fill-and-press-sequentially.html"><code>fill()</code></a></td><td>Setting a text input's value directly (fast, clears existing value)</td></tr>
+          <tr><td><a href="fill-and-press-sequentially.html"><code>pressSequentially()</code></a></td><td>Typing character-by-character (for autocomplete/keypress-driven UI)</td></tr>
+          <tr><td><a href="press.html"><code>press()</code></a></td><td>A single key or key combination (e.g. <code>Enter</code>, <code>Control+A</code>)</td></tr>
+          <tr><td><a href="check-and-uncheck.html"><code>check()</code> / <code>uncheck()</code></a></td><td>Checkboxes and radio buttons</td></tr>
+          <tr><td><a href="select-option.html"><code>selectOption()</code></a></td><td>Native <code>&lt;select&gt;</code> dropdowns</td></tr>
+          <tr><td><a href="set-input-files.html"><code>setInputFiles()</code></a></td><td>File upload inputs</td></tr>
+          <tr><td><a href="hover.html"><code>hover()</code></a></td><td>Triggering hover states/menus</td></tr>
+          <tr><td><a href="drag-to.html"><code>dragTo()</code></a></td><td>Drag-and-drop interactions</td></tr>
+          <tr><td><code>focus()</code> / <code>blur()</code></td><td>Manually moving focus without clicking</td></tr>
+          <tr><td><code>clear()</code></td><td>Clearing a field's value without typing over it</td></tr>
+        </tbody>
+      </table>
+
+      <h2 id="fill-vs-presssequentially">fill() vs pressSequentially()</h2>
+      <p>These are easy to mix up. <code>fill()</code> sets a value directly through the DOM — fast, and the right default for almost all form-filling.</p>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>await page.getByLabel('Email').fill('user@example.com');</code></pre>
+      <p><code>pressSequentially()</code> dispatches real keydown/keyup events per character — slower, but necessary when the page has JavaScript that reacts to individual keystrokes (autocomplete suggestions, live character counters, masked inputs).</p>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Needed here because the search box shows live suggestions per keystroke
+await page.getByRole('searchbox').pressSequentially('play', { delay: 100 });
+await expect(page.getByText('Playwright')).toBeVisible();</code></pre>
+
+      <h2 id="real-world-example-a-checkout-form">Real-world example: a checkout form</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import { test, expect } from '@playwright/test';
+
+test('completes checkout with a valid card', async ({ page }) =&gt; {
+  await page.goto('/checkout');
+
+  await page.getByLabel('Full name').fill('Jordan Lee');
+  await page.getByLabel('Shipping method').selectOption('express');
+  await page.getByLabel('I agree to the terms').check();
+  await page.getByLabel('Card number').fill('4242 4242 4242 4242');
+
+  await page.getByRole('button', { name: 'Place order' }).click();
+
+  await expect(page.getByText('Order confirmed')).toBeVisible();
+});</code></pre>
+      <p>Each action targets a role- or label-based locator (per the priority from the Locators chapter), and every call auto-waits — there's no manual delay between filling the form and clicking submit, even though the "Place order" button may only become enabled once the terms checkbox is checked.</p>
+
+      <h2 id="common-mistakes">Common mistakes</h2>
+      <ul>
+        <li>Using <code>pressSequentially()</code> everywhere out of habit — it's slower and unnecessary for plain form fields where <code>fill()</code> works fine.</li>
+        <li>Adding a manual wait before an action "just in case" — actionability checks already handle this; a manual wait usually just masks a different underlying problem.</li>
+        <li>Calling <code>click()</code> on a `&lt;div&gt;` styled to look like a button instead of fixing the markup to use a real <code>&lt;button&gt;</code> — this breaks both accessibility and role-based locators.</li>
+      </ul>
+
+      <h2 id="best-practices">Best practices</h2>
+      <ul>
+        <li>Default to <code>fill()</code> for text input; reach for <code>pressSequentially()</code> only when the UI genuinely depends on keystroke events.</li>
+        <li>Let actionability checks do the waiting — if an action keeps timing out, that's usually a real bug (an overlay blocking the element, a disabled button) worth investigating, not something to paper over with a longer timeout.</li>
+        <li>Pair actions with assertions afterward (see the next chapter) to confirm the action actually had the intended effect, not just that it didn't throw.</li>
+      </ul>
+
+      <h2 id="summary">Summary</h2>
+      <p>Actions are how Playwright interacts with the page, and every one of them waits for the target element to be genuinely ready first via actionability checks. Choose <code>fill()</code> for most text input, reserve <code>pressSequentially()</code> for keystroke-sensitive UI, and trust auto-waiting instead of adding manual delays.</p>
+
+      <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>What's the practical difference between fill() and pressSequentially(), and when would you choose one over the other?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer"><code>fill()</code> sets an input's value directly through the DOM in one step — fast, and correct for the vast majority of form fields. <code>pressSequentially()</code> simulates real keystrokes one at a time, which is necessary when the page's JavaScript listens for individual keydown/keyup events — for example, an autocomplete dropdown that only appears in response to actual typing.</div>
+</details>
+<details class="faq-item">
+<summary>What single mechanism underlies most of Playwright's action reliability?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Actionability checks that run automatically before every action, waiting for the element to be attached, visible, stable, enabled, and receiving events.</div>
+</details>
+<details class="faq-item">
+<summary>Why is fill() generally faster than pressSequentially()?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">fill() sets the value directly in one step; pressSequentially() dispatches a real keydown/keyup pair for every character.</div>
+</details>
+<details class="faq-item">
+<summary>What's the risk of defaulting to { force: true } whenever an action times out?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It skips the actionability checks that usually indicate a real problem, potentially clicking something a real user couldn't actually interact with.</div>
+</details>
+<details class="faq-item">
+<summary>Why does check() behave differently from click() on a checkbox?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">check() is idempotent — it guarantees the checked state regardless of starting point — while click() simply toggles whatever state is currently there.</div>
+</details>
+</div>
+</article>
+</body></html>

@@ -1,0 +1,115 @@
+<!doctype html>
+<html><head>
+<title>Generating Playwright Code from Scenarios</title>
+<meta name="description" content="Turning the previous page&#x27;s structured scenarios into real, executable Playwright test files — the second genuine link in this chapter&#x27;s pipeline." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/generating-playwright-code-from-scenarios.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Generating Playwright Code from Scenarios</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="from-prompt-to-structured-test-scenarios.html">From Prompt to Structured Test Scenarios</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Turning structured scenarios into real, executable Playwright TypeScript code</li>
+  <li>Providing the model with the actual page structure it needs, rather than letting it guess</li>
+  <li>Writing generated code to a real file, ready for the next page's validation and execution</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>The previous page produced structured data — genuinely useful, but not yet a test. This page closes that gap: given a scenario and ShopSmart's real login page structure, generate an actual Playwright test file.</p>
+
+<h2 id="step-by-step-implementation">Step-by-Step Implementation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/generate-tests.ts
+import { askClaude } from './ai-client';
+import { TestScenario } from './generate-scenarios';
+import { writeFileSync } from 'fs';
+
+// Real, known page structure — given EXPLICITLY, never guessed,
+// per this chapter's system prompt from Creating the AI Client
+const LOGIN_PAGE_STRUCTURE = `
+Login page real locators:
+  Email field: page.getByLabel('Email')
+  Password field: page.getByLabel('Password')
+  Submit button: page.getByRole('button', { name: 'Log In' })
+  Error message: page.getByRole('alert')
+  Success redirect target: page with URL containing '/dashboard'
+`;
+
+export async function generateTestCode(
+  scenario: TestScenario
+): Promise&lt;string&gt; {
+  const prompt = `Generate a single Playwright test in TypeScript
+for this scenario: ${JSON.stringify(scenario)}
+
+Use ONLY these real, known locators — never invent a selector:
+${LOGIN_PAGE_STRUCTURE}
+
+Respond with ONLY the TypeScript code, no explanation, no
+markdown code fences. The test must import { test, expect }
+from '@playwright/test' and use async/await correctly.`;
+
+  return askClaude(prompt);
+}
+
+export async function generateAndSaveTest(
+  scenario: TestScenario,
+  filePath: string
+): Promise&lt;void&gt; {
+  const code = await generateTestCode(scenario);
+  writeFileSync(filePath, code, 'utf-8');
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p><code>LOGIN_PAGE_STRUCTURE</code> is the single most important part of this page. Chapter 1 was explicit that a hallucinated locator sounds exactly as confident as a correct one — giving the model ShopSmart's real, actual locators, and instructing it to "never invent a selector," is what prevents the exact failure mode that page warned about. Without this, the model would generate plausible-sounding, wrong selectors, using patterns from other login forms it learned from during training.</p>
+
+<h2 id="expected-result">Expected Result</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/try-generate-test.ts
+import { generateScenarios } from './generate-scenarios';
+import { generateAndSaveTest } from './generate-tests';
+
+async function main() {
+  const scenarios = await generateScenarios(
+    'Test the login functionality of ShopSmart'
+  );
+  await generateAndSaveTest(
+    scenarios[0], 'tests/generated/login-valid.spec.ts'
+  );
+}
+main();
+
+// $ npx ts-node src/try-generate-test.ts
+// produces tests/generated/login-valid.spec.ts:
+//
+// import { test, expect } from '@playwright/test';
+//
+// test('valid login', async ({ page }) => {
+//   await page.goto('/login');
+//   await page.getByLabel('Email').fill('test@shopsmart.example.com');
+//   await page.getByLabel('Password').fill('correct-password');
+//   await page.getByRole('button', { name: 'Log In' }).click();
+//   await expect(page).toHaveURL(/dashboard/);
+// });</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Not providing the real page structure at all.</strong> Without <code>LOGIN_PAGE_STRUCTURE</code>, the model has no genuine information about ShopSmart's actual locators — it would generate plausible guesses instead, exactly Chapter 1's hallucination warning made concrete.</li>
+  <li><strong>Writing generated code straight to <code>tests/</code> where Playwright's runner picks it up automatically.</strong> This chapter's next page is explicit about why generated code needs review before it runs — <code>tests/generated/</code> keeps it separated until then.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Always provide real, known page structure explicitly — never rely on the model's general training knowledge for your specific application's actual selectors.</li>
+  <li>Keep AI-generated test files in a clearly separate folder until they've been validated, the subject of this chapter's final page.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Run this page's code for all three scenarios from the previous page, not just the first one. Open each generated file and check, by eye, whether every locator matches <code>LOGIN_PAGE_STRUCTURE</code> exactly — this is the exact manual check the next page turns into an automated one.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Providing real, explicit page structure — not letting the model guess — is what prevents hallucinated selectors from reaching generated code.</li>
+  <li>Generated code belongs in a separate folder until validated, not directly where Playwright's runner will pick it up automatically.</li>
+  <li>This page closes the Requirement → AI → Playwright Test arrow from Chapter 1's diagram — the final page closes the last arrow, into the Browser.</li>
+</ul>
+</article>
+</body></html>

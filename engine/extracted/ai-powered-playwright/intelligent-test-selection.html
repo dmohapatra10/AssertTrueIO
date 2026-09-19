@@ -1,0 +1,88 @@
+<!doctype html>
+<html><head>
+<title>Intelligent Test Selection</title>
+<meta name="description" content="Deciding which tests a specific pull request actually needs to run — reusing Chapter 4&#x27;s risk reasoning, applied to a genuinely different question: not which tests exist, but which apply now." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/intelligent-test-selection.html" />
+</head><body>
+<p class="difficulty">Advanced</p>
+<h1>Intelligent Test Selection</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="ai-pull-request-comments.html">AI Pull Request Comments</a></p>
+<article class="content">
+<h2>What You'll Learn</h2>
+<ul>
+  <li>Why running the entire suite on every single pull request is a genuine, real cost</li>
+  <li>Selecting only the tests a specific change actually affects</li>
+  <li>Being honest about the real risk this technique introduces</li>
+</ul>
+
+<h2>Introduction</h2>
+<p>Running the full AI-powered suite on every pull request is safe but genuinely wasteful — a one-line copy change to a checkout error message doesn't need the wishlist, profile, and newsletter tests re-run alongside it. This page is about selecting deliberately, not running everything by default.</p>
+
+<h2>Step-by-Step Implementation</h2>
+<pre><code>// src/select-affected-tests.ts
+import { execSync } from 'child_process';
+import { askClaude } from './ai-client';
+
+export function getChangedFiles(baseBranch: string): string[] {
+  const output = execSync(`git diff --name-only ${baseBranch}...HEAD`, { encoding: 'utf-8' });
+  return output.split('\n').filter(Boolean);
+}
+
+export async function selectAffectedTests(
+  changedFiles: string[], allTestFiles: string[]
+): Promise&lt;string[]&gt; {
+  const prompt = `Changed files in this pull request:
+${JSON.stringify(changedFiles)}
+
+Available test files:
+${JSON.stringify(allTestFiles)}
+
+Select ONLY the test files that genuinely test functionality
+related to these changes. Err toward including a test if you're
+GENUINELY uncertain whether it's related.
+
+Respond with ONLY valid JSON: {"testFiles": [string, ...]}`;
+
+  const raw = await askClaude(prompt);
+  return JSON.parse(raw).testFiles;
+}</code></pre>
+
+<h2>Code Explanation</h2>
+<p>"Err toward including a test if you're genuinely uncertain" is a deliberate, important instruction — the real cost of running one unnecessary test is small; the real cost of skipping a test that would have caught a genuine regression is much larger. This asymmetry shapes the whole prompt, biasing selection toward safety over minimal runtime.</p>
+
+<h2>Example — A Real Selection for a ShopSmart Change</h2>
+<pre><code>const changed = getChangedFiles('main');
+// ["src/components/DiscountCodeField.tsx", "src/api/discount-validate.ts"]
+
+const selected = await selectAffectedTests(changed, allTestFiles);
+// ["tests/cart.spec.ts", "tests/checkout.spec.ts"]
+// NOT selected: tests/wishlist.spec.ts, tests/profile.spec.ts,
+// tests/newsletter.spec.ts — GENUINELY unrelated to a discount
+// code CHANGE</code></pre>
+
+<h2>Why It Matters — Being Honest About the Real Risk</h2>
+<p>This technique genuinely trades some safety for real speed and cost savings — a wrong selection could miss a test that would have caught a real, genuine bug, in a way that "run everything" never could. This is worth stating plainly rather than glossing over: intelligent selection is a real tradeoff, appropriate for fast pull-request feedback, not necessarily for a release-gating run where the cost of missing something is much higher.</p>
+
+<h2>Common Mistakes</h2>
+<ul>
+  <li><strong>Using intelligent selection for every single CI run, including release gates.</strong> This page's own honesty about the tradeoff matters here — a release gate deserves the full, safer suite, not a selected subset.</li>
+  <li><strong>Trusting selection without ever validating it against a known case.</strong> Periodically running the full suite alongside a selected one, and comparing results, is a real way to catch a selection strategy that's missing something important.</li>
+</ul>
+
+<h2>Best Practices</h2>
+<ul>
+  <li>Use intelligent selection for fast, per-push feedback; run the complete suite for anything release-gating, following this page's own honest risk assessment.</li>
+  <li>Periodically validate selection accuracy by comparing it against full-suite runs, rather than trusting it indefinitely without checking.</li>
+</ul>
+
+<h2>Hands-On Exercise</h2>
+<p>Run this page's <code>selectAffectedTests</code> function against a real, recent pull request in your own project. Compare its selection against what a human reviewer would have picked, and note any test it included or excluded that surprises you.</p>
+
+<h2>Key Takeaways</h2>
+<ul>
+  <li>Running the entire suite on every pull request is safe but genuinely wasteful — most changes only affect a small, identifiable part of the application.</li>
+  <li>Biasing selection toward inclusion when genuinely uncertain reflects the real asymmetry between the cost of an unnecessary test and the cost of a missed regression.</li>
+  <li>Intelligent selection is an honest tradeoff appropriate for fast feedback, not a safe substitute for the full suite on a release-gating run.</li>
+</ul>
+</article>
+</body></html>

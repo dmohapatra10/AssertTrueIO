@@ -1,0 +1,168 @@
+<!doctype html>
+<html><head>
+<title>The Recommended RestAssured Framework Folder Structure</title>
+<meta name="description" content="A complete, real-world folder structure for a RestAssured project — where every file type actually lives, and how src/main and src/test divide responsibility." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/the-recommended-folder-structure.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>The Recommended Folder Structure</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="layer-by-layer-responsibilities.html">Layer-by-Layer Responsibilities</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>src/
+├── main/
+│   └── java/
+│       ├── config/
+│       ├── clients/
+│       ├── models/
+│       ├── specs/
+│       ├── utils/
+│       ├── auth/
+│       └── constants/
+│
+└── test/
+    └── java/
+        ├── tests/
+        ├── data/
+        └── assertions/</code></pre>
+<p>The previous page covered what each folder is responsible for. This page is about the structure itself — specifically, why it's split across <code>src/main</code> and <code>src/test</code>, and what a fully fleshed-out version looks like in a real project.</p>
+
+<h2 id="why-src-main-vs-src-test-at-all">Why src/main vs. src/test at All?</h2>
+<p>This is a genuine, deliberate Maven/Gradle convention, not an arbitrary choice: <code>src/main/java</code> is meant for code that could theoretically be reused or even shipped as a library, while <code>src/test/java</code> is exclusively test-scoped code, compiled and included only when running tests. The framework layers (clients, models, specs, utils, auth, constants) are genuinely reusable — a client class doesn't inherently know it's "for testing," it just knows how to call an API. The test-side layers (tests, data, assertions) are inherently test-specific and belong in <code>src/test</code> accordingly.</p>
+
+<h2 id="a-fully-fleshed-out-example">A Fully Fleshed-Out Example</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>src/
+├── main/java/com/example/api/
+│   ├── config/
+│   │   └── EnvConfig.java
+│   ├── clients/
+│   │   ├── UserClient.java
+│   │   ├── OrderClient.java
+│   │   └── ProductClient.java
+│   ├── models/
+│   │   ├── User.java
+│   │   ├── Order.java
+│   │   └── LineItem.java
+│   ├── specs/
+│   │   └── SpecFactory.java
+│   ├── utils/
+│   │   └── JsonUtils.java
+│   ├── auth/
+│   │   └── TokenManager.java
+│   └── constants/
+│       └── ApiConstants.java
+│
+└── test/java/com/example/api/
+    ├── tests/
+    │   ├── users/
+    │   │   ├── UserCreationTest.java
+    │   │   └── UserValidationTest.java
+    │   ├── orders/
+    │   │   ├── OrderLifecycleTest.java
+    │   │   └── OrderNegativeTest.java
+    │   └── auth/
+    │       └── AuthenticationTest.java
+    ├── data/
+    │   ├── UserBuilder.java
+    │   └── OrderBuilder.java
+    └── assertions/
+        └── ErrorAssertions.java</code></pre>
+<p>Note the test folder is further organized by feature area (<code>users/</code>, <code>orders/</code>, <code>auth/</code>) — this is the RestAssured-specific analog of the same organizational principle covered for a different tech stack elsewhere in this course: organize by what the tests are actually about, not by test type. Splitting positive from negative tests into separate files (<code>UserCreationTest</code> vs. <code>UserValidationTest</code>) is a common, optional further refinement once a feature area has enough tests to benefit from it.</p>
+
+<h2 id="detailed-example-how-a-package-declaration-reflects-this-structure">Detailed Example — How a Package Declaration Reflects This Structure</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>package com.example.api.clients;
+
+public class UserClient {
+    // ...
+}</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>package com.example.api.tests.users;
+
+import com.example.api.clients.UserClient;
+import com.example.api.data.UserBuilder;
+
+public class UserCreationTest {
+    // ...
+}</code></pre>
+<p>The folder structure and Java's package structure are the same thing — a class in <code>src/main/java/com/example/api/clients/UserClient.java</code> declares <code>package com.example.api.clients;</code>, and every test importing it references that exact package path. This is standard Java convention, worth calling out explicitly since the folder structure diagrams throughout this chapter map directly onto it.</p>
+
+<h2 id="real-world-example-where-a-new-file-actually-goes">Real-World Example — Where a New File Actually Goes</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Scenario: you need to add support for a new "Invoice" resource
+
+// 1. The data shape:
+src/main/java/com/example/api/models/Invoice.java
+
+// 2. The API client for it:
+src/main/java/com/example/api/clients/InvoiceClient.java
+
+// 3. Test data generation for it:
+src/test/java/com/example/api/data/InvoiceBuilder.java
+
+// 4. The actual tests:
+src/test/java/com/example/api/tests/invoices/InvoiceCreationTest.java
+src/test/java/com/example/api/tests/invoices/InvoiceValidationTest.java</code></pre>
+<p>This is the practical payoff of a clear structure — adding support for an entirely new resource has an obvious, repeatable pattern to follow, rather than an ad-hoc decision every time about where things should live.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Everything in one flat folder, with no layer separation at all
+src/test/java/
+├── UserTest.java          (contains request-building, assertions, AND data setup, all inline)
+├── OrderTest.java          (same, duplicated slightly differently)
+└── Utils.java               (a catch-all grab-bag of unrelated helpers)
+
+// ✅ The layered structure from this page
+src/main/java/.../clients/, models/, specs/, ...
+src/test/java/.../tests/, data/, assertions/</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Putting framework code (clients, models) in <code>src/test</code></strong> instead of <code>src/main</code> — works functionally, but blurs the Maven/Gradle convention distinguishing reusable code from test-only code.</li>
+  <li><strong>A flat test folder with no feature-based organization</strong> once a project grows past a handful of test files — makes it hard to find where a given feature's tests actually live.</li>
+  <li><strong>Inconsistent package naming</strong> that doesn't match the folder structure — Java requires these to align, and a mismatch produces compilation errors, not just a style inconsistency.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>A monorepo testing multiple genuinely separate APIs</strong> — consider a top-level package per API (<code>com.example.usersapi</code>, <code>com.example.ordersapi</code>) rather than trying to force one flat structure to serve unrelated services.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a class isn't found during compilation despite seemingly being in the right place, double-check its <code>package</code> declaration exactly matches its folder path — this is the most common cause of "class not found" errors when working within this kind of structured project.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Keep the <code>src/main</code> vs. <code>src/test</code> split aligned with genuinely reusable framework code vs. test-specific code.</li>
+  <li>Organize the <code>tests/</code> folder by feature area, not by test type.</li>
+  <li>Follow the pattern consistently when adding support for a new resource — model, client, builder, tests, each in their established location.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Sketch the full folder structure (following this page's pattern) for adding a new "Payment" resource to an existing framework — a model, a client, a test data builder, and at least two test files (one positive, one negative), each correctly placed.</p>
+
+<h2 id="summary">Summary</h2>
+<p>The <code>src/main</code> vs. <code>src/test</code> split reflects a genuine Maven/Gradle convention distinguishing reusable framework code from test-specific code, with the <code>tests/</code> folder further organized by feature area rather than test type. Once this structure is established, adding support for a new resource follows an obvious, repeatable pattern — a model, a client, a data builder, and tests — rather than an ad-hoc decision each time.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why does the recommended structure organize the tests/ folder by feature area (users/, orders/) rather than by test type (positive/, negative/)?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Organizing by feature area mirrors how the team actually thinks about the product and where they'd naturally look for a given feature's tests — "where are the order tests" has an obvious answer. Organizing by test type instead scatters tests for the same feature across different top-level folders, and doesn't naturally scale as new dimensions get added (what about performance tests, or tests scoped to a specific role?). Test type is better handled orthogonally — via tags, JUnit's <code>@Tag</code>, or naming conventions within a feature folder (as shown with <code>UserCreationTest</code> vs. <code>UserValidationTest</code>) — rather than as the primary folder-level organizing principle.</div>
+</details>
+<details class="faq-item">
+<summary>Why does the framework structure split code across src/main and src/test specifically?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A genuine Maven/Gradle convention — src/main is for code that could theoretically be reused as a library; src/test is exclusively test-scoped. Clients, models, and specs are genuinely reusable; tests, data builders, and assertions are inherently test-specific.</div>
+</details>
+<details class="faq-item">
+<summary>Why organize the tests/ folder by feature area (users/, orders/) rather than by test type?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It mirrors how a team actually thinks about the product — 'where are the order tests' has an obvious answer; test type is better handled orthogonally (via tags or naming conventions) rather than as the primary folder structure.</div>
+</details>
+<details class="faq-item">
+<summary>What has to stay consistent between a class's folder location and its code?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The package declaration must exactly match the folder path — a mismatch produces a compilation error, not just a style inconsistency, since Java requires this alignment strictly.</div>
+</details>
+<details class="faq-item">
+<summary>When adding support for an entirely new resource, what's the repeatable pattern this structure provides?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A model, a client, a test data builder, and tests — each with an obvious, established location to live, rather than an ad-hoc decision each time about where new code should go.</div>
+</details>
+</div>
+</article>
+</body></html>

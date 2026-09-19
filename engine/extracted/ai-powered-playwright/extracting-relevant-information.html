@@ -1,0 +1,102 @@
+<!doctype html>
+<html><head>
+<title>Extracting Relevant Information</title>
+<meta name="description" content="Real, working code that unzips a trace file and parses its action timeline into a structured, usable list — the genuine foundation for everything this chapter builds after it." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/extracting-relevant-information.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Extracting Relevant Information</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="capturing-traces.html">Capturing Traces</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Unzipping a trace file and parsing its action timeline programmatically</li>
+  <li>Structuring raw trace events into something genuinely usable</li>
+  <li>Why this extraction step, done once, is what the rest of this chapter depends on</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>Chapter 9's <code>tracePath</code> was a link to a file — this page is about actually opening it programmatically. Everything from this chapter's remaining pages depends on the structured timeline this page produces.</p>
+
+<h2 id="step-by-step-implementation">Step-by-Step Implementation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/extract-trace-data.ts
+import AdmZip from 'adm-zip';
+
+export interface TraceAction {
+  type: string;
+  selector?: string;
+  timestamp: number;
+  durationMs: number;
+  error?: string;
+}
+
+export function extractTraceActions(traceZipPath: string): TraceAction[] {
+  const zip = new AdmZip(traceZipPath);
+  const traceEntry = zip.getEntry('trace.trace');
+  if (!traceEntry) {
+    throw new Error(`No trace.trace file found in ${traceZipPath}`);
+  }
+
+  const lines = zip.readAsText(traceEntry).split('\n').filter(Boolean);
+  const actions: TraceAction[] = [];
+
+  for (const line of lines) {
+    const event = JSON.parse(line);
+    if (event.type === 'action') {
+      actions.push({
+        type: event.method,
+        selector: event.params?.selector,
+        timestamp: event.startTime,
+        durationMs: event.endTime - event.startTime,
+        error: event.error?.message,
+      });
+    }
+  }
+
+  return actions;
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p>The trace file's real, internal format is a JSONL stream — one JSON object per line — which is why this reads line by line rather than parsing the whole thing as one JSON document. Filtering for <code>event.type === 'action'</code> matters too: a real trace file contains several kinds of events (actions, network requests, console messages), and this function deliberately extracts only the action timeline, leaving network and console extraction to their own, focused functions on a later page.</p>
+
+<h2 id="example-a-real-extracted-timeline">Example — A Real, Extracted Timeline</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const actions = extractTraceActions('test-results/checkout-failure-trace.zip');
+
+// A REAL, structured timeline:
+// [
+//   { type: "goto", timestamp: 0, durationMs: 340 },
+//   { type: "click", selector: "getByRole('button', { name: 'Add to Cart' })",
+//     timestamp: 340, durationMs: 120 },
+//   { type: "click", selector: "getByRole('button', { name: 'Checkout' })",
+//     timestamp: 460, durationMs: 95 },
+//   { type: "waitForSelector", selector: "getByRole('heading', { name: 'Order Confirmed' })",
+//     timestamp: 555, durationMs: 30000,
+//     error: "Timeout 30000ms exceeded" }
+// ]</code></pre>
+
+<h2 id="why-it-matters">Why It Matters</h2>
+<p>This structured array is genuinely more useful than a raw JSONL dump — it's exactly the shape this chapter's remaining pages need to reason about sequence, timing, and where a failure occurred. Notice the last action's <code>durationMs: 30000</code> and its error — this single field already hints strongly at a timeout, information a plain error message alone wouldn't make this immediately visible or easy to compare against the actions before it.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Trying to parse the entire trace.trace file as one JSON document.</strong> It's JSONL — newline-delimited, one object per line — parsing it as a single document will fail immediately.</li>
+  <li><strong>Extracting every event type into one undifferentiated list.</strong> Actions, network requests, and console messages are genuinely different concerns — this page deliberately extracts only actions, leaving the others to their own focused functions.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Keep extraction functions focused on one event type each, the way this page separates actions from network and console data.</li>
+  <li>Preserve timing information (<code>timestamp</code>, <code>durationMs</code>) explicitly — it's what makes later pages' sequence and duration analysis possible.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Run this page's function against a real trace file from your own project. Review the extracted actions by eye and identify, just from the timing data, whether any single action took meaningfully longer than the others around it.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>A trace file's real internal format is JSONL — parsed line by line, not as a single JSON document.</li>
+  <li>Extracting actions into a structured, typed array is the genuine foundation the rest of this chapter builds on.</li>
+  <li>Timing data alone, once extracted, already surfaces real signal — like an unusually long duration hinting at a timeout — before any AI analysis even happens.</li>
+</ul>
+</article>
+</body></html>

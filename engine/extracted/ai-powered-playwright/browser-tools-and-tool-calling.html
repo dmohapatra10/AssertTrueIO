@@ -1,0 +1,123 @@
+<!doctype html>
+<html><head>
+<title>Browser Tools and Tool Calling</title>
+<meta name="description" content="The moment Chapter 2 promised — real Anthropic tool definitions and actual tool_use responses, replacing the JSON-prompting pattern every earlier chapter used instead." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/browser-tools-and-tool-calling.html" />
+</head><body>
+<p class="difficulty">Advanced</p>
+<h1>Browser Tools and Tool Calling</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="agent-architecture.html">Agent Architecture</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Defining real browser tools using Anthropic's actual tool schema</li>
+  <li>Receiving a genuine <code>tool_use</code> response, not JSON parsed from prose</li>
+  <li>Why this chapter is the right moment for this track's first real tool-calling implementation</li>
+</ul>
+
+<h2 id="introduction-why-now-not-earlier">Introduction — Why Now, Not Earlier</h2>
+<p>Chapter 2 introduced tool calling conceptually and explicitly promised it was "exactly the mechanism Chapter 14's AI agent is built on." Every chapter since has used a simpler pattern — asking for structured JSON in a prompt — deliberately, since that pattern was easier to reason about while this track built up its real techniques one at a time. This page is where that deferred promise gets paid off for real.</p>
+
+<h2 id="step-by-step-implementation-real-tool-definitions">Step-by-Step Implementation — Real Tool Definitions</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/agent-tools.ts
+import Anthropic from '@anthropic-ai/sdk';
+
+export const BROWSER_TOOLS: Anthropic.Tool[] = [
+  {
+    name: 'navigate',
+    description: 'Navigate the browser to a URL.',
+    input_schema: {
+      type: 'object',
+      properties: { url: { type: 'string' } },
+      required: ['url'],
+    },
+  },
+  {
+    name: 'click_element',
+    description: 'Click an element by its accessible role and name.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        role: { type: 'string' },
+        name: { type: 'string' },
+      },
+      required: ['role', 'name'],
+    },
+  },
+  {
+    name: 'fill_field',
+    description: 'Fill a form field identified by its label.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        label: { type: 'string' },
+        value: { type: 'string' },
+      },
+      required: ['label', 'value'],
+    },
+  },
+  {
+    name: 'report_objective_complete',
+    description: 'Call this when the objective has genuinely been achieved.',
+    input_schema: {
+      type: 'object',
+      properties: { summary: { type: 'string' } },
+      required: ['summary'],
+    },
+  },
+];</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p>Each tool's <code>input_schema</code> is real, enforced structure — the model literally cannot return a tool call missing a required field, a genuinely stronger guarantee than Chapter 3's approach of asking for JSON and hoping the shape matches. <code>report_objective_complete</code> is a deliberately special tool: it exists specifically so the model has an explicit, structured way to signal "I'm done," which this chapter's Evaluator page builds on directly.</p>
+
+<h2 id="step-by-step-implementation-making-a-real-tool-call">Step-by-Step Implementation — Making a Real Tool Call</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/call-with-tools.ts
+import { anthropic } from './ai-client';
+import { BROWSER_TOOLS } from './agent-tools';
+
+export async function getNextToolCall(
+  systemPrompt: string, conversationHistory: Anthropic.MessageParam[]
+) {
+  const response = await anthropic.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 1024,
+    system: systemPrompt,
+    tools: BROWSER_TOOLS,
+    messages: conversationHistory,
+  });
+
+  const toolUse = response.content.find(
+    (block): block is Anthropic.ToolUseBlock =&gt; block.type === 'tool_use'
+  );
+  if (!toolUse) {
+    throw new Error('Expected a tool call but the model responded with text only.');
+  }
+  return { name: toolUse.name, input: toolUse.input, id: toolUse.id };
+}</code></pre>
+
+<h2 id="why-it-matters-a-genuinely-stronger-guarantee">Why It Matters — A Genuinely Stronger Guarantee</h2>
+<p>Compare this to Chapter 3's <code>generateScenarios</code>, which asked for JSON in prose and then manually validated the shape after the fact. Here, <code>input_schema</code> is enforced by the API itself — a tool call for <code>click_element</code> is guaranteed to include both <code>role</code> and <code>name</code> before your code ever sees it. This doesn't eliminate the need for validation entirely (a role or name could still be wrong, just never structurally missing), but it closes off an entire category of malformed response this track has been defending against since Chapter 3.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Continuing to use JSON-in-prose prompting once real tool calling is available.</strong> This chapter's whole point is that tool calling provides a genuinely stronger structural guarantee — there's no reason to keep the weaker pattern once the agent architecture supports the real one.</li>
+  <li><strong>Assuming tool calling eliminates all validation needs.</strong> It guarantees structural shape, not correctness of values — Chapter 3 and 6's validation disciplines still matter for what's inside a correctly-shaped tool call.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Define tool schemas with the same care you'd put into a function signature — required fields, clear types, and a description precise enough for the model to use correctly.</li>
+  <li>Include a dedicated "objective complete" tool explicitly, rather than trying to infer completion from ordinary conversational text.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Add a fifth tool to <code>BROWSER_TOOLS</code> for asserting a page condition (following this page's schema pattern), and run <code>getNextToolCall</code> against a real objective to confirm the model correctly selects and structures a tool call using your new definition.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Real tool calling, deferred since Chapter 2, finally gets implemented here — the right moment, once this track's other techniques were already established using a simpler pattern.</li>
+  <li>Enforced input schemas provide a genuinely stronger structural guarantee than the JSON-in-prose pattern earlier chapters used, closing off a whole category of malformed response.</li>
+  <li>Tool calling doesn't replace this track's validation disciplines — it removes one specific class of failure, while value-level correctness still needs checking.</li>
+</ul>
+</article>
+</body></html>

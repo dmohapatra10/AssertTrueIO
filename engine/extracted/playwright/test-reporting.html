@@ -1,0 +1,135 @@
+<!doctype html>
+<html><head>
+<title>Playwright Test Reporting: HTML, JUnit, and JSON Reporters</title>
+<meta name="description" content="How Playwright&#x27;s built-in reporters work — the interactive HTML report, JUnit XML for CI integration, JSON for custom tooling — and how to configure multiple reporters at once." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/test-reporting.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Test Reporting</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="playwright-config-options.html">Configuration Options</a>, <a href="trace-viewer.html">Trace Viewer</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+  <p>A reporter turns raw test results into a specific output format. Playwright ships several built in, and the right choice depends on who's consuming the report — a human browsing results interactively, a CI system parsing pass/fail counts, or a custom dashboard ingesting structured data.</p>
+
+  <h2 id="why-it-s-important">Why it's important</h2>
+  <p>The HTML report (rich, interactive, includes traces/screenshots) is what a human wants to browse after a failure. JUnit XML is what most CI systems expect to render a pass/fail summary in their own UI. Using the wrong one for the wrong audience means either a human squinting at raw XML, or a CI dashboard that can't parse your results at all.</p>
+
+  <h2 id="the-built-in-reporters">The Built-In Reporters</h2>
+  <table>
+    <thead><tr><th>Reporter</th><th>Best for</th></tr></thead>
+    <tbody>
+      <tr><td><code>html</code></td><td>Human browsing — interactive, includes traces, screenshots, videos</td></tr>
+      <tr><td><code>list</code></td><td>Terminal output while developing locally (the default)</td></tr>
+      <tr><td><code>junit</code></td><td>CI systems that render JUnit XML natively (Jenkins, GitLab, Azure DevOps)</td></tr>
+      <tr><td><code>json</code></td><td>Custom tooling, dashboards, or programmatic post-processing</td></tr>
+      <tr><td><code>github</code></td><td>GitHub Actions — annotates failures directly on the PR diff</td></tr>
+      <tr><td><code>dot</code></td><td>Minimal terminal output — one character per test, useful for very large suites</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="basic-example-configuring-multiple-reporters-at-once">Basic Example — Configuring Multiple Reporters at Once</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export default defineConfig({
+  reporter: [
+    ['html', { open: 'never' }],
+    ['junit', { outputFile: 'results/junit.xml' }],
+    ['json', { outputFile: 'results/results.json' }],
+  ],
+});</code></pre>
+  <p>Reporters aren't mutually exclusive — running several at once (one for humans, one for CI, one for custom tooling) is normal and costs almost nothing extra.</p>
+
+  <h2 id="viewing-the-html-report">Viewing the HTML Report</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>npx playwright test
+npx playwright show-report</code></pre>
+  <p>The HTML report links directly to each failed test's trace, screenshot, and video (from the Screenshots & Videos and Trace Viewer chapters) — it's the natural jumping-off point for investigating any failure, not just a pass/fail summary.</p>
+
+  <h2 id="detailed-example-environment-aware-reporter-config">Detailed Example — Environment-Aware Reporter Config</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export default defineConfig({
+  reporter: process.env.CI
+    ? [['github'], ['html', { open: 'never' }], ['junit', { outputFile: 'results/junit.xml' }]]
+    : 'list',
+});</code></pre>
+  <p>Locally, a developer just wants fast terminal feedback (<code>list</code>). In CI, you typically want the <code>github</code> reporter for inline PR annotations, an HTML report as a downloadable artifact for deeper investigation, and JUnit XML for the CI platform's own pass/fail UI — three different consumers, three different formats, one config line switching between them.</p>
+
+  <h2 id="real-world-example-uploading-the-html-report-as-a-ci-artifact">Real-World Example — Uploading the HTML Report as a CI Artifact</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># GitHub Actions step, after running tests
+- name: Upload HTML report
+  if: always() # upload even if tests failed — that's when it matters most
+  uses: actions/upload-artifact@v4
+  with:
+    name: playwright-report
+    path: playwright-report/
+    retention-days: 14</code></pre>
+  <p><code>if: always()</code> is the detail that's easy to miss — a report is most valuable exactly when tests failed, so the upload step must run regardless of the test step's outcome, not only on success.</p>
+
+  <h2 id="custom-reporting-with-the-json-output">Custom Reporting With the JSON Output</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// A small script reading results.json to post a Slack summary
+const results = JSON.parse(fs.readFileSync('results/results.json', 'utf-8'));
+const failed = results.suites.flatMap(s =&gt; s.specs).filter(s =&gt; !s.ok);
+console.log(`${failed.length} test(s) failed`);</code></pre>
+  <p>The JSON reporter's structured output is the foundation for any custom integration — a Slack notification, a custom dashboard, a flaky-test tracker — that the built-in reporters don't directly support.</p>
+
+  <h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Only the terminal list reporter in CI — no artifact to investigate a failure afterward
+export default defineConfig({ reporter: 'list' });
+
+// ✅ HTML report as an uploaded artifact, plus a CI-native format
+export default defineConfig({
+  reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'list',
+});</code></pre>
+
+  <h2 id="common-mistakes">Common Mistakes</h2>
+  <ul>
+    <li><strong>Using only the terminal reporter in CI</strong>, with no HTML report artifact — once the CI logs scroll away, there's nothing left to actually investigate a failure with.</li>
+    <li><strong>Forgetting <code>if: always()</code></strong> when uploading report artifacts, so exactly the failed runs that need investigating produce no artifact at all.</li>
+    <li><strong>Using <code>open: 'always'</code> in CI</strong> — this tries to open a browser window on a headless CI runner, which fails or hangs; use <code>'never'</code> in CI and let the default apply locally.</li>
+    <li><strong>Not using a CI-native reporter</strong> (like <code>github</code> or <code>junit</code>) when one's available, missing out on inline annotations or native pass/fail UI the CI platform already provides.</li>
+  </ul>
+
+  <h2 id="edge-cases">Edge Cases</h2>
+  <ul>
+    <li><strong>Very large suites with thousands of tests</strong> — the <code>dot</code> reporter's minimal output can be more practical for terminal visibility than <code>list</code>, which prints a full line per test.</li>
+    <li><strong>Multiple CI systems consuming the same run</strong> (e.g., both GitHub Actions and an external dashboard) — configuring several reporters simultaneously, as shown above, handles this without needing separate test runs.</li>
+  </ul>
+
+  <h2 id="debugging">Debugging</h2>
+  <p>If a CI pass/fail summary looks wrong or incomplete, check that the correct reporter for that CI platform is actually configured and that its output file path matches what the CI job is configured to read — a mismatched path is a common, easy-to-miss cause of a CI step silently not finding results to parse.</p>
+
+  <h2 id="best-practices">Best Practices</h2>
+  <ul>
+    <li>Use <code>list</code> locally for fast feedback; use CI-native plus HTML in CI.</li>
+    <li>Always upload the HTML report as an artifact with <code>if: always()</code>.</li>
+    <li>Configure multiple reporters simultaneously rather than picking just one — the cost is minimal and each serves a different audience.</li>
+    <li>Reach for the JSON reporter's output as the foundation for any custom reporting need the built-in reporters don't cover.</li>
+  </ul>
+
+  <h2 id="practice-exercise">Practice Exercise</h2>
+  <p>Configure a project to use <code>list</code> locally and <code>github</code> + <code>html</code> + <code>junit</code> in CI, then write the corresponding GitHub Actions step that uploads the HTML report as an artifact only when tests actually ran (regardless of pass/fail).</p>
+
+  <h2 id="summary">Summary</h2>
+  <p>Playwright's reporters serve different audiences: <code>html</code> for human investigation (with direct links to traces and videos), <code>junit</code>/<code>github</code> for CI-native integration, and <code>json</code> for custom tooling. Configuring several at once and always uploading the HTML report as a CI artifact (with <code>if: always()</code>) is the standard, low-cost setup most real projects should use.</p>
+
+  <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why would a CI pipeline typically configure both a JUnit reporter and an HTML report artifact, rather than just one?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">They serve different purposes: JUnit XML lets the CI platform's own UI render a native pass/fail summary and integrate with its dashboards, while the HTML report is what a human actually opens to investigate a specific failure — traces, screenshots, and videos included. JUnit alone gives no way to dig into why a test failed; the HTML report alone doesn't integrate with the CI platform's own results UI. Together they cover both needs.</div>
+</details>
+<details class="faq-item">
+<summary>Why configure multiple reporters at once instead of just one?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Each serves a different audience — HTML for a human investigating a failure, JUnit/GitHub for CI-native integration — running several costs little extra.</div>
+</details>
+<details class="faq-item">
+<summary>Why is if: always() critical on the report-upload CI step?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A report is most valuable exactly when tests failed — without always(), that's precisely the case where the artifact wouldn't get uploaded.</div>
+</details>
+<details class="faq-item">
+<summary>Why avoid open: 'always' for the HTML reporter in CI?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It tries to open a browser window on a headless CI runner, which fails or hangs — use 'never' in CI and let the default apply locally.</div>
+</details>
+<details class="faq-item">
+<summary>What's the dot reporter useful for?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Very large suites, where its minimal one-character-per-test output is more practical in a terminal than a full line per test.</div>
+</details>
+</div>
+</article>
+</body></html>

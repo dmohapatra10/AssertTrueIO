@@ -1,0 +1,132 @@
+<!doctype html>
+<html><head>
+<title>Environment Variables in GitHub Actions: env: and Job vs. Step Scope</title>
+<meta name="description" content="How the env: key works at workflow, job, and step level, how precedence works when scopes overlap, and how to actually read a variable&#x27;s value inside a step." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/environment-variables-job-vs-step-scope.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Environment Variables: env: and Job vs. Step Scope</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="variables-contexts-and-expressions.html">Variables, Contexts & Expressions overview</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p><code>env:</code> defines an environment variable — a named value a step's commands can read. It can be set at three different levels: the whole workflow, a specific job, or a single step, each with a genuinely different scope.</p>
+
+<h2 id="workflow-level-env">Workflow-Level env</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>env:
+  NODE_ENV: production
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo $NODE_ENV   # available here — "production"</code></pre>
+<p>Defined at the very top of the file, a workflow-level <code>env</code> is available to every job and every step throughout the entire workflow.</p>
+
+<h2 id="job-level-env">Job-Level env</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      BUILD_MODE: fast
+    steps:
+      - run: echo $BUILD_MODE   # available here
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo $BUILD_MODE   # NOT available — different job</code></pre>
+<p>An <code>env</code> defined inside a specific job is available to every step within that job, but not to any other job — this follows the same job-isolation principle covered in Chapter 4.</p>
+
+<h2 id="step-level-env">Step-Level env</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>steps:
+  - run: echo $DEBUG_MODE
+    env:
+      DEBUG_MODE: verbose</code></pre>
+<p>The narrowest scope — available only within that single step, and nowhere else.</p>
+
+<h2 id="precedence-what-happens-when-scopes-overlap">Precedence — What Happens When Scopes Overlap</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>env:
+  MODE: workflow-level     # set at the top
+
+jobs:
+  build:
+    env:
+      MODE: job-level       # overrides the workflow-level value, for this job
+    steps:
+      - run: echo $MODE     # prints "job-level"
+      - run: echo $MODE
+        env:
+          MODE: step-level  # overrides again, only for this one step
+        # this step prints "step-level"</code></pre>
+<p>The narrowest scope always wins — step-level overrides job-level, which overrides workflow-level. This is genuinely useful: define a sensible default once at the top, then override it exactly where a specific job or step legitimately needs something different.</p>
+
+<h2 id="detailed-example-shopeasy-s-environment-configuration">Detailed Example — ShopEasy's Environment Configuration</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>env:
+  APP_NAME: ShopEasy               # true everywhere — workflow-level
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      TEST_TIMEOUT: 30000           # only test job needs this
+    steps:
+      - run: echo "Testing $APP_NAME with timeout $TEST_TIMEOUT"
+
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      TARGET_ENV: production        # only deploy job needs this
+    steps:
+      - run: echo "Deploying $APP_NAME to $TARGET_ENV"</code></pre>
+<p><code>APP_NAME</code> is genuinely relevant everywhere, so it lives at the workflow level. <code>TEST_TIMEOUT</code> and <code>TARGET_ENV</code> are each relevant to exactly one job, so they're scoped there instead — no job carries configuration it doesn't actually need.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might scoping a variable as narrowly as genuinely possible (step-level over job-level, job-level over workflow-level) generally be good practice, rather than just defining everything at the workflow level for convenience? A variable defined more broadly than it's actually used makes a workflow harder to reason about — someone reading a specific job has to check the entire file to know what values might be in play, rather than seeing everything relevant right there in that job's own definition.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Forgetting that a job-level or step-level <code>env</code> genuinely overrides a workflow-level one with the same name, rather than somehow combining with it. If a job defines <code>MODE: job-level</code> and the workflow defines <code>MODE: workflow-level</code>, steps in that job see only <code>job-level</code> — the workflow-level value is fully replaced, not merged in any way.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>Reading an environment variable's value inside a <code>run:</code> command uses your shell's own syntax — <code>$VARIABLE_NAME</code> on Linux/macOS (bash), <code>$env:VARIABLE_NAME</code> on Windows (PowerShell). This is genuinely different from reading a context via <code>${{ }}</code>, covered later in this chapter — environment variables and contexts are related but distinct mechanisms.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Scope a variable to the narrowest level that's actually correct — workflow-level only for values genuinely needed everywhere.</li>
+  <li>Use consistent, clear naming so it's obvious what a variable represents without needing to trace where it's defined.</li>
+  <li>Remember that overlapping scopes override rather than merge — the narrowest scope's value is what a step actually sees.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li><code>env:</code> can be set at workflow, job, or step level, each with progressively narrower scope.</li>
+  <li>When scopes overlap, the narrowest one wins — step overrides job, job overrides workflow.</li>
+  <li>Reading a variable inside <code>run:</code> uses the shell's own syntax (<code>$VAR</code> on bash, <code>$env:VAR</code> on PowerShell).</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Write a workflow (in YAML) with a workflow-level <code>env</code> value, a job that overrides it, and a single step within that job that overrides it again — then trace through, in writing, exactly what value each step in the workflow would actually see.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>If a workflow-level env and a job-level env both define the same variable name, which value does a step in that job actually see?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The job-level value — the narrower scope always overrides the broader one when they define the same variable name. This isn't a merge of the two values; the job-level definition completely replaces the workflow-level one for any step within that specific job.</div>
+</details>
+<details class="faq-item">
+<summary>Why does a job-level environment variable not carry over to a different job in the same workflow?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">This follows the same job-isolation principle covered when jobs and steps were first explained in depth — each job runs on its own separate, fresh runner, and a job-level env is scoped specifically to that job's own execution context. A different job in the same workflow simply never had that variable defined for it at all.</div>
+</details>
+<details class="faq-item">
+<summary>Why might scoping a variable at the narrowest correct level be preferable to defining everything at the workflow level?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Defining a variable more broadly than it's actually used makes a workflow harder to understand — someone reading one specific job has to check the entire file to know what values might apply, rather than finding everything relevant to that job defined right there. Narrow scoping keeps each part of a workflow self-contained and easier to reason about in isolation.</div>
+</details>
+<details class="faq-item">
+<summary>Why is reading an environment variable inside a run: step done differently from reading a context value?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">An environment variable is read using the shell's own native syntax ($VAR on bash, $env:VAR on PowerShell), since it's a genuine operating-system-level environment variable available to whatever process is actually running. A context value is read through GitHub Actions' own ${{ }} expression syntax, which is evaluated by GitHub Actions itself before the shell command even runs — these are two different mechanisms operating at different points in the process.</div>
+</details>
+<details class="faq-item">
+<summary>In a workflow with env defined at all three levels (workflow, job, step) for the same variable name, which value applies inside that specific step?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The step-level value — it's the narrowest scope of the three, and narrowest scope always takes precedence when multiple levels define the same variable name. The job-level and workflow-level definitions still apply to other steps or jobs that don't have their own more specific override, but this particular step sees only its own step-level value.</div>
+</details>
+</div>
+</article>
+</body></html>

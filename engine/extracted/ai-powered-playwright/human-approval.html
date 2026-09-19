@@ -1,0 +1,138 @@
+<!doctype html>
+<html><head>
+<title>Human Approval</title>
+<meta name="description" content="The final, non-negotiable gate — a validated, regression-free candidate still never merges without explicit human review, closing this chapter&#x27;s rule for real." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/human-approval.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Human Approval</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="regression-validation.html">Regression Validation</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Why passing every automated check still isn't sufficient to merge automatically</li>
+  <li>Building a real, working approval gate — a pull request, not a silent commit</li>
+  <li>Chapter 11's closing interview questions</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>Every earlier page in this chapter built toward this moment — a candidate patch that's validated and regression-free. This page is about the one thing that still needs to happen before any of it reaches real, committed code: a human, genuinely deciding.</p>
+
+<h2 id="why-it-matters-passing-checks-isn-t-the-same-as-being-right">Why It Matters — Passing Checks Isn't the Same as Being Right</h2>
+<p>A patch can pass its own test and every regression check while still being the wrong fix — Chapter 11's own assertion healing page showed a validated, existing value can still hide a genuine bug rather than reflect a legitimate change. Automated checks confirm the patch doesn't break anything currently measurable; they can't confirm it's the correct, intentional decision for ShopSmart's actual business. That judgment call belongs to a human, every time, without exception.</p>
+
+<h2 id="step-by-step-implementation-a-real-approval-gate">Step-by-Step Implementation — A Real Approval Gate</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/create-approval-request.ts
+import { execSync } from 'child_process';
+import { CandidatePatch } from './build-candidate-diff';
+import { formatAsDiff } from './build-candidate-diff';
+import { ValidationResult } from './validate-candidate-patch';
+import { RegressionResult } from './run-regression-check';
+
+export function createApprovalPullRequest(
+  patch: CandidatePatch, validation: ValidationResult,
+  regressionResults: RegressionResult[]
+): string {
+  const branchName = `self-healing/${Date.now()}`;
+  execSync(`git checkout -b ${branchName}`);
+
+  // Apply the patch to the REAL file — but ONLY as an
+  // UNCOMMITTED, open pull request, NEVER merged automatically
+  for (const change of patch.changes) {
+    execSync(
+      `sed -i 's|${change.before.trim()}|${change.after.trim()}|' ${patch.filePath}`
+    );
+  }
+
+  const regressionSummary = regressionResults
+    .map((r) =&gt; `- ${r.testFile}: ${r.passed ? '✅ passed' : '❌ FAILED'}`)
+    .join('\n');
+
+  const prBody = `## Self-healing candidate fix
+
+${formatAsDiff(patch)}
+
+**Original test validation:** ${validation.passed ? '✅ Passed' : '❌ Failed'}
+
+**Regression check:**
+${regressionSummary}
+
+**This PR requires explicit human review and approval before
+merging. It will not be merged automatically.**`;
+
+  execSync(`git add ${patch.filePath} && git commit -m "Self-healing candidate fix"`);
+  execSync(`git push origin ${branchName}`);
+  execSync(`gh pr create --title "Self-healing: ${patch.filePath}" --body '${prBody}' --draft`);
+
+  return branchName;
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p>Notice this opens as a draft pull request — not a direct commit to a real, deployed branch, and not something GitHub or any CI system would auto-merge. Everything from this chapter's earlier pages — the diff, the validation result, the regression summary — is included directly in the PR body, giving a human reviewer everything they need to make a genuinely informed decision without re-deriving any of it themselves.</p>
+
+<h2 id="why-it-matters-this-is-the-rule-made-real">Why It Matters — This Is the Rule, Made Real</h2>
+<p>This chapter opened with one non-negotiable rule: never silently modify the source code and declare the test successful. This page is that rule, implemented as real, working code — a draft PR, not a commit; a request for review, not an announcement of success. Every earlier page's validation and regression work makes this PR genuinely well-informed, but none of it substitutes for the human decision this final step requires.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Auto-merging a PR once validation and regression checks both pass.</strong> This defeats the entire purpose of this page — passing automated checks was never meant to be sufficient on its own.</li>
+  <li><strong>Creating a PR with a thin description, omitting the validation and regression evidence.</strong> A reviewer without this context has to redo the investigation themselves, undermining the real value this chapter's pipeline provides.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Always open self-healing fixes as draft pull requests, never as direct or automatically-merged commits.</li>
+  <li>Include every earlier stage's evidence directly in the PR — the diff, validation result, and regression summary — so a reviewer has everything they need in one place.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Run this chapter's complete pipeline, end to end, against a real or simulated failure in your own project — generation, validation, regression check, and finally this page's approval request. Review the resulting draft PR as if you were the human approver, and decide honestly whether you'd approve it as written.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Passing every automated check is necessary, not sufficient — a human's genuine judgment remains a required, non-negotiable step.</li>
+  <li>A draft pull request, never an automatic commit or merge, is the real implementation of this chapter's opening rule.</li>
+  <li>Including every earlier stage's evidence in the approval request is what makes a human's review genuinely informed, not just a formality.</li>
+</ul>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Beginner: What is the real, precise difference between Chapter 6's locator healing and this chapter's self-healing?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Chapter 6's healing finds a working locator for one test run — it never modifies the source file, so the same broken locator remains for the next run. This chapter's self-healing proposes an actual, persistent change to the source code itself — a real diff that, if approved, will apply to every future run of the test. The real line between them is persistence: temporary, per-run substitution versus a lasting code change.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Beginner: Why does this chapter treat assertion healing as genuinely riskier than locator healing?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A locator either finds the right element or it doesn't — Chapter 6's runtime existence check provides real, independent confirmation. An assertion's expected value has no equivalent check: a new value existing on the page doesn't confirm it's correct, since it could reflect either a legitimate business change or a genuine application bug. A wrong locator fix produces a visible failure with a different error; a wrong assertion fix can make a test silently pass while hiding a real regression — a genuinely worse outcome.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Intermediate: Explain why validating a candidate patch and checking for regressions are described as two separate, both-necessary steps.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Validation confirms the specific, originally-failing test now passes with the patch applied — it answers "does this fix the problem it was meant to fix." Regression checking asks a genuinely different question: does this same change break some other test that was passing before, because it shares the same underlying code. A patch can pass validation while still breaking three other tests that reference the same locator — checking only one of these two questions leaves real risk unaddressed.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Intermediate: Why does findAffectedTests search the entire tests directory for the original code string, rather than only checking the test file that originally failed?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>The same broken locator or assertion can be referenced by multiple, otherwise-unrelated test files across a real suite — a shared "Add to Cart" button, for instance, might be used by cart, checkout, and wishlist tests. Only checking the originally-failing test file would miss every other test that happens to depend on the exact same code being changed, leaving real regression risk completely unexamined in files nobody thought to check.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Advanced: Why does this chapter insist human approval remains required even after a candidate patch passes both validation and regression checks?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Automated checks can only confirm what's currently measurable — that the originally-failing test now passes, and that no other test in the suite currently breaks. They cannot confirm the change is the correct, intentional decision for the business. The assertion healing example makes this concrete: a new price value can pass every automated check while still reflecting a genuine pricing bug rather than a legitimate business change, because no automated check can distinguish the two without the business context only a human genuinely has. Automated checks reduce the scope of what a human needs to verify — they don't eliminate the need for that verification.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Scenario-based: A teammate proposes auto-merging self-healing PRs that pass validation and regression checks, but only for locator fixes, never assertion fixes, reasoning locator fixes are "obviously safe." How would you respond?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd push back using this chapter's own reasoning about what automated checks can and cannot confirm. Even a locator fix that passes every check confirms only that the new locator exists uniquely on the current page and doesn't break other tests right now — it doesn't confirm the new locator is the semantically correct, intentional choice going forward, which is exactly the caveat Chapter 11's own locator healing page raised. A locator could exist and be unique while still being the wrong element for subtly incorrect reasons an automated check has no way to catch. "Obviously safe" is doing a lot of unearned work in that reasoning — the entire point of this chapter's approval stage is that no category of change, however low-risk it appears, gets to skip a human's genuine judgment. I'd suggest instead that locator fixes could reasonably get a lighter-weight or faster review process, but not an automatic one.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

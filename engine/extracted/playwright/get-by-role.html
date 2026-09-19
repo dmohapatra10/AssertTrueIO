@@ -1,0 +1,133 @@
+<!doctype html>
+<html><head>
+<title>Playwright getByRole(): Complete Guide with Real-World Examples</title>
+<meta name="description" content="How Playwright&#x27;s getByRole() locator works, the accessibility tree it reads from, every important option, common mistakes, and when to reach for something else instead." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/get-by-role.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1><code class="api-name">getByRole()</code></h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="locators.html">Locators overview</a></p>
+<article class="content">
+<h2 id="what-is-getbyrole">What is <code>getByRole()</code>?</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>page.getByRole(role: string, options?: {
+  name?: string | RegExp,
+  exact?: boolean,
+  checked?: boolean,
+  disabled?: boolean,
+  expanded?: boolean,
+  level?: number,
+  pressed?: boolean,
+  selected?: boolean,
+})</code></pre>
+      <p><code>getByRole()</code> finds elements by their <strong>accessibility role</strong> — the same information a screen reader uses to announce "button," "link," or "checkbox" to a visually impaired user. It reads from the browser's computed accessibility tree, not from the raw HTML, which is why it works whether an element is a native <code>&lt;button&gt;</code> or a <code>&lt;div role="button"&gt;</code> styled to look like one.</p>
+
+      <h2 id="why-it-s-the-recommended-default">Why it's the recommended default</h2>
+      <p>A role reflects what an element <em>is</em> to a user, not how a developer happened to implement it. That has two consequences: tests stay stable through refactors that change class names or DOM structure but don't change what the element does, and writing role-based tests continuously exercises whether your app is actually accessible — if you can't find a button by role, a screen reader user can't reliably find it either.</p>
+
+      <h2 id="mental-model-the-accessibility-tree">Mental Model: the accessibility tree</h2>
+      <p>Every element in the DOM maps to a node in a parallel tree the browser builds specifically for assistive technology — the accessibility tree. A styled <code>&lt;div&gt;</code> with <code>onClick</code> and no <code>role</code> attribute maps to role <code>generic</code>, invisible to <code>getByRole('button')</code>, even though it's visually a button. This is <code>getByRole()</code> reading real browser semantics, not guessing from markup patterns.</p>
+
+      <h2 id="basic-example">Basic Example</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>await page.getByRole('button', { name: 'Submit' }).click();</code></pre>
+
+      <h2 id="detailed-example-common-roles">Detailed Example — Common Roles</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>await page.getByRole('textbox', { name: 'Email' }).fill('user@example.com');
+await page.getByRole('checkbox', { name: 'Remember me' }).check();
+await page.getByRole('link', { name: 'Forgot password?' }).click();
+await page.getByRole('heading', { name: 'Sign in', level: 1 }).isVisible();
+await page.getByRole('combobox', { name: 'Country' }).selectOption('India');
+await page.getByRole('button', { name: 'Sign in' }).click();</code></pre>
+      <p><code>level</code> narrows heading roles to a specific <code>&lt;h1&gt;</code>–<code>&lt;h6&gt;</code> level — useful when a page legitimately has multiple headings with similar text at different levels.</p>
+
+      <h2 id="real-world-example-login-flow">Real-World Example — Login Flow</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('user can sign in and reach the dashboard', async ({ page }) =&gt; {
+  await page.goto('/login');
+  await page.getByRole('textbox', { name: 'Email' }).fill('user@example.com');
+  await page.getByRole('textbox', { name: 'Password' }).fill('correct-horse-battery-staple');
+  await page.getByRole('button', { name: 'Sign in' }).click();
+
+  await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+  await expect(page.getByRole('alert')).not.toBeVisible(); // no error banner
+});</code></pre>
+      <p>Every line reads like the test plan a human would write, and none of it breaks if the underlying markup is refactored from a <code>&lt;table&gt;</code>-based form to a <code>&lt;div&gt;</code>-based one — the roles stay the same either way.</p>
+
+      <h2 id="matching-by-state-checked-disabled-expanded-pressed-selected">Matching by state: checked, disabled, expanded, pressed, selected</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Disambiguate two "Notifications" toggles by their current state
+await page.getByRole('checkbox', { name: 'Email notifications', checked: true }).uncheck();
+
+// Only target the button while it's genuinely disabled — e.g. during a submit
+await expect(page.getByRole('button', { name: 'Save', disabled: true })).toBeVisible();
+
+// An accordion header's expanded state
+await page.getByRole('button', { name: 'Shipping details', expanded: false }).click();</code></pre>
+      <p>These state options don't just filter — they also make the test's <em>intent</em> explicit: a reviewer sees at a glance that the test cares about the disabled state, not just the presence of the button.</p>
+
+      <h2 id="exact-matching">exact matching</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Matches "Sign in" AND "Sign in to continue" (default: substring, case-insensitive)
+await page.getByRole('button', { name: 'Sign in' }).click();
+
+// Matches ONLY the exact text "Sign in"
+await page.getByRole('button', { name: 'Sign in', exact: true }).click();</code></pre>
+      <p>Without <code>exact: true</code>, name matching is a case-insensitive substring match, not an equality check — worth knowing before assuming a name filter is more specific than it actually is.</p>
+
+      <h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Fragile — depends on class names that can change for styling reasons alone
+await page.locator('.btn.btn-primary.submit-btn').click();
+
+// ✅ Recommended — depends on what the element IS, not how it's styled
+await page.getByRole('button', { name: 'Submit' }).click();</code></pre>
+
+      <h2 id="common-mistakes">Common Mistakes</h2>
+      <ul>
+        <li><strong>Omitting <code>name</code> when the page has multiple elements with the same role</strong> — <code>page.getByRole('button')</code> on a page with five buttons throws a strict-mode violation the moment you act on it.</li>
+        <li><strong>Assuming a styled <code>&lt;div&gt;</code> has a role just because it looks interactive</strong> — without an explicit <code>role</code> attribute (or a native element like <code>&lt;button&gt;</code>), it maps to <code>generic</code> and <code>getByRole()</code> won't find it. This is usually a real accessibility bug worth reporting, not just a test problem.</li>
+        <li><strong>Forgetting that <code>name</code> matching is substring by default</strong> and being surprised when <code>{ name: 'Sign in' }</code> also matches a "Sign in to continue" button elsewhere on the page.</li>
+      </ul>
+
+      <h2 id="edge-cases">Edge Cases</h2>
+      <ul>
+        <li><strong>Icon-only buttons with no visible text</strong> — the accessible name comes from <code>aria-label</code>, not visible text. If the button has neither, <code>getByRole()</code> can't target it by name at all, and <code>getByTestId()</code> becomes the pragmatic fallback.</li>
+        <li><strong>Custom components from UI libraries</strong> (e.g., a React Select) often render an internal <code>&lt;input role="combobox"&gt;</code> — inspect the real DOM rather than assuming the role matches the component's marketing name.</li>
+      </ul>
+
+      <h2 id="debugging">Debugging</h2>
+      <p>Use <code>--debug</code> or UI Mode's "Pick locator" (Chapter 2) to click the actual element and see its resolved role and accessible name — this is far more reliable than guessing from the HTML source, since the accessible name is computed from a chain of rules (aria-label, aria-labelledby, visible text, alt text, in that priority order).</p>
+
+      <h2 id="best-practices">Best Practices</h2>
+      <ul>
+        <li>Start every new locator decision with "can I write this as <code>getByRole()</code>?" before considering anything else.</li>
+        <li>Add <code>aria-label</code> to icon-only interactive elements in the app itself — it fixes accessibility and testability at the same time.</li>
+        <li>Use state options (<code>checked</code>, <code>disabled</code>, <code>expanded</code>) to make test intent explicit rather than asserting on CSS classes.</li>
+      </ul>
+
+      <h2 id="practice-exercise">Practice Exercise</h2>
+      <p>Given a page with three buttons — "Save," "Save as draft," and a disabled "Save" during submission — write three separate <code>getByRole()</code> locators that unambiguously target each one, using <code>exact</code> and <code>disabled</code> where needed.</p>
+
+      <h2 id="summary">Summary</h2>
+      <p><code>getByRole()</code> reads the browser's real accessibility tree, making it resilient to markup changes and a built-in accessibility check. Use <code>name</code> to disambiguate, <code>exact</code> when substring matching is too loose, and state options when the test cares about more than presence.</p>
+
+      <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why might <code>getByRole('button', { name: 'Submit' })</code> fail to find a visually obvious Submit button?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Most likely the element isn't a native <code>&lt;button&gt;</code> and has no explicit <code>role="button"</code> attribute, so it maps to the accessibility tree's <code>generic</code> role instead of <code>button</code> — a real accessibility gap the test just surfaced, not a locator mistake.</div>
+</details>
+<details class="faq-item">
+<summary>Where does getByRole() actually read an element's role from?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The browser's computed accessibility tree — the same structure a screen reader uses — not the raw HTML tag name alone.</div>
+</details>
+<details class="faq-item">
+<summary>Why might getByRole('button') fail to find a visually obvious button?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">If it's a styled &lt;div&gt; with no role='button' and no native button element, it maps to the generic role in the accessibility tree, not button.</div>
+</details>
+<details class="faq-item">
+<summary>What's the default matching behavior for the name option?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Case-insensitive substring matching, unless exact: true is passed, which requires a full match.</div>
+</details>
+<details class="faq-item">
+<summary>Name two role state options besides visibility that let you disambiguate elements.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">checked and disabled (also expanded, pressed, and selected) — useful when multiple elements share a role and name but differ in state.</div>
+</details>
+</div>
+</article>
+</body></html>

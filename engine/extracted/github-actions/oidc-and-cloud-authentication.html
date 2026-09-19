@@ -1,0 +1,100 @@
+<!doctype html>
+<html><head>
+<title>OIDC &amp; Cloud Authentication in GitHub Actions: No Stored Credentials Needed</title>
+<meta name="description" content="How OpenID Connect lets a GitHub Actions workflow authenticate securely to a cloud provider without ever storing a long-lived credential as a secret." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/oidc-and-cloud-authentication.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>OIDC &amp; Cloud Authentication</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="containers-and-services-in-github-actions.html">Containers & Services in GitHub Actions</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>OIDC (OpenID Connect) lets a GitHub Actions workflow prove its identity directly to a cloud provider (AWS, Azure, GCP) and receive temporary access — without a long-lived credential ever being stored as a secret at all.</p>
+
+<h2 id="why-do-we-need-it">Why do we need it?</h2>
+<p>A long-lived cloud credential stored as a secret (covered as a risk pattern back in Chapter 7) remains valid indefinitely until someone manually rotates it — if it's ever leaked, it's a genuine, ongoing risk until someone notices. OIDC eliminates the stored credential entirely; there's simply nothing long-lived to leak.</p>
+
+<h2 id="how-this-genuinely-works-conceptually">How This Genuinely Works, Conceptually</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>1. Your workflow requests a short-lived, cryptographically signed
+   identity token FROM GITHUB ITSELF.
+2. Your workflow presents that token to the cloud provider (AWS, say).
+3. The cloud provider has been pre-configured to TRUST tokens from
+   your specific GitHub repository.
+4. The cloud provider verifies the token and issues temporary,
+   short-lived cloud credentials in return.
+5. Your workflow uses those temporary credentials for this run only.</code></pre>
+<p>Genuinely no secret was stored anywhere in this entire flow — the trust relationship is configured once, on the cloud provider's side, between it and your specific repository.</p>
+
+<h2 id="required-permission">Required Permission</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>permissions:
+  id-token: write   # required for the workflow to request an OIDC token at all
+  contents: read</code></pre>
+<p>This connects directly to Chapter 7's least-privilege principle — <code>id-token: write</code> is specifically and only what's needed to request this identity token; it doesn't grant broad cloud access itself.</p>
+
+<h2 id="detailed-example-authenticating-to-aws-without-a-stored-credential">Detailed Example — Authenticating to AWS Without a Stored Credential</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::123456789:role/github-actions-deploy
+          aws-region: us-east-1
+      - run: aws s3 cp dist/ s3://shopeasy-bucket/ --recursive</code></pre>
+<p>Notice: there's no <code>AWS_ACCESS_KEY_ID</code> or <code>AWS_SECRET_ACCESS_KEY</code> secret anywhere in this workflow. The <code>role-to-assume</code> is an AWS-side identity, configured once to trust GitHub's OIDC tokens specifically from this repository — genuinely nothing sensitive is stored in GitHub at all.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why is OIDC-based authentication genuinely more secure than even a well-managed secret containing cloud credentials? A secret, no matter how carefully managed, is still a long-lived value that exists somewhere and could theoretically be exposed. OIDC's temporary credentials exist only for the duration of a specific workflow run and are never stored anywhere at all — there's no long-lived value that could leak, because none exists in the first place.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Continuing to use long-lived cloud access keys stored as secrets out of habit or unfamiliarity, when the actual cloud provider genuinely supports OIDC-based authentication instead. This is exactly the kind of unnecessary, avoidable risk Chapter 7's entire security chapter was building toward recognizing and eliminating where a genuinely better alternative exists.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>Configuring the trust relationship on the cloud provider's side (an IAM role in AWS, for instance) is a real, one-time setup step outside of GitHub Actions itself — worth consulting your specific cloud provider's current documentation for the exact configuration, since this setup lives entirely on their side, not in your workflow file.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Prefer OIDC-based authentication over stored long-lived credentials whenever your cloud provider genuinely supports it.</li>
+  <li>Grant <code>id-token: write</code> only to jobs that genuinely need to authenticate this way — following the same least-privilege principle applied everywhere else.</li>
+  <li>Scope the cloud-side trust configuration narrowly — to a specific repository, or even a specific branch — rather than trusting broadly.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>OIDC lets a workflow authenticate to a cloud provider using a short-lived, verified identity token — no stored credential exists at all.</li>
+  <li>The trust relationship is configured once on the cloud provider's side, between it and a specific GitHub repository.</li>
+  <li><code>id-token: write</code> is the specific, minimal permission required to request this identity token.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>For a hypothetical workflow currently using a stored <code>AZURE_CLIENT_SECRET</code> to deploy to Azure, describe in plain English the steps you'd need to take (both on GitHub's side and Azure's side) to migrate this to OIDC-based authentication instead.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why is OIDC-based cloud authentication considered more secure than even a carefully managed, stored secret?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A stored secret, however carefully managed, is still a long-lived value that exists somewhere and could theoretically be exposed or leaked. OIDC's temporary credentials exist only for the specific duration of one workflow run and are never stored anywhere at all — there's simply no long-lived value present that could ever leak, because none exists in the first place.</div>
+</details>
+<details class="faq-item">
+<summary>What does the id-token: write permission specifically allow a workflow to do?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It allows the workflow to request a short-lived, cryptographically signed identity token from GitHub itself — this is the specific, minimal permission required for the OIDC authentication flow to begin. It doesn't grant broad cloud access on its own; that access only comes after the cloud provider verifies the token and issues its own temporary credentials in response.</div>
+</details>
+<details class="faq-item">
+<summary>Where does the trust relationship between a specific GitHub repository and a cloud provider actually get configured?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">This configuration happens on the cloud provider's own side — for AWS, as an IAM role configured to trust tokens from a specific GitHub repository — not within the GitHub Actions workflow file itself. It's a one-time setup step performed in the cloud provider's own console or configuration tools, establishing which repositories are trusted before any workflow can actually use OIDC to authenticate.</div>
+</details>
+<details class="faq-item">
+<summary>Why does a workflow using OIDC-based AWS authentication have no AWS_ACCESS_KEY_ID or AWS_SECRET_ACCESS_KEY secret anywhere in it?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Because OIDC eliminates the need for a stored, long-lived credential entirely — instead of presenting a pre-existing secret, the workflow requests a temporary identity token from GitHub and exchanges it for temporary AWS credentials that exist only for that specific run. There's genuinely nothing sensitive stored as a GitHub secret in this authentication flow at all.</div>
+</details>
+<details class="faq-item">
+<summary>Why should a team consider migrating from stored cloud credentials to OIDC even if their current secret has never been exposed?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The risk of a stored, long-lived credential isn't that it has been exposed — it's that it genuinely could be, at any point, for as long as it continues to exist. OIDC removes that entire category of risk by eliminating the long-lived credential altogether, which is a real, structural security improvement independent of whether any specific past exposure has actually occurred.</div>
+</details>
+</div>
+</article>
+</body></html>

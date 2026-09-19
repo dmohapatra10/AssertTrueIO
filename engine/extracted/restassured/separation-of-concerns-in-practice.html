@@ -1,0 +1,190 @@
+<!doctype html>
+<html><head>
+<title>Separation of Concerns in Practice: A Full RestAssured Worked Example</title>
+<meta name="description" content="A complete, worked example showing every RestAssured framework layer collaborating on a realistic scenario — from client to model to test, and what happens when concerns leak between layers." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/separation-of-concerns-in-practice.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Separation of Concerns in Practice</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="the-recommended-folder-structure.html">The Recommended Folder Structure</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>The previous two pages covered the theory — what each layer owns, and where it lives. This page works through one complete, realistic scenario end to end, showing every layer collaborating, and — just as instructively — what it looks like when a concern leaks into the wrong layer.</p>
+
+<h2 id="the-scenario">The Scenario</h2>
+<p>Testing an order-cancellation feature: create an order, cancel it, verify it's actually cancelled, and confirm a regular user can't cancel someone else's order.</p>
+
+<h2 id="step-1-the-model">Step 1 — The Model</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// models/Order.java
+public class Order {
+    private String id;
+    private String status;
+    private String customerId;
+    // constructors, getters, setters
+}</code></pre>
+
+<h2 id="step-2-the-client">Step 2 — The Client</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// clients/OrderClient.java
+public class OrderClient {
+    private final RequestSpecification spec;
+    public OrderClient(RequestSpecification spec) { this.spec = spec; }
+
+    public Response create(Order order) {
+        return given().spec(spec).body(order).when().post("/orders");
+    }
+    public Response cancel(String orderId) {
+        return given().spec(spec).pathParam("id", orderId).when().put("/orders/{id}/cancel");
+    }
+    public Response getById(String orderId) {
+        return given().spec(spec).pathParam("id", orderId).when().get("/orders/{id}");
+    }
+}</code></pre>
+
+<h2 id="step-3-the-spec-factory">Step 3 — The Spec Factory</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// specs/SpecFactory.java
+public class SpecFactory {
+    public static RequestSpecification forRole(String role) {
+        return new RequestSpecBuilder()
+            .setBaseUri(EnvConfig.baseUrl())
+            .addHeader("Authorization", "Bearer " + TokenManager.getTokenForRole(role))
+            .build();
+    }
+}</code></pre>
+
+<h2 id="step-4-the-test-data-builder">Step 4 — The Test Data Builder</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// data/OrderBuilder.java
+public class OrderBuilder {
+    private String item = "Default Item";
+    private int quantity = 1;
+    public static OrderBuilder anOrder() { return new OrderBuilder(); }
+    public OrderBuilder withItem(String item) { this.item = item; return this; }
+    public Order build() { return new Order(item, quantity); }
+}</code></pre>
+
+<h2 id="step-5-the-tests">Step 5 — The Tests</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// tests/orders/OrderCancellationTest.java
+public class OrderCancellationTest {
+
+    @Test
+    void ownerCanCancelTheirOwnOrder() {
+        OrderClient client = new OrderClient(SpecFactory.forRole("user"));
+        String orderId = client.create(OrderBuilder.anOrder().build())
+            .then().statusCode(201).extract().path("id");
+
+        client.cancel(orderId).then().statusCode(200).body("status", equalTo("cancelled"));
+
+        client.getById(orderId).then().body("status", equalTo("cancelled"));
+    }
+
+    @Test
+    void regularUserCannotCancelAnotherUsersOrder() {
+        OrderClient ownerClient = new OrderClient(SpecFactory.forRole("user"));
+        String orderId = ownerClient.create(OrderBuilder.anOrder().build())
+            .then().statusCode(201).extract().path("id");
+
+        OrderClient otherUserClient = new OrderClient(SpecFactory.forRole("otherUser"));
+        otherUserClient.cancel(orderId).then().statusCode(403);
+    }
+}</code></pre>
+<p>Look at how thin these test methods actually are — every line either builds test data, calls a client method, or asserts on a response. There's no raw <code>given()/when()/then()</code> chain inline, no manual token handling, no hand-built request. Every piece of complexity is delegated to the layer that owns it, exactly as designed.</p>
+
+<h2 id="what-it-looks-like-when-concerns-leak">What It Looks Like When Concerns Leak</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ A test that reaches past the client layer, building its own request inline
+@Test
+void ownerCanCancelTheirOwnOrder_BadVersion() {
+    String token = given().body(credentials).when().post("/login").jsonPath().getString("token");
+
+    String orderId = given()
+        .baseUri("https://api.example.com")
+        .header("Authorization", "Bearer " + token)
+        .body(Map.of("item", "Default Item", "quantity", 1))
+        .when().post("/orders")
+        .then().statusCode(201).extract().path("id");
+
+    given()
+        .baseUri("https://api.example.com")
+        .header("Authorization", "Bearer " + token)
+        .pathParam("id", orderId)
+        .when().put("/orders/{id}/cancel")
+        .then().statusCode(200);
+}</code></pre>
+<p>This test works — it's functionally identical to the well-layered version. But every piece of setup (base URI, auth, request construction) is duplicated inline, none of it reusable, and a change to how authentication works means updating every test written this way individually, rather than updating one shared layer once.</p>
+
+<h2 id="real-world-example-the-cost-of-concern-leaking-made-concrete">Real-World Example — The Cost of Concern-Leaking, Made Concrete</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// If the base URI changes (a new environment, a URL restructure)...
+
+// ❌ With leaked concerns: update EVERY test file with an inline baseUri() call
+// ✅ With proper layering: update ONE line, in EnvConfig or SpecFactory
+
+// If authentication changes from Bearer tokens to a new scheme entirely...
+
+// ❌ With leaked concerns: update EVERY test's inline auth header logic
+// ✅ With proper layering: update TokenManager and SpecFactory ONCE</code></pre>
+<p>This is the concrete, measurable payoff of the whole chapter: the layered version isn't just "cleaner" in an abstract sense — a real, disruptive change to the API's infrastructure touches one or two files instead of potentially hundreds of test methods.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Test-specific logic leaking INTO a client method
+public Response cancel(String orderId) {
+    Response response = given().spec(spec).pathParam("id", orderId).when().put("/orders/{id}/cancel");
+    assertThat(response.getStatusCode(), equalTo(200)); // ❌ assertion inside the client
+    return response;
+}
+
+// ✅ The client stays pure — assertions stay in the test
+public Response cancel(String orderId) {
+    return given().spec(spec).pathParam("id", orderId).when().put("/orders/{id}/cancel");
+}</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Reaching past the client layer "just this once"</strong> for a seemingly simple test — this is exactly how concern-leaking accumulates over time, one small exception at a time.</li>
+  <li><strong>Putting assertions inside a client method</strong> instead of leaving that to the test, as covered on the previous page.</li>
+  <li><strong>Not noticing when a pattern has repeated enough to warrant its own layer</strong> — the judgment call from Chapter 9's Specifications vs. Utility Methods page applies at the whole-framework scale too.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>A genuinely one-off test that doesn't fit the client pattern</strong> — it's fine for a truly unique scenario to construct a request more directly; the framework's layers are a strong default, not an absolute rule with zero exceptions.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a bug fix or infrastructure change requires touching many test files instead of just one or two framework files, that's a signal the layering has broken down somewhere — worth identifying and refactoring the leaked concern back into its proper layer before the problem compounds further.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Keep test methods thin — build data, call a client, assert — with everything else delegated.</li>
+  <li>Resist "just this once" exceptions that reach past the client/spec layers inline.</li>
+  <li>Periodically check: if a hypothetical infrastructure change happened today, how many files would it actually touch? A high number signals leaked concerns worth refactoring.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Take the "bad version" test shown on this page and refactor it into the properly layered version — a model, a client, a spec factory call, and a thin test method — confirming the refactored version behaves identically while being dramatically more maintainable against future change.</p>
+
+<h2 id="summary">Summary</h2>
+<p>Well-separated concerns produce test methods that are thin and readable — data, action, assertion — with everything else (request construction, authentication, environment configuration) delegated to a layer that owns it once. The real payoff isn't aesthetic: when infrastructure genuinely changes, a well-layered framework absorbs it in one or two files, while a framework with leaked concerns requires touching every affected test individually.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A team's test suite has 200 tests, and a recent API authentication change required updating 180 of them individually. What does this suggest about the suite's architecture, and how would proper layering have prevented it?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">This strongly suggests authentication logic was duplicated inline across individual tests rather than centralized in a dedicated layer (an <code>auth/</code> token manager and a shared spec factory, as covered in this chapter). With proper layering, every test would obtain its authenticated spec through the same shared <code>SpecFactory</code>/<code>TokenManager</code> combination — meaning an authentication scheme change would require updating that one shared implementation, and every test using it would automatically pick up the change without any individual modification at all. The 180-file update is exactly the cost concern-leaking produces, made concrete.</div>
+</details>
+<details class="faq-item">
+<summary>What's the concrete, measurable cost difference between a well-layered and a concern-leaking test suite when infrastructure changes?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">In a well-layered suite, a base URI or auth scheme change touches one or two shared files; in a concern-leaking suite where every test builds its own request inline, the same change requires updating every affected test file individually — potentially hundreds of them.</div>
+</details>
+<details class="faq-item">
+<summary>Why is 'just this once' reaching past the client layer a risky habit?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It's exactly how concern-leaking accumulates over time — one small exception at a time, until the framework's structure has eroded and the maintainability benefits it was meant to provide are lost.</div>
+</details>
+<details class="faq-item">
+<summary>What's a good diagnostic question for whether a framework's layering has broken down?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">If a hypothetical infrastructure change happened today, how many files would it actually touch? A surprisingly high number signals leaked concerns worth refactoring back into their proper layer.</div>
+</details>
+<details class="faq-item">
+<summary>Why do the well-layered test examples on this page look so much thinner than the 'bad version' shown alongside them?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Every piece of complexity (base URI, auth, request construction) is delegated to a layer that owns it — the test itself is left doing only what a test should: building data, calling a client, and asserting.</div>
+</details>
+</div>
+</article>
+</body></html>

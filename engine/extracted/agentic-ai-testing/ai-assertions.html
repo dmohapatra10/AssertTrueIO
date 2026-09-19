@@ -1,0 +1,206 @@
+<!doctype html>
+<html><head>
+<title>AI Assertions: Deciding What to Check, and How Confidently</title>
+<meta name="description" content="How an agent reasons about what genuinely counts as correct, the difference between exact and fuzzy assertions, and why confidence levels matter for AI-driven checking." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/ai-assertions.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>AI Assertions</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="ai-locator-selection.html">AI Locator Selection</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>A traditional Playwright assertion checks one specific, predetermined thing — <code>expect(x).toBe(y)</code>. An agent deciding what to assert is doing something genuinely different: reasoning about what "correct" actually means for a situation it wasn't given an exact expected value for in advance.</p>
+
+<h2 id="exact-vs-fuzzy-assertions">Exact vs. Fuzzy Assertions</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>EXACT assertion — a traditional, precise check:
+  "The search results count shows exactly '3 results'."
+  Genuinely appropriate when there's ONE, unambiguous correct
+  value — no real reasoning needed, a direct comparison suffices.
+
+FUZZY assertion — genuinely requires reasoning:
+  "The search results for 'wireless mouse' are actually
+  RELEVANT to that search term."
+  There's no single "correct" exact string to compare against
+  — this requires genuine JUDGMENT about whether each result
+  is a reasonable, relevant match, which is exactly the kind
+  of assertion an agent's reasoning is well-suited for.</code></pre>
+
+<h2 id="a-real-fuzzy-assertion-in-code">A Real Fuzzy Assertion, in Code</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def assess_relevance(search_term, results, client):
+    prompt = f"""A user searched for "{search_term}" on an
+e-commerce site. Here are the results returned:
+
+{results}
+
+For each result, judge whether it's a GENUINELY relevant match
+for this search term. State your confidence (high/medium/low)
+for each judgment, and flag anything that seems like a clearly
+irrelevant result.
+"""
+    response = client.messages.create(
+        model="claude-sonnet-4-6", max_tokens=1024,
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return response.content[0].text</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># A genuinely realistic response:
+"'Wireless Mouse Pro' — HIGH confidence, directly relevant.
+'Ergo Wireless Mouse' — HIGH confidence, directly relevant.
+'USB Wired Keyboard' — LOW confidence this is relevant; it's
+  a keyboard, not a mouse, and isn't wireless. Flagging as a
+  possible search relevance issue worth investigating."</code></pre>
+
+<h2 id="why-confidence-levels-genuinely-matter">Why Confidence Levels Genuinely Matter</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>❌ A binary "relevant / not relevant" judgment loses real
+   information:
+  Treats "obviously, certainly relevant" and "plausibly
+  relevant, but genuinely unsure" identically — a human
+  reviewer can't tell which flagged issues deserve more
+  scrutiny.
+
+✅ Confidence levels preserve genuinely useful distinctions:
+  A LOW-confidence flag on "USB Wired Keyboard" appearing in
+  wireless-mouse results is worth a human's attention. A
+  HIGH-confidence judgment that "Wireless Mouse Pro" is
+  relevant needs essentially no further review — the
+  confidence level itself tells a reviewer where to actually
+  focus.</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might forcing every assertion into a binary pass/fail be a genuine loss of information specifically for the RELEVANCE kind of check this page describes, in a way it isn't for the EXACT kind of check? An exact check ("count equals 3") genuinely has only two possible states — right or wrong, with no meaningful middle ground. A relevance judgment genuinely has degrees of certainty a human would also experience — "the keyboard result is clearly wrong" versus "this borderline accessory might or might not count as relevant" are genuinely different situations that a forced binary pass/fail collapses into the same signal, discarding real, useful information about how confident the judgment actually is.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Using a fuzzy, AI-reasoned assertion for something that actually has one single correct, checkable value. If a scenario's expected outcome is "exactly $7.50 discount," that's an exact assertion — reaching for AI judgment here adds genuine cost and potential variability to a check that a simple, deterministic comparison handles perfectly well and more reliably.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>A genuinely useful habit: before writing any assertion, ask "is there ONE specific, correct value here, or does 'correct' require genuine judgment?" The former deserves a traditional, exact Playwright assertion; only the latter genuinely benefits from AI-reasoned, fuzzy assessment.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Use traditional, exact assertions whenever a single, specific correct value genuinely exists — don't add AI reasoning where it isn't needed.</li>
+  <li>Reserve AI-reasoned assertions for genuinely judgment-requiring checks, like relevance or general correctness of unstructured content.</li>
+  <li>Preserve confidence levels in AI-reasoned assertions rather than collapsing them into a binary pass/fail, since this genuinely helps a human reviewer prioritize attention.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Exact assertions check one specific, predetermined correct value; fuzzy assertions require genuine reasoning about what "correct" means in context.</li>
+  <li>Search relevance is a genuine example of something needing fuzzy assessment — there's no single string to compare against, only a judgment call about reasonable matching.</li>
+  <li>Confidence levels in AI-reasoned assertions preserve real, useful information a binary pass/fail would discard, helping a human reviewer know where to focus.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Write both an exact assertion and a fuzzy assertion for ShopEasy's product detail page — the exact one checking something with a single correct value (like stock count), the fuzzy one requiring genuine judgment (like whether the product description text genuinely, accurately matches the product's actual name and category).</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A teammate wants to use an AI-reasoned assertion to check "the discount amount shown is exactly $7.50." Would you recommend this, and why or why not?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd recommend AGAINST this — checking a specific, exact dollar amount is precisely the kind of check that has ONE single correct value, which this page argues belongs to a traditional, exact Playwright assertion, not AI-reasoned judgment.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why AI reasoning adds no genuine value here:
+await expect(page.getByText('Discount applied: -$7.50')).toBeVisible();
+  — this is a SIMPLE, deterministic string comparison. There's
+  no "judgment" involved in checking whether $7.50 equals
+  $7.50 — an AI-reasoned assertion would add real cost and
+  potential variability (an LLM call, possible inconsistency
+  between runs) to a check that a direct comparison handles
+  perfectly, reliably, and essentially for free.
+
+When this SAME underlying value WOULD benefit from AI
+reasoning instead:
+"Does the discount amount seem PROPORTIONATE to the order,
+  given the code's stated percentage?" — THIS requires actual
+  calculation and judgment, genuinely different from checking
+  a single, already-known expected value.</code></pre>
+<p>The test from this page's own "Quick Tip" applies directly: "is there one specific correct value" — yes, here — so this belongs to traditional, exact assertion, not fuzzy AI reasoning.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page's assess_relevance function ask for confidence levels for EVERY result, not just flagging the ones it judges irrelevant?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Requesting confidence for every result, not just the flagged ones, gives a human reviewer the full picture needed to actually trust the overall assessment — without it, there's no way to distinguish "confidently correct" from "technically not flagged, but genuinely uncertain."</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What's LOST if only irrelevant results get confidence levels:
+"Wireless Mouse Pro — relevant" (no confidence stated) vs.
+  "USB Wired Keyboard — LOW confidence, possibly irrelevant"
+  — a reviewer can't tell if the FIRST judgment was made with
+  genuine, high certainty, or if it was actually a borderline
+  call that just happened to land on "relevant" without much
+  confidence behind it either.
+
+What FULL confidence reporting provides instead:
+Every judgment, relevant OR not, carries its own confidence —
+  a reviewer scanning the full list can immediately identify
+  ALL the genuinely uncertain calls, not just the ones the AI
+  happened to flag as outright irrelevant, which might miss
+  borderline "relevant" calls that also deserve a second look.</code></pre>
+<p>The general principle: confidence information is valuable specifically because it reveals uncertainty that a simple relevant/not-relevant label alone would hide — applying it consistently across every judgment, not selectively, is what makes it genuinely useful for a reviewer's actual prioritization.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why "USB Wired Keyboard" appearing in wireless-mouse search results is a genuinely useful thing for an AI-reasoned assertion to catch, that an exact assertion couldn't have caught at all.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>An exact assertion needs a predetermined, specific expected value to compare against — but nobody could have written "the search results should NOT include a USB Wired Keyboard" as an exact check in advance, since that's not a value anyone would have anticipated needing to exclude.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why an EXACT assertion couldn't have caught this:
+A traditional test would need something like: expect(results)
+  .not.toContain('USB Wired Keyboard') — but this requires
+  SPECIFICALLY anticipating that exact, wrong result in
+  advance, which is genuinely impossible to do comprehensively
+  for every possible irrelevant product that COULD incorrectly
+  appear in results across an entire, large product catalog.
+
+Why FUZZY, AI-reasoned assessment genuinely catches this:
+"Judge whether each result is a genuinely relevant match" is
+  a GENERAL instruction that doesn't require anticipating the
+  SPECIFIC wrong result in advance — the reasoning evaluates
+  whatever ACTUALLY appears against the general concept of
+  relevance, catching a genuinely unanticipated problem an
+  exact, pre-written assertion structurally couldn't.</code></pre>
+<p>This is exactly the same kind of genuine, real value agentic testing offers more broadly (covered back in Chapter 1) — catching something nobody explicitly wrote a check for in advance, applied specifically to the assertion-writing problem this page focuses on.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might it be a mistake to treat every AI-reasoned "LOW confidence" flag as equally urgent, requiring the same immediate human attention?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Not every low-confidence flag represents the same real-world stakes — the genuine urgency of investigating a flag should depend on both the confidence level AND what's actually being checked, not confidence alone in isolation.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A LOW-confidence flag on something LOW-stakes:
+"This product description's tone seems slightly inconsistent
+  with similar products — LOW confidence this matters." — even
+  at low confidence, the actual STAKES here (a minor tone
+  inconsistency) are genuinely low, making this a reasonable
+  candidate to batch for later, non-urgent review.
+
+A LOW-confidence flag on something HIGH-stakes:
+"This product's price seems to have decreased by 90% compared
+  to similar recent listings — LOW confidence this is an
+  intentional promotion versus a pricing bug." — even at the
+  SAME stated confidence level, the potential real-world
+  IMPACT (a genuine pricing error reaching real customers) is
+  significant enough to warrant more urgent attention.</code></pre>
+<p>The practical lesson: confidence level and genuine urgency are related but distinct dimensions — a mature process for handling AI-reasoned flags should weigh both together, not treat "low confidence" alone as a sufficient signal for how quickly something needs human attention.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you design an assertion for "the product images on the detail page genuinely show the actual product being described," and would this be exact or fuzzy?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This is genuinely fuzzy — there's no single "correct" pixel value or exact string to compare against, and it requires actual visual-semantic judgment (does this image genuinely depict a wireless mouse, matching the text description), connecting directly to this chapter's upcoming Screenshot and Trace Analysis page.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why this CAN'T be an exact assertion:
+There's no predetermined "correct" image FILE or exact pixel
+  values to compare against in advance — each product has its
+  OWN genuinely different, correct image, and "correct" here
+  means SEMANTICALLY appropriate, not identical to some fixed
+  reference value.
+
+A reasonable FUZZY assertion approach:
+Provide the agent with BOTH the product's text description AND
+  its actual displayed image (as a genuine visual input, not
+  just text), and ask it to judge whether the image plausibly
+  depicts what the text describes — "does this image show a
+  wireless mouse, consistent with the product name 'Ergo
+  Wireless Mouse'?" — a genuine, visual-semantic judgment call,
+  not a simple, exact value comparison.</code></pre>
+<p>This example previews exactly why this chapter's next-to-last page exists — visual, image-based reasoning is a genuinely distinct capability from text-based reasoning, and product-image-matches-description is a great concrete example of a fuzzy assertion that specifically needs it.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

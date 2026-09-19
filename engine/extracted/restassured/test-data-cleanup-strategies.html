@@ -1,0 +1,138 @@
+<!doctype html>
+<html><head>
+<title>Test Data Cleanup Strategies in RestAssured</title>
+<meta name="description" content="How to reliably clean up test data created by RestAssured tests — tracking-based cleanup, database-level cleanup, and keeping a shared environment usable long-term." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/test-data-cleanup-strategies.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Test Data Cleanup Strategies</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="environment-specific-test-data.html">Environment-Specific Test Data</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Every generation strategy this chapter has covered — builders, Faker, dynamic uniqueness — creates data that eventually needs to be removed. Chapter 7 covered cleanup in the context of a single chained test; this page is about cleanup as a broader, project-wide test data management concern.</p>
+
+<h2 id="why-it-s-a-bigger-concern-than-just-one-test-s-teardown">Why It's a Bigger Concern Than Just "One Test's Teardown"</h2>
+<p>A single test's <code>@AfterEach</code> cleanup (Chapter 7) handles that one test's own created data. Real projects also need to think about cleanup at a larger scale: what happens if a CI run is killed mid-suite, skipping every remaining <code>@AfterEach</code>? What about data created by a test that was itself buggy and never even reached its own teardown? This page covers strategies beyond just per-test hooks.</p>
+
+<h2 id="strategy-1-tracking-based-cleanup-recap">Strategy 1 — Tracking-Based Cleanup (Recap)</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>private final List&lt;String&gt; createdResourceIds = new ArrayList&lt;&gt;();
+
+@AfterEach
+void cleanup() {
+    for (String id : createdResourceIds) {
+        given().pathParam("id", id).when().delete("/resource/{id}")
+            .then().statusCode(anyOf(is(204), is(404)));
+    }
+}</code></pre>
+<p>The pattern from Chapter 7, still the right default for most individual tests — reliable, precise, and cleans up exactly what that specific test actually created.</p>
+
+<h2 id="strategy-2-tagged-prefixed-data-for-bulk-cleanup">Strategy 2 — Tagged/Prefixed Data for Bulk Cleanup</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Every piece of test data created by automation carries a recognizable marker
+String testRunId = "test-run-" + System.currentTimeMillis();
+String email = testRunId + "-" + UUID.randomUUID() + "@example.com";
+
+// A separate, periodic cleanup job or script can then find and remove
+// EVERYTHING matching the test-data pattern, regardless of which specific
+// test created it or whether that test's own @AfterEach ran successfully
+DELETE FROM users WHERE email LIKE 'test-run-%@example.com';</code></pre>
+<p>Tagging or prefixing every piece of automation-generated data with a recognizable marker enables a completely separate cleanup mechanism — a scheduled job, a script run before/after a CI pipeline — that doesn't depend on any individual test's own teardown succeeding. This is the safety net underneath per-test cleanup, catching whatever per-test hooks miss (a killed CI run, a test that crashed before reaching its own <code>@AfterEach</code>).</p>
+
+<h2 id="strategy-3-database-level-cleanup-when-you-have-direct-access">Strategy 3 — Database-Level Cleanup (When You Have Direct Access)</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@AfterAll
+static void wipeAllTestData() {
+    // Direct database access, when available — much faster than
+    // deleting hundreds of records one API call at a time
+    try (Connection conn = DriverManager.getConnection(testDbUrl)) {
+        conn.createStatement().execute(
+            "DELETE FROM orders WHERE customer_email LIKE 'test-%@example.com'");
+    }
+}</code></pre>
+<p>For a suite that creates a large volume of test data, cleaning it up one API call (one DELETE request) per record is slow. If the test environment allows direct database access (common in dedicated test/QA environments, rare and generally inappropriate in production), a bulk SQL delete matching the same tagging convention from Strategy 2 is dramatically faster — worth reserving for suites where per-record API cleanup has become a genuine performance bottleneck.</p>
+
+<h2 id="strategy-4-environment-reset-between-full-suite-runs">Strategy 4 — Environment Reset Between Full Suite Runs</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># A CI pipeline step, run before the full suite starts
+./scripts/reset-test-environment.sh</code></pre>
+<p>Some teams sidestep incremental cleanup entirely for their primary CI environment — resetting the whole test database to a known clean state before each full suite run, rather than relying on every individual test to clean up after itself perfectly. This trades some setup time (a full reset takes longer than incremental cleanup) for a strong guarantee: every CI run starts from truly clean state, regardless of how well previous runs' cleanup actually worked.</p>
+
+<h2 id="real-world-example-combining-per-test-and-safety-net-cleanup">Real-World Example — Combining Per-Test and Safety-Net Cleanup</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>public abstract class BaseApiTest {
+    protected final List&lt;String&gt; createdIds = new ArrayList&lt;&gt;();
+
+    @AfterEach
+    void perTestCleanup() {
+        for (String id : createdIds) {
+            given().pathParam("id", id).when().delete("/resource/{id}")
+                .then().statusCode(anyOf(is(204), is(404)));
+        }
+    }
+}
+
+// Separately, a scheduled CI job runs weekly:
+// DELETE FROM resource WHERE email LIKE 'test-%@example.com' AND created_at < NOW() - INTERVAL '7 days'</code></pre>
+<p>This is the layered approach most mature projects converge on: precise, immediate per-test cleanup as the primary mechanism, backed by a periodic tag-based sweep that catches whatever the primary mechanism missed — from crashed tests, killed CI runs, or manual exploratory testing that never went through a proper teardown at all.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Relying ENTIRELY on per-test @AfterEach hooks, with no safety net —
+// a killed CI run or a crashed test leaves orphaned data with no recovery mechanism
+@AfterEach void cleanup() { /* per-test cleanup only */ }
+
+// ✅ Per-test cleanup as the primary mechanism, PLUS a tag-based
+// periodic sweep as a safety net for whatever the primary mechanism misses
+@AfterEach void cleanup() { /* ... */ }
+// + a separate scheduled cleanup job matching a recognizable test-data tag</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Relying entirely on per-test cleanup with no safety net</strong> — works until a CI run gets killed or a test crashes before reaching its own teardown, at which point orphaned data has no path to recovery.</li>
+  <li><strong>Not tagging or marking automation-generated data distinctly</strong> — makes it impossible to safely bulk-clean test data without risking deletion of real, non-test records.</li>
+  <li><strong>Using direct database cleanup against a shared environment other teams also actively use</strong> without careful scoping — a bulk delete matching too broad a pattern can remove data that wasn't actually test-generated.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Data that other systems or teams depend on being stable</strong> (a shared demo account other engineers use for manual testing) — make sure any bulk/tag-based cleanup pattern can't accidentally match and remove data that isn't actually disposable automation output.</li>
+  <li><strong>Cleanup that itself needs to respect referential integrity</strong> — the same dependency-order concern from Chapter 7's cleanup page applies at bulk scale too, not just for individual chained tests.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a shared environment has accumulated an unexpected volume of test data despite per-test cleanup being in place, check for CI runs that were killed or crashed mid-suite — this is the most common cause of cleanup gaps that per-test <code>@AfterEach</code> hooks alone can't cover.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Use per-test cleanup (<code>@AfterEach</code>) as the primary, precise mechanism for most tests.</li>
+  <li>Tag or prefix all automation-generated data with a recognizable pattern, enabling safe bulk cleanup as a safety net.</li>
+  <li>Consider a periodic scheduled sweep or a full environment reset for environments that need strong guarantees of cleanliness.</li>
+  <li>Be careful with bulk/database-level cleanup in any environment shared with non-automated usage.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Design a tagging convention for test-generated data in a hypothetical project (a prefix, a dedicated flag field, or similar), and sketch both a per-test cleanup hook and a separate periodic cleanup query that both rely on the same convention to identify what's safe to remove.</p>
+
+<h2 id="summary">Summary</h2>
+<p>Reliable test data cleanup at a project-wide scale means layering strategies: precise per-test cleanup via <code>@AfterEach</code> as the primary mechanism, backed by a tag-based safety net (a periodic sweep or bulk cleanup) that catches whatever per-test hooks miss when a test crashes or a CI run is killed mid-suite. Neither layer alone is fully sufficient — together, they keep a shared test environment usable over the long run.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why isn't per-test @AfterEach cleanup alone sufficient for a large, long-running test suite in CI?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer"><code>@AfterEach</code> reliably handles cleanup for a test that runs to completion, whether it passes or fails — but it can't run at all if the test process itself is killed mid-execution (a CI timeout, an infrastructure issue) or if a test crashes with an unhandled error before JUnit even gets to invoke the hook. Over many CI runs, these edge cases accumulate orphaned data that per-test cleanup never had the chance to remove. A safety-net strategy — tagging test data distinctly and periodically sweeping for anything matching that tag — catches exactly this category of leftover data that per-test hooks structurally can't guarantee to clean up.</div>
+</details>
+<details class="faq-item">
+<summary>Why isn't per-test @AfterEach cleanup alone sufficient for a large CI suite?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It can't run at all if the test process is killed mid-execution (a CI timeout) or a test crashes before JUnit even reaches the hook — over many runs, these edge cases accumulate orphaned data per-test hooks structurally can't prevent.</div>
+</details>
+<details class="faq-item">
+<summary>What does tagging or prefixing test-generated data enable that per-test cleanup alone doesn't?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A completely separate cleanup mechanism — a scheduled job or script — that can find and remove everything matching the pattern, regardless of which specific test created it or whether its own teardown succeeded.</div>
+</details>
+<details class="faq-item">
+<summary>When does database-level bulk cleanup make sense over per-record API deletes?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">For a suite creating large volumes of test data, deleting one record per API call is slow; a bulk SQL delete matching a tagging convention is dramatically faster — worth reserving for genuine performance bottlenecks.</div>
+</details>
+<details class="faq-item">
+<summary>Why is a layered cleanup approach (per-test plus periodic sweep) more robust than either alone?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Per-test cleanup is precise but can't survive a killed process; a periodic tag-based sweep catches exactly what per-test hooks miss — together they cover cases neither handles completely alone.</div>
+</details>
+</div>
+</article>
+</body></html>

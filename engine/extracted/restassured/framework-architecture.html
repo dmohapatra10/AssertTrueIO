@@ -1,0 +1,75 @@
+<!doctype html>
+<html><head>
+<title>RestAssured Framework Architecture: From Test Scripts to a Real Framework</title>
+<meta name="description" content="How to organize a growing RestAssured project into a real framework — separation of concerns, layer responsibilities, and the recommended folder structure." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/framework-architecture.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Framework Architecture</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="error-handling-negative-testing.html">Error Handling & Negative API Testing</a></p>
+<article class="content">
+<h2 id="fitting-everything-together-into-one-structure">Fitting Everything Together Into One Structure</h2>
+<p>Every technique so far — specs (Chapter 9), builders (Chapter 10), token managers (Chapter 6), utility methods (Chapter 9) — has been introduced individually. Here's how they all fit together into one coherent project structure, across three pages:</p>
+<ol>
+  <li><a href="layer-by-layer-responsibilities.html">Layer-by-Layer Responsibilities</a> — what each part of a framework is actually for</li>
+  <li><a href="the-recommended-folder-structure.html">The Recommended Folder Structure</a> — where everything actually lives</li>
+  <li><a href="separation-of-concerns-in-practice.html">Separation of Concerns in Practice</a> — a worked example showing every layer collaborating</li>
+</ol>
+
+<h2 id="from-scripts-to-a-framework-what-actually-changes">From Scripts to a Framework — What Actually Changes</h2>
+<p>A handful of independent test files, each doing its own setup inline, is perfectly fine for a small project — nothing here is about declaring that approach wrong at small scale. A framework becomes worth the investment specifically once a project has enough tests that duplicated setup, inconsistent patterns across files, and "where does this kind of code even go" questions start costing real time. What follows is what a mature answer to that question looks like.</p>
+
+<h2 id="separation-of-concerns-the-organizing-principle">Separation of Concerns — The Organizing Principle</h2>
+<p>Every layer in a well-organized framework has exactly one job, and doesn't reach into another layer's responsibility:</p>
+<ul>
+  <li><strong>Config</strong> knows about environments and settings — nothing about HTTP or test logic.</li>
+  <li><strong>Clients</strong> know how to call specific endpoints — nothing about test assertions.</li>
+  <li><strong>Models</strong> know the shape of data — nothing about how it's used.</li>
+  <li><strong>Tests</strong> know what behavior to verify — nothing about how a request is actually constructed underneath.</li>
+</ul>
+<p>This separation is what makes a large suite maintainable: a change to how authentication works touches the auth layer only, not every individual test file that happens to need authentication.</p>
+
+<h2 id="a-quick-preview-of-the-structure">A Quick Preview of the Structure</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>src/
+├── main/java/
+│   ├── config/      ← environment & settings
+│   ├── clients/      ← API client classes, one per resource/service
+│   ├── models/       ← POJOs (requests, responses)
+│   ├── specs/         ← shared RequestSpecification / ResponseSpecification
+│   ├── utils/          ← general helper methods
+│   ├── auth/           ← token management
+│   └── constants/       ← shared constant values
+└── test/java/
+    ├── tests/       ← the actual test classes
+    ├── data/         ← test data builders, factories
+    └── assertions/    ← custom/reusable assertion helpers</code></pre>
+<p>This is the same structure Chapter 3's Playwright-equivalent framework chapter builds toward, adapted for RestAssured's specific concerns — every folder maps directly to one of the techniques covered somewhere earlier in this course.</p>
+
+<h2 id="what-you-ll-be-able-to-do">What You'll Be Able to Do</h2>
+<p>By the end of the three pages that follow, you should be able to look at a piece of new framework code and know immediately which layer it belongs in, set up a fresh project with this structure from day one, and explain to a teammate why a given piece of logic belongs in <code>clients/</code> rather than directly inside a test file. Start with Layer-by-Layer Responsibilities below.</p>
+      
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>At what point does the investment in a full framework structure actually pay off?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Once a project has enough tests that duplicated setup, inconsistent patterns, and 'where does this code go' questions start costing real time — not from day one of a two-test project.</div>
+</details>
+<details class="faq-item">
+<summary>What's the core organizing principle behind every layer in a well-structured framework?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Separation of concerns — each layer has exactly one job and doesn't reach into another layer's responsibility, so a change to one concern (like authentication) touches only its own layer, not every file that happens to need it.</div>
+</details>
+<details class="faq-item">
+<summary>Why does a change to authentication logic only need to touch one or two files in a well-layered framework?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Because authentication is centralized in a dedicated auth/ layer and referenced through a shared spec factory — every test obtains its authenticated spec the same way, so updating the shared implementation propagates automatically.</div>
+</details>
+<details class="faq-item">
+<summary>What are the seven main-side layers this chapter's structure defines?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">config, clients, models, specs, utils, auth, and constants — each with exactly one responsibility, living under src/main/java since they're genuinely reusable, not test-specific.</div>
+</details>
+<details class="faq-item">
+<summary>Why is separation of concerns described as the organizing principle behind the whole framework structure?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Every layer having exactly one job — and not reaching into another layer's responsibility — is what makes a large suite maintainable; a change to one concern touches only its own layer, not every file that happens to need it.</div>
+</details>
+</div>
+</article>
+</body></html>

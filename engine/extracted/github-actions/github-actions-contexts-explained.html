@@ -1,0 +1,107 @@
+<!doctype html>
+<html><head>
+<title>GitHub Actions Contexts Explained: github, env, job, steps, runner, matrix, needs</title>
+<meta name="description" content="Every important GitHub Actions context explained — what information each one actually holds, and a real example of reading from each." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/github-actions-contexts-explained.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>GitHub Actions Contexts Explained</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="environment-variables-job-vs-step-scope.html">Environment Variables: env: and Job vs. Step Scope</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>A context is a built-in source of information GitHub Actions automatically makes available to every workflow — which branch triggered the run, what a previous step actually output, which matrix combination is currently executing. This page covers the contexts you'll genuinely use.</p>
+
+<h2 id="github-information-about-the-triggering-event">github — Information About the Triggering Event</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>github.ref          # the branch or tag that triggered the run, e.g. refs/heads/main
+github.sha           # the exact commit SHA being built
+github.actor          # who triggered the workflow
+github.event_name      # which event triggered it (push, pull_request, etc.)</code></pre>
+<p>This is genuinely the most commonly used context — almost any workflow that needs to know "what actually happened" reaches for <code>github</code> first.</p>
+
+<h2 id="env-reading-your-own-environment-variables">env — Reading Your Own Environment Variables</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>${{ env.NODE_ENV }}</code></pre>
+<p>The same environment variables covered on the previous page, but accessed through expression syntax rather than shell syntax — useful specifically in places (like an <code>if:</code> condition) that aren't inside a <code>run:</code> shell command at all.</p>
+
+<h2 id="vars-repository-or-organization-variables">vars — Repository or Organization Variables</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>${{ vars.DEFAULT_REGION }}</code></pre>
+<p>Similar to <code>env</code>, but for variables configured at the repository or organization level (through GitHub's own settings, not defined inline in the workflow file) — genuinely useful for values shared consistently across many different workflows without duplicating them in each one.</p>
+
+<h2 id="job-information-about-the-current-job">job — Information About the Current Job</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>${{ job.status }}   # the current job's status so far</code></pre>
+<p>Mostly useful in specific advanced scenarios, like a final cleanup step wanting to know whether the job succeeded or failed up to that point.</p>
+
+<h2 id="steps-reading-a-previous-step-s-output">steps — Reading a Previous Step's Output</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>steps:
+  - id: get_version
+    run: echo "version=1.2.3" >> $GITHUB_OUTPUT
+  - run: echo "The version is ${{ steps.get_version.outputs.version }}"</code></pre>
+<p>This is how one step reads a value another step deliberately produced — the <code>id:</code> on the first step gives it a name, and <code>steps.&lt;id&gt;.outputs.&lt;name&gt;</code> retrieves the value elsewhere. This exact mechanism is covered in full depth in a later chapter on passing information between steps.</p>
+
+<h2 id="runner-information-about-the-runner-itself">runner — Information About the Runner Itself</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>${{ runner.os }}     # "Linux", "Windows", or "macOS"
+${{ runner.temp }}    # a path to a temporary directory on the runner</code></pre>
+<p>Useful for a workflow that needs to behave slightly differently depending on which operating system it's actually running on — for instance, a matrix build (covered in a later chapter) testing across multiple operating systems.</p>
+
+<h2 id="matrix-the-current-matrix-combination">matrix — The Current Matrix Combination</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>${{ matrix.node-version }}</code></pre>
+<p>Only meaningful inside a matrix build (covered fully in Chapter 10) — holds whichever specific combination of values is currently being tested in this particular run.</p>
+
+<h2 id="needs-outcomes-from-jobs-this-one-depends-on">needs — Outcomes From Jobs This One Depends On</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>${{ needs.test.result }}   # "success", "failure", "cancelled", or "skipped"</code></pre>
+<p>Only available in a job that explicitly depends on another (via <code>needs:</code>, covered fully in Chapter 9) — lets a later job check whether an earlier one it depends on actually succeeded.</p>
+
+<h2 id="detailed-example-multiple-contexts-in-one-real-condition">Detailed Example — Multiple Contexts in One Real Condition</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>if: github.ref == 'refs/heads/main' && needs.test.result == 'success'</code></pre>
+<p>This combines the <code>github</code> context (checking which branch triggered the run) with the <code>needs</code> context (checking whether a dependency job succeeded) — exactly the two pieces of information this chapter's opening real-world requirement actually needs.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why does <code>vars</code> exist as a genuinely separate context from <code>env</code>, given that both hold named values? <code>env</code> values are typically defined right in the workflow file itself — visible and version-controlled alongside the code. <code>vars</code> values are configured through GitHub's own settings, outside the workflow file — useful specifically for values that should be shared consistently across many workflows without being duplicated or hardcoded into each one individually.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Trying to use <code>matrix</code> or <code>needs</code> outside the specific situation each one actually requires — <code>matrix</code> only makes sense inside an actual matrix build; <code>needs</code> only works in a job that has genuinely declared a dependency on another job. Using either outside its proper context simply won't have the value you're expecting.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>GitHub's own documentation maintains the complete, authoritative reference for every context and every specific field each one exposes — this page covers the ones worth knowing exist, but the full reference is worth bookmarking for the specific field names you'll need in a real workflow.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Reach for <code>github</code> first for almost any "what actually happened" question — it's the most broadly useful context.</li>
+  <li>Use <code>vars</code> (repository/organization-level) for values genuinely shared across many workflows, rather than duplicating the same value in every file's <code>env</code>.</li>
+  <li>Only reference <code>matrix</code> or <code>needs</code> in the specific situations where they're actually populated with meaningful values.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li><code>github</code> holds information about the triggering event; <code>env</code> and <code>vars</code> hold your own defined values (inline versus repository-level).</li>
+  <li><code>steps</code> reads a previous step's deliberate output; <code>needs</code> reads a dependency job's outcome.</li>
+  <li><code>runner</code> and <code>matrix</code> provide information specific to the current execution environment and matrix combination.</li>
+</ul>
+
+<h2 id="challenge">🏆 Challenge</h2>
+<p>Write an expression (using the correct context) that would evaluate to true only when a workflow was triggered by a pull request AND the runner is currently Ubuntu — using two different contexts combined with a logical AND.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>What's the practical difference between the env context and the vars context?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">env holds environment variables typically defined directly within the workflow file itself, visible and version-controlled alongside the workflow's own code. vars holds variables configured through GitHub's own repository or organization settings, outside the workflow file, making them easy to share consistently across many different workflows without duplicating the same value in each one.</div>
+</details>
+<details class="faq-item">
+<summary>Why is the steps context only useful when a previous step has an explicit id: assigned to it?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The steps context retrieves output using the pattern steps.&lt;id&gt;.outputs.&lt;name&gt; — without an explicit id on the step that produced the output, there's no name to reference when trying to retrieve that value from a later step. The id is what makes a specific step's output addressable at all.</div>
+</details>
+<details class="faq-item">
+<summary>In what situation does the needs context actually contain a meaningful value?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Only in a job that has explicitly declared a dependency on another job using needs:. Only then does that dependent job have access to information about the outcome (needs.&lt;job-name&gt;.result) of the job or jobs it depends on — a job with no declared dependencies has nothing meaningful to read from this context.</div>
+</details>
+<details class="faq-item">
+<summary>Why would a workflow use runner.os specifically inside a matrix build testing multiple operating systems?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Different operating systems sometimes need genuinely different commands or paths — runner.os lets a step check which OS it's currently executing on and branch its behavior accordingly, which is especially relevant in a matrix build deliberately running the same job across several different operating systems in parallel.</div>
+</details>
+<details class="faq-item">
+<summary>Why does the expression github.ref == 'refs/heads/main' && needs.test.result == 'success' combine two different contexts rather than relying on just one?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">These two contexts answer two genuinely different questions that both need to be true for the intended condition — github.ref confirms which branch triggered the run, while needs.test.result confirms whether a specific dependency job actually succeeded. Neither context alone can answer both questions, so combining them with a logical AND is necessary to express the full, real requirement accurately.</div>
+</details>
+</div>
+</article>
+</body></html>

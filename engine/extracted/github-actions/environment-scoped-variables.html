@@ -1,0 +1,96 @@
+<!doctype html>
+<html><head>
+<title>Environment-Scoped Variables in GitHub Actions</title>
+<meta name="description" content="Using vars at the environment level, distinct from the environment secrets already covered separately — a per-environment configuration value that isn&#x27;t sensitive." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/environment-scoped-variables.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Environment-Scoped Variables</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="what-is-a-github-environment-and-the-standard-progression.html">What is a GitHub Environment? Dev/Test/Staging/Production</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Environment secrets were already covered in full depth back in Chapter 7 — this page is specifically about the genuinely different, non-sensitive counterpart: environment-scoped <em>variables</em>, using the same <code>vars</code> versus <code>secrets</code> distinction from that chapter, now applied at the environment level specifically.</p>
+
+<h2 id="configuring-an-environment-variable">Configuring an Environment Variable</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Settings → Environments → staging → Add variable
+  Name: API_BASE_URL
+  Value: https://staging-api.shopeasy.example.com</code></pre>
+<p>Set through the same Environments settings page as environment secrets — the difference is purely which section you use, matching the genuine sensitivity distinction from Chapter 7.</p>
+
+<h2 id="using-it-in-a-workflow">Using It in a Workflow</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  deploy:
+    environment: staging
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Deploying to ${{ vars.API_BASE_URL }}"</code></pre>
+<p>Referenced through <code>vars</code>, exactly as covered in Chapter 6 — the only genuinely new detail here is that this specific variable's value depends on which environment the job is actually connected to.</p>
+
+<h2 id="detailed-example-why-this-matters-for-a-real-multi-environment-deploy">Detailed Example — Why This Matters for a Real Multi-Environment Deploy</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  deploy-staging:
+    environment: staging
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Base URL: ${{ vars.API_BASE_URL }}"
+      # prints the STAGING url, because environment: staging
+
+  deploy-production:
+    environment: production
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Base URL: ${{ vars.API_BASE_URL }}"
+      # prints the PRODUCTION url — SAME variable name, different environment</code></pre>
+<p>Both jobs reference the exact same <code>vars.API_BASE_URL</code> expression — the actual value differs purely because each job is connected to a genuinely different environment. This is the real, practical payoff: the workflow's own logic doesn't need to know or care which environment it's running against; the environment configuration handles that difference.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why is having the same variable name resolve to different values per environment more maintainable than using environment-specific variable names (like <code>STAGING_API_BASE_URL</code> and <code>PROD_API_BASE_URL</code>)? With a shared name resolving per-environment, the exact same workflow logic works correctly regardless of which environment it's connected to — no conditional logic needed to pick the right variable name. Environment-specific names would require the workflow itself to know which environment it's in and branch accordingly, adding real, avoidable complexity.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Putting a genuinely sensitive value (an API key, a credential) into an environment variable instead of an environment secret, simply because "it's environment-specific" without actually applying the sensitivity test from Chapter 7. Environment-scoping and sensitivity are two entirely separate, independent decisions — a value can be environment-specific AND sensitive (needing an environment secret) or environment-specific and harmless (fitting an environment variable).</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>A repository-level variable and an environment-level variable with the same name can coexist — the environment-level one takes precedence for a job connected to that environment, following the same "narrower scope wins" principle already established for <code>env</code> back in Chapter 6.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Use the same variable name across environments, letting the environment configuration itself supply the differing value.</li>
+  <li>Apply Chapter 7's sensitivity test independently of environment-scoping — the two decisions (which scope, and secret-vs-variable) are genuinely separate.</li>
+  <li>Reserve environment-scoped configuration for values that genuinely differ meaningfully between environments, not everything a job happens to use.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Environment-scoped variables work exactly like repository-level <code>vars</code>, but their value depends on which environment a job is connected to.</li>
+  <li>The same variable name can resolve to different values per environment, letting workflow logic stay identical across environments.</li>
+  <li>Environment-scoping and the secret-vs-variable sensitivity decision from Chapter 7 remain two genuinely separate, independent choices.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>For a hypothetical project with a <code>LOG_LEVEL</code> setting that should be <code>debug</code> in staging but <code>error</code> in production, describe how you'd configure this using environment-scoped variables, and explain why this is a genuinely better approach than hardcoding a conditional check for the environment name directly in the workflow's own logic.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why can the same expression, ${{ vars.API_BASE_URL }}, produce different actual values in two different jobs within the same workflow?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Each job is connected to a specific environment via the environment: key, and an environment-scoped variable's actual value depends on which environment the job is connected to. The expression itself is identical in both jobs; what differs is the environment context each job is running under, which determines which specific value gets resolved.</div>
+</details>
+<details class="faq-item">
+<summary>Why is using the same variable name across environments generally preferable to environment-specific names like STAGING_API_BASE_URL and PROD_API_BASE_URL?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A shared name resolving differently per environment means the exact same workflow logic works correctly in any environment without needing conditional logic to select the right variable name. Environment-specific names would require the workflow to know which environment it's currently in and branch its logic accordingly, adding real, avoidable complexity that environment-scoped variables eliminate entirely.</div>
+</details>
+<details class="faq-item">
+<summary>Are environment-scoping and the decision between vars and secrets the same choice, or two separate ones?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Two entirely separate, independent decisions. Whether a value is environment-specific (varying between staging and production, for instance) is unrelated to whether that value is sensitive. A value can genuinely be both environment-specific and sensitive, requiring an environment secret, or environment-specific and harmless, fitting an environment variable — the two decisions need to be made independently.</div>
+</details>
+<details class="faq-item">
+<summary>If both a repository-level variable and an environment-level variable share the same name, which one does a job connected to that environment actually see?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The environment-level variable takes precedence for any job connected to that specific environment, following the same narrower-scope-wins principle already established for environment variables (env:) back in an earlier chapter. This lets an environment override a broader, repository-level default specifically where it needs to differ.</div>
+</details>
+<details class="faq-item">
+<summary>Why would putting a genuine API credential into an environment variable instead of an environment secret be a mistake, even though both are environment-scoped?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Environment-scoping only controls which environment a value belongs to — it says nothing about whether that value is sensitive. A genuine credential remains sensitive regardless of which environment it's associated with, and needs the protection an environment secret specifically provides (never viewable again once set). Being environment-specific doesn't change or reduce a value's actual sensitivity.</div>
+</details>
+</div>
+</article>
+</body></html>

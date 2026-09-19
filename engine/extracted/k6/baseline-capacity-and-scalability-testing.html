@@ -1,0 +1,107 @@
+<!doctype html>
+<html><head>
+<title>Baseline, Capacity &amp; Scalability Testing Explained</title>
+<meta name="description" content="Why performance testing needs a baseline before anything else, how capacity testing answers a planning question rather than a pass/fail question, and how scalability testing verifies that adding resources actually helps." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/baseline-capacity-and-scalability-testing.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Baseline, Capacity &amp; Scalability Testing</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="test-types-load-stress-spike-soak-volume.html">Load, Stress, Spike, Soak & Volume Testing</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>These three concepts are less about running a specific kind of test and more about the <em>context</em> a test needs in order to actually mean something. A number on its own — "checkout takes 400ms" — is only useful once you know what to compare it against, what it implies about future load, and whether adding resources would even help.</p>
+
+<h2 id="baseline-testing">Baseline Testing</h2>
+<p>A baseline establishes what "normal" performance looks like today, under known, realistic conditions — so every future test has something concrete to compare against. Without a baseline, "is this slower than before" is just a guess dressed up as an observation.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Without a baseline: "Response times seem kind of slow today." (compared to what?)
+With a baseline:    "p95 is 420ms today; our baseline from last release was 280ms —
+                      that's a real 50% regression, not a vague feeling."</code></pre>
+
+<h2 id="capacity-testing">Capacity Testing</h2>
+<p>Capacity testing determines how much load the current system can handle before you'd need to scale it — adding servers, upgrading hardware, provisioning more database capacity. This is fundamentally a planning question, not a simple pass/fail check: the useful output isn't "pass" or "fail," it's a number like "this configuration handles roughly 3,200 concurrent users before response times start degrading unacceptably," which a team can use to plan ahead of actual growth.</p>
+
+<h2 id="scalability-testing">Scalability Testing</h2>
+<p>Scalability testing confirms that adding more resources actually produces a proportional improvement in capacity — doubling your servers should meaningfully increase how much traffic you can handle. This sounds obvious, but it's a genuine assumption worth verifying rather than taking on faith: a poorly designed system can add servers with almost no capacity improvement at all, if the real bottleneck is somewhere else entirely (a single shared database, a serialized lock, an external API with its own rate limit).</p>
+
+<h2 id="detailed-example-why-scalability-isn-t-automatic">Detailed Example — Why Scalability Isn't Automatic</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>2 servers:  handles 1,000 concurrent users
+4 servers:  handles 1,050 concurrent users  ← barely improved!</code></pre>
+<p>Doubling the server count here produced almost no capacity gain — a strong signal the actual bottleneck isn't application server capacity at all, but something shared across all of them (most commonly a single database instance, or a downstream API being called by every server). This is exactly the kind of finding scalability testing is designed to surface, and exactly the kind of finding that would go completely unnoticed if you only ever ran a fixed-size load test.</p>
+
+<h2 id="real-world-example-using-a-baseline-to-catch-a-regression-before-users-do">Real-World Example — Using a Baseline to Catch a Regression Before Users Do</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Release 1.0 baseline: p95 = 280ms, error rate = 0.1%
+Release 1.1 result:   p95 = 410ms, error rate = 0.3%</code></pre>
+<p>Neither number here would necessarily trigger an alarm on its own — 410ms might still feel "fast enough" in isolation, and 0.3% might seem like an acceptable error rate. It's specifically the comparison against a real baseline that reveals a genuine regression worth investigating before it reaches production users at scale, rather than dismissing it as noise.</p>
+
+<h2 id="real-world-example-a-capacity-planning-conversation">Real-World Example — A Capacity Planning Conversation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Question: "We're expecting to double our user base by next quarter — are we ready?"
+
+Capacity test result: "Current infrastructure handles 4,000 concurrent users
+                        before p95 exceeds our 500ms target."
+
+Answer: "We're currently averaging 2,200 concurrent users at peak — doubling
+         puts us at ~4,400, just past our tested capacity. We should either
+         scale infrastructure or optimize before that growth arrives."</code></pre>
+<p>This is capacity testing doing exactly what it's for — turning a vague business question about future growth into a concrete, numeric answer the team can actually plan around.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Declaring a system "performs well" with no baseline to compare against
+"Response times look fine." — fine compared to what, measured when?
+
+// ✅ Establishing and referencing a real baseline
+"p95 is 310ms — within 10% of our established 280ms baseline from last quarter."</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Never establishing a real baseline</strong> — every subsequent performance conversation becomes subjective ("feels slow") instead of measurable.</li>
+  <li><strong>Treating capacity testing as a pass/fail check</strong> instead of the planning input it actually is — the useful output is a number, not a checkmark.</li>
+  <li><strong>Assuming scalability automatically follows from adding resources</strong> — without actually testing it, a shared bottleneck can silently cap capacity regardless of how many servers you add.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>A baseline that's gone stale</strong> — infrastructure, traffic patterns, and code all change over time; a baseline from two years ago may no longer represent a meaningful comparison point and needs periodic re-establishment.</li>
+  <li><strong>Scalability that holds at moderate scale but breaks down at extreme scale</strong> — a system might scale cleanly from 2 to 8 servers but hit a genuinely different bottleneck (network saturation, a coordination overhead that grows with cluster size) well beyond that range.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If adding resources doesn't improve capacity the way you expected, look for anything shared across every instance — a single database, a shared cache, a downstream dependency with its own limit — since that's almost always where a scalability test's disappointing result traces back to.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Establish a baseline early, and re-establish it periodically as the system genuinely changes.</li>
+  <li>Treat capacity testing results as planning input for a team, not just a technical pass/fail signal.</li>
+  <li>Actually test scalability claims rather than assuming them — "we can just add more servers" is a hypothesis, not a guarantee.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Given a baseline of p95 = 300ms and a new release measuring p95 = 340ms, decide whether this represents a meaningful regression worth investigating, and explain what additional context (like historical variance in the baseline itself) would help you decide more confidently.</p>
+
+<h2 id="summary">Summary</h2>
+<p>A baseline gives every future performance number something real to compare against; capacity testing answers a planning question (how much can we currently handle) rather than a simple pass/fail; and scalability testing verifies that adding resources actually helps, rather than assuming it does. All three exist to give performance numbers real, actionable context — a number without this context is close to meaningless.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why is a baseline necessary before you can meaningfully say a system's performance has "gotten worse"?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Without a documented baseline, "worse" has no fixed reference point — it becomes a subjective impression rather than a measurable comparison. A baseline captures what performance actually looked like under known conditions, so a later measurement can be compared against a real number rather than a vague sense of how things used to feel.</div>
+</details>
+<details class="faq-item">
+<summary>Why is capacity testing described as a planning question rather than a pass/fail test?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The useful output of a capacity test isn't a binary pass or fail — it's a specific number, like "this system handles 3,200 concurrent users before degrading." That number feeds directly into business and infrastructure planning (are we ready for expected growth, do we need to scale before a known event), which is a fundamentally different use than a simple yes/no verification.</div>
+</details>
+<details class="faq-item">
+<summary>If doubling your server count barely improves how much load your system can handle, what does that suggest?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It strongly suggests the real bottleneck isn't application server capacity at all, but something shared across every server instance — most commonly a single database, a shared cache, or a downstream dependency with its own limit. Adding more of the thing that isn't actually the bottleneck produces little to no improvement, which is exactly the kind of finding scalability testing is designed to surface.</div>
+</details>
+<details class="faq-item">
+<summary>Why might a baseline established a year ago no longer be a meaningful comparison point?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Infrastructure, code, traffic patterns, and dependencies all change over time — a baseline reflects the specific conditions it was measured under, and as those conditions drift, the comparison becomes less meaningful. Periodically re-establishing a baseline keeps it representative of the system as it actually exists today, not as it existed whenever the original measurement was taken.</div>
+</details>
+<details class="faq-item">
+<summary>A team assumes their system will scale linearly as they add servers, without ever testing that assumption. What risk does this create?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">If the real bottleneck is a shared resource — a single database instance, a rate-limited external API, a coordination mechanism that doesn't parallelize well — adding more application servers can produce far less capacity improvement than expected, or none at all. Without actually testing scalability, this gap only becomes visible in production, often during exactly the high-traffic event the extra servers were meant to handle, which is the worst possible time to discover it.</div>
+</details>
+</div>
+</article>
+</body></html>

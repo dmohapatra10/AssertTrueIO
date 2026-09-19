@@ -1,0 +1,92 @@
+<!doctype html>
+<html><head>
+<title>Production Architecture Overview</title>
+<meta name="description" content="The complete system diagram — multiple agents, one MCP server, CI/CD, evidence storage, and audit logs — assembling this entire track into one real, deployed picture." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/production-architecture-overview.html" />
+</head><body>
+<p class="difficulty">Advanced</p>
+<h1>Production Architecture Overview</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="production-architecture.html">Production Architecture overview</a></p>
+<article class="content">
+<h2>What You'll Learn</h2>
+<ul>
+  <li>The complete, real system diagram this entire track assembles into</li>
+  <li>How multiple teams' agents share one real MCP server, safely</li>
+  <li>Why seeing this whole picture at once is worth doing before the remaining pages go deeper</li>
+</ul>
+
+<h2>Introduction</h2>
+<p>Every earlier chapter built one real piece. This page is the complete, assembled picture — worth seeing whole before this chapter's remaining pages examine each part more closely.</p>
+
+<h2>How It Works — The Complete System</h2>
+<pre><code>                    ┌─────────────────────┐
+                    │   MCP SERVER          │
+                    │  (Chapter 15)          │
+                    │  navigate, click, fill, │
+                    │  read_page, run_test,  │
+                    │  read_trace, ...        │
+                    └──────────┬──────────┘
+                               │
+        ┌──────────────────────┼──────────────────────┐
+        │                      │                      │
+┌───────▼────────┐  ┌──────────▼─────────┐  ┌─────────▼────────┐
+│ Checkout team's │  │ Search team's       │  │ Exploration       │
+│ Agent (Ch14)    │  │ Agent (Ch14)        │  │ Agent (Ch13, 14)  │
+│ + Guardrails    │  │ + Guardrails        │  │ + Sandbox (Ch19)  │
+└───────┬────────┘  └──────────┬─────────┘  └─────────┬────────┘
+        │                      │                      │
+        └──────────────────────┼──────────────────────┘
+                               │
+                    ┌──────────▼──────────┐
+                    │  CI/CD (Chapter 16)   │
+                    │  quality gates, PR     │
+                    │  comments, repair PRs  │
+                    └──────────┬──────────┘
+                               │
+            ┌──────────────────┼──────────────────┐
+            │                  │                  │
+   ┌────────▼───────┐ ┌────────▼───────┐ ┌────────▼───────┐
+   │ Evidence Storage │ │ Audit Log       │ │ Human Approval  │
+   │ (Ch9, Ch10)       │ │ (Chapter 19)    │ │ Queue (Ch11)    │
+   └────────────────┘ └────────────────┘ └────────────────┘</code></pre>
+
+<h2>Why It Matters — Multiple Agents, One Shared Server</h2>
+<p>This is the real, concrete payoff of Chapter 15's own reusability argument — three genuinely different agents, built by three genuinely different teams, all calling the same MCP server's tools, each restricted by its own allowlist from Chapter 15's own security page. None of them needed to reimplement <code>navigate</code> or <code>click_element</code>; all of them share Chapter 5's real, original implementation underneath.</p>
+
+<h2>Example — Tracing One Real Request Through the Whole System</h2>
+<pre><code>1. Checkout team's AGENT calls click_element via the shared
+   MCP SERVER
+2. The SERVER checks Chapter 15's ALLOWLIST — checkout'S agent
+   IS authorized for this tool
+3. Chapter 19'S browser CONTEXT restrictions apply — no camera,
+   no DOWNLOADS, regardless of WHICH agent called it
+4. The ACTION executes, gets logged to Chapter 19'S audit LOG
+5. IF the action reveals a FAILURE, Chapter 9'S evidence
+   capture RUNS, feeding Chapter 16'S CI quality GATE
+6. IF a fix is PROPOSED, it lands in Chapter 11'S human
+   approval QUEUE — NEVER auto-merged, regardless of WHICH
+   agent or TEAM proposed it</code></pre>
+
+<h2>Common Mistakes</h2>
+<ul>
+  <li><strong>Assuming each team needs its own separate MCP server.</strong> This diagram's whole point is genuine sharing — one server, multiple authorized clients, exactly Chapter 15's original reusability argument realized at real scale.</li>
+  <li><strong>Treating this diagram as requiring new infrastructure this track hasn't already built.</strong> Every box traces to a specific, real chapter — this page's contribution is the assembly, not new components.</li>
+</ul>
+
+<h2>Best Practices</h2>
+<ul>
+  <li>Keep this diagram as your mental reference for the rest of this chapter — each remaining page examines one part of it more closely.</li>
+  <li>Trace any new capability you're considering adding to your own system against this diagram first — it likely belongs to an existing box.</li>
+</ul>
+
+<h2>Hands-On Exercise</h2>
+<p>Sketch your own organization's real or planned AI-powered testing system using this page's diagram as a template. Identify which boxes already exist in your own project, and which represent genuine gaps.</p>
+
+<h2>Key Takeaways</h2>
+<ul>
+  <li>This track's real components assemble into one coherent system — multiple agents, one shared MCP server, CI/CD, evidence storage, audit logging, and human approval.</li>
+  <li>Multiple teams' agents genuinely sharing one MCP server is Chapter 15's original reusability argument, realized at real, production scale.</li>
+  <li>Every box in this diagram traces to a specific earlier chapter — this page's value is the assembly, not new capability.</li>
+</ul>
+</article>
+</body></html>

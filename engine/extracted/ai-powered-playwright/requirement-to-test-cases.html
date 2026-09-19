@@ -1,0 +1,107 @@
+<!doctype html>
+<html><head>
+<title>Requirement to Test Cases</title>
+<meta name="description" content="A genuinely reusable generation function, extended beyond Chapter 3&#x27;s login-only scope to any ShopSmart feature — product search, cart, checkout — from one requirement string." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/requirement-to-test-cases.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Requirement to Test Cases</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="ai-test-case-generation.html">AI Test Case Generation overview</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Generalizing Chapter 3's login-specific generation into a genuinely reusable function</li>
+  <li>Applying it to a real, different ShopSmart feature — product search</li>
+  <li>Why the shape of a good requirement matters as much as the generation code itself</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>Chapter 3's <code>generateScenarios</code> function was deliberately narrow — one feature, one scenario shape. This page generalizes it: any requirement, any ShopSmart feature, while keeping every validation discipline Chapter 3 established.</p>
+
+<h2 id="step-by-step-implementation">Step-by-Step Implementation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/generate-test-cases.ts
+import { askClaude } from './ai-client';
+
+export interface TestCase {
+  id: string;
+  category: string;
+  name: string;
+  steps: string[];
+  expected: string;
+}
+
+export async function generateTestCases(
+  requirement: string,
+  featureContext: string
+): Promise&lt;TestCase[]&gt; {
+  const prompt = `Requirement: "${requirement}"
+
+Feature context: ${featureContext}
+
+Generate test cases covering this requirement. Respond with
+ONLY valid JSON, no other text, in exactly this shape:
+
+{"testCases": [{"id": string, "category": string,
+"name": string, "steps": string[], "expected": string}]}
+
+Each test case needs a short, descriptive id (like "search-001"),
+a category (like "happy-path" or "negative"), a clear name,
+concrete numbered steps, and a specific expected result.`;
+
+  const raw = await askClaude(prompt);
+  const parsed = JSON.parse(raw);
+
+  if (!Array.isArray(parsed.testCases)) {
+    throw new Error(
+      `Expected {"testCases": [...]} but got: ${raw.slice(0, 200)}`
+    );
+  }
+  return parsed.testCases;
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p>Two genuine generalizations from Chapter 3's version matter here. First, <code>featureContext</code> is now a parameter, not hardcoded — the function works for product search exactly as well as login, because the feature-specific knowledge lives outside the function, not baked into it. Second, <code>TestCase</code> is a genuinely richer shape than Chapter 3's login-only <code>TestScenario</code> — it carries a category (used heavily starting on this chapter's next page) and concrete steps, not just input values.</p>
+
+<h2 id="example-applying-it-to-product-search">Example — Applying It to Product Search</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const searchContext = `ShopSmart's product search: a search box
+in the header, searching by product name or category. Results
+show in a grid below. An empty search shows all products. A
+search with no matches shows "No products found."`;
+
+const cases = await generateTestCases(
+  'Test ShopSmart\\'s product search functionality',
+  searchContext
+);
+
+// Real output includes cases LIKE:
+// { id: "search-001", category: "happy-path",
+//   name: "Search returns matching products",
+//   steps: ["Enter 'laptop' in search box", "Press Enter"],
+//   expected: "Grid shows products with 'laptop' in the name" }</code></pre>
+
+<h2 id="why-it-matters-the-requirement-s-shape">Why It Matters — The Requirement's Shape</h2>
+<p>A vague requirement ("test search") produces vague test cases, exactly Chapter 2's specificity lesson applied concretely here. <code>featureContext</code> is what turns a one-line requirement into genuinely useful test cases — without it, the model has no real, specific knowledge of how ShopSmart's search actually behaves, and falls back to generic search-testing patterns that may not match ShopSmart at all.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Reusing Chapter 3's hardcoded login prompt for a different feature.</strong> This page's whole point is generalizing past that — a copy-pasted, feature-specific prompt doesn't scale to a real application with dozens of features.</li>
+  <li><strong>Skipping <code>featureContext</code> to save a few lines.</strong> The resulting test cases will be generic and often genuinely wrong for ShopSmart's actual behavior.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Write <code>featureContext</code> with the same care you'd put into explaining a feature to a new team member — concrete, specific, and honest about real edge behavior.</li>
+  <li>Keep the <code>TestCase</code> shape consistent across every feature you generate for — it's what makes later chapters' cross-feature tooling possible.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Write a <code>featureContext</code> for ShopSmart's cart management (add, remove, update quantity) and generate test cases for it using this page's function. Compare the results against what you'd have written by hand — note anything genuinely useful the generation surfaced that you might not have thought of first.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Generalizing Chapter 3's function means moving feature-specific knowledge into a parameter, not hardcoding it — the same function now serves every ShopSmart feature.</li>
+  <li>A requirement's real specificity — carried by <code>featureContext</code> — determines whether generated test cases are genuinely useful or genuinely generic.</li>
+  <li>This page's richer <code>TestCase</code> shape, with its category field, is what the rest of this chapter builds directly on.</li>
+</ul>
+</article>
+</body></html>

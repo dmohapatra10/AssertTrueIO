@@ -1,0 +1,152 @@
+<!doctype html>
+<html><head>
+<title>k6 Parameterization: CSV, JSON, and SharedArray Explained</title>
+<meta name="description" content="Feeding real external test data to a k6 test efficiently — CSV and JSON parameterization, and why SharedArray matters for memory efficiency at high VU counts." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/parameterization-csv-json-and-sharedarray.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Parameterization: CSV, JSON &amp; SharedArray</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="unique-test-data-and-avoiding-collisions.html">Unique Test Data & Avoiding Collisions</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Generated unique values (from the previous page) work well for data the system doesn't care about the specifics of, like a placeholder email. But some tests genuinely need real, varied external data — a list of actual product IDs, realistic names, valid postal codes. This page covers feeding that kind of data into a test efficiently.</p>
+
+<h2 id="loading-json-data">Loading JSON Data</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import { SharedArray } from 'k6/data';
+
+const users = new SharedArray('users', function () {
+  return JSON.parse(open('./users.json'));
+});
+
+export default function () {
+  const user = users[__VU % users.length];
+  // cycles through the loaded data set based on VU number
+}</code></pre>
+<p><code>open()</code> reads a local file at init time; wrapping it in <code>SharedArray</code> (more on why below) makes the parsed data available to every VU without each one loading and parsing the file independently.</p>
+
+<h2 id="loading-csv-data">Loading CSV Data</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import { SharedArray } from 'k6/data';
+import papaparse from 'https://jslib.k6.io/papaparse/5.1.1/index.js';
+
+const products = new SharedArray('products', function () {
+  return papaparse.parse(open('./products.csv'), { header: true }).data;
+});
+
+export default function () {
+  const product = products[__ITER % products.length];
+}</code></pre>
+<p>k6 doesn't parse CSV natively, so a small external parsing library (like papaparse, loaded directly from a URL — a common k6 pattern) handles converting the raw CSV text into usable JavaScript objects, one per row.</p>
+
+<h2 id="why-sharedarray-matters-the-memory-problem-it-solves">Why SharedArray Matters — The Memory Problem It Solves</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>❌ Without SharedArray — data loaded fresh inside the default function,
+   or as a plain array in init code:
+   Each of 500 VUs holds its OWN independent copy of the entire data set
+   in memory → 500x the actual memory footprint of the raw data
+
+✅ With SharedArray:
+   ALL 500 VUs share ONE single copy of the data set in memory
+   → the memory footprint stays roughly constant regardless of VU count</code></pre>
+<p>This is a genuinely important efficiency concern at real scale — a large data set (thousands of realistic user records, for instance) duplicated once per VU can become a serious memory problem well before any actual load-related bottleneck is reached. <code>SharedArray</code> exists specifically to prevent the load generator itself from becoming the bottleneck, directly connecting to the principle Chapter 12 covers explicitly.</p>
+
+<h2 id="detailed-example-cycling-through-data-correctly">Detailed Example — Cycling Through Data Correctly</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const users = new SharedArray('users', function () {
+  return JSON.parse(open('./users.json')); // suppose this has 50 users
+});
+
+export default function () {
+  // Using __VU ensures each VU consistently uses "their" user across iterations
+  const user = users[__VU % users.length];
+
+  // Using __ITER instead would cycle through users differently —
+  // appropriate when each ITERATION should use fresh, different data,
+  // rather than each VU consistently representing the same simulated identity
+  const product = products[__ITER % products.length];
+}</code></pre>
+<p>Whether to index by <code>__VU</code> or <code>__ITER</code> (or a combination) is a deliberate choice depending on what you're modeling — a persistent simulated identity across a VU's whole session (index by <code>__VU</code>) versus fresh data on every single action (index by <code>__ITER</code>).</p>
+
+<h2 id="real-world-example-a-realistic-login-test-using-real-credentials">Real-World Example — A Realistic Login Test Using Real Credentials</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const credentials = new SharedArray('credentials', function () {
+  return JSON.parse(open('./test-users.json'));
+  // [{ "username": "user1", "password": "pass1" }, ...]
+});
+
+export default function () {
+  const cred = credentials[__VU % credentials.length];
+
+  const response = http.post('https://api.example.com/login',
+    JSON.stringify({ username: cred.username, password: cred.password }),
+    { headers: { 'Content-Type': 'application/json' } });
+
+  check(response, { 'login succeeded': (r) => r.status === 200 });
+}</code></pre>
+<p>This is more realistic than a single generated or hardcoded credential — real systems often behave differently for different accounts (different permission levels, different amounts of existing data associated with the account), and testing against a genuinely varied set of real credentials surfaces problems a single test account never would.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Loading and parsing the same file inside the default function —
+// happens on EVERY iteration, wastefully, and isn't shared across VUs
+export default function () {
+  const users = JSON.parse(open('./users.json')); // re-parsed every iteration!
+}
+
+// ✅ Loaded once, shared efficiently across every VU
+const users = new SharedArray('users', function () {
+  return JSON.parse(open('./users.json'));
+});
+export default function () {
+  const user = users[__VU % users.length];
+}</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Loading and parsing a data file inside the default function</strong> — repeats the expensive parse operation on every single iteration, and prevents any sharing across VUs.</li>
+  <li><strong>Not using <code>SharedArray</code> for a large data set</strong> at high VU counts — can cause the load generator's own memory usage to become the actual bottleneck, corrupting results.</li>
+  <li><strong>Indexing data inconsistently</strong> (mixing up when to use <code>__VU</code> vs. <code>__ITER</code>) without a deliberate reason, producing a data-cycling pattern that doesn't actually match what the test is trying to model.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>A data set smaller than the number of VUs</strong> — the modulo pattern (<code>users[__VU % users.length]</code>) correctly wraps around and reuses entries, which may or may not be acceptable depending on whether reused data would itself cause a collision problem covered on the previous page.</li>
+  <li><strong>Very large data files</strong> — even with <code>SharedArray</code>'s efficiency, an extremely large data set still needs to be loaded once at init time; for genuinely massive data sets, consider whether the test truly needs that much unique data or whether a smaller, well-designed set (combined with the unique-ID generation from the previous page) would serve the same purpose.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a k6 test's own memory usage climbs unexpectedly at high VU counts, check whether any data loading happens inside the default function (re-executed every iteration) or as a plain array outside <code>SharedArray</code> (duplicated per VU) — either pattern can turn the load generator itself into the actual resource constraint.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Load and parse external data once, in init code, wrapped in <code>SharedArray</code> whenever the data set is genuinely shared across VUs.</li>
+  <li>Choose <code>__VU</code> vs. <code>__ITER</code> indexing deliberately based on whether you're modeling a persistent simulated identity or fresh data per action.</li>
+  <li>Use real, varied external data (not just generated unique placeholders) when the system's behavior genuinely differs across different real accounts or records.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Given a JSON file of 100 realistic customer records, write a k6 script using <code>SharedArray</code> that has each virtual user consistently represent the same customer throughout its whole run (across all its iterations), and explain why <code>__VU</code> rather than <code>__ITER</code> is the correct indexing choice for this specific requirement.</p>
+
+<h2 id="summary">Summary</h2>
+<p><code>SharedArray</code> is k6's mechanism for loading external data (JSON, or CSV via a small parsing library) once and sharing it efficiently across every virtual user, rather than each VU independently loading and duplicating the same data in memory. Indexing that shared data by <code>__VU</code> or <code>__ITER</code> is a deliberate modeling choice — persistent simulated identity versus fresh data per action — and getting this efficiency and indexing right is what keeps a data-heavy test from becoming memory-bound on the load generator itself before it ever meaningfully stresses the target system.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>What memory problem does SharedArray specifically solve?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Without SharedArray, a data set loaded as a plain array in init code gets duplicated once per virtual user — 500 VUs would each hold their own independent copy of the entire data set, multiplying memory usage by the VU count. SharedArray instead makes one single copy of the data available to every VU, keeping memory usage roughly constant regardless of how many virtual users the test runs.</div>
+</details>
+<details class="faq-item">
+<summary>Why is loading and parsing a data file inside the default function a mistake?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The default function runs repeatedly — once per iteration, per virtual user — so loading and parsing a file inside it repeats that expensive operation on every single iteration, wasting resources that could instead be spent generating actual load. Loading the data once, in init code (ideally wrapped in SharedArray), does the expensive work exactly once regardless of how many iterations follow.</div>
+</details>
+<details class="faq-item">
+<summary>What's the practical difference between indexing shared data by __VU versus by __ITER?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Indexing by __VU gives each virtual user a consistent data entry across all of its iterations — modeling a persistent simulated identity, like one customer using the system repeatedly. Indexing by __ITER instead cycles through the data set differently on every iteration, appropriate when each individual action should use fresh, different data rather than representing one consistent identity throughout.</div>
+</details>
+<details class="faq-item">
+<summary>Why might a test use real external data (via SharedArray) instead of generated unique placeholder values?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Generated placeholder values (like a unique but meaningless email) work fine when the system doesn't care about the specific content of the data. But real systems often behave differently for genuinely different real accounts — different permission levels, different amounts of associated data — and testing against a realistic, varied external data set can surface behavioral differences and problems that a single generated or hardcoded value would never reveal.</div>
+</details>
+<details class="faq-item">
+<summary>How does k6 handle CSV files differently from JSON files when it comes to parsing?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">k6 doesn't include native CSV parsing — JSON.parse() handles JSON directly, but CSV requires an external parsing library (commonly papaparse, loaded from a URL) to convert the raw CSV text into usable JavaScript objects. Both approaches are typically wrapped in SharedArray afterward for the same efficiency reasons, but the parsing step itself differs based on the source file format.</div>
+</details>
+</div>
+</article>
+</body></html>

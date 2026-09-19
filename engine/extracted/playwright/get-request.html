@@ -1,0 +1,145 @@
+<!doctype html>
+<html><head>
+<title>Playwright GET Requests: Query Parameters, Headers, and Pagination</title>
+<meta name="description" content="How to make and validate GET requests with Playwright&#x27;s APIRequestContext — query parameters, headers, pagination, and response validation for read operations." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/get-request.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>GET Requests</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="api-testing-with-playwright.html">API Testing overview</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>request.get(url: string, options?: { params?, headers?, timeout? })</code></pre>
+  <p><code>GET</code> retrieves data without changing anything on the server — no request body, and (by HTTP convention) no side effects. This is the method behind almost every "read" verification in an API test: fetching a list, checking a single resource's current state, confirming a search returns the right results.</p>
+
+  <h2 id="why-it-s-important">Why it's important</h2>
+  <p>GET is usually the first API method engineers reach for, since it's the simplest and safest — but "simple" doesn't mean there's nothing to get wrong. Query parameter encoding, header requirements, and pagination are where most real GET-related bugs in test suites actually live.</p>
+
+  <h2 id="basic-example">Basic Example</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const response = await request.get('/api/orders/ORD-10492');
+expect(response.ok()).toBeTruthy();
+
+const order = await response.json();
+expect(order.status).toBe('shipped');</code></pre>
+
+  <h2 id="query-parameters">Query Parameters</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Pass params as an object — Playwright handles URL encoding for you
+const response = await request.get('/api/orders', {
+  params: { status: 'pending', limit: '10', sort: 'created_at' },
+});
+// Actual request URL: /api/orders?status=pending&limit=10&sort=created_at</code></pre>
+  <p>Building the query string manually (string concatenation) is a common early mistake — special characters (spaces, <code>&amp;</code>, non-ASCII text) need proper encoding, and the <code>params</code> option handles that automatically rather than requiring a manual <code>encodeURIComponent()</code> call for every value.</p>
+
+  <h2 id="headers">Headers</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const response = await request.get('/api/profile', {
+  headers: {
+    Authorization: 'Bearer test-token',
+    'Accept-Language': 'en-GB',
+  },
+});</code></pre>
+  <p>Most authenticated GET requests don't need manual headers at all — as covered on the API Testing overview page, the <code>request</code> fixture shares cookies/storage with <code>page</code>, so an already-logged-in session (via <code>storageState</code>) authenticates automatically. Manual headers are for the remaining cases: testing with a specific, deliberately different token, or headers unrelated to auth (locale, content negotiation).</p>
+
+  <h2 id="detailed-example-pagination">Detailed Example — Pagination</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('paginated results return the requested page size', async ({ request }) =&gt; {
+  const page1 = await request.get('/api/products', { params: { page: '1', per_page: '20' } });
+  const body1 = await page1.json();
+
+  expect(body1.items).toHaveLength(20);
+  expect(body1.total).toBeGreaterThan(20);
+  expect(body1.page).toBe(1);
+
+  const page2 = await request.get('/api/products', { params: { page: '2', per_page: '20' } });
+  const body2 = await page2.json();
+
+  // Confirm page 2 actually contains DIFFERENT items, not a repeat of page 1
+  const idsPage1 = body1.items.map((item) =&gt; item.id);
+  const idsPage2 = body2.items.map((item) =&gt; item.id);
+  expect(idsPage1.some((id) =&gt; idsPage2.includes(id))).toBe(false);
+});</code></pre>
+  <p>That last assertion is the one engineers skip most often — confirming the item count is correct doesn't catch a broken pagination implementation that silently returns the same page of data regardless of the <code>page</code> parameter. Checking that the actual IDs differ between pages catches that class of bug directly.</p>
+
+  <h2 id="real-world-example-search-with-filters">Real-World Example — Search With Filters</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('search filters by category and price range', async ({ request }) =&gt; {
+  const response = await request.get('/api/products/search', {
+    params: {
+      q: 'mouse',
+      category: 'electronics',
+      min_price: '10',
+      max_price: '50',
+    },
+  });
+
+  expect(response.ok()).toBeTruthy();
+  const results = await response.json();
+
+  for (const item of results.items) {
+    expect(item.category).toBe('electronics');
+    expect(item.price).toBeGreaterThanOrEqual(10);
+    expect(item.price).toBeLessThanOrEqual(50);
+  }
+});</code></pre>
+  <p>Looping through every returned item to confirm each one individually satisfies the filter is a stronger check than just asserting a non-empty result — it catches a filter that's partially broken (correctly narrowing by category but ignoring price) that a simple "results exist" assertion would miss entirely.</p>
+
+  <h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Manual string concatenation — breaks on special characters, easy to get wrong
+const response = await request.get(`/api/products/search?q=${searchTerm}&category=electronics`);
+
+// ✅ Let Playwright handle encoding
+const response = await request.get('/api/products/search', {
+  params: { q: searchTerm, category: 'electronics' },
+});</code></pre>
+
+  <h2 id="common-mistakes">Common Mistakes</h2>
+  <ul>
+    <li><strong>Manually building query strings</strong> instead of using the <code>params</code> option — easy to get encoding wrong for values with spaces or special characters.</li>
+    <li><strong>Only checking item count after a filtered or paginated request</strong>, not the actual content — a count can be right while the underlying data is wrong (repeated page, ignored filter).</li>
+    <li><strong>Adding manual auth headers when <code>storageState</code> already covers it</strong> — redundant, and can mask a real auth-sharing bug if the manual header happens to paper over it.</li>
+  </ul>
+
+  <h2 id="edge-cases">Edge Cases</h2>
+  <ul>
+    <li><strong>Empty result sets</strong> — a GET with filters matching nothing should return a valid empty array with a 200, not an error; explicitly testing this (a search with no matches) is easy to forget.</li>
+    <li><strong>Very large limit/page-size values</strong> — worth testing that the API caps them sensibly (a client requesting <code>limit=100000</code> shouldn't be able to force the server to return an unbounded response).</li>
+  </ul>
+
+  <h2 id="debugging">Debugging</h2>
+  <p>If a GET request returns unexpected data, log the fully resolved URL (most HTTP clients, including Playwright's, expose the final request URL on the response) to confirm the query parameters were actually encoded and sent the way you expect, rather than assuming the <code>params</code> object was interpreted correctly.</p>
+
+  <h2 id="best-practices">Best Practices</h2>
+  <ul>
+    <li>Always use the <code>params</code> option for query parameters rather than manual string building.</li>
+    <li>Validate actual returned content for filtered/paginated requests, not just counts.</li>
+    <li>Test the empty-result case explicitly for any search or filter endpoint.</li>
+  </ul>
+
+  <h2 id="practice-exercise">Practice Exercise</h2>
+  <p>Write a test that fetches three pages of a paginated endpoint and asserts that no item ID appears on more than one page, confirming pagination doesn't silently duplicate results across pages.</p>
+
+  <h2 id="summary">Summary</h2>
+  <p>GET requests retrieve data without side effects. The <code>params</code> option handles query-string encoding correctly; validating actual content (not just counts) after filtering or pagination catches bugs a superficial check would miss; and most authenticated GETs need no manual headers at all, since <code>storageState</code> already covers session sharing.</p>
+
+  <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why is asserting only the item count insufficient when testing a paginated or filtered GET endpoint?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A correct count can coexist with wrong data — a broken pagination implementation might return the same 20 items regardless of the requested page, or a broken filter might return the right number of items while ignoring the filter criteria entirely. Asserting on the actual returned content (specific IDs across pages, or that every item satisfies the filter) is what actually catches those bugs; count alone doesn't.</div>
+</details>
+<details class="faq-item">
+<summary>Why prefer the params option over manually building a query string?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Playwright handles URL encoding correctly for special characters; manual string concatenation is easy to get wrong for spaces or symbols.</div>
+</details>
+<details class="faq-item">
+<summary>Why check actual item IDs across pages, not just the count, when testing pagination?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A broken implementation could return the same page repeatedly with a correct count — checking IDs differ catches that.</div>
+</details>
+<details class="faq-item">
+<summary>Do most authenticated GET requests need manual auth headers in Playwright?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">No — the request fixture shares storageState with page by default, so an already-logged-in session authenticates automatically.</div>
+</details>
+<details class="faq-item">
+<summary>Why test a search with filters that match nothing?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It should return a valid empty result with 200, not an error — an easy case to leave uncovered if only the happy path is tested.</div>
+</details>
+</div>
+</article>
+</body></html>

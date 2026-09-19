@@ -1,0 +1,213 @@
+<!doctype html>
+<html><head>
+<title>AI-Generated K6 Scripts: From a Validated Design to Real, Running JavaScript</title>
+<meta name="description" content="Converting a reviewed load test design and threshold into a real K6 script — matching this chapter&#x27;s own running example, and why the extended-duration follow-up deserves its own generated script." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/ai-generated-k6-scripts.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>AI-Generated K6 Scripts</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="autonomous-performance-testing.html">Autonomous Performance Testing</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Everything genuinely valuable so far in this chapter — the design, the thresholds, the analysis — needs to end up as a real, runnable K6 script. This page does that conversion, matching this site's own K6 track's conventions.</p>
+
+<h2 id="converting-a-validated-design-into-real-k6-javascript">Converting a Validated Design Into Real K6 JavaScript</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import http from 'k6/http';
+import { check, sleep } from 'k6';
+
+// Thresholds — DIRECTLY from this chapter's own reasoned
+// construction, not arbitrary values
+export const options = {
+  stages: [
+    { duration: '2m', target: 200 },
+    { duration: '5m', target: 1000 },
+    { duration: '10m', target: 1000 },
+    { duration: '3m', target: 0 },
+  ],
+  thresholds: {
+    http_req_duration: ['p(95)&lt;800'],
+    http_req_failed: ['rate&lt;0.01'],
+  },
+};
+
+export default function () {
+  const payload = JSON.stringify({
+    customer_id: 42,
+    items: [{ product_id: 501, quantity: 1 }],
+    shipping_address: { street: '456 Oak Ave', city: 'Springfield' },
+  });
+
+  const response = http.post(
+    'https://staging.shopeasy.example.com/api/orders',
+    payload,
+    { headers: { 'Content-Type': 'application/json' } }
+  );
+
+  check(response, {
+    'order created successfully': (r) => r.status === 201,
+  });
+
+  sleep(1);
+}</code></pre>
+<p>Notice the request body here uses the EXACT same confirmed schema from Chapter 6's request-construction page — the SAME real, verified structure, not a fresh, separate guess, since it's testing the SAME underlying endpoint.</p>
+
+<h2 id="generating-the-extended-follow-up-script">Generating the Extended Follow-Up Script</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// The follow-up test from the previous page's own report —
+// same structure, EXTENDED sustained-peak duration, specifically
+// to resolve the open degradation-trend question
+
+export const options = {
+  stages: [
+    { duration: '2m', target: 200 },
+    { duration: '5m', target: 1000 },
+    { duration: '60m', target: 1000 },  // extended from 10 to 60 min
+    { duration: '3m', target: 0 },
+  ],
+  thresholds: {
+    http_req_duration: ['p(95)&lt;800'],
+    http_req_failed: ['rate&lt;0.01'],
+  },
+};
+// ...default function unchanged from above...</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why does reusing this chapter's own already-established thresholds and schema for the extended follow-up script (rather than regenerating them from scratch) matter for the follow-up's genuine validity? The whole point of the extended test is isolating ONE variable — duration — to answer a specific open question. If the thresholds or request structure also changed between the original and follow-up tests, any difference in results could be explained by those OTHER changes, not just the extended duration, undermining the follow-up's ability to cleanly answer the specific question it was designed for.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Regenerating a request body or threshold values fresh for each new K6 script, rather than reusing already-confirmed values from earlier in the same investigation. This risks introducing genuinely new, unconfirmed guesses into what should be a controlled, single-variable follow-up — exactly the schema-confirmation discipline from Chapter 6 applies here too.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>Keeping shared configuration (thresholds, request payloads) in a genuinely separate, reusable module rather than duplicating it across multiple generated K6 scripts makes it easier to confirm two related tests are genuinely comparable, controlling for everything except the one variable actually being investigated.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Convert only validated designs and confirmed thresholds into real scripts, exactly matching Chapter 4's validation-before-conversion principle.</li>
+  <li>Reuse already-confirmed schema and threshold values across related scripts, rather than regenerating them and risking new, unconfirmed variation.</li>
+  <li>Keep a follow-up script's changes isolated to the specific variable it's meant to investigate, for a genuinely clean comparison.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Converting a validated design into a real K6 script uses exactly the conventions taught in this site's own K6 track — the agent supplies a validated design, not a different kind of script.</li>
+  <li>A follow-up investigation should isolate its one variable of genuine interest, reusing already-confirmed values for everything else.</li>
+  <li>Reused configuration across related scripts makes results genuinely comparable, controlling for everything except what's actually being investigated.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Generate a K6 script for the search-endpoint goal from the previous page's "Try It Yourself" exercise, reusing this page's same thresholds structure but with values you'd construct specifically for search rather than checkout, following the AI Threshold and Scenario Construction page's own reasoning approach.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A teammate generates the extended 60-minute follow-up script but also changes the threshold from p(95)&lt;800 to p(95)&lt;1000 "to be safe." Why is this a genuine problem?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This directly undermines the follow-up's entire purpose — changing the threshold introduces a SECOND variable alongside duration, meaning any difference in results can no longer be cleanly attributed to the extended duration alone.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What the follow-up test was SPECIFICALLY designed to isolate:
+"Does DURATION affect the observed degradation trend?" — this
+  question can only be cleanly answered if duration is the
+  ONLY thing that changed between the original and follow-up.
+
+What changing the threshold ALSO does:
+If the follow-up NOW passes with a looser 1000ms threshold, is
+  that because the degradation trend genuinely STABILIZED over
+  the extended duration, or simply because the THRESHOLD itself
+  became easier to pass? With TWO things changed at once,
+  there's no way to cleanly distinguish these two explanations
+  — exactly the controlled-comparison problem this page's
+  "Think About It" section raises directly.</code></pre>
+<p>The fix is straightforward: keep the threshold EXACTLY the same as the original test, changing ONLY duration — any genuine safety concern about the threshold itself belongs to a SEPARATE discussion, not bundled into this specific, deliberately isolated follow-up investigation.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page's request body use the EXACT same shipping_address structure confirmed back in Chapter 6, rather than a fresh guess?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because it's testing the SAME underlying <code>/orders</code> endpoint Chapter 6 already confirmed the real schema for — regenerating a fresh guess here would be a genuine, unnecessary regression back to the exact risk Chapter 6's Request Construction page specifically warned against.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why reusing the CONFIRMED structure is correct:
+Chapter 6 already established, through genuine observation of
+  a real existing order, that shipping_address is a NESTED
+  OBJECT with street/city fields — this is CONFIRMED, real
+  knowledge about the actual API, not something that needs
+  re-guessing for a DIFFERENT kind of test (performance rather
+  than correctness) against the SAME underlying endpoint.
+
+Why a FRESH guess here would be a genuine step backward:
+Guessing AGAIN risks reintroducing the exact "unrecognized
+  field" failure mode Chapter 6's Request Construction page
+  demonstrated — except NOW the failure would be even MORE
+  confusing, since it would look like a PERFORMANCE problem
+  (a failing request during a load test) when it's actually
+  the SAME structural-guessing mistake in a new context.</code></pre>
+<p>This is a genuinely good illustration of why validated, confirmed knowledge should carry forward across chapters and contexts — Chapter 6's schema confirmation work remains valid and reusable here, rather than needing to be independently re-established for every new kind of test against the same real endpoint.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why sleep(1) appears in this page's default function, and why removing it might produce a genuinely misleading load test.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>The <code>sleep(1)</code> represents genuine "think time" — the pause a real user takes between actions — and removing it would make each virtual user hammer the endpoint as fast as technically possible, testing a scenario that doesn't reflect how real users actually behave.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>WITH sleep(1) (this page's actual approach):
+Each virtual user makes a request, then PAUSES for roughly a
+  second before its next iteration — genuinely approximating
+  how a real user takes a moment between actions (reading a
+  confirmation, deciding what to do next), not submitting
+  requests in an instant, continuous stream.
+
+WITHOUT sleep(1) (a genuinely misleading alternative):
+Each virtual user would submit requests as FAST AS TECHNICALLY
+  POSSIBLE, back to back, with zero pause — this tests something
+  closer to "how many requests per second can this endpoint
+  handle from a FIXED number of connections," which is a
+  GENUINELY different, less realistic question than "how does
+  the system handle 1000 REAL, HUMAN-PACED users."</code></pre>
+<p>This connects directly to the AI-Driven Load Test Design page's own ramping-versus-instant-spike argument — just as REALISTIC traffic arrival matters, realistic PACING of individual users' actions matters too, and removing think time would produce results that don't genuinely reflect real-world usage patterns.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might it be reasonable to keep thresholds and request payloads in a shared, reusable module rather than duplicated directly in each generated script, as this page's "Quick Tip" suggests?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Beyond convenience, this makes it STRUCTURALLY harder to accidentally introduce the exact problem the first interview question describes — if shared values live in ONE place, there's no way for two related scripts to silently drift apart on values that are supposed to stay identical.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// shared-config.js
+export const checkoutThresholds = {
+  http_req_duration: ['p(95)&lt;800'],
+  http_req_failed: ['rate&lt;0.01'],
+};
+export const checkoutPayload = JSON.stringify({
+  customer_id: 42,
+  items: [{ product_id: 501, quantity: 1 }],
+  shipping_address: { street: '456 Oak Ave', city: 'Springfield' },
+});
+
+// original-test.js
+import { checkoutThresholds, checkoutPayload } from './shared-config.js';
+export const options = { stages: [...], thresholds: checkoutThresholds };
+
+// extended-followup.js
+import { checkoutThresholds, checkoutPayload } from './shared-config.js';
+export const options = { stages: [/* only duration changed */], thresholds: checkoutThresholds };</code></pre>
+<p>With this structure, it becomes STRUCTURALLY IMPOSSIBLE for the threshold to accidentally differ between the two scripts (as the first interview question's problematic scenario described) — both scripts import the SAME shared value, rather than each having its own independently-editable copy that could silently drift apart over time.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you decide whether a genuinely NEW load test script deserves its own independent threshold construction, versus reusing an existing one from a related test?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>The genuinely useful test: is this new script testing the SAME underlying user experience and business context as an existing threshold was reasoned for, or a MEANINGFULLY different one requiring its own independent justification?</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Reasonably REUSE an existing threshold:
+The extended 60-minute follow-up test from earlier in this
+  page — it's testing the EXACT SAME user experience (checkout
+  responsiveness) and the EXACT SAME business context as the
+  original test; only the DURATION being investigated changed,
+  not what "acceptable" actually means for this specific flow.
+
+Reasonably requires its OWN independent threshold:
+A NEW script testing ShopEasy's search endpoint — this is a
+  GENUINELY different user experience (a quick, exploratory
+  action) with potentially different acceptable latency
+  expectations than a MULTI-STEP checkout flow, exactly as
+  this page's own "Try It Yourself" exercise asks you to
+  reason through independently, following the AI Threshold and
+  Scenario Construction page's own approach.</code></pre>
+<p>The deciding question isn't "is this technically a new script" — it's "does this new script represent a genuinely different user experience or business context that deserves its own independent reasoning," which is exactly the distinction between this page's two examples: reuse for the SAME context investigated differently, independent construction for a GENUINELY different context.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

@@ -1,0 +1,154 @@
+<!doctype html>
+<html><head>
+<title>Verifying Error Response Structure in RestAssured</title>
+<meta name="description" content="Beyond the status code — how to verify an API&#x27;s error message, error code, error structure, and error-specific fields in RestAssured, and why status alone isn&#x27;t enough." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/verifying-error-response-structure.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Verifying Error Response Structure</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="rate-limiting-and-server-errors.html">Rate Limiting & Server Errors</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Every negative test on the previous four pages asserted a status code — often alongside a partial check on the error message. This page is about being thorough on the error <em>body</em> itself: the message, an error code, the overall structure, and any error-specific fields, not just the numeric status.</p>
+
+<h2 id="why-status-code-alone-isn-t-enough">Why Status Code Alone Isn't Enough</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// This confirms the API rejected the request — but tells you NOTHING
+// about whether it rejected it for the RIGHT reason
+.then().statusCode(400);</code></pre>
+<p>A 400 could mean the email was invalid, or that the name was missing, or that the request body wasn't valid JSON — three completely different problems, all producing the same status code. If a test only checks the status, it can't distinguish "the API correctly caught the specific problem I introduced" from "the API is broken in some unrelated way that happens to also return 400."</p>
+
+<h2 id="verifying-the-error-message">Verifying the Error Message</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>.then()
+    .statusCode(400)
+    .body("message", containsString("email"));</code></pre>
+<p>Confirming the message references the actual field that was wrong — not just any error message, but specifically one naming the problem this test introduced.</p>
+
+<h2 id="verifying-an-error-code">Verifying an Error Code</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>{
+  "status": 400,
+  "code": "INVALID_EMAIL_FORMAT",
+  "message": "The provided email address is not valid"
+}</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>.then()
+    .statusCode(400)
+    .body("code", equalTo("INVALID_EMAIL_FORMAT"));</code></pre>
+<p>A structured, machine-readable error <em>code</em> (as opposed to a human-readable message) is more reliable to assert against than message text — a message can be reworded for clarity or localized without changing its meaning, but a well-designed API's error <em>code</em> is meant to stay stable, making it the more robust thing to assert on when an API provides one.</p>
+
+<h2 id="verifying-overall-error-structure">Verifying Overall Error Structure</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>{
+  "status": 400,
+  "code": "VALIDATION_ERROR",
+  "message": "Request validation failed",
+  "fields": [
+    { "field": "email", "issue": "Invalid format" },
+    { "field": "name", "issue": "Required field missing" }
+  ]
+}</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void multiFieldValidationErrorHasCorrectStructure() {
+    given().body(Map.of("email", "bad-format")).when().post("/users")
+    .then()
+        .statusCode(400)
+        .body("code", equalTo("VALIDATION_ERROR"))
+        .body("fields.field", hasItems("email", "name"))
+        .body("fields.find { it.field == 'email' }.issue", containsString("format"));
+}</code></pre>
+<p>Many real APIs return multiple validation problems in a single error response (rather than stopping at the first one found) — this test confirms both fields are correctly reported, and uses the advanced JsonPath filtering from Chapter 11 to check the specific issue text for one particular field within the array.</p>
+
+<h2 id="detailed-example-a-reusable-error-structure-assertion-helper">Detailed Example — A Reusable Error Structure Assertion Helper</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>public class ErrorAssertions {
+    public static void assertValidationError(ValidatableResponse response, String field, String expectedIssueFragment) {
+        response
+            .statusCode(400)
+            .body("code", equalTo("VALIDATION_ERROR"))
+            .body("fields.field", hasItem(field))
+            .body("fields.find { it.field == '" + field + "' }.issue", containsString(expectedIssueFragment));
+    }
+}
+
+// Usage — every validation test in the suite now checks the FULL structure consistently
+@Test
+void invalidEmailIsRejectedWithCorrectStructure() {
+    ValidatableResponse response =
+        given().body(Map.of("email", "bad")).when().post("/users").then();
+    ErrorAssertions.assertValidationError(response, "email", "format");
+}</code></pre>
+<p>This is exactly the utility-method pattern from Chapter 9 applied to error verification specifically — a shared helper that encapsulates the full error-structure check, so every validation test in the suite verifies the complete shape consistently, rather than each test hand-rolling a slightly different, possibly incomplete check.</p>
+
+<h2 id="real-world-example-combining-this-with-chapter-11-s-schema-validation">Real-World Example — Combining This With Chapter 11's Schema Validation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>ResponseSpecification errorSpec =
+    new ResponseSpecBuilder()
+        .expectBody("status", notNullValue())
+        .expectBody("code", notNullValue())
+        .expectBody("message", notNullValue())
+        .build();
+
+@Test
+void everyErrorResponseHasTheRequiredStructure() {
+    given().body(invalidUser).when().post("/users")
+        .then().spec(errorSpec).statusCode(400);
+}</code></pre>
+<p>This is the shared response spec pattern from Chapter 9 applied specifically to the "does every error response have the required shape" question — combined with, or as an alternative to, a full JSON Schema for the error format (Chapter 11's advanced schema validation), depending on how rigorously the project wants this structural contract enforced.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Status code only — can't distinguish the right rejection from a wrong one
+.then().statusCode(400);
+
+// ✅ Status code AND error content, confirming the RIGHT thing was rejected
+.then().statusCode(400).body("code", equalTo("INVALID_EMAIL_FORMAT"));</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Only asserting the status code</strong> on a negative test — can't distinguish "correctly caught the specific problem" from "failed for some unrelated reason that happens to share the same status code."</li>
+  <li><strong>Asserting on exact error message text</strong> when a message might legitimately be reworded — an error <em>code</em>, where the API provides one, is generally the more stable thing to assert against.</li>
+  <li><strong>Not verifying multi-field error responses report every problem</strong>, only checking the first or checking count without content.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>APIs with inconsistent error structures across different endpoints</strong> — worth flagging as an API design inconsistency, and worth a shared response spec or schema (as shown above) specifically to catch and enforce consistency going forward.</li>
+  <li><strong>Localized error messages</strong> — if the API supports multiple languages, message-text assertions become fragile across locales; prefer code-based assertions in this scenario specifically.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If an error-structure assertion fails unexpectedly, print the full error response body (Chapter 8's logging) — it's easy to assume a field name (<code>message</code> vs. <code>error</code> vs. <code>errorMessage</code>) without checking the API's actual, real response shape first.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Always verify error content, not just the status code, on every negative test.</li>
+  <li>Prefer error codes over message text when an API provides both, for more stable assertions.</li>
+  <li>Build a reusable helper or shared response spec for error structure, applied consistently across the whole negative-testing suite.</li>
+  <li>Verify multi-field validation responses report every problem, not just the first.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Build a reusable <code>ErrorAssertions</code> helper (like the one shown on this page) for your own hypothetical API's error format, and use it across at least three different negative tests, confirming it correctly verifies status, error code, and field-specific issue text consistently.</p>
+
+<h2 id="summary">Summary</h2>
+<p>Thorough negative testing verifies the full error response — status code, error code, message, and any field-specific error details — not just the status alone, which can't distinguish a correctly-caught problem from an unrelated failure sharing the same code. A reusable assertion helper or shared response spec applied consistently across a suite's negative tests is what keeps this thoroughness practical at scale, rather than every test hand-rolling its own partial check.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why is checking only the status code insufficient to confirm a negative test is actually testing what it claims to test?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Multiple different validation failures on the same endpoint often produce the same status code — a missing name, an invalid email, and malformed JSON might all return 400. A test that only asserts <code>statusCode(400)</code> would pass identically regardless of which specific problem the API actually detected, which means it can't distinguish "the API correctly caught the invalid email I sent" from "the API is rejecting this request for a completely different, possibly wrong reason." Verifying the error message or error code confirms the API identified the <em>specific</em> problem the test was actually designed to introduce, not just that it rejected the request for some reason.</div>
+</details>
+<details class="faq-item">
+<summary>Why is checking only the status code insufficient to confirm a negative test caught the RIGHT problem?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Multiple different validation failures often share the same status code — a test asserting only statusCode(400) can't distinguish 'correctly caught the specific problem I introduced' from 'failed for some unrelated reason.'</div>
+</details>
+<details class="faq-item">
+<summary>Why might an error CODE be a more stable thing to assert against than the error message text?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A message can be reworded for clarity or localized without changing its meaning; a well-designed API's error code is meant to stay stable, making it the more robust choice when the API provides one.</div>
+</details>
+<details class="faq-item">
+<summary>What does a reusable error-assertion helper solve that inline checks per test don't?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It ensures every validation test in the suite checks the FULL error structure consistently, rather than each test hand-rolling a slightly different, potentially incomplete check.</div>
+</details>
+<details class="faq-item">
+<summary>Why is checking a multi-field validation response for ALL reported problems, not just the first, worth doing?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Many real APIs report every validation problem in one response rather than stopping at the first — confirming all expected fields are reported catches a case where only some validation rules are actually being checked.</div>
+</details>
+</div>
+</article>
+</body></html>

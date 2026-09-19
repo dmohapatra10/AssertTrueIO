@@ -1,0 +1,186 @@
+<!doctype html>
+<html><head>
+<title>AI Agent + MCP: Chapter 3&#x27;s Own Agent, Using MCP Instead of Hardcoded Tools</title>
+<meta name="description" content="Rewriting Chapter 3&#x27;s QAAgent to discover and call tools through MCP rather than a hardcoded dispatch function — what genuinely changes, and what doesn&#x27;t." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/ai-agent-and-mcp.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>AI Agent + MCP</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="mcp-and-api-testing.html">MCP + API Testing</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>This chapter's synthesis: taking Chapter 3's actual <code>QAAgent</code> and connecting it to an MCP server instead of its original hardcoded <code>execute_tool</code> function. The genuinely interesting part is how little of Chapter 3's architecture actually needs to change.</p>
+
+<h2 id="what-changes-the-tool-calling-layer">What Changes — the Tool-Calling Layer</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># Chapter 3's ORIGINAL execute_tool:
+def execute_tool(tool_name, tool_input, page):
+    if tool_name == "click_element":
+        return find_and_click(page, tool_input["role"], tool_input["name"])
+    elif tool_name == "fill_field":
+        return fill_field(page, tool_input["label"], tool_input["value"])
+    # ... hardcoded, one branch per tool ...
+
+# The MCP-connected VERSION:
+from mcp import ClientSession
+from mcp.client.stdio import stdio_client
+
+async def execute_tool_via_mcp(session: ClientSession, tool_name, tool_input):
+    result = await session.call_tool(tool_name, tool_input)
+    return result.content</code></pre>
+<p>Notice what genuinely happened here: the hardcoded if/elif chain became a single, generic call — the MCP client doesn't need to know WHICH tools exist in advance; it discovers and calls them through the protocol.</p>
+
+<h2 id="what-doesn-t-change-the-reasoning-loop-itself">What Doesn't Change — the Reasoning Loop Itself</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># Chapter 3's run() loop structure is GENUINELY unchanged:
+async def run(self, session: ClientSession, page):
+    history = []
+    for step in range(self.max_steps):
+        prompt = self._build_prompt(history, page)
+        response = self.client.messages.create(
+            model=self.model, max_tokens=1024,
+            system=self.instructions,
+            tools=await self._get_mcp_tool_definitions(session),
+            messages=[{"role": "user", "content": prompt}]
+        )
+        if self._is_task_complete(response):
+            return self._build_report(history, success=True)
+
+        tool_call = self._extract_tool_call(response)
+        result = await execute_tool_via_mcp(session, tool_call.name, tool_call.input)
+        history.append({"step": step, "action": tool_call, "result": result})
+    return self._build_report(history, success=False)</code></pre>
+<p>This is genuinely still Chapter 3's own loop — reason, act, observe, repeat. The ONLY structural change is HOW tool definitions are obtained (<code>_get_mcp_tool_definitions</code> now asks the MCP server, rather than reading a hardcoded Python list) and HOW a tool call actually executes.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why is it genuinely significant that Chapter 3's reasoning loop needed almost no changes to work with MCP? This confirms something this chapter has argued since its opening page — MCP standardizes the tool-calling BOUNDARY, not the reasoning architecture around it. An agent's core capability (planning, deciding, observing results, adapting) is genuinely independent of whether tools are called through a hardcoded dispatch function or a standardized protocol. If the reasoning loop HAD needed substantial rework, that would suggest MCP was actually a different architecture, not a standardized version of the same one.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Assuming that adopting MCP requires rearchitecting an agent's reasoning logic from scratch. This page's own comparison shows the reasoning loop stays genuinely the same — only the tool-discovery and tool-execution mechanisms change, exactly because MCP standardizes that specific boundary, not the reasoning above it.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>When migrating an existing hardcoded-tool agent to MCP, a genuinely useful first step is running the SAME test suite from Chapter 12 against both versions — the MCP-connected agent should pass the identical plan-quality, tool-selection, and recovery tests, confirming the migration preserved behavior rather than accidentally changing it.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Expect an agent's core reasoning loop to remain largely unchanged when migrating to MCP — only the tool-discovery and execution layer should genuinely need rework.</li>
+  <li>Reuse Chapter 12's own testing techniques to confirm a migration preserves an agent's actual behavior, not just its ability to run.</li>
+  <li>Treat MCP adoption as a boundary change, not a full architectural rewrite.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Connecting Chapter 3's agent to MCP changes how tools are discovered and called, but leaves its core reasoning loop genuinely unchanged.</li>
+  <li>This confirms MCP's real role — standardizing the tool-calling boundary, not replacing the reasoning architecture around it.</li>
+  <li>Chapter 12's own agent-testing techniques remain directly applicable to verify an MCP migration preserved correct behavior.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Sketch out what <code>_get_mcp_tool_definitions</code> would need to do internally — connecting to Chapter 3's own tool-definition format — to translate whatever an MCP server's <code>list_tools()</code> call returns into the format the <code>messages.create</code> call's <code>tools</code> parameter expects.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A teammate estimates migrating Chapter 3's agent to MCP will take "a full rewrite, probably several weeks." Using this page's own comparison, would you agree with this estimate?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd push back — this page's own side-by-side comparison shows the REASONING loop (the genuinely complex, hard-to-get-right part of Chapter 3's agent) stays almost ENTIRELY unchanged; only the NARROWER tool-discovery and execution LAYER needs real rework.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What GENUINELY needs to change, per THIS page's comparison:
+execute_tool's HARDCODED if/elif chain BECOMES a GENERIC MCP
+  call. Tool DEFINITIONS come from the SERVER instead of a
+  HARDCODED list. GENUINELY real work, but SCOPED and
+  BOUNDED.
+
+What GENUINELY does NOT need to change:
+The ENTIRE run() loop STRUCTURE — reasoning, PROMPT building,
+  task-COMPLETION checking, HISTORY tracking — ALL remain
+  EXACTLY as Chapter 3 ORIGINALLY built THEM. This is the
+  PART that took the MOST careful DESIGN work ORIGINALLY, and
+  it's PRECISELY the part that DOESN'T need to be REDONE.</code></pre>
+<p>"SEVERAL weeks, FULL rewrite" OVERSTATES the SCOPE — a MORE ACCURATE estimate would FOCUS specifically on the TOOL-calling BOUNDARY, which is a GENUINELY BOUNDED, MUCH smaller PIECE of the OVERALL system than "REWRITE everything" SUGGESTS.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page treat it as GENUINELY significant that the reasoning loop needed almost no changes, rather than just a CONVENIENT coincidence?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This is DIRECT, CONCRETE evidence CONFIRMING this CHAPTER'S OWN opening claim — that MCP STANDARDIZES the TOOL-calling BOUNDARY specifically, NOT the REASONING architecture AROUND it. If the LOOP had needed SUBSTANTIAL rework, THAT would have UNDERMINED this CHAPTER'S central ARGUMENT.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What it WOULD mean if the LOOP had needed MAJOR changes:
+This would SUGGEST MCP is ACTUALLY a GENUINELY different
+  ARCHITECTURE, not JUST a STANDARDIZED version of WHAT
+  Chapter 2 and 3 ALREADY established — UNDERMINING this
+  CHAPTER'S repeated CLAIM (starting from its OWN hub page)
+  that MCP is "the SAME underlying idea, MADE shareable."
+
+What it ACTUALLY means, GIVEN the loop stayed LARGELY
+unchanged:
+CONCRETE, DIRECT confirmation that THIS chapter's CENTRAL
+  framing is ACCURATE — MCP GENUINELY IS a
+  STANDARDIZATION of an EXISTING boundary (TOOL-calling),
+  not a REPLACEMENT for the REASONING architecture SURROUNDING
+  it.</code></pre>
+<p>This is EXACTLY why this page CALLS this OUT explicitly RATHER than TREATING it as an INCIDENTAL detail — it's a GENUINE, EMPIRICAL confirmation of a CLAIM this ENTIRE chapter has been MAKING since its OWN opening page, not JUST a CONVENIENT implementation DETAIL.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why this page recommends running Chapter 12's testing techniques AGAINST BOTH the original and MCP-migrated agent, rather than just confirming the NEW version runs WITHOUT errors.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>"RUNS without ERRORS" ONLY confirms the MIGRATION didn't BREAK anything OBVIOUSLY — it says NOTHING about WHETHER the AGENT'S actual BEHAVIOR (planning QUALITY, tool-SELECTION accuracy, RECOVERY capability) stayed GENUINELY the SAME, EXACTLY Chapter 12's OWN core ARGUMENT about the GAP between "WORKS" and "BEHAVES CORRECTLY."</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What "RUNS without errors" GENUINELY confirms:
+The MCP connection WORKS at a BASIC, MECHANICAL level — TOOLS
+  can be DISCOVERED and CALLED SUCCESSFULLY.
+
+What it does NOT confirm, per Chapter 12's OWN earlier
+argument:
+WHETHER the MIGRATED agent's PLANNING is STILL genuinely
+  SOUND, whether TOOL selection is STILL accurate, WHETHER
+  RECOVERY still WORKS — EXACTLY the KIND of PROCESS-level
+  verification Chapter 12 ARGUED is NECESSARY beyond JUST
+  confirming a CORRECT-looking OUTCOME.</code></pre>
+<p>This is a DIRECT, DELIBERATE application of Chapter 12's OWN lesson to THIS chapter's OWN migration SCENARIO — "IT runs" is EXACTLY the KIND of SURFACE-level confirmation Chapter 12 WARNED isn't SUFFICIENT, and REUSING that CHAPTER'S actual TESTING techniques is the CORRECT way to GENUINELY verify the MIGRATION preserved REAL behavior, not JUST superficial FUNCTIONING.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might the async/await syntax appearing in this page's MCP-connected code be a GENUINELY necessary change, even though it's NOT mentioned as PART of the "reasoning loop stays the SAME" argument?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This is a GENUINELY real, if somewhat MECHANICAL, change — MCP's ACTUAL communication happens OVER a REAL protocol (JSON-RPC, typically over STDIO or HTTP), which INVOLVES genuine I/O and TYPICALLY uses ASYNCHRONOUS patterns in PYTHON, unlike Chapter 3's ORIGINAL, SYNCHRONOUS, IN-PROCESS function CALLS.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why Chapter 3's ORIGINAL execute_tool didn't NEED async:
+DIRECT, IN-PROCESS Python function CALLS (find_and_click,
+  fill_field) execute SYNCHRONOUSLY and IMMEDIATELY — no
+  GENUINE network or INTER-process COMMUNICATION involved AT
+  ALL.
+
+Why the MCP VERSION genuinely NEEDS async:
+session.call_tool() INVOLVES REAL communication ACROSS a
+  PROTOCOL boundary (POTENTIALLY a SEPARATE PROCESS, or EVEN
+  a NETWORK connection) — this KIND of I/O is TYPICALLY
+  handled ASYNCHRONOUSLY in Python, EXPLAINING the AWAIT
+  keywords THROUGHOUT this PAGE'S MCP-connected code that
+  WEREN'T present in Chapter 3's ORIGINAL, SIMPLER version.</code></pre>
+<p>This is a GENUINELY real, PRACTICAL implementation DETAIL worth NAMING explicitly — it DOESN'T contradict this PAGE'S "reasoning LOOP stays the SAME" argument (the LOOP'S STRUCTURE and LOGIC ARE unchanged), but it IS a REAL, mechanical ADAPTATION needed BECAUSE tool CALLS now GENUINELY cross a PROTOCOL boundary RATHER than being SIMPLE, DIRECT function CALLS.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you extend this page's migrated agent to gracefully handle an MCP server BECOMING unavailable mid-run, connecting to Chapter 12's OWN recovery-testing PRINCIPLES?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This is GENUINELY a NEW kind of OBSTACLE Chapter 12's ORIGINAL recovery TESTING didn't SPECIFICALLY anticipate (a MODAL, not a PROTOCOL disconnection) — but the SAME underlying PRINCIPLE (test DELIBERATE, injected FAILURES, don't WAIT for them to occur NATURALLY) applies DIRECTLY.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>async def run_with_mcp_resilience(self, session, page):
+    try:
+        return await self.run(session, page)
+    except ConnectionError as e:
+        # A GENUINE, honest failure REPORT — exactly Chapter 8's
+        # OWN failure-report PRINCIPLE, applied HERE to an MCP-
+        # SPECIFIC failure MODE
+        return {
+            "success": False,
+            "summary": (f"MCP server connection LOST mid-run: "
+                        f"{e}. UNABLE to complete the OBJECTIVE "
+                        f"due to a PROTOCOL-level failure, NOT "
+                        f"an application OR reasoning issue."),
+            "classification": "mcp_connection_failure",  # EXPLICITLY
+                # distinguished from Chapter 8's OWN SIX failure
+                # categories — a GENUINELY new, INFRASTRUCTURE-level
+                # category THIS chapter's MCP integration INTRODUCES
+        }</code></pre>
+<p>This EXTENDS Chapter 12's OWN "DELIBERATELY inject REAL obstacles" testing PHILOSOPHY to a GENUINELY new FAILURE mode this CHAPTER'S OWN MCP integration INTRODUCES — a TEST would DELIBERATELY kill the MCP SERVER process MID-run and CONFIRM the agent PRODUCES this KIND of HONEST, INFORMATIVE failure REPORT rather than HANGING indefinitely OR producing a CONFUSING, UNEXPLAINED error, EXACTLY the SAME "FAIL gracefully and HONESTLY" standard Chapter 12's OWN recovery testing ESTABLISHED, now APPLIED to a RISK that's SPECIFICALLY introduced by THIS chapter's OWN MCP ARCHITECTURE.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

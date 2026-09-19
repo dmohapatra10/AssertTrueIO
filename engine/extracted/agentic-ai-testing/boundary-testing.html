@@ -1,0 +1,189 @@
+<!doctype html>
+<html><head>
+<title>Boundary Testing: Testing at the Exact Edges of Valid Ranges</title>
+<meta name="description" content="What genuinely counts as boundary testing, why the exact edge and one-unit-beyond-it matter more than mid-range values, and how to prompt AI for genuine boundary coverage." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/boundary-testing.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Boundary Testing</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="negative-test-cases.html">Negative Test Cases</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Boundary testing checks values exactly at, and immediately around, the edges of a valid range — where off-by-one errors and incorrect comparison operators genuinely tend to hide, far more than in comfortably mid-range values.</p>
+
+<h2 id="why-boundaries-specifically-not-just-more-values">Why Boundaries Specifically, Not Just "More Values"</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>ShopEasy's minimum order value for a specific discount code: $50
+
+❌ Testing random mid-range values doesn't reveal boundary bugs:
+  Order value $75 — works correctly
+  Order value $120 — works correctly
+  ...neither of these would catch a genuine bug in the actual
+  comparison logic used at the threshold itself.
+
+✅ Testing the actual boundary reveals a REAL, common bug class:
+  Order value $50.00 EXACTLY — should QUALIFY (the requirement
+    says "minimum," which conventionally means $50 itself
+    should count, not just values ABOVE it)
+  Order value $49.99 — should NOT qualify — one cent below
+
+A genuinely common, real bug: code written as `if order_total
+> 50` instead of `if order_total >= 50` — this INCORRECTLY
+rejects an order of EXACTLY $50.00, failing the first boundary
+case above, while every mid-range test would have passed fine.</code></pre>
+
+<h2 id="the-three-points-that-matter-most">The Three Points That Matter Most</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>For any boundary (using the $50 minimum as the example):
+
+1. EXACTLY at the boundary ($50.00) — the case that reveals
+   > vs >= bugs, genuinely the single most valuable boundary test
+
+2. Just BELOW the boundary ($49.99) — confirms the boundary is
+   enforced, not accidentally permissive
+
+3. Just ABOVE the boundary ($50.01) — confirms values genuinely
+   past the boundary work correctly too, not just the boundary
+   value itself</code></pre>
+
+<h2 id="a-genuinely-useful-prompt-for-boundary-coverage">A Genuinely Useful Prompt for Boundary Coverage</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def generate_boundary_cases(requirement, client):
+    prompt = f"""Given this requirement, identify every numeric
+or range-based limit it describes (minimums, maximums, exact
+thresholds). For each one, generate three test cases: a value
+EXACTLY at the boundary, a value just below it, and a value
+just above it. State the expected outcome for each precisely.
+
+Requirement:
+{requirement}
+"""
+    response = client.messages.create(
+        model="claude-sonnet-4-6", max_tokens=1024,
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return response.content[0].text</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might testing exactly at a boundary value reveal a bug that testing comfortably on either side of it would never catch? A comparison operator bug (<code>&gt;</code> instead of <code>&gt;=</code>) only produces incorrect behavior for the exact boundary value itself — every value further from the boundary in either direction behaves identically whether the operator is correct or not. This is precisely why the boundary value is the single highest-value test point: it's the only input that can actually distinguish a correct comparison from an off-by-one mistake.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Testing "a small value" and "a large value" for a range, without testing the EXACT boundary itself. $10 and $200 for a $50 minimum genuinely tell you almost nothing about whether the threshold comparison itself is correct — only a test at exactly $50.00 can reveal the specific off-by-one class of bug boundary testing exists to catch.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>When a requirement uses the word "minimum," "maximum," "at least," or "up to," that's a genuine, reliable signal a real numeric boundary exists worth testing explicitly — these words are worth scanning for deliberately when reviewing a requirement for boundary coverage.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Always test the exact boundary value itself, not just values comfortably on either side of a range.</li>
+  <li>Test the boundary, just-below, and just-above as a genuine trio — each reveals something the others don't.</li>
+  <li>Scan requirements explicitly for words like "minimum," "maximum," or "at least" as reliable signals of real numeric boundaries.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Boundary testing checks values at the exact edges of valid ranges, where off-by-one and comparison-operator bugs genuinely tend to hide.</li>
+  <li>The exact boundary value is the single highest-value test point — it's the only input that can distinguish a correct comparison from a common, real off-by-one mistake.</li>
+  <li>A genuine boundary check needs all three points — at, just below, and just above — not just one or two.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>ShopEasy's discount-code requirement also implies a boundary around code expiration (a code is valid up to and including its expiration date, or perhaps only before it — this is genuinely ambiguous). Write the three boundary test cases (at, just before, just after) for expiration, and note explicitly which interpretation of the ambiguity you assumed.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A generated boundary test only includes "order value $10" and "order value $500" for a $50 minimum requirement. Why is this insufficient, and what's missing?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Neither of these values is actually AT or near the real boundary ($50) — they're comfortably below and comfortably above, which means neither can reveal the specific comparison-operator bug class boundary testing exists to catch.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What these two values CAN'T reveal:
+If the actual code uses `order_total > 50` instead of the
+  CORRECT `order_total >= 50`, an order of exactly $50.00
+  would be WRONGLY rejected — but NEITHER $10 nor $500 would
+  ever exercise this specific incorrect comparison at all,
+  since neither is anywhere near the actual boundary.
+
+What's genuinely missing:
+$50.00 EXACTLY (the boundary itself — the single most
+  important missing test), plus ideally $49.99 (just below)
+  and $50.01 (just above) — this page's actual three-point
+  standard for real boundary coverage.</code></pre>
+<p>The fix isn't simply "add more values" — it's specifically adding values AT and immediately adjacent to the real boundary, which is a fundamentally different, more targeted kind of coverage than just having a low value and a high value.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page argue that the exact boundary value is "the single most valuable boundary test," more valuable than the just-below or just-above values?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because the exact boundary value is the ONLY input that can actually distinguish between a correct comparison (<code>&gt;=</code>) and the common off-by-one mistake (<code>&gt;</code>) — every other value, including just-below and just-above, would behave identically regardless of which operator was actually used.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Testing order_total = $50.00 EXACTLY:
+Correct code (>=): order QUALIFIES
+Buggy code (>): order INCORRECTLY REJECTED
+→ This SPECIFIC value is the only one where these two
+  versions of the code actually produce different results.
+
+Testing order_total = $49.99 (just below):
+Correct code (>=): order does NOT qualify
+Buggy code (>): order ALSO does NOT qualify
+→ Both versions agree here — this test CANNOT distinguish
+  correct from buggy code, even though it's still a
+  genuinely useful confirmation that the boundary is enforced.</code></pre>
+<p>The just-below and just-above values remain worth testing (they confirm the boundary is enforced at all, and catch different, genuinely real bugs like an inverted condition) — but only the exact boundary value can specifically catch the off-by-one comparison bug, which is exactly why it's singled out as the highest-value individual test point.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>The requirement says a discount code is valid "up to its expiration date" — is a code that's used ON its exact expiration date valid or expired? Why does this ambiguity matter for boundary testing specifically?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This is genuinely ambiguous as written — "up to" could reasonably mean the expiration date itself is still valid (inclusive), or that validity ends just before that date (exclusive) — and boundary testing is EXACTLY where this kind of ambiguity becomes a real, concrete problem rather than an abstract one.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why boundary testing specifically surfaces this:
+For any MID-RANGE date (a code used 10 days before expiration),
+  this ambiguity genuinely doesn't matter — the code is clearly
+  valid either way. It's SPECIFICALLY at the boundary (the
+  exact expiration date itself) where the ambiguous wording
+  actually produces two genuinely different possible behaviors.
+
+The right response, per this page's OWN "Try It Yourself":
+Don't silently pick one interpretation and move on — EXPLICITLY
+  note the ambiguity, exactly matching Chapter 2's instructions-
+  page principle of surfacing ambiguity rather than silently
+  guessing, and get the actual, intended behavior clarified by
+  whoever owns the requirement before finalizing the test.</code></pre>
+<p>This is a genuinely real, common pattern: boundary testing doesn't just find code bugs — it often surfaces genuine AMBIGUITY in the requirement itself, which is arguably just as valuable a finding, since it catches confusion before it gets built into either the code or the test.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might a requirement with NO explicit numeric limits (like "minimum" or "maximum") still have genuine, worthwhile boundaries to test?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Boundaries aren't limited to explicitly stated numeric thresholds — they can also exist at natural, implicit limits like zero, empty collections, or single-item cases, which are worth considering even when a requirement doesn't use words like "minimum" directly.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A requirement with NO explicit numeric threshold, but genuine
+implicit boundaries worth testing:
+"Users can add items to their cart." — no stated minimum or
+  maximum, but genuine boundary-flavored cases still exist:
+  - Cart with ZERO items — what does checkout do?
+  - Cart with EXACTLY ONE item — the smallest genuinely
+    non-empty case, sometimes handled differently than
+    "many items" in real code (pluralization, layout, etc.)
+  - A GENUINELY large cart (100+ items) — does anything break
+    at scale, even without an explicitly STATED maximum?</code></pre>
+<p>The general principle: boundary thinking applies to any range or collection with natural edges — zero, one, and "a lot" — not just requirements that happen to use explicit words like "minimum" or "maximum," even though those words remain a genuinely reliable, easy signal when they ARE present.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you explain the relationship between boundary testing and negative testing to someone who thinks they're the same thing?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>They're genuinely different, orthogonal dimensions that happen to overlap often — boundary is about WHERE an input sits relative to a range; negative is about whether the EXPECTED OUTCOME is failure. A boundary test can have either outcome, and a negative test doesn't have to be at a boundary at all.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Boundary test with a POSITIVE outcome:
+Order value EXACTLY $50.00 (the boundary) — expected to
+  SUCCEED (qualify for the discount). This is boundary AND
+  positive at the same time.
+
+Boundary test with a NEGATIVE outcome:
+Order value $49.99 (just below the boundary) — expected to
+  FAIL (not qualify). This is boundary AND negative.
+
+A NEGATIVE test that ISN'T a boundary test at all:
+"Apply a code that doesn't exist" — genuinely invalid input,
+  clearly a negative case, but nothing about it involves a
+  numeric range or an edge value — no boundary dimension here.</code></pre>
+<p>The clearest way to see they're genuinely different: you can point to real examples of boundary-positive, boundary-negative, and negative-without-boundary all existing simultaneously — if they were the same concept, these combinations wouldn't make sense as distinct, valid categories.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

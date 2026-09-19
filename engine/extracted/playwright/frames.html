@@ -1,0 +1,127 @@
+<!doctype html>
+<html><head>
+<title>Playwright Frames: Testing iframes and Embedded Content</title>
+<meta name="description" content="Learn how to locate and interact with elements inside iframes using Playwright&#x27;s frameLocator, and why frames need a different approach than the main page." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/frames.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Chapter 10: Frames</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="locators.html">Locators</a>, <a href="browser-and-browsercontext.html">Browser and BrowserContext</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>An <code>&lt;iframe&gt;</code> embeds one HTML document inside another — common for payment widgets (Stripe, PayPal), embedded video players, and third-party ads or widgets. Playwright treats the content inside an iframe as its own isolated document tree, which means a plain <code>page.locator()</code> call can't see into it by default.</p>
+
+<h2 id="why-it-s-important">Why it's important</h2>
+<p>Payment forms are one of the most common places automation engineers actually run into iframes, and getting this wrong produces a confusing "element not found" error for an element that's clearly visible on screen — because it lives inside a nested document Playwright wasn't told to look inside.</p>
+
+<h2 id="mental-model">Mental Model</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Page (main document)
+  │
+  ├── Regular elements — reachable via page.getByRole(), etc.
+  │
+  └── &lt;iframe&gt;
+        │
+        └── A completely separate document tree —
+            only reachable via page.frameLocator()</code></pre>
+<p>Think of a frame as a small page nested inside the outer page — it has its own DOM, its own document root, and its own set of elements that share no direct locator path with the outer page's elements.</p>
+
+<h2 id="framelocator">frameLocator()</h2>
+<p><code>page.frameLocator()</code> creates a scoped locator that searches inside a specific iframe, identified the same way you'd identify any other element — by role, test ID, or a CSS selector as a last resort.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const paymentFrame = page.frameLocator('iframe[title="Payment form"]');
+await paymentFrame.getByLabel('Card number').fill('4242 4242 4242 4242');
+await paymentFrame.getByLabel('Expiry').fill('12/28');
+await paymentFrame.getByLabel('CVC').fill('123');</code></pre>
+<p>Everything from the Locators, Actions, and Assertions chapters works the same way once you're inside a <code>frameLocator</code> — it behaves like a scoped-down page, not a different API.</p>
+
+<h2 id="basic-example-reading-content-from-a-frame">Basic Example — Reading Content From a Frame</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const videoFrame = page.frameLocator('iframe[title="Product demo video"]');
+await expect(videoFrame.getByRole('button', { name: 'Play' })).toBeVisible();
+await videoFrame.getByRole('button', { name: 'Play' }).click();</code></pre>
+
+<h2 id="real-world-example-checkout-with-an-embedded-payment-widget">Real-World Example — Checkout With an Embedded Payment Widget</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import { test, expect } from '@playwright/test';
+
+test('completes payment through an embedded Stripe frame', async ({ page }) =&gt; {
+  await page.goto('/checkout');
+
+  await page.getByLabel('Full name').fill('Jordan Lee');
+
+  const stripeFrame = page.frameLocator('iframe[name^="__privateStripeFrame"]');
+  await stripeFrame.getByPlaceholder('Card number').fill('4242 4242 4242 4242');
+  await stripeFrame.getByPlaceholder('MM / YY').fill('12/28');
+  await stripeFrame.getByPlaceholder('CVC').fill('123');
+
+  await page.getByRole('button', { name: 'Pay now' }).click();
+
+  await expect(page.getByText('Payment successful')).toBeVisible();
+});</code></pre>
+<p>Note the final "Pay now" button and success message live on the main page, not inside the frame — so those lines correctly use <code>page</code>, not <code>stripeFrame</code>. Mixing this up (using the frame locator for main-page elements, or vice versa) is the most common bug in frame-heavy tests.</p>
+
+<h2 id="nested-frames">Nested Frames</h2>
+<p>Frames inside frames are handled by chaining <code>frameLocator()</code> calls:</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const outer = page.frameLocator('#outer-frame');
+const inner = outer.frameLocator('#inner-frame');
+await inner.getByRole('button', { name: 'Confirm' }).click();</code></pre>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Positional, breaks if a new iframe is added anywhere on the page
+await page.frameLocator('iframe').first().getByLabel('Card number').fill('4242...');
+
+// ✅ Identified by a stable, purpose-specific attribute
+await page.frameLocator('iframe[title="Payment form"]').getByLabel('Card number').fill('4242...');</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Calling <code>page.getByLabel()</code> for a field that's actually inside an iframe</strong>, then not understanding why the element "isn't found" despite being visible.</li>
+  <li><strong>Using the frame locator for elements that are actually on the main page</strong> (or vice versa) — always check where an element genuinely lives in the DOM tree first.</li>
+  <li><strong>Targeting an iframe with a fragile index-based selector</strong> (<code>page.frameLocator('iframe').first()</code>) instead of a stable identifying attribute like <code>title</code> or <code>name</code>.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Cross-origin iframes</strong> (a third-party payment provider's own domain) — Playwright's <code>frameLocator</code> works across origins without special configuration, unlike some older automation tools that required explicit cross-origin permission handling.</li>
+  <li><strong>Frames that load asynchronously</strong> after the main page — <code>frameLocator()</code> itself doesn't need the frame to exist yet; actions and assertions within it retry the same way any other locator does, waiting for the frame and its content to become available.</li>
+  <li><strong>Frames with dynamically changing <code>name</code> attributes</strong> (common with some payment providers that append random IDs) — a partial match selector like <code>iframe[name^="__privateStripeFrame"]</code> handles this, as shown in the checkout example.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>When debugging "element not found" on something visibly on screen, check the DOM inspector for an enclosing <code>&lt;iframe&gt;</code> before assuming the locator itself is wrong — this single check resolves a large fraction of frame-related confusion. Trace Viewer's DOM snapshots (Chapter 15) also make the frame boundary visually obvious.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Identify the target iframe with the most stable attribute available — a <code>title</code> attribute is often more reliable than an auto-generated <code>name</code>.</li>
+  <li>Treat a <code>frameLocator</code> result exactly like a scoped page — the same locator priority and actionability rules from earlier chapters apply unchanged.</li>
+  <li>When a third-party iframe's structure is entirely outside your control (a payment provider), keep the frame-targeting selector isolated in one place (a fixture or page object) so a provider update only requires one change.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Given a page with a nested iframe structure — an outer "widgets" frame containing an inner "chat" frame — write a test that sends a message through the innermost chat input using chained <code>frameLocator()</code> calls.</p>
+
+<h2 id="summary">Summary</h2>
+<p>Content inside an <code>&lt;iframe&gt;</code> is a separate document that <code>page.locator()</code> can't see by default. <code>page.frameLocator()</code> scopes into that document and behaves like a normal page from there — same locators, actions, and assertions — which makes payment widgets and other embedded content testable without any special-case API, even across origins or several levels of nesting.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why would page.getByLabel('Card number') fail even though the field is visibly on the page?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">If the field lives inside an <code>&lt;iframe&gt;</code>, it belongs to a separate document tree that a plain page locator doesn't search into. The fix is to scope the locator into that frame first with <code>page.frameLocator('...')</code> and call <code>getByLabel()</code> on the resulting frame locator instead of on <code>page</code> directly.</div>
+</details>
+<details class="faq-item">
+<summary>Why does page.getByLabel() sometimes fail on a field that's clearly visible?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The field may be inside an &lt;iframe&gt;, which is a separate document tree that ordinary page locators don't search into.</div>
+</details>
+<details class="faq-item">
+<summary>How do you target content inside a nested iframe?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Chain frameLocator() calls — page.frameLocator('#outer').frameLocator('#inner').</div>
+</details>
+<details class="faq-item">
+<summary>Does frameLocator() work across different origins?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Yes, without special configuration — unlike some older tools that required explicit cross-origin permission handling.</div>
+</details>
+<details class="faq-item">
+<summary>What's the most reliable way to identify a payment provider's iframe with a dynamically generated name?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A partial-match selector like iframe[name^="__privateStripeFrame"], since the exact name changes but the prefix is stable.</div>
+</details>
+</div>
+</article>
+</body></html>

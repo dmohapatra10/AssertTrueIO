@@ -1,0 +1,212 @@
+<!doctype html>
+<html><head>
+<title>AI Locator Selection: Finding the Right Element Without a Hardcoded Selector</title>
+<meta name="description" content="How an AI agent chooses a real locator strategy at runtime, a genuine locator-priority order, and how it handles multiple matching or ambiguous elements." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/ai-locator-selection.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>AI Locator Selection</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="ai-driven-navigation.html">AI-Driven Navigation</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Every tool so far has used a specific locator strategy (role and name) chosen upfront by whoever wrote the tool. This page is about what happens when the agent itself needs to decide HOW to find an element — genuinely different from a human writing a fixed selector once.</p>
+
+<h2 id="a-genuine-locator-priority-order">A Genuine Locator Priority Order</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>When an agent needs to find an element it hasn't been told the
+exact selector for, a genuinely sound priority order (matching
+Playwright's own recommended practices, covered in this site's
+Playwright track):
+
+1. ROLE + ACCESSIBLE NAME — "the button labeled 'Add to Cart'"
+   (most resilient — tied to what a real user actually perceives)
+2. LABEL TEXT — "the field labeled 'Search products'"
+3. TEST ID — "the element with data-testid='product-price'"
+   (reliable IF the application provides these deliberately)
+4. VISIBLE TEXT CONTENT — "the text 'Out of stock'"
+   (least resilient — breaks on any wording change at all)</code></pre>
+<p>This priority genuinely matters: an agent reasoning about HOW to locate an element should prefer the top of this list whenever a real option exists, falling back only when necessary — exactly the same guidance a human automation engineer would follow, now applied to an agent's own runtime decision-making.</p>
+
+<h2 id="letting-the-reasoner-choose-a-strategy">Letting the Reasoner Choose a Strategy</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def find_and_click(page, description):
+    # The agent describes WHAT it wants in natural language;
+    # this tool tries MULTIPLE strategies, in priority order,
+    # returning which one actually worked
+
+    strategies = [
+        lambda: page.get_by_role("button", name=description),
+        lambda: page.get_by_label(description),
+        lambda: page.get_by_test_id(description),
+        lambda: page.get_by_text(description),
+    ]
+    for i, strategy in enumerate(strategies):
+        locator = strategy()
+        if locator.count() == 1:
+            locator.click()
+            return f"Clicked using strategy #{i+1} (of 4, priority order)"
+    return f"Could not find a unique element matching '{description}'"</code></pre>
+<p>This tool genuinely tries the RESILIENT strategies first, only falling back to weaker ones if nothing higher up the list uniquely matches — the agent's own natural-language description drives the search, while the actual priority logic stays deterministic, reliable code.</p>
+
+<h2 id="handling-multiple-matches-a-genuine-real-problem">Handling Multiple Matches — A Genuine, Real Problem</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What if locator.count() returns 3, not 0 or 1?
+
+This is a genuinely real, common situation — "the button
+labeled 'Add to Cart'" might match THREE different products'
+buttons on a search results page, not just one.
+
+A reasonable response, connecting directly to Chapter 2's
+Agent Reasoning page's two-similar-forms example:
+
+def find_and_click(page, description, context=None):
+    locator = page.get_by_role("button", name=description)
+    if locator.count() > 1 and context:
+        # narrow using ADDITIONAL context the agent provides
+        locator = page.locator(f"text={context}").get_by_role(
+            "button", name=description)
+    if locator.count() == 1:
+        locator.click()
+        return "Clicked successfully"
+    return (f"Found {locator.count()} matching elements — "
+            "need more specific context to disambiguate")</code></pre>
+<p>The tool explicitly reports ambiguity back as an observation, rather than guessing which of several matches was intended — the reasoner can then supply additional context ("the one within the 'Ergo Wireless Mouse' product card") on its next attempt.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might silently clicking the FIRST matching element, when several match, be a genuinely worse design than explicitly reporting the ambiguity back to the reasoner? A silent first-match click could easily interact with the WRONG product's button — clicking "Add to Cart" on an unintended item, producing a test result that looks successful while actually verifying something subtly different than intended. Explicitly reporting ambiguity lets the reasoner make a genuinely informed decision about which element was actually meant, rather than an automation layer silently guessing on its behalf.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Hardcoding a single locator strategy into a tool (like always using visible text) rather than trying resilient strategies first. A tool that only ever matches by exact visible text breaks the instant any wording changes — exactly the same fragility this site's Playwright track warns against for ordinary, human-written tests, now equally true for an agent's own tool-based locator strategy.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>When designing a locator-selection tool, it's genuinely useful to have it report back WHICH strategy actually succeeded (as this page's <code>find_and_click</code> does) — this becomes valuable diagnostic information if a test later starts failing, showing whether it dropped from a resilient strategy to a fragile one over time.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Try locator strategies in a genuine resilience priority order — role and accessible name first, visible text last.</li>
+  <li>Explicitly report ambiguity (multiple matches) back as an observation, rather than silently guessing which element was intended.</li>
+  <li>Let the reasoner supply additional context to disambiguate, rather than building increasingly complex guessing logic into the tool itself.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>An agent choosing its own locator strategy at runtime should follow the same resilience priority a human automation engineer would — role/name first, text-matching last.</li>
+  <li>Multiple matching elements is a genuinely common, real situation, best handled by reporting ambiguity explicitly rather than guessing.</li>
+  <li>Tracking which strategy actually succeeded provides valuable diagnostic value beyond just making the immediate click work.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Extend this page's <code>find_and_click</code> function with a fifth, even-more-fallback strategy using a CSS selector pattern, and explain in a comment why it correctly belongs at the very bottom of the priority order, below visible text matching.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A find_and_click tool implementation only tries page.get_by_text(description), with no fallback strategies at all. What real problem would this cause, and how would you fix it?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Relying solely on visible-text matching is the LEAST resilient strategy on this page's own priority list — the tool would break the instant ShopEasy's actual wording changed even slightly, despite the underlying element and its actual function remaining completely unchanged.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Concrete failure this causes:
+ShopEasy changes "Add to Cart" to "Add to Bag" (a genuinely
+  plausible copy update). EVERY agent task relying on
+  find_and_click("Add to Cart") now fails completely — not
+  because anything about the actual functionality changed,
+  but because the tool's ONLY strategy was tied to exact
+  visible text.
+
+The fix — this page's actual multi-strategy approach:
+Try role+accessible-name FIRST (often tied to more stable
+  underlying attributes like aria-label, which may not change
+  even when DISPLAYED text does), falling back through the
+  full priority list, with visible-text matching only as a
+  LAST resort — genuinely more resilient to exactly this kind
+  of routine wording change.</code></pre>
+<p>This is a direct, concrete illustration of why this page insists on the FULL priority order, not just the most obviously "correct-sounding" single strategy — resilience specifically comes from having genuine fallbacks, not from picking one seemingly reasonable approach alone.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page's second find_and_click version explicitly report back "found N matching elements" rather than just picking the first one and proceeding?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because silently picking the first match risks a genuine, real correctness problem — interacting with the WRONG element while reporting success, which is exactly the kind of failure that's hardest to notice because nothing visibly errors out.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What silent first-match selection risks, concretely:
+Three products all have an "Add to Cart" button. The agent
+  intended to test adding "Ergo Wireless Mouse" specifically,
+  but a silent first-match implementation clicks whichever
+  product happens to appear FIRST in the DOM — potentially a
+  COMPLETELY different product. The test "succeeds" (a click
+  happened, SOMETHING was added to cart) while actually
+  verifying something the agent never intended to test at all.
+
+What explicit ambiguity reporting achieves instead:
+The reasoner learns "3 elements matched, need more context" —
+  and can genuinely, deliberately narrow down to the SPECIFIC
+  intended element (e.g., by product name context), rather
+  than an automation layer silently guessing on its behalf.</code></pre>
+<p>This connects directly to earlier chapters' emphasis on avoiding silent, unstated assumptions — an ambiguous match is exactly the kind of situation that should be surfaced explicitly, not resolved by an arbitrary, silent default.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page rank test IDs (data-testid attributes) below role and accessible name, even though test IDs are often considered a genuinely reliable locator strategy?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Test IDs ARE genuinely reliable when present, but they depend entirely on the application's developers having deliberately added them — role and accessible name are typically already present for legitimate accessibility reasons, independent of whether anyone specifically added testing infrastructure.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why role/accessible-name ranks FIRST despite test IDs also
+being reliable:
+A button needs an accessible name for screen-reader users
+  REGARDLESS of whether the team ever thinks about test
+  automation at all — this makes role+name a locator strategy
+  that's likely to ALREADY exist, for reasons unrelated to
+  testing, on any reasonably well-built, accessible application.
+
+Why test IDs rank THIRD, not first, despite being reliable
+WHEN present:
+data-testid attributes exist ONLY if someone deliberately
+  added them specifically for testing purposes — a genuinely
+  real, common situation is an application where SOME elements
+  have test IDs and others simply don't, making this strategy
+  inconsistently available depending on what the development
+  team happened to prioritize.</code></pre>
+<p>The ranking reflects LIKELY AVAILABILITY and genuine resilience, not just raw reliability when present — role and accessible name are more likely to exist reliably across an entire real application, precisely because they're tied to a purpose (accessibility) that exists independently of testing infrastructure decisions.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why tracking which locator strategy actually succeeded (as this page's find_and_click function does) is valuable information beyond just confirming the immediate click worked.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This creates a genuine, real early-warning signal — if a test that used to succeed via strategy #1 (the most resilient) starts consistently succeeding via strategy #3 instead, that's a meaningful signal worth investigating, even though the test itself is still technically passing.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A genuinely useful diagnostic pattern this data enables:
+Test history shows: "Add to Cart" click succeeded via strategy
+  #1 (role+name) for the past 30 runs, then suddenly starts
+  succeeding via strategy #3 (test ID) instead, for the next
+  10 runs.
+
+What this LIKELY indicates:
+The button's ACCESSIBLE NAME probably changed (perhaps a
+  wording update, or a genuine accessibility regression removed
+  or altered the aria-label) — the test is STILL PASSING
+  (because a fallback strategy caught it), but something about
+  the application's actual accessibility properties shifted in
+  a way worth investigating, even without any TEST FAILURE
+  ever actually occurring to prompt that investigation.</code></pre>
+<p>This is a genuinely valuable, proactive signal that a simple pass/fail result alone would never surface — tracking WHICH strategy succeeded turns "the test still passes" into useful, ongoing information about the application's own stability, not just a binary outcome.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you extend this page's disambiguation approach (using additional context) to handle a case where even the additional context still matches multiple elements?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>The genuinely sound approach is the same pattern applied recursively — if context-narrowed matching still returns multiple results, report THAT ambiguity explicitly too, rather than eventually falling back to a silent guess once the disambiguation attempts are exhausted.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def find_and_click(page, description, context=None):
+    locator = page.get_by_role("button", name=description)
+    if locator.count() > 1 and context:
+        locator = page.locator(f"text={context}").get_by_role(
+            "button", name=description)
+    if locator.count() == 1:
+        locator.click()
+        return "Clicked successfully"
+    elif locator.count() > 1:
+        # STILL ambiguous even with context — report this
+        # explicitly too, rather than silently picking one
+        return (f"Still found {locator.count()} matches even "
+                f"with context '{context}' — need MORE specific "
+                "disambiguating information")
+    else:
+        return f"No matches found for '{description}' with context '{context}'"</code></pre>
+<p>The underlying principle stays consistent regardless of how many disambiguation attempts occur: NEVER silently guess when genuine ambiguity remains — keep reporting it explicitly back to the reasoner, which can then decide whether to try yet more specific context, ask for human input, or conclude the task genuinely can't proceed without clearer information.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

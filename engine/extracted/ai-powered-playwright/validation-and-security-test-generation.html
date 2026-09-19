@@ -1,0 +1,117 @@
+<!doctype html>
+<html><head>
+<title>Validation and Security Test Generation</title>
+<meta name="description" content="Generating scenarios that confirm ShopSmart handles malformed and adversarial-looking input safely — the same input-sanitization testing any careful QA engineer already does, done systematically." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/validation-and-security-test-generation.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Validation and Security Test Generation</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="boundary-and-edge-case-generation.html">Boundary and Edge Case Generation</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Generating validation test cases for ShopSmart's form fields</li>
+  <li>Generating security-oriented scenarios that confirm safe handling of adversarial-looking input</li>
+  <li>Where this genuinely stops — confirming safe handling, never building attack tooling</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>This page's scope is deliberately narrow and stated plainly up front: generating test scenarios that confirm ShopSmart's forms handle malformed and adversarial-looking input safely. This is standard, everyday QA practice — the same kind of input-sanitization testing careful engineers already do by hand — done more systematically. It is not about building tools to attack anything, and the code on this page never does.</p>
+
+<h2 id="how-it-works-validation-test-generation">How It Works — Validation Test Generation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export async function generateValidationCases(
+  fieldName: string, validationRules: string, featureContext: string
+): Promise&lt;TestCase[]&gt; {
+  const prompt = `Field: "${fieldName}"
+Validation rules: ${validationRules}
+Feature context: ${featureContext}
+
+Generate test cases confirming this field REJECTS malformed
+input SAFELY and CLEARLY — wrong format, wrong type, missing
+required parts. Each case's expected result should describe a
+CLEAR, SPECIFIC validation message, never a crash or a silent
+failure.
+
+Respond with ONLY valid JSON: {"testCases": [...]}
+Each: {"id": string, "category": "validation", "name": string,
+"steps": string[], "expected": string}`;
+
+  const raw = await askClaude(prompt);
+  const parsed = JSON.parse(raw);
+  if (!Array.isArray(parsed.testCases)) {
+    throw new Error(`Expected {"testCases": [...]} but got: ${raw.slice(0, 200)}`);
+  }
+  return parsed.testCases;
+}</code></pre>
+
+<h2 id="example-shopsmart-s-email-field">Example — ShopSmart's Email Field</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const cases = await generateValidationCases(
+  'registration email',
+  'Must contain @ and a domain with a dot; max 254 characters.',
+  'ShopSmart\\'s registration form, submitted via a form POST.'
+);
+
+// Real output includes:
+// { name: "Email with no @ symbol", expected: "Clear validation
+//   message: 'Please enter a valid email address'" }
+// { name: "Email with no domain", expected: "Same clear
+//   validation message, form does not submit" }
+// { name: "Email exceeding 254 characters", expected: "Rejected
+//   with a length-specific validation message" }</code></pre>
+
+<h2 id="how-it-works-security-oriented-scenarios-scoped-narrowly">How It Works — Security-Oriented Scenarios, Scoped Narrowly</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export async function generateSafeHandlingCases(
+  fieldName: string, featureContext: string
+): Promise&lt;TestCase[]&gt; {
+  const prompt = `Field: "${fieldName}"
+Feature context: ${featureContext}
+
+Generate test cases confirming this field handles unusual,
+adversarial-LOOKING text input SAFELY — the goal is confirming
+the application treats it as ordinary text data (rejecting it
+cleanly, or storing and displaying it without executing or
+interpreting it), never that it "worked" as an attack. Cover:
+unusually long input, input containing markup-like characters,
+and input containing special characters common in this field.
+
+Respond with ONLY valid JSON: {"testCases": [...]}
+Each: {"id": string, "category": "safe-handling", "name": string,
+"steps": string[], "expected": string}`;
+
+  const raw = await askClaude(prompt);
+  const parsed = JSON.parse(raw);
+  if (!Array.isArray(parsed.testCases)) {
+    throw new Error(`Expected {"testCases": [...]} but got: ${raw.slice(0, 200)}`);
+  }
+  return parsed.testCases;
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p>Notice the prompt's own framing: "the goal is confirming the application treats it as ordinary text data... never that it worked as an attack." This isn't a stylistic choice — it directs the model toward generating scenarios about safe handling and correct escaping, which is what a QA engineer actually needs, rather than toward crafting something designed to succeed at breaking the application.</p>
+
+<h2 id="why-it-matters">Why It Matters</h2>
+<p>A product review field that stores and later displays user text unsafely is a genuine, real defect — and confirming it doesn't happen is squarely a QA responsibility, not a specialized security-only concern. This page's scenarios exist to catch exactly that kind of defect early, the same way Chapter 16's later security chapter treats this as an ordinary part of a QA engineer's job, not a separate discipline.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Writing a prompt that asks the model to "find a way to break" a field.</strong> This page's prompts are deliberately framed around confirming safe handling — a subtle but genuine difference in what gets generated.</li>
+  <li><strong>Treating validation and safe-handling testing as optional, lower-priority categories.</strong> A form field that silently accepts malformed data, or mishandles unusual text, is a genuinely real defect worth catching before release.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Frame every prompt in this category around confirming safe, correct behavior — never around succeeding at breaking something.</li>
+  <li>Keep expected results specific: a named validation message, not a vague "should be rejected."</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Pick one text input field from your own application. Write its real validation rules, then run this page's <code>generateValidationCases</code> and <code>generateSafeHandlingCases</code> against it. Check whether the expected results are specific enough to actually verify with a Playwright assertion — vague ones are worth rewriting before Chapter 4's final page turns them into code.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Validation testing confirms malformed input is rejected safely and clearly; safe-handling testing confirms adversarial-looking input never executes or displays unsafely.</li>
+  <li>This category's entire scope is confirming safe handling — the prompts are deliberately framed that way, never toward crafting something that succeeds at breaking anything.</li>
+  <li>This is standard, everyday QA practice — the same testing a careful engineer already does by hand, applied systematically.</li>
+</ul>
+</article>
+</body></html>

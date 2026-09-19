@@ -1,0 +1,82 @@
+<!doctype html>
+<html><head>
+<title>How LLMs Process Testing Instructions</title>
+<meta name="description" content="What actually happens between sending a testing instruction and getting a response back — tokens, generation, and why response length and specificity genuinely matter." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/how-llms-process-testing-instructions.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>How LLMs Process Testing Instructions</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="what-is-generative-ai-and-llms.html">What is Generative AI? What is an LLM?</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>What actually happens between sending an instruction and getting a response</li>
+  <li>What tokens are, and why they matter practically, not just theoretically</li>
+  <li>Why vague instructions and specific instructions produce genuinely different quality responses</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>You don't need to understand neural network internals to use LLMs well in testing. You do need a working model of the actual pipeline: your instruction goes in, gets broken into pieces the model can process, and a response comes out — generated piece by piece, not all at once.</p>
+
+<h2 id="how-it-works-the-real-pipeline">How It Works — The Real Pipeline</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>YOUR INSTRUCTION
+  "Generate negative test scenarios for ShopSmart's login form"
+        |
+        v
+TOKENIZATION
+  The instruction gets broken into TOKENS — roughly word-
+  sized pieces (sometimes smaller). "ShopSmart's" might become
+  TWO tokens, not one — this is why LONGER, more DETAILED
+  instructions genuinely cost more, not just take longer to type
+        |
+        v
+GENERATION
+  The model produces a response ONE token at a time, each
+  new token influenced by EVERYTHING that came before it —
+  including your ORIGINAL instruction AND what it's ALREADY
+  generated so far in this SAME response
+        |
+        v
+YOUR RESPONSE
+  "1. Empty email field with valid password
+   2. Valid email with wrong password
+   3. SQL-injection-style text in the password field..."</code></pre>
+
+<h2 id="why-it-matters-specificity-genuinely-changes-output-quality">Why It Matters — Specificity Genuinely Changes Output Quality</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>VAGUE: "test the login page"
+  Produces a GENERIC, unfocused response — the model has
+  almost NOTHING concrete to reason FROM
+
+SPECIFIC: "Generate negative test scenarios for ShopSmart's
+login form, covering empty fields, invalid formats, and
+injection-style input, in a numbered list"
+  Produces a FOCUSED, genuinely more USEFUL response — the
+  model has CONCRETE constraints to reason WITHIN</code></pre>
+<p>This isn't a stylistic preference — it's a direct consequence of how generation actually works. Each token the model produces is influenced by everything in the instruction. A vague instruction gives it very little useful signal to generate from.</p>
+
+<h2 id="example-token-cost-concretely">Example — Token Cost, Concretely</h2>
+<p>Sending ShopSmart's entire product catalog description as context for a simple "is this button label reasonable" question costs real tokens — and real money and latency, covered fully in Chapter 18 — for information the model doesn't actually need to answer that specific question. Matching the amount of context to what a question genuinely requires is a practical skill this entire tutorial reinforces.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Writing vague instructions and blaming the model for a generic response.</strong> The pipeline above shows why specificity directly produces better output — it's not a matter of the model "understanding" better with more effort.</li>
+  <li><strong>Sending far more context than a question needs.</strong> Every extra token costs something real, covered fully in Chapter 18.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Be as specific as the task genuinely requires — vague instructions produce vague, less useful responses by design, not by accident.</li>
+  <li>Include only the context a specific question actually needs, not everything you happen to have available.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Take a vague testing instruction ("test checkout") and rewrite it as a specific one, following this page's example format — naming the exact feature, the exact kind of scenarios wanted, and the exact output format. Compare how much more concrete your specific version is before you've even sent it anywhere.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>An instruction gets tokenized, then the response is generated one token at a time, influenced by everything that came before it.</li>
+  <li>Specific instructions produce genuinely better responses because the model has concrete signal to generate from — this isn't a stylistic nicety.</li>
+  <li>Every token — in your instruction and in the context you provide — has a real, practical cost, covered fully in Chapter 18.</li>
+</ul>
+</article>
+</body></html>

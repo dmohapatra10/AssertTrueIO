@@ -1,0 +1,184 @@
+<!doctype html>
+<html><head>
+<title>AI-Driven Load Test Design: Choosing a Load Pattern That Fits the Goal</title>
+<meta name="description" content="How an agent reasons its way from a vague performance goal to a genuine, justified load pattern — ramping stages, virtual user counts, and why the pattern should match a real, stated purpose." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/ai-driven-load-test-design.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>AI-Driven Load Test Design</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="connecting-an-ai-agent-with-k6.html">Connecting an AI Agent with K6</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>"Test if checkout can handle our traffic" is genuinely underspecified — an agent designing a real load test needs to reason its way to an actual, justified pattern: how many virtual users, ramping how, for how long, and why.</p>
+
+<h2 id="a-genuinely-underspecified-goal-reasoned-through">A Genuinely Underspecified Goal, Reasoned Through</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>GOAL: "Test whether ShopEasy's checkout can handle our
+Black Friday traffic."
+
+REASONING, connecting to something concrete before designing
+anything:
+  "'Black Friday traffic' isn't a specific number — I need a
+  genuine reference point. Checking available context: normal
+  daily peak is around 200 concurrent users; past Black Friday
+  events have seen roughly 5x normal peak, based on typical
+  e-commerce patterns. I'll design toward ~1000 concurrent
+  users as a genuinely reasoned starting target, while
+  EXPLICITLY flagging this as an ESTIMATE, not a confirmed
+  figure — worth validating against ShopEasy's actual historical
+  data before treating this as authoritative."</code></pre>
+
+<h2 id="designing-the-actual-pattern-why-ramping-matters">Designing the Actual Pattern — Why Ramping Matters</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>❌ An unrealistic, genuinely poor test design:
+  Instantly jump to 1000 virtual users at second zero.
+
+  Real users don't arrive instantly — a SUDDEN, artificial
+  spike tests something genuinely different (the system's
+  reaction to an impossible, instantaneous shock) than what
+  ACTUALLY happens on a real Black Friday, where traffic
+  builds up over MINUTES or HOURS, not milliseconds.
+
+✅ A genuinely realistic ramping pattern:
+  stages: [
+    { duration: '2m', target: 200 },   // normal peak first
+    { duration: '5m', target: 1000 },   // realistic ramp-up
+    { duration: '10m', target: 1000 },    // sustained peak load
+    { duration: '3m', target: 0 },          // genuine ramp-down
+  ]</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might an instant jump to 1000 virtual users produce a genuinely misleading test result, even if the system technically "survives" it? Real Black Friday traffic builds gradually — the system has time to scale, caches warm up, connection pools adjust. An instant spike tests the system's behavior under a fundamentally different, more extreme condition than what will actually happen, meaning a "pass" on the instant-spike test doesn't reliably predict success on the real, gradual event, and a "fail" might represent a problem that would never actually occur in the real, gradual scenario being genuinely prepared for.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Designing a load test's virtual-user count from an arbitrary, convenient round number rather than a genuine, stated reference point. This page's example is explicit about connecting 1000 VUs to an actual reasoning chain (normal peak × historical multiplier) and flagging it honestly as an estimate — an arbitrary number with no stated justification is much harder for a human reviewer to evaluate or trust.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>When an agent estimates a load target from limited information (as this page's example does), it's genuinely useful to have it explicitly state its reasoning chain and confidence, exactly mirroring Chapter 5's confidence-level guidance for fuzzy assertions — a reviewer can then judge whether the underlying assumption is sound, not just accept a bare number.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Connect a load test's target scale to a genuine, stated reference point, not an arbitrary or convenient round number.</li>
+  <li>Design a ramping pattern that reflects how real traffic actually arrives, rather than an artificial instant spike.</li>
+  <li>Explicitly flag estimated figures as estimates, inviting human confirmation before treating them as authoritative.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>A genuinely useful load test design starts from a real, stated reference point for scale, not an arbitrary number.</li>
+  <li>Realistic ramping — gradual increase, sustained peak, gradual decrease — tests something meaningfully different from an artificial instant spike, and more accurately predicts real-world behavior.</li>
+  <li>Estimated figures should be explicitly flagged as estimates, inviting confirmation rather than being presented with false confidence.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Design a load test pattern (stages, with durations and target VU counts) for the goal "verify checkout remains responsive during a flash sale that's announced with no advance warning" — explicitly reasoning about how this pattern's ramping should genuinely differ from this page's Black Friday example, given the different real-world arrival pattern implied by "no advance warning."</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A generated load test design jumps straight to 1000 VUs with no ramping stages at all. A reviewer flags this. What's the actual risk, and how would you fix the design?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>The risk is a genuinely misleading result in EITHER direction — an artificial instant spike tests a fundamentally different, more extreme scenario than real gradual traffic, meaning neither a pass nor a fail reliably predicts how the system handles the ACTUAL, real-world event being prepared for.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>The fix, following this page's actual pattern:
+stages: [
+  { duration: '2m', target: 200 },
+  { duration: '5m', target: 1000 },
+  { duration: '10m', target: 1000 },
+  { duration: '3m', target: 0 },
+]
+
+Why this is genuinely more useful than an instant jump:
+This gives the system TIME to behave the way it actually would
+  during a REAL, gradual traffic increase — connection pools
+  adjusting, caches warming, auto-scaling (if present) reacting
+  — producing results that GENUINELY reflect what would happen
+  on the real Black Friday event, not an artificial worst-case
+  scenario that may never actually occur in practice.</code></pre>
+<p>The core fix isn't just "add some stages" — it's specifically designing a ramp that reflects how REAL traffic for THIS particular scenario actually arrives, exactly this page's central argument.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page insist the agent explicitly flag its 1000-VU estimate as "not confirmed," rather than just stating it as the test's target?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because the estimate is built on a GENUINE but UNVERIFIED assumption (a "roughly 5x" historical multiplier) — presenting it with unwarranted confidence would mislead a reviewer into treating a reasoned guess as if it were a confirmed, authoritative figure.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What the ESTIMATE genuinely rests on:
+"Past Black Friday events have seen roughly 5x normal peak,
+  based on TYPICAL e-commerce patterns" — this is a REASONABLE
+  starting point, but it's explicitly NOT specific to
+  ShopEasy's OWN actual historical data, which the agent
+  doesn't have direct access to in this scenario.
+
+Why HONEST flagging matters here:
+If presented WITHOUT this caveat, a reviewer might reasonably
+  assume "1000 VUs" is a CONFIRMED, data-backed figure specific
+  to ShopEasy, when it's actually a GENERAL industry pattern
+  applied as a starting estimate — exactly the kind of
+  unstated assumption Chapter 2's instructions page warned
+  against, now shown in a genuinely concrete performance-
+  testing context.</code></pre>
+<p>This is a direct, consistent application of the ambiguity-surfacing principle this course has maintained since Chapter 2 — an estimate built on a real but unconfirmed assumption should be presented AS such, not with false, unwarranted authority.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why "testing an instant, artificial spike" might still be a genuinely valid, worthwhile test — just not for THIS page's stated Black Friday goal specifically.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>An instant spike test is genuinely valuable for a DIFFERENT, distinct goal — verifying resilience to a genuinely sudden, unplanned surge (a social media mention going viral, a DDoS-adjacent traffic burst) — which is a real, legitimate scenario worth testing for, just not what THIS page's Black Friday goal is actually asking about.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A GOAL where instant-spike testing would be the RIGHT choice:
+"Verify checkout remains stable if traffic suddenly triples
+  within 30 seconds, with no advance warning" — THIS goal
+  EXPLICITLY describes a genuinely sudden, unplanned scenario,
+  where an instant-spike test pattern is the CORRECT, matching
+  design, not a mistake.
+
+Why THIS page's Black Friday goal is DIFFERENT:
+Black Friday traffic is a KNOWN, ANTICIPATED event that
+  genuinely builds up gradually over the shopping period — a
+  realistic ramping pattern matches THIS specific goal's actual
+  real-world characteristics, while an instant spike would be
+  testing the WRONG scenario for THIS particular goal.</code></pre>
+<p>The genuinely important lesson: there's no single "correct" load pattern in the abstract — the right pattern depends entirely on matching the test's design to the SPECIFIC real-world scenario the stated goal is actually describing, exactly the "Try It Yourself" exercise at the end of this page asks you to work through directly.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might connecting a load target to "normal daily peak × a historical multiplier" be a more defensible design choice than an agent simply picking "a big number that sounds appropriately stressful"?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because a stated, reasoned chain of logic can be EVALUATED and CHALLENGED by a human reviewer on its own specific terms, while an arbitrary "big number" offers no basis for a reviewer to judge whether it's actually appropriate for the real, specific situation.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>An ARBITRARY choice (genuinely hard to evaluate):
+"I'll test at 2000 VUs, since that sounds like a lot." — a
+  reviewer has NO way to assess whether this is too high, too
+  low, or roughly right, since there's no stated REASONING
+  connecting it to anything real or specific about ShopEasy.
+
+This page's REASONED choice (genuinely evaluable):
+"200 (normal peak) × 5 (historical Black Friday multiplier) =
+  1000" — a reviewer can specifically CHALLENGE either input:
+  "is 200 actually our real normal peak?" or "is 5x actually
+  right for OUR business, or should it be higher/lower?" —
+  genuinely PRODUCTIVE questions a reasoned chain enables that
+  an arbitrary guess simply doesn't.</code></pre>
+<p>The real, practical value of a stated reasoning chain isn't that it's automatically MORE correct than a guess — it's that it's genuinely REVIEWABLE, letting a human meaningfully evaluate and refine it, exactly the same value Chapter 4's "expected outcome" requirement provided for generated test scenarios.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you design a load test pattern specifically to distinguish between "the system handles 1000 VUs fine" and "the system handles GRADUALLY ARRIVING traffic reaching 1000 VUs fine, but would fail under a sudden spike to the same number"?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This genuinely requires running BOTH pattern types deliberately and comparing results — a single test design, however well-reasoned, can only answer ONE of these two genuinely different questions at a time.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Test A — THIS page's gradual ramp (answers: "does gradual
+traffic to 1000 VUs work"):
+stages: [{duration:'2m',target:200}, {duration:'5m',target:1000},
+         {duration:'10m',target:1000}, {duration:'3m',target:0}]
+
+Test B — a DELIBERATE instant spike to the SAME final target
+(answers a genuinely DIFFERENT question: "does a sudden jump
+to 1000 VUs work"):
+stages: [{duration:'10s',target:1000}, {duration:'10m',target:1000},
+         {duration:'3m',target:0}]
+
+Comparing results BETWEEN these two tests reveals whether the
+  system's performance genuinely DEPENDS on the ARRIVAL PATTERN
+  itself, not just the final scale — a finding neither test
+  ALONE could reveal on its own.</code></pre>
+<p>This is a genuinely good illustration of why load test DESIGN itself is a real skill requiring deliberate reasoning about what SPECIFIC question a given pattern actually answers — matching a pattern to a goal (this page's core lesson) also means recognizing when a SINGLE pattern can't answer everything you might genuinely want to know.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

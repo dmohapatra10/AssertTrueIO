@@ -1,0 +1,101 @@
+<!doctype html>
+<html><head>
+<title>Risk-Based Exploration</title>
+<meta name="description" content="Directing limited exploration budget toward what genuinely matters most — reusing Chapter 4&#x27;s risk-based prioritization principle for where an agent looks, not just what it generates." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/risk-based-exploration.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Risk-Based Exploration</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="exploration-limits.html">Exploration Limits</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Directing a limited exploration budget toward what genuinely matters most</li>
+  <li>Reusing Chapter 4's risk-prioritization principle for where an agent looks, not just what it generates</li>
+  <li>A concrete comparison showing what unprioritized exploration misses</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>The previous page's limits mean exploration has a real, finite budget — thirty steps, five minutes, whatever you set. This page is about spending that budget on what genuinely matters most, rather than wherever exploration happens to wander first.</p>
+
+<h2 id="how-it-works-reusing-chapter-4-s-principle-applied-differently">How It Works — Reusing Chapter 4's Principle, Applied Differently</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>CHAPTER 4: risk-based PRIORITIZATION decided WHICH generated
+  test CASES were worth RUNNING, given a limited execution
+  budget
+
+THIS CHAPTER: the SAME underlying principle decides WHERE
+  exploration should SPEND its limited STEP budget — payment
+  and CHECKOUT genuinely matter more than a rarely-used
+  profile SETTINGS page</code></pre>
+
+<h2 id="step-by-step-implementation">Step-by-Step Implementation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/risk-based-exploration.ts
+import { askClaude } from './ai-client';
+
+export interface AreaRiskScore {
+  area: string;
+  riskScore: number;
+  reasoning: string;
+}
+
+export async function scoreExplorationAreas(
+  candidateAreas: string[], businessContext: string
+): Promise&lt;AreaRiskScore[]&gt; {
+  const prompt = `Business context: ${businessContext}
+Candidate areas to potentially explore: ${JSON.stringify(candidateAreas)}
+
+Score each area's exploration priority 1-5, based on revenue
+impact, usage frequency, and consequence of an undiscovered bug.
+
+Respond with ONLY valid JSON:
+{"scores": [{"area": string, "riskScore": number, "reasoning": string}]}`;
+
+  const raw = await askClaude(prompt);
+  return JSON.parse(raw).scores.sort(
+    (a: AreaRiskScore, b: AreaRiskScore) =&gt; b.riskScore - a.riskScore
+  );
+}</code></pre>
+
+<h2 id="example-prioritizing-shopsmart-s-exploration-budget">Example — Prioritizing ShopSmart's Exploration Budget</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const scores = await scoreExplorationAreas(
+  ['payment form', 'discount codes', 'profile picture upload',
+   'checkout address validation', 'newsletter signup'],
+  'ShopSmart is e-commerce; payment and checkout directly gate
+  revenue. Profile and newsletter features are non-critical.'
+);
+
+// REAL, prioritized order:
+// [
+//   { area: "payment form", riskScore: 5, ... },
+//   { area: "checkout address validation", riskScore: 4, ... },
+//   { area: "discount codes", riskScore: 3, ... },
+//   { area: "newsletter signup", riskScore: 2, ... },
+//   { area: "profile picture upload", riskScore: 1, ... }
+// ]</code></pre>
+
+<h2 id="why-it-matters-a-concrete-comparison">Why It Matters — A Concrete Comparison</h2>
+<p>Unprioritized exploration, with a 30-step budget, might spend 15 steps thoroughly exploring the profile picture upload simply because the strategy layer happened to wander there first, leaving little budget for payment. Risk-based exploration spends the majority of that same budget on payment and checkout — the areas where an undiscovered bug would genuinely cost the business the most — before ever considering lower-priority areas.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Letting exploration strategy (from this chapter's earlier page) run without any risk prioritization layered on top.</strong> Strategy alone decides what's genuinely new to try; it doesn't know what's genuinely important — this page adds that missing dimension.</li>
+  <li><strong>Scoring areas once and never revisiting priority as exploration proceeds.</strong> If payment turns out to be thoroughly covered quickly, remaining budget should shift toward the next-highest area, not stay fixed on an area that's already well-explored.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Score candidate areas before exploration begins, using real business context — the same discipline Chapter 4 applied to test case prioritization.</li>
+  <li>Bias the exploration strategy layer's choices toward higher-scored areas, especially early in a limited step budget.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>List five real areas of your own application that could be candidates for exploration. Score them using this page's function with genuine business context, and compare the resulting priority order against your own intuition about where bugs would matter most.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>A limited exploration budget should be spent deliberately on what matters most, not wherever exploration happens to wander first.</li>
+  <li>This reuses Chapter 4's risk-prioritization principle, applied to where an agent explores rather than which generated test cases get run.</li>
+  <li>Without this prioritization, exploration risks spending most of its budget on low-value areas simply because they were encountered first.</li>
+</ul>
+</article>
+</body></html>

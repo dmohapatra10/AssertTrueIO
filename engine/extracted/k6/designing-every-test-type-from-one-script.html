@@ -1,0 +1,201 @@
+<!doctype html>
+<html><head>
+<title>Designing Smoke, Load, Stress, Spike, Soak &amp; Regression Tests From One k6 Script</title>
+<meta name="description" content="Taking a single well-built k6 script and reconfiguring it — never rewriting it — into a smoke test, load test, stress test, spike test, soak test, and regression test." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/designing-every-test-type-from-one-script.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Designing Every Test Type From One Script</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="tags-and-environment-variables.html">Tags & Environment Variables</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Chapter 1 defined smoke, load, stress, spike, soak, and regression testing conceptually. This page shows the practical payoff: one well-built script — reusing the realistic shopping journey from Chapter 9 — reconfigured six distinct ways, never rewritten, to serve as every one of those test types.</p>
+
+<h2 id="the-base-script-unchanged-across-all-six">The Base Script (Unchanged Across All Six)</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export default function () {
+  ensureLoggedIn();
+  group('Shopping Journey', function () {
+    browseProducts();
+    const productId = searchProducts('wireless headphones');
+    if (productId) {
+      addToCart(productId);
+      checkout();
+    }
+  });
+}</code></pre>
+<p>This function never changes below. Everything that follows is a different <code>options</code> block wrapped around this exact same logic.</p>
+
+<h2 id="smoke-test-does-it-work-at-all">Smoke Test — Does It Work at All?</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export const options = {
+  vus: 1,
+  iterations: 5,
+  thresholds: {
+    checks: ['rate>0.99'],
+  },
+};</code></pre>
+<p>A smoke test runs at minimal, almost trivial load — its only job is confirming the script itself is correct and the basic workflow functions, before spending real time and resources on anything bigger. Always run this first; a script with a genuine bug wastes far less time failing here than failing 10 minutes into an expensive stress test.</p>
+
+<h2 id="load-test-does-it-hold-up-at-expected-traffic">Load Test — Does It Hold Up at Expected Traffic?</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export const options = {
+  scenarios: {
+    expected_load: {
+      executor: 'ramping-vus',
+      startVUs: 0,
+      stages: [
+        { duration: '3m', target: 200 },
+        { duration: '15m', target: 200 },
+        { duration: '3m', target: 0 },
+      ],
+    },
+  },
+  thresholds: {
+    http_req_duration: ['p(95)&lt;800'],
+    checks: ['rate>0.97'],
+  },
+};</code></pre>
+<p>This is the exact configuration from Chapter 9's final example — 200 VUs, representing genuinely expected peak traffic, sustained realistically. Confirming a known, realistic requirement.</p>
+
+<h2 id="stress-test-where-does-it-actually-break">Stress Test — Where Does It Actually Break?</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export const options = {
+  scenarios: {
+    find_the_limit: {
+      executor: 'ramping-vus',
+      startVUs: 0,
+      stages: [
+        { duration: '5m', target: 500 },
+        { duration: '5m', target: 1000 },
+        { duration: '5m', target: 2000 },
+        { duration: '5m', target: 4000 },
+      ],
+    },
+  },
+  // Deliberately no strict thresholds here — the GOAL is finding where
+  // it breaks, not enforcing a pass/fail bar prematurely
+};</code></pre>
+<p>Same script, pushed far beyond expected traffic in escalating stages — the goal is discovering the actual ceiling, not confirming a known number. Thresholds are often deliberately loose or absent here, since failing is the expected, informative outcome at some point in the ramp.</p>
+
+<h2 id="spike-test-does-it-survive-a-sudden-shock">Spike Test — Does It Survive a Sudden Shock?</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export const options = {
+  scenarios: {
+    sudden_spike: {
+      executor: 'ramping-vus',
+      startVUs: 0,
+      stages: [
+        { duration: '30s', target: 50 },   // brief normal baseline
+        { duration: '10s', target: 1500 }, // sudden, sharp jump
+        { duration: '3m', target: 1500 },  // hold at the spike
+        { duration: '30s', target: 50 },   // sudden drop back down
+      ],
+    },
+  },
+  thresholds: {
+    http_req_failed: ['rate&lt;0.10'], // more lenient — a spike is expected to hurt somewhat
+  },
+};</code></pre>
+<p>The defining feature here is the 10-second jump from 50 to 1,500 — sudden, not gradual, testing resilience to a shock rather than a smooth ramp.</p>
+
+<h2 id="soak-test-does-it-degrade-over-time">Soak Test — Does It Degrade Over Time?</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export const options = {
+  vus: 100,
+  duration: '4h',
+  thresholds: {
+    http_req_duration: ['p(95)&lt;800'],
+    checks: ['rate>0.97'],
+  },
+};</code></pre>
+<p>Moderate, sustained load — not extreme, but held for hours rather than minutes, specifically to give memory leaks and slow resource exhaustion (Chapter 1) time to actually appear.</p>
+
+<h2 id="regression-test-compared-against-a-real-baseline">Regression Test — Compared Against a Real Baseline</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export const options = {
+  scenarios: {
+    regression_check: {
+      executor: 'constant-vus',
+      vus: 200,
+      duration: '10m',
+    },
+  },
+  thresholds: {
+    // Values derived directly from last week's actual measured baseline (Chapter 7)
+    http_req_duration: ['p(95)&lt;520'], // last week: 480ms, some buffer
+    http_req_failed: ['rate&lt;0.008'],  // last week: 0.5%, some buffer
+  },
+};</code></pre>
+<p>The configuration itself looks like a load test — the distinguishing feature is that its thresholds are deliberately set from a specific historical baseline (Chapter 7's threshold-derivation techniques), specifically to catch a regression relative to last week's real, measured performance, not just a generic pass/fail bar.</p>
+
+<h2 id="detailed-example-same-script-same-checks-genuinely-different-purpose">Detailed Example — Same Script, Same Checks, Genuinely Different Purpose</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Every configuration above ran the IDENTICAL ensureLoggedIn() → browse →
+search → cart → checkout logic. What changed each time was purely the
+shape and scale of the load, and (for regression) which threshold values
+were used. Six genuinely different questions, one script.</code></pre>
+
+<h2 id="real-world-example-why-rewriting-the-script-six-times-would-be-worse">Real-World Example — Why Rewriting the Script Six Times Would Be Worse</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>❌ Six separate scripts: the checkout logic drifts out of sync over time
+   — someone updates the smoke test script after an API change, forgets
+   the stress test script still uses the old, now-broken request shape.
+
+✅ One script, six configurations: an API change gets fixed in exactly
+   one place, and every test type automatically reflects it.</code></pre>
+<p>This is the same principle Chapter 3's "reusable functions" and Chapter 11's framework architecture apply at a smaller scale — duplication drifts out of sync; a single source of truth doesn't.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ smoke-test.js, load-test.js, stress-test.js — three separate,
+// slowly-diverging copies of nearly the same workflow logic
+
+// ✅ workflow.js (the shared logic) + options passed via -e or separate
+// config files, all pointing at the same underlying script</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Maintaining separate scripts per test type</strong> instead of one script with different configurations — real, ongoing maintenance burden as the underlying workflow evolves.</li>
+  <li><strong>Setting strict thresholds on a stress test</strong> — the point is finding the breaking point, not enforcing a premature pass/fail bar before it's found.</li>
+  <li><strong>Skipping the smoke test</strong> and going straight to an expensive stress or soak run — wastes real time discovering a basic bug the hard way.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>A workflow that genuinely needs different logic for different test types</strong> (a stress test that skips a slow, non-essential step to push pure request volume higher) — this is a legitimate exception, but should be a deliberate, documented divergence, not accidental drift.</li>
+  <li><strong>Regression thresholds that go stale</strong> — a regression test's thresholds are only as good as how recently they were derived from a real baseline (Chapter 7); revisit them periodically, the same as any threshold.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a stress test never actually finds a breaking point within a reasonable duration, check whether the ramping stages actually reach a high enough target — the same diagnostic principle from Chapter 1's stress-testing coverage, now applied to a script that's otherwise proven correct via its smoke test.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Build one well-designed script per real workflow, and reconfigure it via <code>options</code> for each test type — never maintain parallel, slowly-diverging copies.</li>
+  <li>Always run a smoke test first, before any larger, more expensive test type.</li>
+  <li>Keep stress-test thresholds loose or absent — the goal is discovery, not premature pass/fail enforcement.</li>
+  <li>Derive regression-test thresholds from a real, recent baseline, and revisit them periodically.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Using the checkout workflow built across this course, write the <code>options</code> configuration for a spike test simulating a flash-sale scenario — normal baseline traffic suddenly jumping tenfold for two minutes before returning to normal — and explain what threshold (if any) would be appropriate for this specific test type.</p>
+
+<h2 id="summary">Summary</h2>
+<p>A single, well-built script can serve as a smoke, load, stress, spike, soak, or regression test purely through different <code>options</code> configurations — never through separate, parallel copies of the underlying workflow logic. This is the practical realization of Chapter 1's conceptual test-type definitions, Chapter 4's executor mechanics, and this course's repeated emphasis on avoiding duplicated logic, all converging into one deliberate testing strategy built around a single source of truth.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why should a smoke test always run before a stress or soak test, rather than jumping straight to the larger test?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A smoke test runs at minimal load specifically to confirm the script itself is correct before investing real time and resources into a much larger, longer-running test. If the script has a basic bug, discovering it via a 1-VU, few-iteration smoke test costs almost nothing; discovering the same bug 3 hours into a soak test wastes significant time that could have been avoided.</div>
+</details>
+<details class="faq-item">
+<summary>Why are strict thresholds typically inappropriate for a stress test?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A stress test's actual purpose is discovering an unknown breaking point, not confirming a known requirement — expecting it to "pass" a strict threshold contradicts the test's own goal, since failing at some point during the ramp is the informative, expected outcome. Thresholds here are often deliberately loose or omitted, letting the test genuinely find the limit rather than stopping prematurely at an artificial bar.</div>
+</details>
+<details class="faq-item">
+<summary>What's the practical risk of maintaining six separate scripts, one per test type, instead of one script with six configurations?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Separate scripts inevitably drift out of sync over time — a change to the actual API or workflow (a new required field, an updated endpoint) gets applied to whichever script someone happens to be updating, while the others silently fall behind and start testing an outdated version of the real workflow. One shared script with different configurations means any change is made in exactly one place and automatically applies to every test type built around it.</div>
+</details>
+<details class="faq-item">
+<summary>What specifically distinguishes a regression test's configuration from a standard load test's configuration, if both might use similar VU counts and durations?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The distinguishing feature isn't the load shape — it's that a regression test's thresholds are deliberately derived from a specific, real historical baseline (last week's actual measured performance, for instance), specifically to catch a meaningful regression relative to that known-good point, rather than checking against a generic target the way a standard load test's thresholds typically would.</div>
+</details>
+<details class="faq-item">
+<summary>Why does a spike test's configuration specifically need a sudden, sharp jump rather than the smooth ramp used in a load test?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A spike test exists specifically to test resilience to a sudden shock — a flash sale, a viral moment — which is a genuinely different stress on a system than gradually increasing traffic. A smooth ramp gives auto-scaling, connection pools, and caches time to adjust; a sudden jump tests whether the system can handle that adjustment happening almost instantly instead, which only a genuinely sharp, non-gradual jump in the configuration can actually simulate.</div>
+</details>
+</div>
+</article>
+</body></html>

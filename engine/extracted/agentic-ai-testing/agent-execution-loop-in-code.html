@@ -1,0 +1,214 @@
+<!doctype html>
+<html><head>
+<title>Agent Execution Loop in Code: Making the Cycle Real</title>
+<meta name="description" content="Turning Chapter 2&#x27;s reason-act-observe-update diagram into real, running Python — including a genuine, enforced step limit from the very first version." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/agent-execution-loop-in-code.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Agent Execution Loop in Code</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="tool-calling-in-practice.html">Tool Calling in Practice</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Every piece built so far — the LLM connection, the objective, instructions, tools — comes together here, in the actual loop that repeats reason → act → observe until the objective is genuinely reached or a real stopping condition is hit.</p>
+
+<h2 id="the-loop-in-real-code">The Loop, in Real Code</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># agent.py
+
+MAX_STEPS = 15   # a genuine, enforced limit from the very first version
+
+def run(self, page):
+    history = []
+    for step in range(MAX_STEPS):
+        prompt = self._build_prompt(history, page)
+        response = self.client.messages.create(
+            model=self.model,
+            max_tokens=1024,
+            system=self.instructions,
+            messages=[{"role": "user", "content": prompt}],
+            tools=TOOL_DEFINITIONS
+        )
+
+        tool_used = False
+        for block in response.content:
+            if block.type == "tool_use":
+                tool_used = True
+                result = self.execute_tool(block.name, block.input, page)
+                history.append({
+                    "step": step,
+                    "action": f"{block.name}({block.input})",
+                    "result": result
+                })
+            elif block.type == "text" and "TASK COMPLETE" in block.text:
+                return self._build_report(history, success=True, final_text=block.text)
+
+        if not tool_used:
+            # the agent produced only text, no tool call — likely done,
+            # or genuinely stuck; either way, stop and report
+            return self._build_report(history, success=False,
+                                       final_text=response.content[0].text)
+
+    # hit MAX_STEPS without a clear resolution — a real, honest outcome
+    return self._build_report(history, success=False,
+                               final_text="Stopped: exceeded maximum step limit.")</code></pre>
+
+<h2 id="building-the-prompt-from-history">Building the Prompt From History</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def _build_prompt(self, history, page):
+    history_text = "\n".join(
+        f"Step {h['step']}: {h['action']} → {h['result']}"
+        for h in history
+    )
+    return f"""Objective: {self.objective}
+
+Current page URL: {page.url}
+
+History so far:
+{history_text if history_text else "(nothing tried yet)"}
+
+Decide the next single action. If the objective has been
+genuinely achieved, respond with "TASK COMPLETE" and a summary
+of what you verified."""</code></pre>
+<p>This is genuinely both Chapter 2's memory (the full <code>history</code>) and state (<code>page.url</code>, the current position) being fed into every single reasoning step — exactly the two distinct pieces that page argued the reasoner needs together.</p>
+
+<h2 id="why-max-steps-is-set-from-the-very-first-version">Why MAX_STEPS Is Set From the Very First Version</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Without MAX_STEPS, a genuinely realistic bug — the agent
+repeatedly tries to click something that doesn't exist,
+reasoning through varied approaches each time (exactly Chapter
+2's Agent Loops example) — would run indefinitely, burning
+real API cost with no natural stopping point.
+
+MAX_STEPS = 15 means: even in the worst case, this specific
+agent stops after at most 15 real LLM calls, reports honestly
+that it didn't reach a clear resolution, and a human can look
+at exactly what it tried.</code></pre>
+<p>This is Chapter 2's Guardrails page, made concrete in the very first version of this loop — not an afterthought added once a runaway cost was actually discovered.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why does the loop check specifically for the text "TASK COMPLETE" to determine success, rather than simply assuming the task succeeded once the agent stops producing tool calls? Stopping to produce only text could mean the agent genuinely finished and is reporting success — or it could mean the agent got stuck, confused, or hit a situation it didn't know how to handle and gave up. Requiring an explicit, unambiguous signal for genuine success (rather than inferring it from the mere absence of further tool calls) avoids silently treating a stuck or confused agent as if it had succeeded.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Setting <code>MAX_STEPS</code> to a very high number "just to be safe," defeating its actual purpose. A limit of 200 steps still allows a genuinely stuck loop to burn significant real cost before stopping — the actual, useful value of this guardrail comes from setting it close to what a genuinely successful run should realistically need, not padding it out of an abundance of caution that undermines its whole point.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>During development, it's genuinely useful to log the full <code>history</code> after every run, even successful ones — reviewing exactly what path the agent took to reach a genuine success is often as informative as debugging a failure, especially for noticing if it took a needlessly roundabout route.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Set a genuine, enforced step limit from the very first version of a loop, sized close to what success realistically requires — not padded "just in case."</li>
+  <li>Require an explicit, unambiguous signal for genuine task success, rather than inferring it from the absence of further action.</li>
+  <li>Feed both full history (memory) and current, fresh state into every single reasoning step, not just one or the other.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>The agent loop repeats reason → act → observe → update, exactly matching Chapter 2's diagram, now as real, running code with a genuine, enforced stopping condition.</li>
+  <li>An explicit "TASK COMPLETE" signal is required for genuine success — the absence of further tool calls alone isn't treated as success.</li>
+  <li>A meaningful step limit belongs in the very first version of a loop, not added later once a runaway cost has already occurred.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Trace through this page's loop code by hand for a hypothetical 3-step run — write out what <code>history</code> would contain after each step, and what the prompt built by <code>_build_prompt</code> would actually look like going into step 3, given your own made-up but realistic tool results for steps 1 and 2.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A teammate proposes removing the "TASK COMPLETE" text requirement and just treating any response with no tool call as success, arguing it simplifies the code. What would you say?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd point out this conflates two genuinely different situations that both produce "no tool call" — genuine success and the agent being stuck or confused — and treating them identically means silently mis-reporting failures as successes.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Situation A — genuine success, no tool call:
+Agent has verified the objective, produces a text summary
+  confirming what it checked. SHOULD be reported as success.
+
+Situation B — stuck/confused, ALSO no tool call:
+Agent encounters something it doesn't know how to handle,
+  produces text like "I'm not sure how to proceed from here."
+  This is genuinely NOT success, despite also having no tool
+  call in this final response.</code></pre>
+<p>Without the explicit "TASK COMPLETE" signal, both situations look identical to the loop's own logic — the simplification the teammate proposes would silently misreport genuine failures as successes, which is a real, meaningful cost for a small reduction in code complexity.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page's loop pass the FULL history on every single step, rather than just the most recent step's result?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because the reasoner genuinely needs the full accumulated context to make good decisions — exactly Chapter 2's Memory page argument about why an agent needs to know everything it's already tried, not just what happened one step ago.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>With ONLY the most recent step (insufficient):
+Step 8's prompt would only know about step 7's result — with
+  no way to recognize "I've actually tried this exact approach
+  3 times already across steps 2, 5, and 7," a genuinely
+  important pattern for avoiding repeated failed attempts.
+
+With FULL history (this page's actual approach):
+Step 8's prompt includes everything from steps 1-7, letting
+  the reasoner genuinely recognize patterns like repeated
+  failures, already-completed sub-goals, and the overall
+  trajectory of the task so far — not just the immediate
+  last action's outcome.</code></pre>
+<p>This directly implements Chapter 2's memory concept in real code — full history, not just the latest result, is precisely what lets the reasoner avoid the repeated-failure problem that page's Agent Loops discussion warned about.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>If you noticed a real agent consistently using exactly 14 or 15 of its 15 available steps even on objectives that should be genuinely simple, what would you investigate?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This pattern — consistently near the limit rather than a genuinely varied step count depending on task difficulty — is a real signal worth investigating, even though the agent isn't technically exceeding its limit.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What this pattern likely indicates:
+The agent probably ISN'T stuck in the classic sense (it's not
+  exceeding 15 and getting cut off with an honest failure
+  report) — but consistently near-maxing out on SIMPLE
+  objectives suggests something is making even easy tasks take
+  much longer than they reasonably should.
+
+What to actually check:
+- Is the "TASK COMPLETE" signal being recognized correctly, or
+  is the agent completing the objective but somehow not
+  triggering the completion check reliably?
+- Is the prompt/instructions causing genuinely unnecessary,
+  redundant verification steps beyond what the objective
+  actually requires?
+- Is a specific TOOL behaving unreliably, causing repeated
+  retries even for actions that should typically succeed
+  on the first attempt?</code></pre>
+<p>The general lesson: a step limit being respected doesn't mean everything is fine — consistently running close to that limit on tasks that should be simple is itself a meaningful signal worth investigating, not just a coincidence to shrug off.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does _build_prompt include the current page URL directly, given that get_current_url is also available as a tool the agent could call itself?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Including it directly in every prompt saves the agent from needing to spend an entire reasoning step and tool call just to answer a question ("where am I right now") that's genuinely useful as baseline context for almost every decision it makes.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>WITHOUT including URL directly in the prompt:
+Nearly every reasoning step might need an EXTRA round trip —
+  "let me first call get_current_url to see where I am" —
+  before it can even begin reasoning about the actual next
+  action, wasting real steps (against the MAX_STEPS budget)
+  on genuinely low-value, repetitive information-gathering.
+
+WITH url included directly (this page's actual approach):
+The reasoner has this baseline context IMMEDIATELY, for free,
+  on every single step, without spending a scarce step budget
+  just to re-discover something that's cheap to simply provide
+  upfront every time.</code></pre>
+<p>This is a genuinely practical design decision: information that's cheap to provide and useful on nearly every decision belongs directly in the prompt's own context, while <code>get_current_url</code> as a separate tool remains available for cases where the agent might want to re-check it mid-step, after taking some other action.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you modify this loop to implement the "state hasn't changed in N steps" stopping condition that Chapter 2's Agent Loops page recommended as a complement to a simple step count?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A genuinely concrete implementation would track the current URL across recent steps and check whether it's genuinely changed, stopping early if it hasn't, rather than always running until MAX_STEPS regardless of whether real progress is happening.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def run(self, page):
+    history = []
+    recent_urls = []
+    for step in range(MAX_STEPS):
+        recent_urls.append(page.url)
+        # NEW: check for genuine state stagnation
+        if len(recent_urls) >= 5 and len(set(recent_urls[-5:])) == 1:
+            return self._build_report(
+                history, success=False,
+                final_text="Stopped: no page change across the "
+                            "last 5 steps — likely stuck."
+            )
+        # ... rest of the loop unchanged (prompt, LLM call, tool
+        # execution, TASK COMPLETE check) ...</code></pre>
+<p>This directly implements Chapter 2's recommendation in real code — catching a stuck agent specifically when its actual, observable state (here, simplified to just the URL) genuinely isn't progressing, potentially stopping well before the full <code>MAX_STEPS</code> budget is exhausted, exactly the complementary, more targeted guardrail that page argued for.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

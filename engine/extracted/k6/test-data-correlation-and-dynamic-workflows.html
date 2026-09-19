@@ -1,0 +1,41 @@
+<!doctype html>
+<html><head>
+<title>Test Data, Correlation &amp; Dynamic Workflows in k6</title>
+<meta name="description" content="Why performance-test data has to be designed differently than functional-test data — unique data at scale, efficient parameterization, and building a real CRUD chain without collisions." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/test-data-correlation-and-dynamic-workflows.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Test Data, Correlation &amp; Dynamic Workflows</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="thresholds-and-performance-criteria.html">Thresholds & Performance Criteria</a></p>
+<article class="content">
+<h2 id="a-problem-functional-testing-never-has-to-solve">A Problem Functional Testing Never Has to Solve</h2>
+<p>The workflow built in Chapter 5 used a single hardcoded test user. That's fine for one request — but run that same script with 200 concurrent virtual users, and every one of them tries to create an account with the identical email address. A functional test never hits this problem, because it typically runs once, sequentially. A performance test runs the same script hundreds or thousands of times, often simultaneously — and that changes what "test data" actually has to mean. Three focused pages:</p>
+<ol>
+  <li><a href="unique-test-data-and-avoiding-collisions.html">Unique Test Data & Avoiding Collisions</a> — why identical data breaks under concurrency, and how to avoid it</li>
+  <li><a href="parameterization-csv-json-and-sharedarray.html">Parameterization: CSV, JSON & SharedArray</a> — feeding real external data sets to many VUs efficiently</li>
+  <li><a href="building-the-full-crud-chain-with-real-data.html">Building the Full CRUD Chain With Real Data</a> — Create → Get → Update → Delete, done correctly at scale</li>
+</ol>
+
+<h2 id="why-performance-test-data-needs-different-design">Why Performance-Test Data Needs Different Design</h2>
+<p>Functional-test data optimizes for clarity and repeatability — the same known input, every time, so a failure is easy to reproduce. Performance-test data optimizes for something different: enough genuine variety and uniqueness that hundreds of simultaneous virtual users don't collide with each other or with themselves, while still remaining realistic enough that the load actually represents how real, distinct users behave. These are genuinely different goals, and data designed well for one can actively break the other.</p>
+
+<h2 id="a-quick-preview-of-the-core-problem">A Quick Preview of the Core Problem</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Fine for a single functional test. Breaks under concurrent load.
+const payload = JSON.stringify({ email: 'testuser@example.com', name: 'Test User' });
+
+// 200 VUs running this simultaneously → 200 attempts to create the
+// exact same account → most fail with a duplicate-email error, and the
+// test is now measuring error-handling, not the create-account flow</code></pre>
+<p>This is the exact problem the first page ahead solves properly — not by working around it, but by generating data that's genuinely unique per iteration.</p>
+
+<h2 id="common-mistakes-to-watch-for">Common Mistakes to Watch For</h2>
+<ul>
+  <li><strong>Reusing a single hardcoded value</strong> across many virtual users for anything meant to be unique — emails, usernames, order references.</li>
+  <li><strong>Loading a large external data file inefficiently</strong>, duplicating it in memory once per VU instead of sharing it — a real problem at high VU counts.</li>
+  <li><strong>Generating "random" data that isn't actually random enough</strong> to avoid collisions at real scale, like a timestamp-only ID that two VUs can generate in the same millisecond.</li>
+</ul>
+
+<h2 id="what-you-ll-be-able-to-do">What You'll Be Able to Do</h2>
+<p>By the end of the three pages that follow, you should be able to generate genuinely unique test data at any concurrency level, feed external CSV or JSON data sets to a test efficiently without wasting memory, and build a complete CRUD workflow that runs correctly under real concurrent load rather than one that only works when run alone. Start with Unique Test Data & Avoiding Collisions below.</p>
+</article>
+</body></html>

@@ -1,0 +1,91 @@
+<!doctype html>
+<html><head>
+<title>Running AI-Powered Tests in CI</title>
+<meta name="description" content="A real GitHub Actions workflow running AI-powered Playwright tests, with genuine attention to secrets, cost at CI scale, and separating deterministic from AI-dependent steps." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/running-ai-powered-tests-in-ci.html" />
+</head><body>
+<p class="difficulty">Advanced</p>
+<h1>Running AI-Powered Tests in CI</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="ai-powered-playwright-in-cicd.html">AI-Powered Playwright in CI/CD overview</a></p>
+<article class="content">
+<h2>What You'll Learn</h2>
+<ul>
+  <li>A real, working GitHub Actions workflow for AI-powered Playwright tests</li>
+  <li>Handling API keys as genuine secrets, never exposed in logs</li>
+  <li>Why cost at CI scale is a real, different concern from cost during local development</li>
+</ul>
+
+<h2>Introduction</h2>
+<p>Chapter 3's <code>requireEnv</code> handled API keys locally, where a developer controls their own environment. CI introduces a genuinely different context — many runs, shared infrastructure, and logs a whole team can see.</p>
+
+<h2>Step-by-Step Implementation — A Real Workflow</h2>
+<pre><code># .github/workflows/ai-playwright-tests.yml
+name: AI-Powered Playwright Tests
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright tests
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: npx playwright test
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: test-results/</code></pre>
+
+<h2>Code Explanation</h2>
+<p><code>secrets.ANTHROPIC_API_KEY</code> is the genuinely important line — GitHub Actions' secrets mechanism means the real key value never appears in logs, even if a step accidentally tries to print it. This is the CI-scale equivalent of Chapter 3's <code>.gitignore</code> discipline for local <code>.env</code> files — the same underlying principle, a different, real mechanism for a different, real environment.</p>
+
+<h2>Why It Matters — Cost at CI Scale Is Genuinely Different</h2>
+<pre><code>LOCAL development: ONE developer, running tests OCCASIONALLY,
+  genuinely LOW AI call volume
+
+CI, at SCALE: EVERY pull request, potentially MULTIPLE times
+  as commits get PUSHED, across an ENTIRE team — the SAME
+  AI-powered TEST suite now runs FAR more often, and EVERY
+  run genuinely COSTS money, not just TIME</code></pre>
+<p>This is exactly why Chapter 18's later cost-management chapter matters — a suite that felt affordable running occasionally during local development can become a real, meaningful cost once it's running on every single pull request across a real team's actual commit velocity.</p>
+
+<h2>Common Mistakes</h2>
+<ul>
+  <li><strong>Hardcoding an API key directly in the workflow file "just to test it quickly."</strong> This exposes the real key to anyone with read access to the repository — GitHub's secrets mechanism exists specifically to prevent this.</li>
+  <li><strong>Running the full AI-powered suite on every single push without considering CI-scale cost.</strong> This page's comparison is worth taking seriously before wiring up a workflow this way — Chapter 16's later pages address smarter alternatives.</li>
+</ul>
+
+<h2>Best Practices</h2>
+<ul>
+  <li>Always use your CI provider's real secrets mechanism for API keys — never hardcode them or pass them as plain workflow inputs.</li>
+  <li>Consider CI-scale cost explicitly before wiring an AI-powered suite to run on every push — this chapter's later pages on test selection and quality gates address this directly.</li>
+</ul>
+
+<h2>Hands-On Exercise</h2>
+<p>Set up this page's workflow in a real or test repository, storing a real API key as a GitHub Actions secret. Confirm the workflow runs successfully and that the key never appears anywhere in the visible logs, even on a failed step.</p>
+
+<h2>Key Takeaways</h2>
+<ul>
+  <li>CI's secrets mechanism is the real, environment-appropriate equivalent of Chapter 3's local <code>.gitignore</code> discipline — same principle, different real mechanism.</li>
+  <li>AI call cost at CI scale is genuinely different from local development cost — the same suite running on every push, across an entire team, accumulates real, meaningful expense.</li>
+  <li>This cost reality is exactly what motivates this chapter's later pages on intelligent test selection and quality gates.</li>
+</ul>
+</article>
+</body></html>

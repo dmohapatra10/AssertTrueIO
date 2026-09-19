@@ -1,0 +1,191 @@
+<!doctype html>
+<html><head>
+<title>API Test Data: Values That Respect What the Spec Actually Declares</title>
+<meta name="description" content="Generating realistic AND spec-compliant test data systematically from declared constraints — combining Chapter 4&#x27;s realism principle with this chapter&#x27;s spec-driven precision." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/api-test-data.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>API Test Data</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="request-generation.html">Request Generation</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>The previous page generated request STRUCTURE from the schema. This page is about the actual VALUES — combining Chapter 4's realism principle with this chapter's genuinely new advantage: the spec itself often declares exactly what a valid value looks like.</p>
+
+<h2 id="spec-declared-constraints-as-a-genuine-data-source">Spec-Declared Constraints as a Genuine Data Source</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>properties:
+  customer_id:
+    type: integer
+    minimum: 1
+  quantity:
+    type: integer
+    minimum: 1
+    maximum: 10
+  discount_code:
+    type: string
+    pattern: "^[A-Z0-9]{4,12}$"
+  email:
+    type: string
+    format: email</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def generate_realistic_value(field_name, definition):
+    if definition.get("format") == "email":
+        return "test-user+shopeasy@example.com"  # realistic,
+                                                     # per Chapter 4's
+                                                     # own reserved-
+                                                     # domain guidance
+    if "minimum" in definition and "maximum" in definition:
+        # a genuinely MID-RANGE value for general testing —
+        # boundary VALUES specifically are Chapter 4's own,
+        # separate concern, covered there in depth
+        return (definition["minimum"] + definition["maximum"]) // 2
+    if definition.get("pattern"):
+        # discount_code's pattern implies uppercase alphanumeric,
+        # 4-12 characters — a genuinely REALISTIC, spec-compliant
+        # example, not a generic placeholder
+        return "SUMMER23"
+    return None</code></pre>
+
+<h2 id="why-spec-declared-constraints-are-genuinely-more-reliable-than-guessing">Why Spec-Declared Constraints Are Genuinely More Reliable Than Guessing</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Chapter 4's own realistic test data (SUMMER23, discussed there
+without any formal specification to check against) was
+JUSTIFIED by REASONING about plausible marketing conventions.
+
+THIS chapter's discount_code pattern ("^[A-Z0-9]{4,12}$")
+CONFIRMS that reasoning directly — "SUMMER23" genuinely
+matches the DECLARED pattern (8 uppercase alphanumeric
+characters), rather than being a plausible-sounding GUESS that
+happens to also be correct. When a spec declares a pattern,
+generated data can be VERIFIED against it programmatically,
+not just judged as "seems reasonable."</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why does verifying generated data against a declared pattern (like the discount code's regex) provide a genuinely stronger guarantee than Chapter 4's own "does this look realistic" reasoning? Chapter 4's realism check relies on an LLM's judgment about what a marketing team would plausibly produce — genuinely useful, but ultimately a matter of reasonable inference. A declared pattern is a formal, checkable contract — either a generated value matches the regex or it doesn't, with no ambiguity. This page's approach doesn't replace realism as a goal, but it adds a layer of objective, verifiable correctness Chapter 4's context alone couldn't provide.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Generating data that satisfies a declared pattern or range technically while ignoring genuine realism entirely — a discount code like "AAAA" technically matches <code>^[A-Z0-9]{4,12}$</code> but fails Chapter 4's own realism standard just as thoroughly as "aaaaaaaaaa" did in that chapter's own example. Spec-compliance and realism are complementary goals, not substitutes for each other.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>When a spec declares BOTH a pattern and an example value (many well-written OpenAPI specs include <code>example</code> fields), prefer the declared example directly — it's often the spec author's own deliberate choice of a genuinely realistic, representative value, combining both goals at once with no extra reasoning needed.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Generate data that satisfies declared constraints AND remains genuinely realistic — these are complementary goals, not either/or.</li>
+  <li>Prefer a spec's own declared example values when available, since they often already combine compliance and realism deliberately.</li>
+  <li>Verify generated data against declared patterns and ranges programmatically, rather than relying solely on plausibility judgment.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>A formal spec's declared constraints let generated test data be objectively verified, not just judged as reasonably plausible.</li>
+  <li>Spec-compliance alone doesn't guarantee realism — a value can technically match a pattern while still being an unrealistic placeholder.</li>
+  <li>A spec's own declared example values, when present, are often the most efficient source of data that's both compliant and realistic at once.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>For a hypothetical <code>phone_number</code> field with pattern <code>^\+1[0-9]{10}$</code> and no declared example, generate both a technically-compliant-but-unrealistic value and a genuinely realistic-and-compliant value, explaining the difference in your reasoning.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Generated test data for a discount_code field produces "AAAA" — technically matching the declared pattern. A reviewer flags this. Is the reviewer's concern valid, given the pattern is satisfied?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Genuinely valid — this page is explicit that pattern-compliance and realism are separate, complementary goals, and "AAAA" satisfies the FORMER while completely failing the LATTER, exactly the same gap Chapter 4 identified for "aaaaaaaaaa."</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What "AAAA" technically GETS RIGHT:
+Matches ^[A-Z0-9]{4,12}$ — 4 uppercase characters, within the
+  declared length range. PATTERN-compliant, genuinely.
+
+What it GENUINELY FAILS to provide:
+No resemblance to a REAL, plausible marketing discount code —
+  doesn't exercise the SAME kind of realistic testing value
+  Chapter 4's "SUMMER23" example specifically aimed for, and
+  might not exercise code paths a REAL, human-generated code
+  format would (mixed letters AND numbers, a meaningful length
+  closer to what marketing teams ACTUALLY use).</code></pre>
+<p>The reviewer is right to flag this — spec-compliance is necessary but not sufficient; this page's entire point is that BOTH goals matter together, and satisfying only the pattern while ignoring realism repeats exactly the mistake Chapter 4 already warned against.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page argue that a declared regex pattern provides a "genuinely stronger guarantee" than Chapter 4's own realism reasoning, even though both aim at similar goals?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because a regex pattern is FORMALLY, PROGRAMMATICALLY checkable — either a value matches it or it doesn't, with zero ambiguity — while Chapter 4's realism judgment is inherently a matter of LLM reasoning about plausibility, which (per that chapter's own honest discussion) can genuinely vary between runs.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Chapter 4's realism check — a matter of JUDGMENT:
+"Is 'SUMMER23' a REALISTIC marketing code?" — the LLM's answer
+  could, in principle, vary slightly between different calls,
+  or different reviewers might have genuinely different
+  intuitions about what counts as sufficiently realistic.
+
+THIS page's pattern check — a matter of VERIFICATION:
+re.match(r'^[A-Z0-9]{4,12}$', "SUMMER23") returns either a
+  match or None — a DETERMINISTIC, unambiguous, VERIFIABLE
+  fact, with no room for differing judgment about whether it
+  technically satisfies the declared constraint.</code></pre>
+<p>This isn't a claim that pattern-compliance makes realism UNNECESSARY — it's specifically that pattern-compliance is a genuinely stronger, more OBJECTIVE guarantee for the SPECIFIC dimension it covers (formal correctness), complementing rather than replacing Chapter 4's own, still-necessary realism judgment.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why this page recommends preferring a spec's own declared "example" field over independently generating a value, when both would be available.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A spec's declared example represents the AUTHOR'S OWN deliberate choice of a representative value — likely already considered for both correctness and realism by someone with genuine, direct knowledge of the system, which is more reliable than an independently generated guess.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why the SPEC AUTHOR'S example is genuinely valuable:
+Someone who WROTE the spec, with REAL knowledge of the actual
+  system's conventions, likely chose an example value
+  DELIBERATELY — "SUMMER23" appearing AS a declared example
+  in a REAL spec would represent GENUINE, first-party
+  confirmation of what a realistic value looks like, stronger
+  evidence than an LLM's independent, outside guess.
+
+Why INDEPENDENTLY GENERATING a value, when an example EXISTS,
+adds UNNECESSARY risk:
+Even a well-reasoned INDEPENDENT guess could subtly diverge
+  from actual, real conventions the spec author already knows
+  about but didn't fully capture in the FORMAL pattern alone
+  (perhaps codes conventionally START with a season name,
+  something a REGEX pattern alone wouldn't necessarily
+  communicate, but a declared EXAMPLE would demonstrate
+  directly).</code></pre>
+<p>This is a genuinely sensible "prefer the most authoritative available source" principle — a declared example is more authoritative than an independently generated value satisfying only the FORMAL constraints, since it reflects direct, first-party knowledge rather than an outside inference.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might using the exact midpoint of a declared minimum/maximum range (this page's approach for quantity) be a reasonable default, but not necessarily sufficient on its own?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A midpoint value is genuinely reasonable for GENERAL testing (per this page's own comment, distinguishing it from boundary-specific testing) — but Chapter 4's own Boundary Testing page already established that the EXACT boundary values themselves are where genuinely important, distinct bugs tend to hide.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What a MIDPOINT value is GOOD for:
+A "normal," unremarkable value for testing GENERAL correctness
+  — does the endpoint work AT ALL with a reasonable, typical
+  quantity? Genuinely useful as ONE data point among several.
+
+What a MIDPOINT value CANNOT catch, per Chapter 4's own
+argument:
+The SPECIFIC off-by-one bugs that ONLY manifest at the EXACT
+  minimum or maximum value — exactly Chapter 4's own boundary-
+  testing lesson, which THIS page's comment explicitly
+  acknowledges as "Chapter 4's own, separate concern."</code></pre>
+<p>This page's midpoint choice is a deliberate, reasonable default for GENERAL data generation — but a genuinely thorough test suite would ALSO generate boundary-specific values (the exact minimum, the exact maximum, one below/above each) using Chapter 4's own dedicated boundary-testing approach, not rely on the midpoint alone for complete coverage.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you extend this page's approach to generate data for a field with a declared enum AND a declared "default" value, deciding which one to actually use?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>These represent genuinely different testing intents — using the DEFAULT specifically tests "what happens when this field is OMITTED and the system applies its own default," while using OTHER enum values tests "does the system correctly handle being EXPLICITLY given each specific option" — worth generating BOTH kinds of test data, not just one.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def generate_enum_test_values(field_name, definition):
+    enum_values = definition.get("enum", [])
+    default_value = definition.get("default")
+    test_cases = []
+
+    if default_value:
+        test_cases.append({
+            "scenario": f"{field_name} OMITTED (tests default)",
+            "value": None,  # field genuinely absent from request
+        })
+    for value in enum_values:
+        test_cases.append({
+            "scenario": f"{field_name} explicitly set to '{value}'",
+            "value": value,
+        })
+    return test_cases</code></pre>
+<p>This distinction matters genuinely — a field's DEFAULT behavior and its EXPLICIT enum-value handling are two different code paths in most real implementations, and testing only one (say, just the default, or just one arbitrary enum value) would leave real, meaningful gaps in coverage that this more complete approach specifically closes.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

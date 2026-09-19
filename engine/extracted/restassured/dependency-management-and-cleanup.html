@@ -1,0 +1,171 @@
+<!doctype html>
+<html><head>
+<title>Dependency Management &amp; Cleanup in Chained RestAssured Tests</title>
+<meta name="description" content="How to reliably clean up resources created by a chained RestAssured test, even when the test fails partway through, and how to manage dependencies between chain steps." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/dependency-management-and-cleanup.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Dependency Management &amp; Cleanup</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="extracting-and-passing-dynamic-data.html">Extracting & Passing Dynamic Data</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>A chained test that creates resources needs a plan for removing them afterward — otherwise, every test run leaves data behind, and a shared test environment slowly fills with orphaned test data. This page is about doing that reliably, including when a test fails partway through its chain.</p>
+
+<h2 id="why-it-s-important">Why it's important</h2>
+<p>A chain that creates a resource but never cleans it up "usually" works fine — until a shared QA environment has accumulated thousands of orphaned test orders, at which point unrelated tests start failing because list endpoints return unexpectedly large result sets, or dashboards used by actual humans get cluttered with fake data. Cleanup discipline is what keeps a shared environment usable over time.</p>
+
+<h2 id="basic-example-cleanup-via-aftereach">Basic Example — Cleanup via @AfterEach</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>public class OrderChainTest {
+    private String orderId;
+
+    @Test
+    void fullOrderLifecycle() {
+        Response created = given().body(newOrder).when().post("/orders");
+        orderId = created.jsonPath().getString("id"); // stored for cleanup
+        // ...rest of the chain...
+    }
+
+    @AfterEach
+    void cleanup() {
+        if (orderId != null) {
+            given().pathParam("id", orderId).when().delete("/orders/{id}").then()
+                .statusCode(anyOf(is(204), is(404))); // tolerate already-deleted
+        }
+    }
+}</code></pre>
+<p>Storing the created resource's ID in an instance field (not a local variable) is what makes it accessible to <code>@AfterEach</code>, which runs regardless of whether the test method itself succeeded or threw an exception partway through — this is exactly why cleanup belongs in a hook, not just as the final line of the test body.</p>
+
+<h2 id="why-cleanup-must-survive-a-failing-test">Why Cleanup Must Survive a Failing Test</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void chainThatFailsPartway() {
+    Response created = given().body(newOrder).when().post("/orders");
+    orderId = created.jsonPath().getString("id"); // resource now exists
+
+    given().pathParam("id", orderId).body(badUpdate).when().patch("/orders/{id}")
+        .then().statusCode(200); // this assertion FAILS — test stops here
+
+    // Everything after this line never runs — but the order still exists!
+}</code></pre>
+<p>If cleanup were only the last line of the test body, this failure would skip it entirely, leaving the created order behind. Because <code>@AfterEach</code> runs independent of whether the test method completed successfully, the resource still gets cleaned up even when the chain fails midway — this is the single most important reason cleanup belongs in a hook rather than inline at the end of the test.</p>
+
+<h2 id="detailed-example-cleaning-up-multiple-resources-created-mid-chain">Detailed Example — Cleaning Up Multiple Resources Created Mid-Chain</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>public class MultiResourceChainTest {
+    private final List&lt;String&gt; createdOrderIds = new ArrayList&lt;&gt;();
+
+    @Test
+    void createsThreeRelatedOrders() {
+        for (int i = 0; i &lt; 3; i++) {
+            Response created = given().body(orderVariant(i)).when().post("/orders");
+            createdOrderIds.add(created.jsonPath().getString("id"));
+        }
+        // ...chain continues, using all three IDs...
+    }
+
+    @AfterEach
+    void cleanupAll() {
+        for (String id : createdOrderIds) {
+            given().pathParam("id", id).when().delete("/orders/{id}")
+                .then().statusCode(anyOf(is(204), is(404)));
+        }
+    }
+}</code></pre>
+<p>A list, rather than a single field, accommodates a chain that creates an unpredictable or variable number of resources — this is the cleanup-fixture pattern (tracking resources as they're created, cleaning up everything tracked) that mirrors the same technique covered for Playwright fixtures, applied here to a chained RestAssured test.</p>
+
+<h2 id="managing-dependencies-between-chain-steps">Managing Dependencies Between Chain Steps</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void dependentStepsFailFastOnMissingPrerequisite() {
+    String orderId = given().body(newOrder).when().post("/orders")
+        .then().statusCode(201).extract().path("id");
+    assertThat("Order creation must succeed before continuing the chain",
+        orderId, is(notNullValue()));
+
+    // Every subsequent step can now trust orderId is valid —
+    // the explicit assertion above already caught a bad extraction
+    given().pathParam("id", orderId).when().get("/orders/{id}").then().statusCode(200);
+}</code></pre>
+<p>This is the same principle from the Full CRUD Chain page, worth restating specifically as a dependency-management concern: each step in a chain implicitly depends on every prior step having succeeded correctly. Explicit assertions on extracted values at each dependency boundary — not just at the very end — are what keep a long chain's failures traceable to their actual source.</p>
+
+<h2 id="real-world-example-cleanup-order-matters-for-dependent-resources">Real-World Example — Cleanup Order Matters for Dependent Resources</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@AfterEach
+void cleanupInDependencyOrder() {
+    // Line items must be deleted BEFORE the order itself,
+    // if the API enforces referential integrity
+    for (String lineItemId : createdLineItemIds) {
+        given().pathParam("id", lineItemId).when().delete("/line-items/{id}");
+    }
+    if (orderId != null) {
+        given().pathParam("id", orderId).when().delete("/orders/{id}");
+    }
+}</code></pre>
+<p>When a chain creates resources with a dependency relationship (line items belonging to an order), cleanup sometimes needs to happen in a specific order too — deleting a parent resource before its children can fail if the API enforces referential integrity, so cleanup logic may need to mirror the creation order in reverse.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Cleanup as the last line of the test body — skipped entirely if
+// an earlier assertion in the chain fails
+@Test
+void chain() {
+    String id = createResource();
+    // ...steps that might fail...
+    deleteResource(id); // never reached if anything above throws
+}
+
+// ✅ Cleanup in @AfterEach — runs regardless of where the test stopped
+private String id;
+@Test void chain() { id = createResource(); /* ...steps... */ }
+@AfterEach void cleanup() { if (id != null) deleteResource(id); }</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Placing cleanup as the last line of the test body</strong> instead of in an <code>@AfterEach</code> — silently skipped whenever an earlier step fails, which is exactly when cleanup is still needed.</li>
+  <li><strong>Not tolerating "already deleted"</strong> in cleanup logic — if the test's own chain already deleted the resource as its final step, cleanup trying to delete it again can throw unless it's written defensively (the same idempotent-cleanup pattern from Chapter 3's DELETE page).</li>
+  <li><strong>Ignoring dependency order when cleaning up related resources</strong> — deleting a parent before its children can fail against an API enforcing referential integrity.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>A chain that creates resources conditionally</strong> (only under certain branches) — a list-based tracking pattern (shown above) handles this more robustly than a single nullable field, since it naturally accommodates zero, one, or many created resources.</li>
+  <li><strong>Cleanup that itself might fail</strong> — wrap cleanup calls defensively (a try/catch, or tolerant status code assertions) so one cleanup failure doesn't prevent cleanup of other tracked resources in the same <code>@AfterEach</code>.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a shared test environment has accumulated unexpected orphaned data, check for tests whose cleanup is placed inline at the end of the test body rather than in a hook — this is the most common structural cause of orphaned data specifically correlating with test failures, since cleanup only runs on the success path.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Always place cleanup in <code>@AfterEach</code> (or the equivalent teardown hook), never as the last line of the test body.</li>
+  <li>Track every resource a chain creates, not just the final/main one, using a list if the count is variable.</li>
+  <li>Make cleanup tolerant of "already deleted" and defensive against its own potential failures.</li>
+  <li>Respect dependency order when cleaning up resources with parent/child relationships.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Write a test that creates two related resources (a parent and a child) as part of its chain, deliberately fails partway through with a wrong assertion, and confirm via an <code>@AfterEach</code> hook that both resources still get cleaned up despite the test failure — verifying via a follow-up GET that neither resource remains afterward.</p>
+
+<h2 id="summary">Summary</h2>
+<p>Reliable cleanup in a chained test means placing teardown logic in <code>@AfterEach</code> (so it survives a failing chain), tracking every resource created — not just the primary one — and making cleanup itself tolerant of partial completion and already-deleted resources. Getting this right is what keeps a shared test environment usable over the long run, rather than slowly accumulating orphaned test data.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why is placing cleanup logic in an @AfterEach hook more reliable than placing it as the final line of a chained test's body?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">If any assertion earlier in the chain fails, the test method throws and execution stops immediately — any code after that point, including cleanup placed as the test's final line, never runs. <code>@AfterEach</code> is specifically designed to run regardless of whether the test method completed successfully or failed partway through, which means a resource created early in a chain still gets cleaned up even if a later step in that same chain fails — exactly the scenario where cleanup is most needed and most likely to be skipped if placed incorrectly.</div>
+</details>
+<details class="faq-item">
+<summary>Why must cleanup logic live in @AfterEach rather than the last line of a test's body?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">If an earlier assertion in the chain fails, the test method throws and execution stops immediately — any code after that point, including cleanup at the end, never runs; @AfterEach runs regardless of how the test method concluded.</div>
+</details>
+<details class="faq-item">
+<summary>Why track multiple created resources in a List rather than a single field?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A chain that creates a variable or unpredictable number of resources needs a structure that naturally accommodates zero, one, or many — a single nullable field doesn't scale to that.</div>
+</details>
+<details class="faq-item">
+<summary>Why does cleanup order sometimes matter for related resources?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Deleting a parent before its children can fail against an API enforcing referential integrity — cleanup may need to mirror the creation order in reverse when resources have a genuine dependency relationship.</div>
+</details>
+<details class="faq-item">
+<summary>Why should cleanup calls be wrapped defensively, tolerating an already-deleted resource?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">If the test's own logic already deleted something as part of what it was testing, a second delete attempt in cleanup should be a safe no-op, not an unhandled failure that masks the actual test result.</div>
+</details>
+</div>
+</article>
+</body></html>

@@ -1,0 +1,57 @@
+<!doctype html>
+<html><head>
+<title>Virtual Users, Scenarios &amp; Workload Modeling in k6</title>
+<meta name="description" content="The deepest chapter in this course — VUs and iterations, ramping and stages, all four k6 executors, scenarios, and how to translate a real business requirement into a meaningful workload." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/virtual-users-scenarios-workload-modeling.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Virtual Users, Scenarios &amp; Workload Modeling</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="k6-scripting-fundamentals.html">k6 Scripting Fundamentals</a></p>
+<article class="content">
+<h2 id="controlling-load-deliberately">Controlling Load Deliberately</h2>
+<p>Everything so far has run a script with default, minimal settings — one virtual user, one iteration. This is about controlling load deliberately: how many virtual users, for how long, ramping up gradually or arriving at a fixed rate, and how to actually decide those numbers from a real requirement rather than guessing. Five focused pages:</p>
+<ol>
+  <li><a href="virtual-users-and-iterations.html">Virtual Users & Iterations</a> — the basic units of load: <code>vus</code>, <code>duration</code>, <code>iterations</code></li>
+  <li><a href="ramping-and-stages.html">Ramping & Stages</a> — gradually increasing or decreasing load instead of a flat, constant level</li>
+  <li><a href="k6-executors-explained.html">k6 Executors Explained</a> — the four executor types, and when each one is actually the right choice</li>
+  <li><a href="scenarios-multiple-workloads.html">Scenarios: Multiple Workloads in One Test</a> — running genuinely different load patterns simultaneously</li>
+  <li><a href="translating-requirements-into-workloads.html">Translating a Business Requirement into a Workload</a> — the real skill everything here builds toward</li>
+</ol>
+
+<h2 id="why-this-is-the-deepest-material-in-this-course">Why This Is the Deepest Material in This Course</h2>
+<p>The actual k6 configuration syntax for load (a few keys in an <code>options</code> object) is genuinely small. What takes real skill — and what most of what follows is actually about — is <em>workload modeling</em>: correctly deciding what those numbers should be, based on real traffic patterns and real business requirements, rather than picking values that happen to look reasonable. Two engineers can write syntactically identical k6 configuration and produce tests that mean completely different things, because the numbers behind that syntax were reasoned about completely differently.</p>
+
+<h2 id="a-quick-preview-the-same-test-configured-three-different-ways">A Quick Preview — The Same Test, Configured Three Different Ways</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// A flat, constant number of VUs for a fixed duration
+export const options = { vus: 50, duration: '5m' };
+
+// Gradually ramping up, holding, then ramping down
+export const options = {
+  stages: [
+    { duration: '2m', target: 100 },
+    { duration: '5m', target: 100 },
+    { duration: '2m', target: 0 },
+  ],
+};
+
+// A fixed rate of new iterations per second, independent of how many VUs that requires
+export const options = {
+  executor: 'constant-arrival-rate',
+  rate: 50,
+  timeUnit: '1s',
+  duration: '5m',
+  preAllocatedVUs: 100,
+};</code></pre>
+<p>These three configurations produce genuinely different load patterns — and choosing correctly between them, for a specific real scenario, is exactly what this chapter teaches, not just the syntax to write any one of them.</p>
+
+<h2 id="common-mistakes-to-watch-for">Common Mistakes to Watch For</h2>
+<ul>
+  <li><strong>Picking a VU count that "sounds like a lot"</strong> without connecting it to any real traffic data or business requirement.</li>
+  <li><strong>Confusing virtual users with requests per second</strong> — these are related but genuinely different things, covered precisely in this chapter.</li>
+  <li><strong>Defaulting to a flat, constant load</strong> when the real traffic pattern being modeled is actually a gradual ramp, a sudden spike, or something else entirely.</li>
+</ul>
+
+<h2 id="what-you-ll-be-able-to-do">What You'll Be Able to Do</h2>
+<p>By the end of the five pages that follow, you should be able to configure any of k6's core load patterns correctly, choose the right executor for a given testing goal, combine multiple workloads in a single test when a scenario genuinely calls for it, and — most importantly — take a real business requirement and derive a workload configuration from it deliberately, rather than guessing at numbers that merely look plausible. Start with Virtual Users & Iterations below.</p>
+</article>
+</body></html>

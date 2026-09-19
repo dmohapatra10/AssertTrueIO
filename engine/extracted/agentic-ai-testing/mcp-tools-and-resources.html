@@ -1,0 +1,177 @@
+<!doctype html>
+<html><head>
+<title>MCP Tools and Resources: Two Genuinely Different Kinds of Capability</title>
+<meta name="description" content="Tools (actions the client can invoke) versus resources (data the client can read) — a real distinction with real consequences for how a server should be designed." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/mcp-tools-and-resources.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>MCP Tools and Resources</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="mcp-client-and-server.html">MCP Client and Server</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>An MCP server can expose two genuinely different kinds of capability — tools, which the client invokes to DO something, and resources, which the client reads to GET something. Conflating these leads to a genuinely worse server design.</p>
+
+<h2 id="tools-actions-with-real-effects-or-computation">Tools — Actions With Real Effects or Computation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@mcp.tool()
+def run_smoke_test(environment: str) -> dict:
+    """Runs the ShopEasy smoke test suite against the given
+    environment ('staging' or 'production') and returns pass/fail
+    counts. This ACTUALLY EXECUTES tests — has real side effects
+    and takes real time."""
+    # ... actually runs pytest, or similar ...
+    return {"passed": 42, "failed": 1}</code></pre>
+
+<h2 id="resources-data-the-client-can-read">Resources — Data the Client Can Read</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@mcp.resource("shopeasy://policies/return-policy")
+def get_return_policy() -> str:
+    """The current, authoritative ShopEasy return policy text."""
+    with open("policies/return_policy.md") as f:
+        return f.read()</code></pre>
+<p>Notice the genuine difference: <code>run_smoke_test</code> DOES something (executes real tests, takes real time, has real effects); <code>get_return_policy</code> just RETURNS existing data — closer to a read-only lookup than an action.</p>
+
+<h2 id="why-the-distinction-is-genuinely-consequential">Why the Distinction Is Genuinely Consequential</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A CLIENT reasoning about WHEN to call each of these should
+GENUINELY treat them differently:
+
+Calling get_return_policy MULTIPLE times is CHEAP and SAFE —
+it's just a READ, with NO side effects, NO real cost beyond
+the LOOKUP itself.
+
+Calling run_smoke_test MULTIPLE times is GENUINELY expensive
+and potentially DISRUPTIVE — it ACTUALLY EXECUTES tests
+against a REAL environment EACH time, exactly the kind of
+"real side effect" Chapter 2's TOOLS discussion warned needs
+GENUINE consideration before REPEATED, casual use.</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might exposing something that's genuinely just data — like the return policy — as a TOOL instead of a RESOURCE lead to worse client behavior, even though a tool CAN technically just return static text? If a client's reasoning treats every tool call as potentially having real cost or side effects (a genuinely reasonable default, given Chapter 2's own warnings), it might unnecessarily hesitate to call <code>get_return_policy</code> repeatedly, or batch its calls awkwardly to minimize invocations — genuinely unnecessary caution for something that's actually a cheap, safe, read-only lookup. The resource/tool distinction lets a client reason correctly about cost and safety without needing to inspect each capability's actual implementation.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Exposing every capability as a tool, regardless of whether it performs a genuine action or simply returns existing data. This collapses a real, useful distinction that helps a client reason correctly about cost, safety, and repeatability.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>A genuinely useful test for whether something belongs as a tool or a resource: "if I called this ten times in a row with the same input, would anything bad happen, or would I just get the same data back ten times?" The latter is a resource; the former is very likely a tool.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Expose genuine actions — anything with real side effects, real cost, or real execution time — as tools.</li>
+  <li>Expose genuine, static or lookup-style data as resources, not tools, so clients can reason correctly about repeatability and cost.</li>
+  <li>Use the "ten times in a row" test to decide which category a new capability genuinely belongs in.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Tools represent genuine actions with real effects or cost; resources represent genuine, readable data with no meaningful side effects.</li>
+  <li>This distinction lets a client reason correctly about repeatability and cost without needing to inspect each capability's actual implementation.</li>
+  <li>Exposing data as a tool when it should be a resource can lead to unnecessarily cautious or awkward client behavior.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>For ShopEasy's QA MCP server, list three genuine capabilities beyond this page's examples — deciding for each whether it belongs as a tool or a resource, and briefly explaining your reasoning using this page's "ten times in a row" test.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A teammate exposes ShopEasy's product catalog as a TOOL called get_product_catalog(), rather than a resource. Using this page's reasoning, what real downside might this create?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A client's reasoning might treat repeated catalog lookups with the same caution Chapter 2 recommends for genuine tool actions — unnecessarily hesitating to call it multiple times, or trying to minimize calls, when the catalog is genuinely just static data safe to read as often as needed.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What EXPOSING the catalog as a TOOL might CAUSE:
+A client REASONING about efficiency might THINK "I shouldn't
+  call THIS tool REPEATEDLY, since tool calls MIGHT have real
+  cost or SIDE EFFECTS" — even though get_product_catalog is
+  ACTUALLY just a SAFE, cheap, READ-ONLY lookup with NO
+  genuine downside to CALLING it AS OFTEN as needed.
+
+What EXPOSING it as a RESOURCE would communicate INSTEAD:
+The RESOURCE category ITSELF signals "this is DATA, safe to
+  READ freely" — letting the CLIENT'S reasoning CORRECTLY
+  treat it as CHEAP and REPEATABLE, WITHOUT needing to
+  INSPECT the underlying IMPLEMENTATION to figure THIS out.</code></pre>
+<p>This is exactly this page's own core argument made concrete — the CATEGORY itself (tool vs. resource) carries GENUINE, useful information for a CLIENT'S reasoning, and MISCATEGORIZING something UNDERMINES that signal, even when the UNDERLYING implementation happens to be HARMLESS either way.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page argue run_smoke_test genuinely belongs as a tool, using the "ten times in a row" test specifically?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Applying the test directly: calling <code>run_smoke_test</code> ten times in a row would ACTUALLY EXECUTE the full test suite ten SEPARATE times — real, repeated cost and real, repeated time, clearly failing the "just get the same data back" bar the test uses to identify resources.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Applying THIS page's OWN test DIRECTLY:
+"If I called run_smoke_test TEN times in a row... would
+  anything BAD happen?" — YES: ten SEPARATE, REAL test-suite
+  EXECUTIONS, each taking REAL time and consuming REAL
+  resources against a REAL environment. This is CLEARLY an
+  ACTION with GENUINE cost, not a SAFE, repeatable LOOKUP.
+
+Contrasting with get_return_policy, PASSING the SAME test:
+Calling IT ten times would JUST return the SAME text content
+  ten times — NO real cost beyond the TRIVIAL lookup itself,
+  CLEANLY fitting the RESOURCE category instead.</code></pre>
+<p>This is a genuinely useful, PRACTICAL way to APPLY the tool-vs-resource DISTINCTION to a NEW, UNFAMILIAR capability — rather than reasoning ABSTRACTLY about "is this an action," the CONCRETE "ten times in a row" test gives a QUICK, RELIABLE way to CHECK which category something GENUINELY belongs in.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why this distinction connects back to Chapter 2's original warning about tools having real side effects, rather than being a new, unrelated MCP-specific concept.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Chapter 2's Tools page already established that a tool with REAL side effects deserves GENUINE, careful consideration before EACH call — this page's tool-vs-resource distinction is DIRECTLY building on that SAME principle, formalizing it into TWO distinct MCP CATEGORIES rather than a SINGLE, UNDIFFERENTIATED "tool" concept.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Chapter 2's ORIGINAL warning:
+Tools with GENUINE side effects (sending an EMAIL, modifying
+  REAL data) deserve MORE careful consideration BEFORE calling
+  than tools that are SAFE, READ-ONLY lookups — a REAL,
+  IMPORTANT distinction Chapter 2 ALREADY established
+  CONCEPTUALLY, even WITHOUT MCP's OWN specific vocabulary.
+
+How THIS page FORMALIZES that SAME distinction:
+MCP's "tool" VERSUS "resource" categories GIVE this SAME
+  underlying DISTINCTION an ACTUAL, PROTOCOL-level EXPRESSION
+  — rather than EVERY capability being a UNDIFFERENTIATED
+  "tool" that a CLIENT must REASON about INDIVIDUALLY, the
+  PROTOCOL ITSELF now COMMUNICATES which CATEGORY (safe READ
+  vs. GENUINE action) each CAPABILITY belongs to.</code></pre>
+<p>This is EXACTLY why this page frames the DISTINCTION as a DIRECT continuation of Chapter 2, not a NEW, UNRELATED concept — MCP is GIVING FORMAL, PROTOCOL-level STRUCTURE to a DISTINCTION this course ALREADY established was GENUINELY, PRACTICALLY important.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might a capability that SEEMS like a simple lookup — like "get current inventory count for a product" — actually belong as a TOOL rather than a resource, despite superficially resembling get_return_policy?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Applying the "ten times in a row" test carefully reveals a genuine difference — if checking inventory involves a REAL, possibly EXPENSIVE query against a LIVE, FREQUENTLY-CHANGING system (unlike the STATIC return-policy text), repeated calls might carry GENUINE, real cost or even risk of INCONSISTENT results across calls, unlike a TRULY static resource.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why get_return_policy CLEANLY fits "resource":
+The POLICY text is GENUINELY static — it CHANGES rarely, and
+  READING it repeatedly has ESSENTIALLY zero MARGINAL cost or
+  RISK of inconsistency between CALLS.
+
+Why "current inventory count" might be LESS clearly a
+resource:
+INVENTORY data CHANGES FREQUENTLY and in REAL TIME — REPEATED
+  calls might hit a LIVE, POSSIBLY rate-limited OR expensive
+  database QUERY EACH time, and the VALUE itself might
+  GENUINELY DIFFER between TWO calls made MOMENTS apart (unlike
+  the return POLICY, which is ESSENTIALLY guaranteed to be
+  IDENTICAL across REPEATED reads).</code></pre>
+<p>This is a genuinely useful, NUANCED extension of this page's OWN test — "would anything BAD happen" needs to CONSIDER not JUST obvious SIDE EFFECTS, but ALSO genuine COST and CONSISTENCY concerns; a capability that's technically READ-ONLY can STILL be BETTER modeled as a TOOL if it involves GENUINE, real-time computation OR carries a MEANINGFUL cost per CALL, rather than being a TRULY static, CHEAP lookup.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you design the ShopEasy QA server to expose BOTH a resource AND a tool for the SAME underlying data — the current smoke-test suite's PASS RATE — serving two genuinely different client needs?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A genuinely useful design exposes the LAST KNOWN pass rate as a cheap, resource-style read, while keeping the ACT of running a FRESH smoke test as its own separate, tool-style action — letting a client choose based on whether it needs FRESH data or is fine with the MOST RECENT known result.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@mcp.resource("shopeasy://qa/last-smoke-test-result")
+def get_last_smoke_test_result() -> dict:
+    """The MOST RECENT smoke test result on record (may be
+    STALE — does NOT run a NEW test). Cheap, safe to READ
+    repeatedly."""
+    with open("last_smoke_test_result.json") as f:
+        return json.load(f)
+
+@mcp.tool()
+def run_smoke_test(environment: str) -> dict:
+    """ACTUALLY EXECUTES the smoke test suite AGAINST the given
+    environment and returns FRESH results. Has REAL cost and
+    takes REAL time — use get_last_smoke_test_result INSTEAD
+    if a POSSIBLY-stale, but FREE, result is SUFFICIENT."""
+    # ... runs tests, ALSO updates last_smoke_test_result.json ...
+    return {"passed": 42, "failed": 1}</code></pre>
+<p>This directly applies this page's own distinction to serve TWO genuinely different, REAL client needs — a client that JUST wants a QUICK STATUS check can use the CHEAP resource; a client that SPECIFICALLY needs FRESH, CURRENT results can PAY the REAL cost of the TOOL — exactly the kind of THOUGHTFUL, NUANCED server design this page's underlying distinction is meant to ENABLE.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

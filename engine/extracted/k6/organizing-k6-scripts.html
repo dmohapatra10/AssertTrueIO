@@ -1,0 +1,167 @@
+<!doctype html>
+<html><head>
+<title>Organizing k6 Scripts: Variables, Reusable Functions &amp; Script Structure</title>
+<meta name="description" content="How to structure a growing k6 script — variables, reusable functions, and the progression from a single hardcoded request to a shared, maintainable API layer." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/organizing-k6-scripts.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Organizing k6 Scripts</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="check-sleep-and-group.html">check(), sleep(), and group()</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>A script that works for one request quickly becomes unwieldy once a test suite needs to make the same kind of request in ten different places. This page covers the natural progression from a single hardcoded script to genuinely reusable, maintainable code — mirroring the same discipline covered for RestAssured's utility methods, adapted to k6's specific execution model.</p>
+
+<h2 id="variables-the-basics">Variables — The Basics</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const BASE_URL = 'https://test-api.example.com';
+const token = 'test-token-123';
+
+export default function () {
+  http.get(`${BASE_URL}/products`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}</code></pre>
+<p>Even a simple constant like <code>BASE_URL</code> pays off immediately — if the target environment ever changes, there's one place to update instead of hunting through every request in the file.</p>
+
+<h2 id="functions-extracting-repeated-logic">Functions — Extracting Repeated Logic</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>function getProduct(id) {
+  return http.get(`${BASE_URL}/products/${id}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export default function () {
+  const response = getProduct(500);
+  check(response, { 'status is 200': (r) => r.status === 200 });
+}</code></pre>
+<p>Once the same request shape appears more than once — same headers, same base structure, just a different ID — extracting it into a plain function removes the duplication and gives the request a meaningful name, exactly the same instinct behind extracting a utility method once duplication appears in any other testing framework.</p>
+
+<h2 id="simple-script-realistic-api-test-reusable-api-functions">Simple Script → Realistic API Test → Reusable API Functions</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Stage 1: Simple Script — one hardcoded request, no structure
+export default function () {
+  http.get('https://test-api.example.com/products/500');
+}
+
+// Stage 2: Realistic API Test — headers, checks, sleep
+export default function () {
+  const response = http.get('https://test-api.example.com/products/500', {
+    headers: { Authorization: 'Bearer test-token-123' },
+  });
+  check(response, { 'status is 200': (r) => r.status === 200 });
+  sleep(1);
+}
+
+// Stage 3: Reusable API Functions — extracted, parameterized, shared
+function getProduct(id, token) {
+  return http.get(`https://test-api.example.com/products/${id}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export default function () {
+  const response = getProduct(500, 'test-token-123');
+  check(response, { 'status is 200': (r) => r.status === 200 });
+  sleep(1);
+}</code></pre>
+<p>This is the exact progression this whole chapter has been building toward — each stage adds something real: structure and verification (stage 2), then genuine reusability (stage 3). A test suite with many scenarios benefits enormously from stopping at stage 3 for anything used more than once, rather than staying at stage 2 and repeating the same request logic everywhere it's needed.</p>
+
+<h2 id="detailed-example-a-small-shared-api-module">Detailed Example — A Small Shared API Module</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// api.js — a shared module other test files can import from
+import http from 'k6/http';
+
+const BASE_URL = 'https://test-api.example.com';
+
+export function getProduct(id, token) {
+  return http.get(`${BASE_URL}/products/${id}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export function createOrder(payload, token) {
+  return http.post(`${BASE_URL}/orders`, JSON.stringify(payload), {
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// checkout-test.js — imports and uses the shared functions
+import { getProduct, createOrder } from './api.js';
+import { check, sleep } from 'k6';
+
+export default function () {
+  const product = getProduct(500, 'test-token-123');
+  check(product, { 'product loaded': (r) => r.status === 200 });
+
+  const order = createOrder({ productId: 500, quantity: 1 }, 'test-token-123');
+  check(order, { 'order created': (r) => r.status === 201 });
+
+  sleep(1);
+}</code></pre>
+<p>This is genuinely the same shape Chapter 11 (Framework Architecture) builds into a full production structure — a shared module of API functions, imported by whichever test scenario actually needs them, with the request-building logic living in exactly one place.</p>
+
+<h2 id="real-world-example-why-this-matters-once-a-suite-grows">Real-World Example — Why This Matters Once a Suite Grows</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Without shared functions: the base URL changes → update it in 15 different test files
+With shared functions:    the base URL changes → update ONE constant in api.js</code></pre>
+<p>This is the concrete, measurable payoff — a change that should be trivial (a new base URL, a new required header) stays trivial specifically because the request-building logic isn't duplicated across every test file that happens to need it.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ The same request logic duplicated across many test files
+// test1.js, test2.js, test3.js each independently construct the same request
+
+// ✅ One shared function, imported everywhere it's needed
+import { getProduct } from './api.js';</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Copy-pasting the same request logic across multiple test files</strong> instead of extracting it into a shared, importable function once it's used more than once.</li>
+  <li><strong>Hardcoding values (base URL, tokens) directly inside functions</strong> rather than passing them as parameters or reading from configuration — makes the function less reusable across different environments or test scenarios.</li>
+  <li><strong>Over-engineering a tiny, one-off script</strong> with unnecessary shared modules before any real duplication actually exists — premature structure adds complexity without yet paying for itself.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Shared functions needing per-environment configuration</strong> (different base URLs for staging vs. production) — this is exactly what Chapter 11's configuration layer formalizes; a simple constant works for a small script, but doesn't scale cleanly to multiple environments on its own.</li>
+  <li><strong>A function that needs to behave slightly differently across different test scenarios</strong> — worth considering whether it genuinely needs a parameter to handle the variation, or whether it's actually two distinct functions that happen to look similar.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a change to shared request logic (like a new required header) requires editing many files instead of one, that's a sign the code was duplicated rather than shared — worth extracting into one importable function or module before the next required change makes the problem worse.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Extract request logic into a named function once it's used more than once, not before.</li>
+  <li>Parameterize shared functions (token, ID, payload) rather than hardcoding values that vary between calls.</li>
+  <li>Organize shared functions into their own importable module once a test suite has more than a couple of files that need them.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Take three separate, hypothetical test scripts that each independently construct a GET request to the same products endpoint with the same headers, and refactor them to import a single shared <code>getProduct()</code> function from a common module instead.</p>
+
+<h2 id="summary">Summary</h2>
+<p>A k6 script naturally grows from a single hardcoded request, to a realistic verified-and-paced test, to genuinely reusable functions shared across a whole test suite — and stopping at the second stage when a request pattern is actually used repeatedly means duplicating logic that a shared function would consolidate into one place. This progression is exactly what Chapter 11 (Framework Architecture) later formalizes into a complete, production-style project structure.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>At what point does extracting a request into a reusable function actually become worth doing?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Once the same request pattern is used more than once — a single throwaway script making one request doesn't need the extra structure a function provides. The value shows up specifically when duplication would otherwise occur: the same headers, the same base request shape, repeated across multiple test scenarios or files.</div>
+</details>
+<details class="faq-item">
+<summary>Why should a shared API function accept parameters like a token rather than hardcoding it internally?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A hardcoded token ties the function to one specific identity or environment, making it far less reusable — a test needing a different user's token, or running against a different environment, can't use the function as-is. Accepting it as a parameter lets the same function serve any caller's specific needs, which is the whole point of extracting reusable code in the first place.</div>
+</details>
+<details class="faq-item">
+<summary>What's the concrete, measurable benefit of moving shared request logic into its own importable module?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A change that should be trivial — like a new base URL or an additional required header — stays genuinely trivial, requiring an update in exactly one place, rather than needing to be repeated across every test file that independently duplicated the same request-building logic. This is the same payoff utility methods and shared specifications provide in any other testing framework, just applied to k6's specific execution model.</div>
+</details>
+<details class="faq-item">
+<summary>Why might extracting shared functions too early, for a very small script, actually be a mistake?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">For a genuinely small, one-off script with no real duplication yet, introducing shared modules and parameterized functions adds structure and indirection that doesn't yet pay for itself — the overhead of navigating between files and understanding an abstraction exceeds the benefit when there's nothing actually being reused. Let genuine, repeated duplication be the signal to extract shared code, not a rule applied preemptively regardless of actual need.</div>
+</details>
+<details class="faq-item">
+<summary>How does the "Simple Script → Realistic API Test → Reusable API Functions" progression relate to what Chapter 11 covers?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">This progression is the small-scale version of exactly what Chapter 11 (Framework Architecture) formalizes at full project scale — shared, reusable request-building functions organized into their own modules, imported by whichever test scenarios need them, rather than duplicated inline everywhere. The instinct is identical; Chapter 11 just applies it systematically across an entire production-style project structure instead of a single script.</div>
+</details>
+</div>
+</article>
+</body></html>

@@ -2,11 +2,15 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <script>try{if(localStorage.getItem('assertTrueTheme')==='dark'){document.documentElement.setAttribute('data-theme','dark');}}catch(e){}</script>
+  <script>try{var t=localStorage.getItem('assertTrueColorTheme');if(t&&t!=='forest'){document.documentElement.setAttribute('data-color-theme',t);}}catch(e){}</script>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>GitHub Actions CI/CD Tutorial — AssertTrueIO</title>
-  <meta name="description" content="Learn GitHub Actions from absolute beginner to production-ready CI/CD — workflows, jobs, secrets, matrix builds, reusable workflows, and a complete real-world pipeline." />
-  <link rel="stylesheet" href="../css/style.css?v=85" />
+  <title>GitHub Actions Tutorial — AssertTrueIO</title>
+  <meta name="description" content="Learn CI/CD with GitHub Actions — automate tests, build workflows, integrate with real projects." />
+  <link rel="canonical" href="https://asserttrue.io/github-actions/index.html" />
+  <link rel="stylesheet" href="../css/style.css?v=93" />
+  <link rel="manifest" href="../manifest.json" />
+  <meta name="theme-color" content="#0e6b52" />
+  <link rel="icon" href="../icons/icon-192.png" />
 </head>
 <body class="theme-gh">
   <header class="topnav">
@@ -27,15 +31,22 @@
         <input type="text" class="search-box" id="doc-search-input" placeholder="Search tutorials..." autocomplete="off" aria-label="Search tutorials" aria-expanded="false" />
         <div class="hp-search-results" id="doc-search-results" hidden></div>
       </div>
-      <button class="icon-btn theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Toggle dark mode"><svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
+      <div class="theme-picker">
+        <button class="icon-btn theme-picker-btn" onclick="toggleThemePicker()" aria-label="Choose color theme" aria-haspopup="true" aria-expanded="false" id="theme-picker-btn">
+          <span style="background:#0e6b52"></span><span style="background:#3e4c8a"></span><span style="background:#723a5e"></span><span style="background:#a85d3b"></span>
+        </button>
+        <div class="theme-picker-popover" id="theme-picker-popover">
+          <button type="button" class="theme-picker-option" data-theme="forest" onclick="setColorTheme('forest')"><span class="theme-picker-swatch" style="background:#0e6b52"></span>Forest<svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;"><polyline points="20 6 9 17 4 12"/></svg></button>
+          <button type="button" class="theme-picker-option" data-theme="ocean" onclick="setColorTheme('ocean')"><span class="theme-picker-swatch" style="background:#3e4c8a"></span>Ocean<svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;"><polyline points="20 6 9 17 4 12"/></svg></button>
+          <button type="button" class="theme-picker-option" data-theme="violet" onclick="setColorTheme('violet')"><span class="theme-picker-swatch" style="background:#723a5e"></span>Violet<svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;"><polyline points="20 6 9 17 4 12"/></svg></button>
+          <button type="button" class="theme-picker-option" data-theme="sunset" onclick="setColorTheme('sunset')"><span class="theme-picker-swatch" style="background:#a85d3b"></span>Sunset<svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;"><polyline points="20 6 9 17 4 12"/></svg></button>
+        </div>
+      </div>
     </div>
   </header>
-
   <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeSidebar()"></div>
-
   <div class="app-shell">
     <nav class="doc-sidebar" id="doc-sidebar">
-<div class="sidebar-mobile-header"><span>Menu</span><button class="sidebar-close-btn" onclick="closeSidebar()">&times;</button></div>
 <a href="index.html" class="sidebar-overview-link active"><svg class="icon" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg><span>Roadmap</span></a>
 <details class="sidebar-group-toggle" open>
 <summary><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>01 CI/CD & GitHub Actions Fundamentals</span><span class="chev">&#9662;</span></summary>
@@ -49,7 +60,7 @@
 </div>
 </div></details>
 <details class="sidebar-group-toggle" open>
-<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="8 6 2 12 8 18"/><polyline points="16 6 22 12 16 18"/></svg><span>02 Yaml Fundamentals</span><span class="chev">&#9662;</span></summary>
+<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>02 YAML Fundamentals for GitHub Actions</span><span class="chev">&#9662;</span></summary>
 <div class="sidebar-group-body">
 <a href="yaml-fundamentals-for-github-actions.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>YAML Fundamentals for GitHub Actions</a>
 <div class="sidebar-sub">
@@ -59,7 +70,7 @@
 </div>
 </div></details>
 <details class="sidebar-group-toggle" open>
-<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"/></svg><span>03 Events & Workflow Triggers</span><span class="chev">&#9662;</span></summary>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4 7h4V5a2 2 0 0 1 4 0v2h4v4h2a2 2 0 0 1 0 4h-2v4H4v-4H2a2 2 0 0 1 0-4h2z"/></svg><span>03 Events & Workflow Triggers</span><span class="chev">&#9662;</span></summary>
 <div class="sidebar-group-body">
 <a href="events-and-workflow-triggers.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Events & Workflow Triggers</a>
 <div class="sidebar-sub">
@@ -71,7 +82,7 @@
 </div>
 </div></details>
 <details class="sidebar-group-toggle" open>
-<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><span>04 Jobs Steps & Runners</span><span class="chev">&#9662;</span></summary>
+<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="8 6 2 12 8 18"/><polyline points="16 6 22 12 16 18"/></svg><span>04 Jobs, Steps & Runners</span><span class="chev">&#9662;</span></summary>
 <div class="sidebar-group-body">
 <a href="jobs-steps-and-runners.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Jobs, Steps & Runners</a>
 <div class="sidebar-sub">
@@ -82,7 +93,7 @@
 </div>
 </div></details>
 <details class="sidebar-group-toggle" open>
-<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4 7h4V5a2 2 0 0 1 4 0v2h4v4h2a2 2 0 0 1 0 4h-2v4H4v-4H2a2 2 0 0 1 0-4h2z"/></svg><span>05 Working With Code In Ci</span><span class="chev">&#9662;</span></summary>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>05 Working with Code in CI</span><span class="chev">&#9662;</span></summary>
 <div class="sidebar-group-body">
 <a href="working-with-code-in-ci.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Working with Code in CI</a>
 <div class="sidebar-sub">
@@ -94,7 +105,7 @@
 </div>
 </div></details>
 <details class="sidebar-group-toggle" open>
-<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>06 Variables Contexts & Expressions</span><span class="chev">&#9662;</span></summary>
+<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>06 Variables, Contexts & Expressions</span><span class="chev">&#9662;</span></summary>
 <div class="sidebar-group-body">
 <a href="variables-contexts-and-expressions.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Variables, Contexts & Expressions</a>
 <div class="sidebar-sub">
@@ -105,7 +116,7 @@
 </div>
 </div></details>
 <details class="sidebar-group-toggle" open>
-<summary><svg class="icon" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><span>07 Secrets Security & Permissions</span><span class="chev">&#9662;</span></summary>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4 7h4V5a2 2 0 0 1 4 0v2h4v4h2a2 2 0 0 1 0 4h-2v4H4v-4H2a2 2 0 0 1 0-4h2z"/></svg><span>07 Secrets, Security & Permissions</span><span class="chev">&#9662;</span></summary>
 <div class="sidebar-group-body">
 <a href="secrets-security-and-permissions.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Secrets, Security & Permissions</a>
 <div class="sidebar-sub">
@@ -117,7 +128,7 @@
 </div>
 </div></details>
 <details class="sidebar-group-toggle" open>
-<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>08 Artifacts Caching & Build Outputs</span><span class="chev">&#9662;</span></summary>
+<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="8 6 2 12 8 18"/><polyline points="16 6 22 12 16 18"/></svg><span>08 Artifacts, Caching & Build Outputs</span><span class="chev">&#9662;</span></summary>
 <div class="sidebar-group-body">
 <a href="artifacts-caching-and-build-outputs.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Artifacts, Caching & Build Outputs</a>
 <div class="sidebar-sub">
@@ -128,7 +139,7 @@
 </div>
 </div></details>
 <details class="sidebar-group-toggle" open>
-<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><span>09 Job Dependencies Conditions & Data Flow</span><span class="chev">&#9662;</span></summary>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>09 Job Dependencies, Conditions & Data Flow</span><span class="chev">&#9662;</span></summary>
 <div class="sidebar-group-body">
 <a href="job-dependencies-conditions-and-data-flow.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Job Dependencies, Conditions & Data Flow</a>
 <div class="sidebar-sub">
@@ -139,7 +150,7 @@
 </div>
 </div></details>
 <details class="sidebar-group-toggle" open>
-<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="8 6 2 12 8 18"/><polyline points="16 6 22 12 16 18"/></svg><span>10 Matrix Builds & Parallel Execution</span><span class="chev">&#9662;</span></summary>
+<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>10 Matrix Builds & Parallel Execution</span><span class="chev">&#9662;</span></summary>
 <div class="sidebar-group-body">
 <a href="matrix-builds-and-parallel-execution.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Matrix Builds & Parallel Execution</a>
 <div class="sidebar-sub">
@@ -150,7 +161,7 @@
 </div>
 </div></details>
 <details class="sidebar-group-toggle" open>
-<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4 7h4V5a2 2 0 0 1 4 0v2h4v4h2a2 2 0 0 1 0 4h-2v4H4v-4H2a2 2 0 0 1 0-4h2z"/></svg><span>11 Reusable Workflows & DRY CI/CD</span><span class="chev">&#9662;</span></summary>
+<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4 7h4V5a2 2 0 0 1 4 0v2h4v4h2a2 2 0 0 1 0 4h-2v4H4v-4H2a2 2 0 0 1 0-4h2z"/></svg><span>11 Reusable Workflows, Composite Actions & DRY CI/CD</span><span class="chev">&#9662;</span></summary>
 <div class="sidebar-group-body">
 <a href="reusable-workflows-composite-actions-and-dry-cicd.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Reusable Workflows, Composite Actions & DRY CI/CD</a>
 <div class="sidebar-sub">
@@ -161,7 +172,7 @@
 </div>
 </div></details>
 <details class="sidebar-group-toggle" open>
-<summary><svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg><span>12 Environments Approvals & Deployment</span><span class="chev">&#9662;</span></summary>
+<summary><svg class="icon" viewBox="0 0 24 24"><polyline points="8 6 2 12 8 18"/><polyline points="16 6 22 12 16 18"/></svg><span>12 Environments, Approvals & Deployment</span><span class="chev">&#9662;</span></summary>
 <div class="sidebar-group-body">
 <a href="environments-approvals-and-deployment.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Environments, Approvals & Deployment</a>
 <div class="sidebar-sub">
@@ -172,7 +183,7 @@
 </div>
 </div></details>
 <details class="sidebar-group-toggle" open>
-<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><span>13 Advanced GitHub Actions & Production CI/CD</span><span class="chev">&#9662;</span></summary>
+<summary><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>13 Advanced GitHub Actions & Production CI/CD</span><span class="chev">&#9662;</span></summary>
 <div class="sidebar-group-body">
 <a href="advanced-github-actions-and-production-cicd.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Advanced GitHub Actions & Production CI/CD</a>
 <div class="sidebar-sub">
@@ -183,24 +194,23 @@
 </div>
 </div></details>
 <details class="sidebar-group-toggle" open>
-<summary><svg class="icon" viewBox="0 0 24 24"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg><span>14 Production-Ready CI/CD Pipeline</span><span class="chev">&#9662;</span></summary>
+<summary><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>14 Build a Production-Ready CI/CD Pipeline</span><span class="chev">&#9662;</span></summary>
 <div class="sidebar-group-body">
-<a href="production-cicd-pipeline-capstone.html" class="sidebar-link"><span class="dot"></span>Build a Production-Ready CI/CD Pipeline</a>
+<a href="production-cicd-pipeline-capstone.html" class="sidebar-link sidebar-parent-link"><span class="dot"></span>Build a Production-Ready CI/CD Pipeline</a>
 </div></details>
 </nav>
-
     <main class="doc-main" style="max-width:900px;">
       <div class="page-header-banner">
         <div class="hub-hero" id="top">
-          <h1>GitHub Actions CI/CD</h1>
-          <p class="lede">Learn GitHub Actions from your first workflow to production-ready CI/CD pipelines — automating tests, builds, and deployments for real projects.</p>
+          <h1>GitHub Actions Tutorial</h1>
+          <p class="lede">Learn CI/CD with GitHub Actions — automate tests, build workflows, integrate with real projects.</p>
         </div>
       </div>
 
       <div class="hub-stat-cards">
         <div class="stat-card"><div class="stat-num">14</div><div class="stat-label">Chapters</div></div>
-        <div class="stat-card"><div class="stat-num">YAML</div><div class="stat-label">+ CI/CD</div></div>
-        <div class="stat-card"><div class="stat-num">Practical</div><div class="stat-label">Examples</div></div>
+        <div class="stat-card"><div class="stat-num">68</div><div class="stat-label">Lessons Total</div></div>
+        <div class="stat-card"><div class="stat-num">Hands-On</div><div class="stat-label">Practical Examples</div></div>
         <div class="stat-card"><div class="stat-num">Production</div><div class="stat-label">Ready</div></div>
       </div>
 
@@ -210,7 +220,7 @@
       </div>
       <script>
       (function() {
-        var pages = ['gh:cicd-and-github-actions-fundamentals.html','gh:what-is-cicd.html','gh:what-is-github-actions.html','gh:github-actions-mental-model.html','gh:your-first-github-actions-workflow.html','gh:yaml-fundamentals-for-github-actions.html','gh:what-is-yaml-and-why-github-actions-uses-it.html','gh:yaml-syntax-keys-values-lists-and-nesting.html','gh:common-yaml-mistakes-that-break-workflows.html','gh:events-and-workflow-triggers.html','gh:what-is-a-github-actions-event.html','gh:push-and-pull-request-triggers.html','gh:manual-workflows-with-workflow-dispatch.html','gh:scheduled-workflows-and-cron.html','gh:advanced-triggers.html','gh:jobs-steps-and-runners.html','gh:jobs-and-steps-the-execution-model-in-depth.html','gh:github-hosted-runners-and-runs-on.html','gh:running-shell-commands-with-run.html','gh:using-actions-with-uses-and-run-vs-uses.html','gh:working-with-code-in-ci.html','gh:checking-out-repository-code.html','gh:setting-up-programming-languages.html','gh:installing-dependencies-and-caching.html','gh:building-the-application-and-running-unit-tests.html','gh:running-automation-tests-playwright-restassured-k6.html','gh:variables-contexts-and-expressions.html','gh:environment-variables-job-vs-step-scope.html','gh:github-actions-contexts-explained.html','gh:expressions-and-the-double-curly-syntax.html','gh:conditional-execution-with-if.html','gh:secrets-security-and-permissions.html','gh:why-secrets-matter-and-using-github-secrets.html','gh:variables-vs-secrets-choosing-the-right-one.html','gh:the-github-token-explained.html','gh:workflow-permissions-and-least-privilege.html','gh:common-security-mistakes-and-a-security-challenge.html','gh:artifacts-caching-and-build-outputs.html','gh:what-is-an-artifact-and-uploading-artifacts.html','gh:downloading-artifacts-and-passing-data-between-jobs.html','gh:test-reports-screenshots-and-videos-in-ci.html','gh:artifact-vs-cache-choosing-the-right-one.html','gh:job-dependencies-conditions-and-data-flow.html','gh:job-dependencies-with-needs-in-depth.html','gh:passing-information-between-steps.html','gh:passing-information-between-jobs.html','gh:conditional-jobs-and-failure-handling.html','gh:matrix-builds-and-parallel-execution.html','gh:what-is-a-matrix-testing-versions-and-operating-systems.html','gh:matrix-configuration-include-exclude-and-fine-tuning.html','gh:parallel-execution-and-the-performance-challenge.html','gh:matrix-with-automation-testing.html','gh:reusable-workflows-composite-actions-and-dry-cicd.html','gh:why-reusability-matters-and-reusable-workflows.html','gh:calling-a-reusable-workflow-with-inputs-and-outputs.html','gh:composite-actions-explained.html','gh:reusable-workflow-vs-composite-action.html','gh:environments-approvals-and-deployment.html','gh:what-is-a-github-environment-and-the-standard-progression.html','gh:environment-scoped-variables.html','gh:deployment-approvals-and-protection-rules.html','gh:environment-based-deployment-the-complete-pipeline.html','gh:advanced-github-actions-and-production-cicd.html','gh:self-hosted-runners.html','gh:containers-and-services-in-github-actions.html','gh:oidc-and-cloud-authentication.html','gh:concurrency-timeouts-and-retries.html','gh:production-cicd-pipeline-capstone.html'];
+        var pages = ['github-actions:cicd-and-github-actions-fundamentals.html','github-actions:what-is-cicd.html','github-actions:what-is-github-actions.html','github-actions:github-actions-mental-model.html','github-actions:your-first-github-actions-workflow.html','github-actions:yaml-fundamentals-for-github-actions.html','github-actions:what-is-yaml-and-why-github-actions-uses-it.html','github-actions:yaml-syntax-keys-values-lists-and-nesting.html','github-actions:common-yaml-mistakes-that-break-workflows.html','github-actions:events-and-workflow-triggers.html','github-actions:what-is-a-github-actions-event.html','github-actions:push-and-pull-request-triggers.html','github-actions:manual-workflows-with-workflow-dispatch.html','github-actions:scheduled-workflows-and-cron.html','github-actions:advanced-triggers.html','github-actions:jobs-steps-and-runners.html','github-actions:jobs-and-steps-the-execution-model-in-depth.html','github-actions:github-hosted-runners-and-runs-on.html','github-actions:running-shell-commands-with-run.html','github-actions:using-actions-with-uses-and-run-vs-uses.html','github-actions:working-with-code-in-ci.html','github-actions:checking-out-repository-code.html','github-actions:setting-up-programming-languages.html','github-actions:installing-dependencies-and-caching.html','github-actions:building-the-application-and-running-unit-tests.html','github-actions:running-automation-tests-playwright-restassured-k6.html','github-actions:variables-contexts-and-expressions.html','github-actions:environment-variables-job-vs-step-scope.html','github-actions:github-actions-contexts-explained.html','github-actions:expressions-and-the-double-curly-syntax.html','github-actions:conditional-execution-with-if.html','github-actions:secrets-security-and-permissions.html','github-actions:why-secrets-matter-and-using-github-secrets.html','github-actions:variables-vs-secrets-choosing-the-right-one.html','github-actions:the-github-token-explained.html','github-actions:workflow-permissions-and-least-privilege.html','github-actions:common-security-mistakes-and-a-security-challenge.html','github-actions:artifacts-caching-and-build-outputs.html','github-actions:what-is-an-artifact-and-uploading-artifacts.html','github-actions:downloading-artifacts-and-passing-data-between-jobs.html','github-actions:test-reports-screenshots-and-videos-in-ci.html','github-actions:artifact-vs-cache-choosing-the-right-one.html','github-actions:job-dependencies-conditions-and-data-flow.html','github-actions:job-dependencies-with-needs-in-depth.html','github-actions:passing-information-between-steps.html','github-actions:passing-information-between-jobs.html','github-actions:conditional-jobs-and-failure-handling.html','github-actions:matrix-builds-and-parallel-execution.html','github-actions:what-is-a-matrix-testing-versions-and-operating-systems.html','github-actions:matrix-configuration-include-exclude-and-fine-tuning.html','github-actions:parallel-execution-and-the-performance-challenge.html','github-actions:matrix-with-automation-testing.html','github-actions:reusable-workflows-composite-actions-and-dry-cicd.html','github-actions:why-reusability-matters-and-reusable-workflows.html','github-actions:calling-a-reusable-workflow-with-inputs-and-outputs.html','github-actions:composite-actions-explained.html','github-actions:reusable-workflow-vs-composite-action.html','github-actions:environments-approvals-and-deployment.html','github-actions:what-is-a-github-environment-and-the-standard-progression.html','github-actions:environment-scoped-variables.html','github-actions:deployment-approvals-and-protection-rules.html','github-actions:environment-based-deployment-the-complete-pipeline.html','github-actions:advanced-github-actions-and-production-cicd.html','github-actions:self-hosted-runners.html','github-actions:containers-and-services-in-github-actions.html','github-actions:oidc-and-cloud-authentication.html','github-actions:concurrency-timeouts-and-retries.html','github-actions:production-cicd-pipeline-capstone.html'];
         var progress = {};
         try { progress = JSON.parse(localStorage.getItem('assertTrueProgress') || '{}'); } catch (e) {}
         var done = pages.filter(function(p) { return progress[p]; }).length;
@@ -234,12 +244,12 @@
         <button type="button" onclick="collapseAllChapters()">Collapse all</button>
       </div>
       <div class="chapter-list">
-        <details class="chapter-card" open>
+<details class="chapter-card" open>
   <summary class="chapter-card-header">
     <span class="chapter-num">01</span>
     <span class="chapter-card-info">
       <span class="chapter-title">CI/CD & GitHub Actions Fundamentals</span>
-      <span class="chapter-sub">Why CI/CD exists, what GitHub Actions actually is, the mental model behind every workflow,…</span>
+      <span class="chapter-sub">Why CI/CD exists, what GitHub Actions actually is, the mental model behind every workflow, and…</span>
     </span>
     <span class="chapter-card-meta">
       <a href="cicd-and-github-actions-fundamentals.html" class="read-btn" onclick="event.stopPropagation()">Read</a>
@@ -247,49 +257,49 @@
     </span>
   </summary>
   <div class="chapter-card-subs">
-    <a href="cicd-and-github-actions-fundamentals.html" class="sub-lesson-row sub-lesson-hub-link" data-progress-id="gh:cicd-and-github-actions-fundamentals.html">
+    <a href="cicd-and-github-actions-fundamentals.html" class="sub-lesson-row sub-lesson-hub-link" data-progress-id="github-actions:cicd-and-github-actions-fundamentals.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Chapter Overview</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a>
-    <a href="what-is-cicd.html" class="sub-lesson-row" data-progress-id="gh:what-is-cicd.html">
+    </a><a href="what-is-cicd.html" class="sub-lesson-row" data-progress-id="github-actions:what-is-cicd.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">What is CI/CD?</span>
-        <span class="sub-lesson-desc">Why manual deployments are risky, what Continuous Integration and Continuous Del…</span>
+        <span class="sub-lesson-desc">Why manual deployments are risky, what Continuous Integration and Continuous Delivery/Depl…</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a><a href="what-is-github-actions.html" class="sub-lesson-row" data-progress-id="gh:what-is-github-actions.html">
+    </a><a href="what-is-github-actions.html" class="sub-lesson-row" data-progress-id="github-actions:what-is-github-actions.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">What is GitHub Actions?</span>
-        <span class="sub-lesson-desc">GitHub Actions&amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;a…</span>
+        <span class="sub-lesson-desc">GitHub Actions&#x27; core vocabulary explained in plain language — workflows, events, jobs…</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a><a href="github-actions-mental-model.html" class="sub-lesson-row" data-progress-id="gh:github-actions-mental-model.html">
+    </a><a href="github-actions-mental-model.html" class="sub-lesson-row" data-progress-id="github-actions:github-actions-mental-model.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">GitHub Actions Mental Model</span>
-        <span class="sub-lesson-desc">The complete chain from a repository event to actual running steps — Repository,…</span>
+        <span class="sub-lesson-desc">The complete chain from a repository event to actual running steps — Repository, Workflow,…</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a><a href="your-first-github-actions-workflow.html" class="sub-lesson-row" data-progress-id="gh:your-first-github-actions-workflow.html">
+    </a><a href="your-first-github-actions-workflow.html" class="sub-lesson-row" data-progress-id="github-actions:your-first-github-actions-workflow.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Your First GitHub Actions Workflow</span>
-        <span class="sub-lesson-desc">Create, commit, and trigger a genuinely working GitHub Actions workflow — the sm…</span>
+        <span class="sub-lesson-desc">Create, commit, and trigger a genuinely working GitHub Actions workflow — the smallest pos…</span>
       </span>
       <span class="read-btn-sm">Read</span>
     </a>
   </div>
-</details><details class="chapter-card">
+</details>
+<details class="chapter-card">
   <summary class="chapter-card-header">
     <span class="chapter-num">02</span>
     <span class="chapter-card-info">
       <span class="chapter-title">YAML Fundamentals for GitHub Actions</span>
-      <span class="chapter-sub">What YAML actually is, its core syntax rules, and the specific formatting mistakes that br…</span>
+      <span class="chapter-sub">What YAML actually is, its core syntax rules, and the specific formatting mistakes that break m…</span>
     </span>
     <span class="chapter-card-meta">
       <a href="yaml-fundamentals-for-github-actions.html" class="read-btn" onclick="event.stopPropagation()">Read</a>
@@ -297,42 +307,42 @@
     </span>
   </summary>
   <div class="chapter-card-subs">
-    <a href="yaml-fundamentals-for-github-actions.html" class="sub-lesson-row sub-lesson-hub-link" data-progress-id="gh:yaml-fundamentals-for-github-actions.html">
+    <a href="yaml-fundamentals-for-github-actions.html" class="sub-lesson-row sub-lesson-hub-link" data-progress-id="github-actions:yaml-fundamentals-for-github-actions.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Chapter Overview</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a>
-    <a href="what-is-yaml-and-why-github-actions-uses-it.html" class="sub-lesson-row" data-progress-id="gh:what-is-yaml-and-why-github-actions-uses-it.html">
+    </a><a href="what-is-yaml-and-why-github-actions-uses-it.html" class="sub-lesson-row" data-progress-id="github-actions:what-is-yaml-and-why-github-actions-uses-it.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">What is YAML? Why GitHub Actions Uses It</span>
-        <span class="sub-lesson-desc">What YAML actually is, why it was chosen for GitHub Actions workflows over alter…</span>
+        <span class="sub-lesson-desc">What YAML actually is, why it was chosen for GitHub Actions workflows over alternatives li…</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a><a href="yaml-syntax-keys-values-lists-and-nesting.html" class="sub-lesson-row" data-progress-id="gh:yaml-syntax-keys-values-lists-and-nesting.html">
+    </a><a href="yaml-syntax-keys-values-lists-and-nesting.html" class="sub-lesson-row" data-progress-id="github-actions:yaml-syntax-keys-values-lists-and-nesting.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">YAML Syntax: Keys, Values, Lists & Nesting</span>
-        <span class="sub-lesson-desc">Every core YAML building block explained with real GitHub Actions examples — key…</span>
+        <span class="sub-lesson-desc">Every core YAML building block explained with real GitHub Actions examples — key-value pai…</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a><a href="common-yaml-mistakes-that-break-workflows.html" class="sub-lesson-row" data-progress-id="gh:common-yaml-mistakes-that-break-workflows.html">
+    </a><a href="common-yaml-mistakes-that-break-workflows.html" class="sub-lesson-row" data-progress-id="github-actions:common-yaml-mistakes-that-break-workflows.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Common YAML Mistakes That Break Workflows</span>
-        <span class="sub-lesson-desc">The specific YAML formatting mistakes responsible for a huge share of GitHub Act…</span>
+        <span class="sub-lesson-desc">The specific YAML formatting mistakes responsible for a huge share of GitHub Actions failu…</span>
       </span>
       <span class="read-btn-sm">Read</span>
     </a>
   </div>
-</details><details class="chapter-card">
+</details>
+<details class="chapter-card">
   <summary class="chapter-card-header">
     <span class="chapter-num">03</span>
     <span class="chapter-card-info">
       <span class="chapter-title">Events & Workflow Triggers</span>
-      <span class="chapter-sub">Teaching workflows when to run — push and pull_request events, branch filtering, manual tr…</span>
+      <span class="chapter-sub">Teaching workflows when to run — push and pull_request events, branch filtering, manual trigger…</span>
     </span>
     <span class="chapter-card-meta">
       <a href="events-and-workflow-triggers.html" class="read-btn" onclick="event.stopPropagation()">Read</a>
@@ -340,56 +350,56 @@
     </span>
   </summary>
   <div class="chapter-card-subs">
-    <a href="events-and-workflow-triggers.html" class="sub-lesson-row sub-lesson-hub-link" data-progress-id="gh:events-and-workflow-triggers.html">
+    <a href="events-and-workflow-triggers.html" class="sub-lesson-row sub-lesson-hub-link" data-progress-id="github-actions:events-and-workflow-triggers.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Chapter Overview</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a>
-    <a href="what-is-a-github-actions-event.html" class="sub-lesson-row" data-progress-id="gh:what-is-a-github-actions-event.html">
+    </a><a href="what-is-a-github-actions-event.html" class="sub-lesson-row" data-progress-id="github-actions:what-is-a-github-actions-event.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">What is a GitHub Actions Event?</span>
-        <span class="sub-lesson-desc">The concept of event-driven automation in GitHub Actions — what an event actuall…</span>
+        <span class="sub-lesson-desc">The concept of event-driven automation in GitHub Actions — what an event actually is, wher…</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a><a href="push-and-pull-request-triggers.html" class="sub-lesson-row" data-progress-id="gh:push-and-pull-request-triggers.html">
+    </a><a href="push-and-pull-request-triggers.html" class="sub-lesson-row" data-progress-id="github-actions:push-and-pull-request-triggers.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Push & Pull Request Triggers</span>
-        <span class="sub-lesson-desc">The push and pull_request events explained in depth, including branch filtering …</span>
+        <span class="sub-lesson-desc">The push and pull_request events explained in depth, including branch filtering with branc…</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a><a href="manual-workflows-with-workflow-dispatch.html" class="sub-lesson-row" data-progress-id="gh:manual-workflows-with-workflow-dispatch.html">
+    </a><a href="manual-workflows-with-workflow-dispatch.html" class="sub-lesson-row" data-progress-id="github-actions:manual-workflows-with-workflow-dispatch.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Manual Workflows: workflow_dispatch</span>
-        <span class="sub-lesson-desc">How to trigger a GitHub Actions workflow manually on demand with workflow_dispat…</span>
+        <span class="sub-lesson-desc">How to trigger a GitHub Actions workflow manually on demand with workflow_dispatch, includ…</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a><a href="scheduled-workflows-and-cron.html" class="sub-lesson-row" data-progress-id="gh:scheduled-workflows-and-cron.html">
+    </a><a href="scheduled-workflows-and-cron.html" class="sub-lesson-row" data-progress-id="github-actions:scheduled-workflows-and-cron.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Scheduled Workflows & Cron</span>
-        <span class="sub-lesson-desc">How to run a GitHub Actions workflow automatically on a schedule using the sched…</span>
+        <span class="sub-lesson-desc">How to run a GitHub Actions workflow automatically on a schedule using the schedule event…</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a><a href="advanced-triggers.html" class="sub-lesson-row" data-progress-id="gh:advanced-triggers.html">
+    </a><a href="advanced-triggers.html" class="sub-lesson-row" data-progress-id="github-actions:advanced-triggers.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Advanced Triggers</span>
-        <span class="sub-lesson-desc">Beyond push, pull_request, workflow_dispatch, and schedule — release, issues, wo…</span>
+        <span class="sub-lesson-desc">Beyond push, pull_request, workflow_dispatch, and schedule — release, issues, workflow_run…</span>
       </span>
       <span class="read-btn-sm">Read</span>
     </a>
   </div>
-</details><details class="chapter-card">
+</details>
+<details class="chapter-card">
   <summary class="chapter-card-header">
     <span class="chapter-num">04</span>
     <span class="chapter-card-info">
       <span class="chapter-title">Jobs, Steps & Runners</span>
-      <span class="chapter-sub">How jobs and steps actually execute, GitHub-hosted runners and how to select one, running …</span>
+      <span class="chapter-sub">How jobs and steps actually execute, GitHub-hosted runners and how to select one, running shell…</span>
     </span>
     <span class="chapter-card-meta">
       <a href="jobs-steps-and-runners.html" class="read-btn" onclick="event.stopPropagation()">Read</a>
@@ -397,49 +407,49 @@
     </span>
   </summary>
   <div class="chapter-card-subs">
-    <a href="jobs-steps-and-runners.html" class="sub-lesson-row sub-lesson-hub-link" data-progress-id="gh:jobs-steps-and-runners.html">
+    <a href="jobs-steps-and-runners.html" class="sub-lesson-row sub-lesson-hub-link" data-progress-id="github-actions:jobs-steps-and-runners.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Chapter Overview</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a>
-    <a href="jobs-and-steps-the-execution-model-in-depth.html" class="sub-lesson-row" data-progress-id="gh:jobs-and-steps-the-execution-model-in-depth.html">
+    </a><a href="jobs-and-steps-the-execution-model-in-depth.html" class="sub-lesson-row" data-progress-id="github-actions:jobs-and-steps-the-execution-model-in-depth.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Jobs & Steps: The Execution Model in Depth</span>
-        <span class="sub-lesson-desc">What actually happens when a GitHub Actions job runs — step order, step failure …</span>
+        <span class="sub-lesson-desc">What actually happens when a GitHub Actions job runs — step order, step failure behavior,…</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a><a href="github-hosted-runners-and-runs-on.html" class="sub-lesson-row" data-progress-id="gh:github-hosted-runners-and-runs-on.html">
+    </a><a href="github-hosted-runners-and-runs-on.html" class="sub-lesson-row" data-progress-id="github-actions:github-hosted-runners-and-runs-on.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">GitHub-Hosted Runners & runs-on</span>
-        <span class="sub-lesson-desc">What a GitHub-hosted runner actually is, the Ubuntu/Windows/macOS options, what&…</span>
+        <span class="sub-lesson-desc">What a GitHub-hosted runner actually is, the Ubuntu/Windows/macOS options, what&#x27;s pre…</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a><a href="running-shell-commands-with-run.html" class="sub-lesson-row" data-progress-id="gh:running-shell-commands-with-run.html">
+    </a><a href="running-shell-commands-with-run.html" class="sub-lesson-row" data-progress-id="github-actions:running-shell-commands-with-run.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Running Shell Commands: The run: Key</span>
-        <span class="sub-lesson-desc">Everything the run: key actually supports — single commands, multi-line scripts,…</span>
+        <span class="sub-lesson-desc">Everything the run: key actually supports — single commands, multi-line scripts, working d…</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a><a href="using-actions-with-uses-and-run-vs-uses.html" class="sub-lesson-row" data-progress-id="gh:using-actions-with-uses-and-run-vs-uses.html">
+    </a><a href="using-actions-with-uses-and-run-vs-uses.html" class="sub-lesson-row" data-progress-id="github-actions:using-actions-with-uses-and-run-vs-uses.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Using Actions: uses:, with:, and run vs. uses</span>
-        <span class="sub-lesson-desc">How the uses: key and with: inputs work, versioning actions correctly, and a rea…</span>
+        <span class="sub-lesson-desc">How the uses: key and with: inputs work, versioning actions correctly, and a real decision…</span>
       </span>
       <span class="read-btn-sm">Read</span>
     </a>
   </div>
-</details><details class="chapter-card">
+</details>
+<details class="chapter-card">
   <summary class="chapter-card-header">
     <span class="chapter-num">05</span>
     <span class="chapter-card-info">
       <span class="chapter-title">Working with Code in CI</span>
-      <span class="chapter-sub">Building a genuinely useful CI pipeline — checking out code, setting up a language, instal…</span>
+      <span class="chapter-sub">Building a genuinely useful CI pipeline — checking out code, setting up a language, installing…</span>
     </span>
     <span class="chapter-card-meta">
       <a href="working-with-code-in-ci.html" class="read-btn" onclick="event.stopPropagation()">Read</a>
@@ -447,56 +457,56 @@
     </span>
   </summary>
   <div class="chapter-card-subs">
-    <a href="working-with-code-in-ci.html" class="sub-lesson-row sub-lesson-hub-link" data-progress-id="gh:working-with-code-in-ci.html">
+    <a href="working-with-code-in-ci.html" class="sub-lesson-row sub-lesson-hub-link" data-progress-id="github-actions:working-with-code-in-ci.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Chapter Overview</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a>
-    <a href="checking-out-repository-code.html" class="sub-lesson-row" data-progress-id="gh:checking-out-repository-code.html">
+    </a><a href="checking-out-repository-code.html" class="sub-lesson-row" data-progress-id="github-actions:checking-out-repository-code.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Checking Out Repository Code</span>
-        <span class="sub-lesson-desc">Why every workflow needs actions/checkout, and the options that actually matter …</span>
+        <span class="sub-lesson-desc">Why every workflow needs actions/checkout, and the options that actually matter — fetch-de…</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a><a href="setting-up-programming-languages.html" class="sub-lesson-row" data-progress-id="gh:setting-up-programming-languages.html">
+    </a><a href="setting-up-programming-languages.html" class="sub-lesson-row" data-progress-id="github-actions:setting-up-programming-languages.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Setting Up Programming Languages: Java, Node.js & Python</span>
-        <span class="sub-lesson-desc">How to set up Java, Node.js, and Python runtimes in a GitHub Actions job using t…</span>
+        <span class="sub-lesson-desc">How to set up Java, Node.js, and Python runtimes in a GitHub Actions job using the officia…</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a><a href="installing-dependencies-and-caching.html" class="sub-lesson-row" data-progress-id="gh:installing-dependencies-and-caching.html">
+    </a><a href="installing-dependencies-and-caching.html" class="sub-lesson-row" data-progress-id="github-actions:installing-dependencies-and-caching.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Installing Dependencies & Caching</span>
-        <span class="sub-lesson-desc">Installing project dependencies correctly across npm, pip, and Maven, and why ca…</span>
+        <span class="sub-lesson-desc">Installing project dependencies correctly across npm, pip, and Maven, and why caching them…</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a><a href="building-the-application-and-running-unit-tests.html" class="sub-lesson-row" data-progress-id="gh:building-the-application-and-running-unit-tests.html">
+    </a><a href="building-the-application-and-running-unit-tests.html" class="sub-lesson-row" data-progress-id="github-actions:building-the-application-and-running-unit-tests.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Building the Application & Running Unit Tests</span>
-        <span class="sub-lesson-desc">Building an application in CI, why a build failure and a test failure are two di…</span>
+        <span class="sub-lesson-desc">Building an application in CI, why a build failure and a test failure are two different, s…</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a><a href="running-automation-tests-playwright-restassured-k6.html" class="sub-lesson-row" data-progress-id="gh:running-automation-tests-playwright-restassured-k6.html">
+    </a><a href="running-automation-tests-playwright-restassured-k6.html" class="sub-lesson-row" data-progress-id="github-actions:running-automation-tests-playwright-restassured-k6.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Running Automation Tests: Playwright, RestAssured & k6</span>
-        <span class="sub-lesson-desc">How Playwright, RestAssured, and k6 tests actually run in a GitHub Actions pipel…</span>
+        <span class="sub-lesson-desc">How Playwright, RestAssured, and k6 tests actually run in a GitHub Actions pipeline, conne…</span>
       </span>
       <span class="read-btn-sm">Read</span>
     </a>
   </div>
-</details><details class="chapter-card">
+</details>
+<details class="chapter-card">
   <summary class="chapter-card-header">
     <span class="chapter-num">06</span>
     <span class="chapter-card-info">
       <span class="chapter-title">Variables, Contexts & Expressions</span>
-      <span class="chapter-sub">Environment variables and their scope, GitHub Actions&amp;amp;amp;amp;amp;amp;amp;amp;amp;…</span>
+      <span class="chapter-sub">Environment variables and their scope, GitHub Actions&#x27; contexts (github, env, job, steps,…</span>
     </span>
     <span class="chapter-card-meta">
       <a href="variables-contexts-and-expressions.html" class="read-btn" onclick="event.stopPropagation()">Read</a>
@@ -504,49 +514,49 @@
     </span>
   </summary>
   <div class="chapter-card-subs">
-    <a href="variables-contexts-and-expressions.html" class="sub-lesson-row sub-lesson-hub-link" data-progress-id="gh:variables-contexts-and-expressions.html">
+    <a href="variables-contexts-and-expressions.html" class="sub-lesson-row sub-lesson-hub-link" data-progress-id="github-actions:variables-contexts-and-expressions.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Chapter Overview</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a>
-    <a href="environment-variables-job-vs-step-scope.html" class="sub-lesson-row" data-progress-id="gh:environment-variables-job-vs-step-scope.html">
+    </a><a href="environment-variables-job-vs-step-scope.html" class="sub-lesson-row" data-progress-id="github-actions:environment-variables-job-vs-step-scope.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Environment Variables: env: and Job vs. Step Scope</span>
-        <span class="sub-lesson-desc">How the env: key works at workflow, job, and step level, how precedence works wh…</span>
+        <span class="sub-lesson-desc">How the env: key works at workflow, job, and step level, how precedence works when scopes…</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a><a href="github-actions-contexts-explained.html" class="sub-lesson-row" data-progress-id="gh:github-actions-contexts-explained.html">
+    </a><a href="github-actions-contexts-explained.html" class="sub-lesson-row" data-progress-id="github-actions:github-actions-contexts-explained.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">GitHub Actions Contexts Explained</span>
-        <span class="sub-lesson-desc">Every important GitHub Actions context explained — what information each one act…</span>
+        <span class="sub-lesson-desc">Every important GitHub Actions context explained — what information each one actually hold…</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a><a href="expressions-and-the-double-curly-syntax.html" class="sub-lesson-row" data-progress-id="gh:expressions-and-the-double-curly-syntax.html">
+    </a><a href="expressions-and-the-double-curly-syntax.html" class="sub-lesson-row" data-progress-id="github-actions:expressions-and-the-double-curly-syntax.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Expressions: The ${{ }} Syntax</span>
-        <span class="sub-lesson-desc">How GitHub Actions expressions actually work — the ${{ }} wrapper, comparison an…</span>
+        <span class="sub-lesson-desc">How GitHub Actions expressions actually work — the ${{ }} wrapper, comparison and logical…</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a><a href="conditional-execution-with-if.html" class="sub-lesson-row" data-progress-id="gh:conditional-execution-with-if.html">
+    </a><a href="conditional-execution-with-if.html" class="sub-lesson-row" data-progress-id="github-actions:conditional-execution-with-if.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Conditional Execution: if:</span>
-        <span class="sub-lesson-desc">Using if: to conditionally run a job or step, applied to the real requirement of…</span>
+        <span class="sub-lesson-desc">Using if: to conditionally run a job or step, applied to the real requirement of deploying…</span>
       </span>
       <span class="read-btn-sm">Read</span>
     </a>
   </div>
-</details><details class="chapter-card">
+</details>
+<details class="chapter-card">
   <summary class="chapter-card-header">
     <span class="chapter-num">07</span>
     <span class="chapter-card-info">
       <span class="chapter-title">Secrets, Security & Permissions</span>
-      <span class="chapter-sub">Managing secrets safely, understanding GITHUB_TOKEN, applying least-privilege permissions,…</span>
+      <span class="chapter-sub">Managing secrets safely, understanding GITHUB_TOKEN, applying least-privilege permissions, and…</span>
     </span>
     <span class="chapter-card-meta">
       <a href="secrets-security-and-permissions.html" class="read-btn" onclick="event.stopPropagation()">Read</a>
@@ -554,56 +564,56 @@
     </span>
   </summary>
   <div class="chapter-card-subs">
-    <a href="secrets-security-and-permissions.html" class="sub-lesson-row sub-lesson-hub-link" data-progress-id="gh:secrets-security-and-permissions.html">
+    <a href="secrets-security-and-permissions.html" class="sub-lesson-row sub-lesson-hub-link" data-progress-id="github-actions:secrets-security-and-permissions.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Chapter Overview</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a>
-    <a href="why-secrets-matter-and-using-github-secrets.html" class="sub-lesson-row" data-progress-id="gh:why-secrets-matter-and-using-github-secrets.html">
+    </a><a href="why-secrets-matter-and-using-github-secrets.html" class="sub-lesson-row" data-progress-id="github-actions:why-secrets-matter-and-using-github-secrets.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Why Secrets Matter & Using GitHub Secrets</span>
-        <span class="sub-lesson-desc">Why credentials should never be committed to a repository, and how to store and …</span>
+        <span class="sub-lesson-desc">Why credentials should never be committed to a repository, and how to store and use GitHub…</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a><a href="variables-vs-secrets-choosing-the-right-one.html" class="sub-lesson-row" data-progress-id="gh:variables-vs-secrets-choosing-the-right-one.html">
+    </a><a href="variables-vs-secrets-choosing-the-right-one.html" class="sub-lesson-row" data-progress-id="github-actions:variables-vs-secrets-choosing-the-right-one.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Variables vs. Secrets: Choosing the Right One</span>
-        <span class="sub-lesson-desc">When a value belongs in vars versus secrets — the genuine distinction, why it ma…</span>
+        <span class="sub-lesson-desc">When a value belongs in vars versus secrets — the genuine distinction, why it matters, and…</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a><a href="the-github-token-explained.html" class="sub-lesson-row" data-progress-id="gh:the-github-token-explained.html">
+    </a><a href="the-github-token-explained.html" class="sub-lesson-row" data-progress-id="github-actions:the-github-token-explained.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">GITHUB_TOKEN: The Automatic Token Explained</span>
-        <span class="sub-lesson-desc">What GITHUB_TOKEN actually is, why every workflow already has one without you cr…</span>
+        <span class="sub-lesson-desc">What GITHUB_TOKEN actually is, why every workflow already has one without you creating it,…</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a><a href="workflow-permissions-and-least-privilege.html" class="sub-lesson-row" data-progress-id="gh:workflow-permissions-and-least-privilege.html">
+    </a><a href="workflow-permissions-and-least-privilege.html" class="sub-lesson-row" data-progress-id="github-actions:workflow-permissions-and-least-privilege.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Workflow Permissions & Least Privilege</span>
-        <span class="sub-lesson-desc">How the permissions: key works, why least privilege matters for CI/CD specifical…</span>
+        <span class="sub-lesson-desc">How the permissions: key works, why least privilege matters for CI/CD specifically, and co…</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a><a href="common-security-mistakes-and-a-security-challenge.html" class="sub-lesson-row" data-progress-id="gh:common-security-mistakes-and-a-security-challenge.html">
+    </a><a href="common-security-mistakes-and-a-security-challenge.html" class="sub-lesson-row" data-progress-id="github-actions:common-security-mistakes-and-a-security-challenge.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Common Security Mistakes & a Security Challenge</span>
-        <span class="sub-lesson-desc">The five most common GitHub Actions security mistakes — hardcoded credentials, p…</span>
+        <span class="sub-lesson-desc">The five most common GitHub Actions security mistakes — hardcoded credentials, printed sec…</span>
       </span>
       <span class="read-btn-sm">Read</span>
     </a>
   </div>
-</details><details class="chapter-card">
+</details>
+<details class="chapter-card">
   <summary class="chapter-card-header">
     <span class="chapter-num">08</span>
     <span class="chapter-card-info">
       <span class="chapter-title">Artifacts, Caching & Build Outputs</span>
-      <span class="chapter-sub">Preserving and reusing files between jobs and runs with artifacts, publishing test reports…</span>
+      <span class="chapter-sub">Preserving and reusing files between jobs and runs with artifacts, publishing test reports and…</span>
     </span>
     <span class="chapter-card-meta">
       <a href="artifacts-caching-and-build-outputs.html" class="read-btn" onclick="event.stopPropagation()">Read</a>
@@ -611,49 +621,49 @@
     </span>
   </summary>
   <div class="chapter-card-subs">
-    <a href="artifacts-caching-and-build-outputs.html" class="sub-lesson-row sub-lesson-hub-link" data-progress-id="gh:artifacts-caching-and-build-outputs.html">
+    <a href="artifacts-caching-and-build-outputs.html" class="sub-lesson-row sub-lesson-hub-link" data-progress-id="github-actions:artifacts-caching-and-build-outputs.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Chapter Overview</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a>
-    <a href="what-is-an-artifact-and-uploading-artifacts.html" class="sub-lesson-row" data-progress-id="gh:what-is-an-artifact-and-uploading-artifacts.html">
+    </a><a href="what-is-an-artifact-and-uploading-artifacts.html" class="sub-lesson-row" data-progress-id="github-actions:what-is-an-artifact-and-uploading-artifacts.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">What is an Artifact? & Uploading Artifacts</span>
-        <span class="sub-lesson-desc">What a GitHub Actions artifact actually is, why job output otherwise disappears,…</span>
+        <span class="sub-lesson-desc">What a GitHub Actions artifact actually is, why job output otherwise disappears, and how t…</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a><a href="downloading-artifacts-and-passing-data-between-jobs.html" class="sub-lesson-row" data-progress-id="gh:downloading-artifacts-and-passing-data-between-jobs.html">
+    </a><a href="downloading-artifacts-and-passing-data-between-jobs.html" class="sub-lesson-row" data-progress-id="github-actions:downloading-artifacts-and-passing-data-between-jobs.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Downloading Artifacts & Passing Data Between Jobs</span>
-        <span class="sub-lesson-desc">How a different job downloads a previously uploaded artifact, using actions/down…</span>
+        <span class="sub-lesson-desc">How a different job downloads a previously uploaded artifact, using actions/download-artif…</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a><a href="test-reports-screenshots-and-videos-in-ci.html" class="sub-lesson-row" data-progress-id="gh:test-reports-screenshots-and-videos-in-ci.html">
+    </a><a href="test-reports-screenshots-and-videos-in-ci.html" class="sub-lesson-row" data-progress-id="github-actions:test-reports-screenshots-and-videos-in-ci.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Test Reports, Screenshots & Videos in CI</span>
-        <span class="sub-lesson-desc">Publishing Playwright reports, screenshots, videos, and logs as artifacts, and w…</span>
+        <span class="sub-lesson-desc">Publishing Playwright reports, screenshots, videos, and logs as artifacts, and why if: alw…</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a><a href="artifact-vs-cache-choosing-the-right-one.html" class="sub-lesson-row" data-progress-id="gh:artifact-vs-cache-choosing-the-right-one.html">
+    </a><a href="artifact-vs-cache-choosing-the-right-one.html" class="sub-lesson-row" data-progress-id="github-actions:artifact-vs-cache-choosing-the-right-one.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Artifact vs. Cache: Choosing the Right One</span>
-        <span class="sub-lesson-desc">Why artifacts and caches solve genuinely different problems despite both storing…</span>
+        <span class="sub-lesson-desc">Why artifacts and caches solve genuinely different problems despite both storing files, an…</span>
       </span>
       <span class="read-btn-sm">Read</span>
     </a>
   </div>
-</details><details class="chapter-card">
+</details>
+<details class="chapter-card">
   <summary class="chapter-card-header">
     <span class="chapter-num">09</span>
     <span class="chapter-card-info">
       <span class="chapter-title">Job Dependencies, Conditions & Data Flow</span>
-      <span class="chapter-sub">Building real multi-job pipelines — needs: in full depth, passing values between steps and…</span>
+      <span class="chapter-sub">Building real multi-job pipelines — needs: in full depth, passing values between steps and betw…</span>
     </span>
     <span class="chapter-card-meta">
       <a href="job-dependencies-conditions-and-data-flow.html" class="read-btn" onclick="event.stopPropagation()">Read</a>
@@ -661,49 +671,49 @@
     </span>
   </summary>
   <div class="chapter-card-subs">
-    <a href="job-dependencies-conditions-and-data-flow.html" class="sub-lesson-row sub-lesson-hub-link" data-progress-id="gh:job-dependencies-conditions-and-data-flow.html">
+    <a href="job-dependencies-conditions-and-data-flow.html" class="sub-lesson-row sub-lesson-hub-link" data-progress-id="github-actions:job-dependencies-conditions-and-data-flow.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Chapter Overview</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a>
-    <a href="job-dependencies-with-needs-in-depth.html" class="sub-lesson-row" data-progress-id="gh:job-dependencies-with-needs-in-depth.html">
+    </a><a href="job-dependencies-with-needs-in-depth.html" class="sub-lesson-row" data-progress-id="github-actions:job-dependencies-with-needs-in-depth.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Job Dependencies: needs: In Depth</span>
-        <span class="sub-lesson-desc">The full needs: syntax — single and multiple dependencies — and deciding which j…</span>
+        <span class="sub-lesson-desc">The full needs: syntax — single and multiple dependencies — and deciding which jobs in a r…</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a><a href="passing-information-between-steps.html" class="sub-lesson-row" data-progress-id="gh:passing-information-between-steps.html">
+    </a><a href="passing-information-between-steps.html" class="sub-lesson-row" data-progress-id="github-actions:passing-information-between-steps.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Passing Information Between Steps</span>
-        <span class="sub-lesson-desc">How to actually produce and read a step output using $GITHUB_OUTPUT, and why thi…</span>
+        <span class="sub-lesson-desc">How to actually produce and read a step output using $GITHUB_OUTPUT, and why this is genui…</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a><a href="passing-information-between-jobs.html" class="sub-lesson-row" data-progress-id="gh:passing-information-between-jobs.html">
+    </a><a href="passing-information-between-jobs.html" class="sub-lesson-row" data-progress-id="github-actions:passing-information-between-jobs.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Passing Information Between Jobs</span>
-        <span class="sub-lesson-desc">How to pass a small value from one job to another using job-level outputs, and w…</span>
+        <span class="sub-lesson-desc">How to pass a small value from one job to another using job-level outputs, and why this is…</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a><a href="conditional-jobs-and-failure-handling.html" class="sub-lesson-row" data-progress-id="gh:conditional-jobs-and-failure-handling.html">
+    </a><a href="conditional-jobs-and-failure-handling.html" class="sub-lesson-row" data-progress-id="github-actions:conditional-jobs-and-failure-handling.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Conditional Jobs & Failure Handling</span>
-        <span class="sub-lesson-desc">The full success, failure, cancelled, and skipped status vocabulary, continue-on…</span>
+        <span class="sub-lesson-desc">The full success, failure, cancelled, and skipped status vocabulary, continue-on-error, an…</span>
       </span>
       <span class="read-btn-sm">Read</span>
     </a>
   </div>
-</details><details class="chapter-card">
+</details>
+<details class="chapter-card">
   <summary class="chapter-card-header">
     <span class="chapter-num">10</span>
     <span class="chapter-card-info">
       <span class="chapter-title">Matrix Builds & Parallel Execution</span>
-      <span class="chapter-sub">Running the same job across multiple versions, operating systems, or configurations simult…</span>
+      <span class="chapter-sub">Running the same job across multiple versions, operating systems, or configurations simultaneou…</span>
     </span>
     <span class="chapter-card-meta">
       <a href="matrix-builds-and-parallel-execution.html" class="read-btn" onclick="event.stopPropagation()">Read</a>
@@ -711,49 +721,49 @@
     </span>
   </summary>
   <div class="chapter-card-subs">
-    <a href="matrix-builds-and-parallel-execution.html" class="sub-lesson-row sub-lesson-hub-link" data-progress-id="gh:matrix-builds-and-parallel-execution.html">
+    <a href="matrix-builds-and-parallel-execution.html" class="sub-lesson-row sub-lesson-hub-link" data-progress-id="github-actions:matrix-builds-and-parallel-execution.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Chapter Overview</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a>
-    <a href="what-is-a-matrix-testing-versions-and-operating-systems.html" class="sub-lesson-row" data-progress-id="gh:what-is-a-matrix-testing-versions-and-operating-systems.html">
+    </a><a href="what-is-a-matrix-testing-versions-and-operating-systems.html" class="sub-lesson-row" data-progress-id="github-actions:what-is-a-matrix-testing-versions-and-operating-systems.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">What is a Matrix? Testing Multiple Versions & OSes</span>
-        <span class="sub-lesson-desc">What a GitHub Actions matrix strategy actually does, with a simple analogy, and …</span>
+        <span class="sub-lesson-desc">What a GitHub Actions matrix strategy actually does, with a simple analogy, and two concre…</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a><a href="matrix-configuration-include-exclude-and-fine-tuning.html" class="sub-lesson-row" data-progress-id="gh:matrix-configuration-include-exclude-and-fine-tuning.html">
+    </a><a href="matrix-configuration-include-exclude-and-fine-tuning.html" class="sub-lesson-row" data-progress-id="github-actions:matrix-configuration-include-exclude-and-fine-tuning.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Matrix Configuration: include, exclude & Fine-Tuning</span>
-        <span class="sub-lesson-desc">Fine-tuning a matrix build — adding extra one-off combinations with include, rem…</span>
+        <span class="sub-lesson-desc">Fine-tuning a matrix build — adding extra one-off combinations with include, removing spec…</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a><a href="parallel-execution-and-the-performance-challenge.html" class="sub-lesson-row" data-progress-id="gh:parallel-execution-and-the-performance-challenge.html">
+    </a><a href="parallel-execution-and-the-performance-challenge.html" class="sub-lesson-row" data-progress-id="github-actions:parallel-execution-and-the-performance-challenge.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Parallel Execution & the Performance Challenge</span>
-        <span class="sub-lesson-desc">A real performance challenge — reducing a 30-minute sequential test pipeline to …</span>
+        <span class="sub-lesson-desc">A real performance challenge — reducing a 30-minute sequential test pipeline to roughly 10…</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a><a href="matrix-with-automation-testing.html" class="sub-lesson-row" data-progress-id="gh:matrix-with-automation-testing.html">
+    </a><a href="matrix-with-automation-testing.html" class="sub-lesson-row" data-progress-id="github-actions:matrix-with-automation-testing.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Matrix + Automation Testing: Playwright, Cross-Browser & Multi-Environment</span>
-        <span class="sub-lesson-desc">Using a matrix strategy for cross-browser Playwright testing and multi-environme…</span>
+        <span class="sub-lesson-desc">Using a matrix strategy for cross-browser Playwright testing and multi-environment RestAss…</span>
       </span>
       <span class="read-btn-sm">Read</span>
     </a>
   </div>
-</details><details class="chapter-card">
+</details>
+<details class="chapter-card">
   <summary class="chapter-card-header">
     <span class="chapter-num">11</span>
     <span class="chapter-card-info">
       <span class="chapter-title">Reusable Workflows, Composite Actions & DRY CI/CD</span>
-      <span class="chapter-sub">How organizations avoid duplicating pipeline logic across repositories — reusable workflow…</span>
+      <span class="chapter-sub">How organizations avoid duplicating pipeline logic across repositories — reusable workflows wit…</span>
     </span>
     <span class="chapter-card-meta">
       <a href="reusable-workflows-composite-actions-and-dry-cicd.html" class="read-btn" onclick="event.stopPropagation()">Read</a>
@@ -761,49 +771,49 @@
     </span>
   </summary>
   <div class="chapter-card-subs">
-    <a href="reusable-workflows-composite-actions-and-dry-cicd.html" class="sub-lesson-row sub-lesson-hub-link" data-progress-id="gh:reusable-workflows-composite-actions-and-dry-cicd.html">
+    <a href="reusable-workflows-composite-actions-and-dry-cicd.html" class="sub-lesson-row sub-lesson-hub-link" data-progress-id="github-actions:reusable-workflows-composite-actions-and-dry-cicd.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Chapter Overview</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a>
-    <a href="why-reusability-matters-and-reusable-workflows.html" class="sub-lesson-row" data-progress-id="gh:why-reusability-matters-and-reusable-workflows.html">
+    </a><a href="why-reusability-matters-and-reusable-workflows.html" class="sub-lesson-row" data-progress-id="github-actions:why-reusability-matters-and-reusable-workflows.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Why Reusability Matters & Reusable Workflows</span>
-        <span class="sub-lesson-desc">Why duplicated CI/CD logic across repositories becomes a genuine liability, and …</span>
+        <span class="sub-lesson-desc">Why duplicated CI/CD logic across repositories becomes a genuine liability, and how workfl…</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a><a href="calling-a-reusable-workflow-with-inputs-and-outputs.html" class="sub-lesson-row" data-progress-id="gh:calling-a-reusable-workflow-with-inputs-and-outputs.html">
+    </a><a href="calling-a-reusable-workflow-with-inputs-and-outputs.html" class="sub-lesson-row" data-progress-id="github-actions:calling-a-reusable-workflow-with-inputs-and-outputs.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Calling a Reusable Workflow with Inputs & Outputs</span>
-        <span class="sub-lesson-desc">Actually calling a reusable workflow with &amp;amp;amp;amp;amp;amp;amp;amp;amp;a…</span>
+        <span class="sub-lesson-desc">Actually calling a reusable workflow with &#x27;uses&#x27;, passing inputs and secrets int…</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a><a href="composite-actions-explained.html" class="sub-lesson-row" data-progress-id="gh:composite-actions-explained.html">
+    </a><a href="composite-actions-explained.html" class="sub-lesson-row" data-progress-id="github-actions:composite-actions-explained.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Composite Actions Explained</span>
-        <span class="sub-lesson-desc">What a composite action is, how it differs from a reusable workflow, and buildin…</span>
+        <span class="sub-lesson-desc">What a composite action is, how it differs from a reusable workflow, and building one to b…</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a><a href="reusable-workflow-vs-composite-action.html" class="sub-lesson-row" data-progress-id="gh:reusable-workflow-vs-composite-action.html">
+    </a><a href="reusable-workflow-vs-composite-action.html" class="sub-lesson-row" data-progress-id="github-actions:reusable-workflow-vs-composite-action.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Reusable Workflow vs. Composite Action: Choosing the Right One</span>
-        <span class="sub-lesson-desc">A genuine decision guide for choosing between a reusable workflow and a composit…</span>
+        <span class="sub-lesson-desc">A genuine decision guide for choosing between a reusable workflow and a composite action,…</span>
       </span>
       <span class="read-btn-sm">Read</span>
     </a>
   </div>
-</details><details class="chapter-card">
+</details>
+<details class="chapter-card">
   <summary class="chapter-card-header">
     <span class="chapter-num">12</span>
     <span class="chapter-card-info">
       <span class="chapter-title">Environments, Approvals & Deployment</span>
-      <span class="chapter-sub">GitHub Environments, the dev/test/staging/production progression, deployment approvals and…</span>
+      <span class="chapter-sub">GitHub Environments, the dev/test/staging/production progression, deployment approvals and prot…</span>
     </span>
     <span class="chapter-card-meta">
       <a href="environments-approvals-and-deployment.html" class="read-btn" onclick="event.stopPropagation()">Read</a>
@@ -811,49 +821,49 @@
     </span>
   </summary>
   <div class="chapter-card-subs">
-    <a href="environments-approvals-and-deployment.html" class="sub-lesson-row sub-lesson-hub-link" data-progress-id="gh:environments-approvals-and-deployment.html">
+    <a href="environments-approvals-and-deployment.html" class="sub-lesson-row sub-lesson-hub-link" data-progress-id="github-actions:environments-approvals-and-deployment.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Chapter Overview</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a>
-    <a href="what-is-a-github-environment-and-the-standard-progression.html" class="sub-lesson-row" data-progress-id="gh:what-is-a-github-environment-and-the-standard-progression.html">
+    </a><a href="what-is-a-github-environment-and-the-standard-progression.html" class="sub-lesson-row" data-progress-id="github-actions:what-is-a-github-environment-and-the-standard-progression.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">What is a GitHub Environment? Dev/Test/Staging/Production</span>
-        <span class="sub-lesson-desc">What a GitHub Environment actually is, how it groups deployment-related configur…</span>
+        <span class="sub-lesson-desc">What a GitHub Environment actually is, how it groups deployment-related configuration, and…</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a><a href="environment-scoped-variables.html" class="sub-lesson-row" data-progress-id="gh:environment-scoped-variables.html">
+    </a><a href="environment-scoped-variables.html" class="sub-lesson-row" data-progress-id="github-actions:environment-scoped-variables.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Environment-Scoped Variables</span>
-        <span class="sub-lesson-desc">Using vars at the environment level, distinct from the environment secrets alrea…</span>
+        <span class="sub-lesson-desc">Using vars at the environment level, distinct from the environment secrets already covered…</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a><a href="deployment-approvals-and-protection-rules.html" class="sub-lesson-row" data-progress-id="gh:deployment-approvals-and-protection-rules.html">
+    </a><a href="deployment-approvals-and-protection-rules.html" class="sub-lesson-row" data-progress-id="github-actions:deployment-approvals-and-protection-rules.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Deployment Approvals & Protection Rules</span>
-        <span class="sub-lesson-desc">Required reviewers, wait timers, and branch restrictions as environment protecti…</span>
+        <span class="sub-lesson-desc">Required reviewers, wait timers, and branch restrictions as environment protection rules —…</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a><a href="environment-based-deployment-the-complete-pipeline.html" class="sub-lesson-row" data-progress-id="gh:environment-based-deployment-the-complete-pipeline.html">
+    </a><a href="environment-based-deployment-the-complete-pipeline.html" class="sub-lesson-row" data-progress-id="github-actions:environment-based-deployment-the-complete-pipeline.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Environment-Based Deployment: The Complete Pipeline</span>
-        <span class="sub-lesson-desc">The full deployment pipeline — push, build, test, deploy to test, approval, depl…</span>
+        <span class="sub-lesson-desc">The full deployment pipeline — push, build, test, deploy to test, approval, deploy to prod…</span>
       </span>
       <span class="read-btn-sm">Read</span>
     </a>
   </div>
-</details><details class="chapter-card">
+</details>
+<details class="chapter-card">
   <summary class="chapter-card-header">
     <span class="chapter-num">13</span>
     <span class="chapter-card-info">
       <span class="chapter-title">Advanced GitHub Actions & Production CI/CD</span>
-      <span class="chapter-sub">Self-hosted runners, containers and services, secure OIDC cloud authentication, and buildi…</span>
+      <span class="chapter-sub">Self-hosted runners, containers and services, secure OIDC cloud authentication, and building ge…</span>
     </span>
     <span class="chapter-card-meta">
       <a href="advanced-github-actions-and-production-cicd.html" class="read-btn" onclick="event.stopPropagation()">Read</a>
@@ -861,68 +871,69 @@
     </span>
   </summary>
   <div class="chapter-card-subs">
-    <a href="advanced-github-actions-and-production-cicd.html" class="sub-lesson-row sub-lesson-hub-link" data-progress-id="gh:advanced-github-actions-and-production-cicd.html">
+    <a href="advanced-github-actions-and-production-cicd.html" class="sub-lesson-row sub-lesson-hub-link" data-progress-id="github-actions:advanced-github-actions-and-production-cicd.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Chapter Overview</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a>
-    <a href="self-hosted-runners.html" class="sub-lesson-row" data-progress-id="gh:self-hosted-runners.html">
+    </a><a href="self-hosted-runners.html" class="sub-lesson-row" data-progress-id="github-actions:self-hosted-runners.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Self-Hosted Runners</span>
-        <span class="sub-lesson-desc">What self-hosted runners are, why organizations use them, their real advantages …</span>
+        <span class="sub-lesson-desc">What self-hosted runners are, why organizations use them, their real advantages and risks,…</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a><a href="containers-and-services-in-github-actions.html" class="sub-lesson-row" data-progress-id="gh:containers-and-services-in-github-actions.html">
+    </a><a href="containers-and-services-in-github-actions.html" class="sub-lesson-row" data-progress-id="github-actions:containers-and-services-in-github-actions.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Containers & Services in GitHub Actions</span>
-        <span class="sub-lesson-desc">Running a job&amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;#x…</span>
+        <span class="sub-lesson-desc">Running a job&#x27;s steps inside a container, and adding real service containers like a d…</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a><a href="oidc-and-cloud-authentication.html" class="sub-lesson-row" data-progress-id="gh:oidc-and-cloud-authentication.html">
+    </a><a href="oidc-and-cloud-authentication.html" class="sub-lesson-row" data-progress-id="github-actions:oidc-and-cloud-authentication.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">OIDC & Cloud Authentication</span>
-        <span class="sub-lesson-desc">How OpenID Connect lets a GitHub Actions workflow authenticate securely to a clo…</span>
+        <span class="sub-lesson-desc">How OpenID Connect lets a GitHub Actions workflow authenticate securely to a cloud provide…</span>
       </span>
       <span class="read-btn-sm">Read</span>
-    </a><a href="concurrency-timeouts-and-retries.html" class="sub-lesson-row" data-progress-id="gh:concurrency-timeouts-and-retries.html">
+    </a><a href="concurrency-timeouts-and-retries.html" class="sub-lesson-row" data-progress-id="github-actions:concurrency-timeouts-and-retries.html">
       <span class="sub-lesson-dot"></span>
       <span class="sub-lesson-info">
         <span class="sub-lesson-title">Concurrency, Timeouts & Retries: Building Reliable Workflows</span>
-        <span class="sub-lesson-desc">Preventing duplicate or conflicting workflow runs with concurrency groups, setti…</span>
+        <span class="sub-lesson-desc">Preventing duplicate or conflicting workflow runs with concurrency groups, setting timeout…</span>
       </span>
       <span class="read-btn-sm">Read</span>
     </a>
   </div>
-</details><a href="production-cicd-pipeline-capstone.html" class="chapter-card chapter-card-standalone" data-progress-id="gh:production-cicd-pipeline-capstone.html">
+</details>
+<a href="production-cicd-pipeline-capstone.html" class="chapter-card chapter-card-standalone" data-progress-id="github-actions:production-cicd-pipeline-capstone.html">
   <span class="chapter-num">14</span>
   <span class="chapter-card-info">
     <span class="chapter-title">Build a Production-Ready CI/CD Pipeline</span>
-    <span class="chapter-sub">Every technique from this course, assembled into one real, production-grade CI/CD pipeline…</span>
+    <span class="chapter-sub">Every technique from this course, assembled into one real, production-grade CI/CD pipeline for…</span>
   </span>
   <span class="read-btn">Read</span>
 </a>
       </div>
     </main>
-
     <aside class="right-rail">
       <div class="rail-card book-promo-card">
-  <div class="book-promo-badge">&#128218; Recommended Reading</div>
-  <div class="book-carousel">
-    <div class="book-slide active">
+  <div class="book-promo-inner">
+    <div class="book-promo-badge">&#128218; Recommended Reading</div>
+    <div class="book-carousel">
+    <div class="book-slide active" data-index="0">
   <a href="https://www.amazon.in/GITHUB-ACTIONS-ACTION-Developers-Automating-ebook/dp/B0GX2YXBN1" target="_blank" rel="nofollow noopener" class="book-cover-mock"><img src="../images/books/book-8-github-actions-in-action.jpg" alt="GitHub Actions in Action book cover" loading="lazy" /></a>
   <div class="book-info">
     <h5>GitHub Actions in Action</h5>
     <p>The Complete Developer's Guide to Automating CI/CD Pipelines</p>
-    <a href="https://www.amazon.in/GITHUB-ACTIONS-ACTION-Developers-Automating-ebook/dp/B0GX2YXBN1" target="_blank" rel="nofollow noopener" class="book-buy-btn">View on Amazon &rarr;</a>
+    <a href="https://www.amazon.in/GITHUB-ACTIONS-ACTION-Developers-Automating-ebook/dp/B0GX2YXBN1" target="_blank" rel="nofollow noopener" class="book-buy-btn">View on Amazon <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></a>
   </div>
 </div>
+    </div>
+    
   </div>
-  <div class="book-dots"><span class="book-dot active"></span></div>
 </div>
       <div class="rail-card">
         <h4>On this page</h4>
@@ -934,22 +945,6 @@
     </aside>
   </div>
 
-  <script>
-  document.querySelectorAll('.book-promo-card').forEach(function(card) {
-    var slides = card.querySelectorAll('.book-slide');
-    var dots = card.querySelectorAll('.book-dot');
-    if (slides.length < 2) return;
-    var idx = 0;
-    setInterval(function() {
-      slides[idx].classList.remove('active');
-      if (dots[idx]) dots[idx].classList.remove('active');
-      idx = (idx + 1) % slides.length;
-      slides[idx].classList.add('active');
-      if (dots[idx]) dots[idx].classList.add('active');
-    }, 5000);
-  });
-</script>
-
   <nav class="mobile-tabbar">
   <a href="../index.html"><svg class="icon" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg><span>Home</span></a>
   <a href="index.html" class="active"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>Tutorials</span></a>
@@ -957,7 +952,70 @@
   <a href="../about.html"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="12" y1="16" x2="12" y2="11.5"/><circle cx="12" cy="8" r="0.8" fill="currentColor" stroke="none"/></svg><span>About</span></a>
 </nav>
 
+
   <script>
+  document.querySelectorAll('.book-promo-card').forEach(function(card) {
+    var slides = card.querySelectorAll('.book-slide');
+    var dots = card.querySelectorAll('.book-dot');
+    var counter = card.querySelector('.book-counter-current');
+    var progressFill = card.querySelector('.book-progress-fill');
+    var carousel = card.querySelector('.book-carousel');
+    if (slides.length < 2) return;
+    var idx = 0, timer = null, paused = false;
+
+    function goTo(newIdx) {
+      slides[idx].classList.remove('active');
+      if (dots[idx]) dots[idx].classList.remove('active');
+      idx = (newIdx + slides.length) % slides.length;
+      slides[idx].classList.add('active');
+      if (dots[idx]) dots[idx].classList.add('active');
+      if (counter) counter.textContent = idx + 1;
+      restartProgress();
+    }
+    function restartProgress() {
+      if (!progressFill) return;
+      progressFill.classList.remove('running');
+      void progressFill.offsetWidth;
+      if (!paused) progressFill.classList.add('running');
+    }
+    function restartTimer() {
+      if (timer) clearInterval(timer);
+      timer = setInterval(function() { if (!paused) goTo(idx + 1); }, 5000);
+    }
+
+    dots.forEach(function(dot) {
+      dot.addEventListener('click', function() { goTo(parseInt(dot.getAttribute('data-goto'), 10)); restartTimer(); });
+    });
+    card.querySelectorAll('.book-nav-arrow').forEach(function(arrow) {
+      arrow.addEventListener('click', function() { goTo(idx + parseInt(arrow.getAttribute('data-dir'), 10)); restartTimer(); });
+    });
+    card.addEventListener('mouseenter', function() { paused = true; if (progressFill) progressFill.classList.remove('running'); });
+    card.addEventListener('mouseleave', function() { paused = false; restartProgress(); });
+
+    var touchStartX = null;
+    if (carousel) {
+      carousel.addEventListener('touchstart', function(e) { touchStartX = e.touches[0].clientX; paused = true; }, { passive: true });
+      carousel.addEventListener('touchend', function(e) {
+        if (touchStartX === null) return;
+        var dx = e.changedTouches[0].clientX - touchStartX;
+        if (Math.abs(dx) > 35) { goTo(idx + (dx < 0 ? 1 : -1)); restartTimer(); }
+        touchStartX = null;
+        paused = false; restartProgress();
+      }, { passive: true });
+    }
+
+    restartProgress();
+    restartTimer();
+  });
+
+  function copyCode(btn) {
+    const code = btn.nextElementSibling.innerText;
+    navigator.clipboard.writeText(code).then(function() {
+      btn.textContent = 'Copied';
+      btn.classList.add('copied');
+      setTimeout(function() { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
+    });
+  }
   function openSidebar() {
     document.getElementById('doc-sidebar').classList.add('open');
     document.getElementById('sidebar-backdrop').classList.add('show');
@@ -968,11 +1026,49 @@
     document.getElementById('sidebar-backdrop').classList.remove('show');
     document.body.classList.remove('no-scroll');
   }
-  function toggleTheme() {
-    var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-    document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark');
-    try { localStorage.setItem('assertTrueTheme', isDark ? 'light' : 'dark'); } catch (e) {}
+  function toggleThemePicker() {
+    var popover = document.getElementById('theme-picker-popover');
+    var btn = document.getElementById('theme-picker-btn');
+    var isOpen = popover.classList.toggle('open');
+    btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
   }
+  function setColorTheme(theme) {
+    if (theme === 'forest') {
+      document.documentElement.removeAttribute('data-color-theme');
+    } else {
+      document.documentElement.setAttribute('data-color-theme', theme);
+    }
+    try { localStorage.setItem('assertTrueColorTheme', theme); } catch (e) {}
+    document.querySelectorAll('.theme-picker-option').forEach(function(opt) {
+      opt.classList.toggle('active', opt.getAttribute('data-theme') === theme);
+    });
+    var popover = document.getElementById('theme-picker-popover');
+    var btn = document.getElementById('theme-picker-btn');
+    if (popover) popover.classList.remove('open');
+    if (btn) btn.setAttribute('aria-expanded', 'false');
+  }
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.theme-picker')) {
+      var popover = document.getElementById('theme-picker-popover');
+      if (popover) popover.classList.remove('open');
+    }
+  });
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      var popover = document.getElementById('theme-picker-popover');
+      var btn = document.getElementById('theme-picker-btn');
+      if (popover && popover.classList.contains('open')) {
+        popover.classList.remove('open');
+        if (btn) { btn.setAttribute('aria-expanded', 'false'); btn.focus(); }
+      }
+    }
+  });
+  (function() {
+    var current = 'forest';
+    try { current = localStorage.getItem('assertTrueColorTheme') || 'forest'; } catch (e) {}
+    var opt = document.querySelector('.theme-picker-option[data-theme="' + current + '"]');
+    if (opt) opt.classList.add('active');
+  })();
   var docSearchIndex = null;
   var docSearchPromise = null;
   function loadDocSearchIndex() {
@@ -1019,11 +1115,7 @@
     var docResults = document.getElementById('doc-search-results');
     if (!docInput || !docResults) return;
     function renderDocSearch(query) {
-      if (!query.trim()) {
-        docResults.hidden = true;
-        docInput.setAttribute('aria-expanded', 'false');
-        return;
-      }
+      if (!query.trim()) { docResults.hidden = true; docInput.setAttribute('aria-expanded', 'false'); return; }
       if (!docSearchIndex) {
         docResults.innerHTML = '<div class="hp-search-empty">Loading&hellip;</div>';
         docResults.hidden = false;
@@ -1054,38 +1146,58 @@
     docInput.addEventListener('focus', function() { loadDocSearchIndex(); if (docInput.value.trim()) renderDocSearch(docInput.value); });
     docInput.addEventListener('keydown', function(e) {
       if (e.key === 'Escape') { docResults.hidden = true; docInput.blur(); }
-      else if (e.key === 'Enter') {
-        var first = docResults.querySelector('.hp-search-item');
-        if (first) window.location.href = first.getAttribute('href');
-      }
+      else if (e.key === 'Enter') { var first = docResults.querySelector('.hp-search-item'); if (first) window.location.href = first.getAttribute('href'); }
     });
-    document.addEventListener('click', function(e) {
-      if (!e.target.closest('.topnav-search-wrap')) { docResults.hidden = true; }
-    });
+    document.addEventListener('click', function(e) { if (!e.target.closest('.topnav-search-wrap')) { docResults.hidden = true; } });
   })();
 
-  function toggleComplete(checkbox) {
-    var pageId = checkbox.getAttribute('data-page-id');
-    var progress = {};
-    try { progress = JSON.parse(localStorage.getItem('assertTrueProgress') || '{}'); } catch (e) {}
-    if (checkbox.checked) { progress[pageId] = true; } else { delete progress[pageId]; }
-    try { localStorage.setItem('assertTrueProgress', JSON.stringify(progress)); } catch (e) {}
-  }
   (function() {
-    var progress = {};
-    try { progress = JSON.parse(localStorage.getItem('assertTrueProgress') || '{}'); } catch (e) {}
-    var cb = document.querySelector('.mark-complete-checkbox');
-    if (cb && progress[cb.getAttribute('data-page-id')]) cb.checked = true;
+    var deferredInstallPrompt = null;
+    function getInstallBanner() { return document.getElementById('install-banner'); }
+    window.addEventListener('beforeinstallprompt', function(e) {
+      e.preventDefault();
+      if (localStorage.getItem('assertTrueInstallDismissed') === '1') return;
+      deferredInstallPrompt = e;
+      var banner = getInstallBanner();
+      if (banner) banner.classList.add('show');
+    });
+    window.handleInstallClick = function() {
+      if (!deferredInstallPrompt) return;
+      deferredInstallPrompt.prompt();
+      deferredInstallPrompt.userChoice.then(function() {
+        deferredInstallPrompt = null;
+        var banner = getInstallBanner();
+        if (banner) banner.classList.remove('show');
+      });
+    };
+    window.dismissInstallBanner = function() {
+      var banner = getInstallBanner();
+      if (banner) banner.classList.remove('show');
+      try { localStorage.setItem('assertTrueInstallDismissed', '1'); } catch (e) {}
+    };
+    window.addEventListener('appinstalled', function() {
+      var banner = getInstallBanner();
+      if (banner) banner.classList.remove('show');
+    });
+    try {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('../sw.js').catch(function() {});
+      }
+    } catch (e) {}
   })();
-  (function() {
-    var activeLink = document.querySelector('.doc-sidebar a.active');
-    if (activeLink) { activeLink.scrollIntoView({ block: 'center' }); }
-  })();
-  document.addEventListener('click', function(e) {
-    if (e.target.closest('.sidebar-link') && window.matchMedia('(max-width: 860px)').matches) {
-      closeSidebar();
-    }
-  });
+
   </script>
+
+    <div class="install-banner" id="install-banner">
+      <img src="../icons/icon-192.png" alt="" class="install-banner-icon" />
+      <div class="install-banner-text">
+        <strong>Install AssertTrueIO</strong>
+        <span>Add to your home screen for quick, offline access</span>
+      </div>
+      <button type="button" class="install-banner-btn" onclick="handleInstallClick()">Install</button>
+      <button type="button" class="install-banner-dismiss" onclick="dismissInstallBanner()" aria-label="Dismiss">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width:16px;height:16px;"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
 </body>
 </html>

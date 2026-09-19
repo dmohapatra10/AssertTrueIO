@@ -1,0 +1,191 @@
+<!doctype html>
+<html><head>
+<title>MCP + API Testing: Exposing Chapter 6 and 10&#x27;s Capabilities Through MCP</title>
+<meta name="description" content="Wrapping request construction, schema validation, and OpenAPI-driven generation as MCP tools — genuinely simpler than the browser case, with its own real subtlety." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/mcp-and-api-testing.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>MCP + API Testing</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="mcp-and-playwright.html">MCP + Playwright</a></p>
+<article class="content">
+<h2 id="what-is-this-and-why-it-s-genuinely-simpler-than-browser-tools">What is this, and why it's genuinely simpler than browser tools</h2>
+<p>API testing tools are genuinely stateless in a way browser tools aren't — each request is independent, with no shared "current page" to maintain across calls. This page wraps Chapter 6 and 10's capabilities as MCP tools, without the previous page's persistence complication.</p>
+
+<h2 id="chapter-6-and-10-s-capabilities-wrapped-as-mcp">Chapter 6 and 10's Capabilities, Wrapped as MCP</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@mcp.tool()
+def make_api_request(method: str, endpoint: str, json_body: dict = None) -> dict:
+    """Makes an HTTP request to ShopEasy's staging API. Method
+    must be GET, POST, PATCH, or DELETE. Endpoint should start
+    with '/', e.g. '/orders/1042'."""
+    import requests
+    if method not in ("GET", "POST", "PATCH", "DELETE"):
+        return {"error": f"Method '{method}' not allowed"}
+    response = requests.request(
+        method, f"https://staging.shopeasy.example.com/api{endpoint}",
+        json=json_body, timeout=10
+    )
+    return {"status_code": response.status_code,
+            "body": response.json() if response.content else None}
+
+@mcp.tool()
+def validate_against_schema(response_body: dict, openapi_schema: dict) -> dict:
+    """Validates a response body against a given OpenAPI JSON
+    schema, using Chapter 10's own jsonschema-based approach."""
+    import jsonschema
+    try:
+        jsonschema.validate(instance=response_body, schema=openapi_schema)
+        return {"valid": True, "errors": []}
+    except jsonschema.ValidationError as e:
+        return {"valid": False, "errors": [str(e)]}
+
+@mcp.resource("shopeasy://api/openapi-spec")
+def get_openapi_spec() -> dict:
+    """ShopEasy's current OpenAPI specification, for use with
+    Chapter 10's spec-driven generation techniques."""
+    import json
+    with open("shopeasy_openapi.json") as f:
+        return json.load(f)</code></pre>
+
+<h2 id="the-one-genuine-subtlety-what-should-be-a-tool-vs-a-resource-here">The One Genuine Subtlety — What Should Be a Tool vs. a Resource Here</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Notice get_openapi_spec is a RESOURCE, not a tool — applying
+the "ten times in a row" test directly: reading the SAME spec
+file repeatedly is genuinely safe and cheap, no different from
+Chapter 5's own get_return_policy example. But make_api_request
+and validate_against_schema are GENUINELY tools — one has real
+network effects (a POST or DELETE could genuinely change real
+data), and the other, while read-only in effect, performs real
+per-call computation against ARBITRARY input, not a fixed file.</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might <code>make_api_request</code> deserve MORE caution from a client's reasoning than the browser tools from the previous page, even though both are "just" tools? A GET request is genuinely safe to repeat, but this single tool ALSO handles POST, PATCH, and DELETE — methods with real, potentially destructive side effects on ShopEasy's actual order data. Unlike the previous page's browser tools, where each individual tool (navigate, click) has a narrower, more predictable effect, this one tool's risk profile depends entirely on which method a client's reasoning chooses to pass — making the method-level validation inside the tool genuinely load-bearing, not just defensive boilerplate.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Treating all API-related MCP tools as equally low-risk because "it's just an API call." A GET request and a DELETE request through the same tool carry genuinely different real consequences — a well-designed tool needs to account for this range, not treat every call as equivalently safe.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>Exposing the OpenAPI spec itself as a resource (this page's approach) lets a client's reasoning consult it directly when deciding how to call <code>make_api_request</code> — rather than the tool needing to somehow embed or duplicate schema knowledge, the client can read the resource and reason about the right request shape itself.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Recognize that API tools are genuinely stateless, unlike browser tools, simplifying their MCP implementation.</li>
+  <li>Account for the full range of risk a single tool might carry when it handles multiple HTTP methods with different real consequences.</li>
+  <li>Expose reference material like an OpenAPI spec as a resource, letting client reasoning consult it directly rather than duplicating that knowledge inside tools.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>API testing tools are genuinely simpler to expose via MCP than browser tools, since they don't need shared, persistent state across calls.</li>
+  <li>A single tool handling multiple HTTP methods carries a genuinely wider risk range than the previous page's narrower, single-purpose browser tools.</li>
+  <li>Reference material like a formal spec belongs as a resource, letting client reasoning consult it directly when constructing tool calls.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Split this page's <code>make_api_request</code> into two separate tools — one handling only GET (genuinely safe to call freely) and one handling POST/PATCH/DELETE (genuinely requiring more caution) — and explain what this split would let a client's reasoning do differently that the single combined tool couldn't.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A teammate argues browser and API tools should be architected identically since "they're both just MCP tools." What genuine difference does this page identify that argues against this?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Browser tools genuinely need shared, persistent state across calls (the previous page's core complication); API tools are genuinely stateless, each call independent — treating them identically would either add unnecessary complexity to API tools or miss the real state-management need browser tools have.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why BROWSER tools GENUINELY need shared state:
+navigate_to and find_and_click need to operate on the SAME
+  live PAGE — WITHOUT persistence, EACH call would work on a
+  FRESH, UNRELATED browser instance, EXACTLY the FAILURE mode
+  the PREVIOUS page's FIRST interview question DESCRIBED.
+
+Why API tools GENUINELY don't need this:
+make_api_request(method="GET", endpoint="/orders/1042") is
+  COMPLETELY self-CONTAINED — it needs NOTHING from a PREVIOUS
+  call to WORK correctly, UNLIKE find_and_click's DEPENDENCE
+  on a PRIOR navigate_to having ALREADY set up the PAGE.</code></pre>
+<p>The teammate's INSTINCT toward CONSISTENCY is REASONABLE, but "BOTH are MCP tools" DOESN'T mean "BOTH need the SAME architecture" — the UNDERLYING NATURE of the CAPABILITY (STATEFUL browser AUTOMATION vs. STATELESS API calls) GENUINELY determines WHAT'S actually NEEDED, exactly THIS page's OWN opening ARGUMENT.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page argue make_api_request deserves MORE caution than the previous page's browser tools, even though "it's just an API call"?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A SINGLE tool handling FOUR different HTTP METHODS has a WIDER risk RANGE than EACH of the PREVIOUS page's NARROWER, single-PURPOSE tools — a CLIENT choosing DELETE through THIS one tool carries GENUINELY different, HIGHER stakes than choosing GET, and the TOOL itself must ACCOUNT for this ENTIRE range.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why EACH browser tool (find_and_click, navigate_to)
+individually carries a NARROWER, more PREDICTABLE risk:
+EACH tool does ONE thing — click AN element, or NAVIGATE to a
+  URL. The RISK PROFILE of EACH individual TOOL is RELATIVELY
+  narrow and PREDICTABLE.
+
+Why make_api_request's RISK profile is GENUINELY wider:
+ONE tool HANDLES GET (safe, READ-only), POST (creates REAL
+  data), PATCH (MODIFIES real DATA), and DELETE (REMOVES real
+  data) — a SINGLE tool call COULD range from COMPLETELY
+  harmless to GENUINELY destructive, DEPENDING ENTIRELY on
+  WHICH method the CLIENT'S reasoning HAPPENS to choose.</code></pre>
+<p>This is EXACTLY why THIS page's "Try It YOURSELF" exercise SUGGESTS SPLITTING this INTO separate TOOLS — a SINGLE tool COVERING such a WIDE risk RANGE is GENUINELY harder for a CLIENT'S reasoning (and a HUMAN reviewer) to REASON about SAFELY than SEVERAL, NARROWER tools EACH with a MORE PREDICTABLE, CONSISTENT risk LEVEL.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why exposing the OpenAPI spec as a RESOURCE, rather than EMBEDDING schema knowledge INSIDE make_api_request itself, is a GENUINELY better design.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>EMBEDDING schema KNOWLEDGE inside the TOOL would COUPLE the TOOL'S implementation to a SPECIFIC spec VERSION, and would HIDE that KNOWLEDGE from the CLIENT'S own REASONING — exposing it SEPARATELY as a RESOURCE lets the CLIENT consult it DIRECTLY when DECIDING how to CONSTRUCT a request.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why EMBEDDING schema logic INSIDE the tool would be GENUINELY
+worse:
+The TOOL would need to somehow VALIDATE or GUIDE requests
+  based on a SCHEMA it INTERNALLY knows about — but the
+  CLIENT'S reasoning, DECIDING what REQUEST to CONSTRUCT in
+  the FIRST place, would have NO direct ACCESS to that SAME
+  schema KNOWLEDGE, making it HARDER for the client to
+  CONSTRUCT a GENUINELY well-formed request BEFORE ever
+  CALLING the tool.
+
+Why EXPOSING it as a SEPARATE resource (THIS page's ACTUAL
+approach) is GENUINELY better:
+The CLIENT can READ get_openapi_spec DIRECTLY, using Chapter
+  10's OWN generation techniques to CONSTRUCT a well-FORMED
+  request BEFORE calling make_api_request — the SCHEMA
+  knowledge is AVAILABLE to BOTH the tool (for VALIDATION,
+  via THIS page's SEPARATE validate_against_schema tool) AND
+  the CLIENT'S own REASONING (for CONSTRUCTION).</code></pre>
+<p>This is a GENUINELY important design PRINCIPLE — making RELEVANT KNOWLEDGE (the SCHEMA) DIRECTLY accessible to the REASONING side, rather than BURYING it inside a TOOL'S internal IMPLEMENTATION, lets the CLIENT make BETTER-INFORMED decisions BEFORE ever CALLING a tool, not JUST react to VALIDATION failures AFTER the FACT.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might validate_against_schema be classified as a TOOL rather than a RESOURCE, despite BEING read-only in EFFECT (it doesn't MODIFY anything)?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This DIRECTLY mirrors the PREVIOUS page's get_current_page_summary REASONING — being READ-only ISN'T the SAME as being a RESOURCE; the DISTINGUISHING factor is WHETHER it performs GENUINE, per-CALL computation on ARBITRARY input, WHICH validate_against_schema CLEARLY does.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why "READ-only" ALONE doesn't QUALIFY something as a
+resource:
+validate_against_schema doesn't MODIFY anything, TRUE — but
+  it ALSO doesn't just RETURN a FIXED, EXISTING piece of DATA
+  the WAY get_openapi_spec does. It performs REAL, meaningful
+  COMPUTATION (SCHEMA validation LOGIC) against WHATEVER
+  ARBITRARY response_body and SCHEMA the CLIENT happens to
+  PROVIDE.
+
+Why this MAKES it GENUINELY more TOOL-like:
+The "TEN times in a ROW" test, applied CAREFULLY: calling it
+  TEN times with TEN DIFFERENT (response_body, schema) PAIRS
+  would GENUINELY produce TEN DIFFERENT, MEANINGFUL results —
+  UNLIKE a TRUE resource, WHERE repeated CALLS with the SAME
+  implicit "input" (JUST read the FILE) always RETURN the SAME
+  thing.</code></pre>
+<p>This is a GENUINELY useful, PRECISE refinement of the TOOL-vs-resource TEST — "READ-only" and "RESOURCE" are NOT SYNONYMS; the REAL distinguishing QUESTION is WHETHER the CAPABILITY performs GENUINE, PARAMETERIZED computation (TOOL-like) VERSUS simply RETURNING FIXED, EXISTING data (RESOURCE-like), REGARDLESS of WHETHER either ONE happens to MODIFY anything.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you extend this page's server to expose Chapter 10's negative-testing generation (missing required fields, constraint violations) as a genuine, additional MCP tool?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A GENUINELY useful ADDITION would DIRECTLY reuse Chapter 10's OWN generate_missing_field_tests and generate_constraint_violation_tests functions, EXPOSED as ONE combined MCP TOOL that a CLIENT can call GIVEN a SCHEMA (perhaps OBTAINED from THIS page's OWN get_openapi_spec resource FIRST).</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@mcp.tool()
+def generate_negative_test_cases(endpoint_schema: dict) -&gt; list:
+    """Given an OpenAPI request schema for ONE endpoint, generates
+    negative test cases covering EVERY declared required field's
+    omission and EVERY declared constraint violation, using
+    Chapter 10's OWN spec-driven generation approach."""
+    # REUSES Chapter 10's ACTUAL functions DIRECTLY:
+    missing_field_tests = generate_missing_field_tests(endpoint_schema)
+    constraint_tests = generate_constraint_violation_tests(endpoint_schema)
+    return missing_field_tests + constraint_tests</code></pre>
+<p>This EXTENDS this page's SERVER with a GENUINELY new, VALUABLE capability — a CLIENT could FIRST read get_openapi_spec (the RESOURCE), EXTRACT one ENDPOINT'S schema, CALL THIS new tool to GENERATE comprehensive negative TEST cases, then CALL make_api_request to ACTUALLY execute THEM — DEMONSTRATING exactly HOW this CHAPTER'S individual PIECES (tools, RESOURCES, reused LOGIC from EARLIER chapters) COMBINE into a GENUINELY complete, PRACTICAL testing WORKFLOW, all EXPOSED through the SAME standardized MCP INTERFACE.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

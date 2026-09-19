@@ -1,0 +1,197 @@
+<!doctype html>
+<html><head>
+<title>Defining the Testing Objective: Writing a Goal an Agent Can Act On</title>
+<meta name="description" content="How to write a genuine, well-scoped testing objective for an AI agent — specific enough to be actionable, without over-specifying the exact steps." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/defining-the-testing-objective.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Defining the Testing Objective</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="creating-the-ai-agent.html">Creating the AI Agent</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>The objective is the actual goal you give the agent — and how it's worded genuinely matters. Too vague, and the agent has no real direction; too specific, and you've accidentally written a traditional test script instead of a genuine goal for the agent to work out.</p>
+
+<h2 id="getting-the-objective-right-by-example">Getting the Objective Right — By Example</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>❌ Too vague — gives the agent no real direction:
+  "Test the login."
+
+  What counts as success? What credentials? What page? An
+  agent given this has to guess at things it genuinely
+  shouldn't have to guess at.
+
+❌ Too specific — this is a traditional test script, not a
+   genuine objective for an agent:
+  "Navigate to /login, click the element with id='email',
+  type 'test@example.com', click id='password', type
+  'password123', click id='login-btn', assert URL changes
+  to '/dashboard'."
+
+  This defeats the entire point of using an agent — there's
+  nothing left for it to actually reason about.
+
+✅ Genuinely well-scoped:
+  "Verify that a user with valid credentials can successfully
+  log into ShopEasy, ending up on their account dashboard."</code></pre>
+<p>This last version gives the agent a genuine, clear success condition ("ending up on their account dashboard") without dictating the exact mechanical steps — precisely the balance Chapter 2's Agent Planning page described as producing a genuinely useful, appropriately rough plan.</p>
+
+<h2 id="what-a-genuinely-good-objective-includes">What a Genuinely Good Objective Includes</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>1. WHAT is being verified — "a user can successfully log in"
+2. The SUCCESS CONDITION — "ending up on their account
+   dashboard" (how the agent will know it worked)
+3. Enough CONTEXT to disambiguate — "with valid credentials"
+   (as opposed to testing invalid-credential handling instead)</code></pre>
+
+<h2 id="in-actual-code">In Actual Code</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># agent.py
+
+class QAAgent:
+    def __init__(self, api_key):
+        self.client = Anthropic(api_key=api_key)
+        self.model = "claude-sonnet-4-6"
+        self.objective = None    # NEW — set before running
+
+    def set_objective(self, objective):
+        self.objective = objective
+
+    def think(self, prompt):
+        # (unchanged from the previous page)
+        ...
+
+# Usage:
+agent = QAAgent(api_key=os.environ["ANTHROPIC_API_KEY"])
+agent.set_objective(
+    "Verify that a user with valid credentials can successfully "
+    "log into ShopEasy, ending up on their account dashboard."
+)</code></pre>
+<p>Genuinely simple code — the real work on this page is in how the objective is worded, not in the mechanism for storing it.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might writing an overly-specific objective actually be a worse mistake than writing a vague one, even though both are described as errors on this page? A vague objective at least signals clearly that something's missing — you'll likely notice quickly that the agent doesn't know what to do. An overly-specific objective might genuinely "work," in the sense of producing a passing result, while completely defeating the actual point of using an agent at all — you've built a traditional test script with extra steps, without realizing it, since nothing about it visibly fails.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Writing an objective the way you'd write a traditional test case's title, then treating the actual TEST STEPS (which a traditional test would specify) as something that also belongs in the objective. The objective is specifically the WHAT and the success condition — the HOW is deliberately left to the agent's own planning and reasoning, covered in Chapter 2.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>A genuinely useful check for any objective you write: could you hand this exact sentence to a new human tester, with zero other context, and have them understand both what to test and how they'd know if it passed? If yes, it's probably well-scoped for an agent too.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Always include an explicit, checkable success condition — not just what to test, but how anyone (human or agent) would know it worked.</li>
+  <li>Include just enough context to disambiguate a genuinely similar but different objective, without dictating specific mechanical steps.</li>
+  <li>Test a new objective's wording against a human, not just an agent — if a human tester would be confused by it, an agent likely will be too.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>A genuinely good objective states what's being verified and its success condition, without dictating the specific mechanical steps to get there.</li>
+  <li>Too vague an objective gives an agent no real direction; too specific an objective defeats the actual point of using an agent at all.</li>
+  <li>A useful sanity check: a well-written objective should be clear enough to hand to a human tester with zero other context.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Write a genuinely well-scoped objective (matching this page's criteria) for verifying that ShopEasy's search feature returns relevant results for a valid search term — then write a deliberately too-vague and a deliberately too-specific version of the same objective, to make the contrast concrete for yourself.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A teammate writes the objective "Test that clicking the login button on the ShopEasy login page at /login navigates to /dashboard within 3 seconds using valid test credentials from the .env file." What's wrong with this, and how would you revise it?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This objective is genuinely too specific — it dictates exact mechanical details (the specific URL, an exact timing threshold, exactly where credentials come from) that belong to implementation, not to the goal itself, leaving the agent essentially nothing to reason about.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What's over-specified here:
+- "/login" and "/dashboard" — specific URLs the agent should
+  be able to DISCOVER through navigation, not be told upfront
+- "within 3 seconds" — an oddly specific timing constraint not
+  clearly connected to the actual goal (login success)
+- "from the .env file" — an implementation detail about
+  credential SOURCING that has nothing to do with the testing
+  goal itself
+
+Revised, appropriately scoped:
+"Verify that a user with valid credentials can successfully
+  log into ShopEasy, ending up on their account dashboard."</code></pre>
+<p>The revision keeps exactly what matters (what's being verified, and the success condition) while removing implementation-level specifics that belong in how the agent is configured and run, not in the objective itself.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page argue that an overly-specific objective can "genuinely work" while still being a real mistake — isn't a working test a good outcome regardless?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because "working" here only means it produces a passing result — it doesn't mean it's actually delivering the genuine value an agentic approach is supposed to provide, which is exactly the trap this page warns about.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>An overly-specific objective, mechanically "working":
+Produces a pass/fail result, technically correct — but the
+  agent had NOTHING left to genuinely reason about, since
+  every step was already dictated. You've built a traditional,
+  fixed test script, just with extra LLM API cost and latency
+  added on top, for no actual benefit.
+
+The REAL value this page is protecting:
+An appropriately-scoped objective lets the agent's OWN
+  reasoning handle real specifics — finding the actual login
+  form, noticing something unexpected — exactly the genuine,
+  adaptive value Chapter 1 established as agentic testing's
+  actual strength.</code></pre>
+<p>"It works" isn't the right bar for evaluating an objective — "does it actually let the agent do genuine, adaptive reasoning, which is the whole reason to use an agent instead of a traditional script" is the real, more demanding question this page is actually asking.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain, using this page's three criteria (what, success condition, context), why "Verify that a user with valid credentials can successfully log into ShopEasy, ending up on their account dashboard" is well-scoped.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Each of the three criteria is genuinely present, doing real work, without spilling over into implementation-level specifics.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>WHAT is being verified:
+  "a user ... can successfully log into ShopEasy" — clear,
+  unambiguous about the actual feature under test
+
+SUCCESS CONDITION:
+  "ending up on their account dashboard" — a genuine, checkable
+  outcome the agent (or a human reviewing its report) can
+  actually verify happened or didn't
+
+CONTEXT to disambiguate:
+  "with valid credentials" — specifically distinguishes this
+  from a DIFFERENT, equally valid objective (testing INVALID
+  credential handling), preventing genuine ambiguity about
+  which scenario is actually intended</code></pre>
+<p>Notice what's deliberately absent: no specific URL, no specific button label, no specific timing — those are left entirely to the agent's own reasoning and planning, which is precisely the appropriate scope this page argues for.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you write an objective differently for an agent versus a traditional Playwright test covering the exact same underlying feature?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A traditional test's title and an agent's objective can describe the SAME underlying feature, but the traditional test additionally needs the actual, specific steps spelled out somewhere (in the test code itself), while the agent's objective deliberately omits them.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Traditional Playwright test (steps live IN the code):
+test('user can log in with valid credentials', async ({page}) => {{
+  await page.goto('/login');
+  await page.getByLabel('Email').fill('test@example.com');
+  // ...every step explicit, because that's what a script IS
+}});
+
+Agent objective (steps are deliberately NOT specified):
+"Verify that a user with valid credentials can successfully
+  log into ShopEasy, ending up on their account dashboard."
+  — the TITLE-level description is genuinely similar to the
+  traditional test's own name, but there's no equivalent of
+  the explicit step-by-step code — that's the agent's own
+  planning and reasoning's job, not the objective's.</code></pre>
+<p>The genuine difference isn't in how you'd NAME or DESCRIBE the feature being tested — it's specifically that a traditional test needs the mechanical steps written out somewhere, while an agent's objective deliberately leaves them for the agent itself to work out.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might it be worth writing a testing objective and then explicitly asking "could a new human tester understand and act on this with zero other context," rather than just trusting the LLM to interpret whatever's written?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because an ambiguous or under-specified objective doesn't necessarily fail obviously with an LLM — it might confidently proceed with SOME interpretation, which could be entirely different from what you actually intended, without any clear signal that a misunderstanding occurred.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A genuinely ambiguous objective: "Test that ShopEasy's cart
+  works correctly."
+
+Interpretation the AUTHOR intended: verify items can be added
+  and the cart total updates correctly
+
+A PLAUSIBLE but different interpretation an LLM might take:
+  verify the cart persists across a page reload — also a
+  genuinely reasonable reading of "works correctly," but not
+  what was actually intended, with NO clear signal to either
+  party that a mismatch occurred</code></pre>
+<p>The human-tester sanity check works precisely because a human would likely ask a clarifying question when genuinely uncertain — using that same standard when WRITING the objective forces you to remove the ambiguity upfront, rather than discovering after the fact that the agent confidently tested the wrong thing.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

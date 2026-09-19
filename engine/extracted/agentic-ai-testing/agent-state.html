@@ -1,0 +1,189 @@
+<!doctype html>
+<html><head>
+<title>Agent State: Where an Agent Currently Is</title>
+<meta name="description" content="What &#x27;state&#x27; means for an AI agent, how it&#x27;s genuinely different from memory, and why losing track of state is a real, common source of agent failures." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/agent-state.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Agent State</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="tools-and-tool-calling.html">Tools and Tool Calling</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>State answers a genuinely different question than memory: not "what has the agent seen and learned," but "where, specifically, is the agent right now in its current task." Memory is history; state is the current snapshot.</p>
+
+<h2 id="state-concretely">State, Concretely</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>At any given moment during the checkout task, the agent's
+STATE might be:
+
+{
+  current_plan_step: 5,          // "proceed to checkout"
+  current_page: "cart",           // where it actually is right now
+  task_status: "in_progress",       // not yet complete or failed
+  last_action_result: "success",     // did the last action work?
+  retry_count: 0                       // has this step failed before?
+}
+
+Compare this to what MEMORY holds at the same moment (from the
+previous page): the full history of every step taken so far.
+State is a much smaller, current-moment SNAPSHOT — not history.</code></pre>
+
+<h2 id="why-this-distinction-matters-in-practice">Why This Distinction Matters in Practice</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A reasoner deciding "what do I do next" genuinely needs BOTH,
+answering different questions:
+
+"What page am I actually on right now?" → STATE
+  (current_page: "cart" — I need to navigate to checkout next)
+
+"Have I already tried this and failed?" → MEMORY
+  (step 5 was attempted once before, blocked by a modal,
+  which was then dismissed)
+
+Using memory where you need state (or vice versa) causes real
+confusion — memory tells you "here's everything that's
+happened," but doesn't clearly answer "where exactly am I,
+right now, in this task" without additional work extracting
+that from the full history.</code></pre>
+
+<h2 id="what-happens-when-state-gets-lost-or-corrupted">What Happens When State Gets Lost or Corrupted</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A genuinely realistic state-tracking bug:
+
+Agent's actual, real position: on the CART page, item added
+  successfully, about to navigate to checkout.
+
+Agent's TRACKED state (due to a bug): still shows
+  current_page: "product", from an earlier, stale update that
+  was never correctly refreshed.
+
+Result: reasoner, trusting the STALE tracked state, decides
+  "I need to click Add to Cart" — AGAIN — because it genuinely
+  believes it's still on the product page. This produces a
+  duplicate cart item, or a confusing error, neither of which
+  reflects what actually, truly happened.</code></pre>
+<p>This is a genuinely common, real class of bug — state tracking that falls out of sync with the actual, real situation, leading the agent to make decisions based on a snapshot that's no longer true.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might state specifically need to be refreshed from a REAL observation at each step, rather than simply updated by the agent's own internal bookkeeping after each action? An action that the agent believes succeeded might not have — a click might silently fail, a page might not navigate as expected due to a real bug in the application itself. State based purely on "what I intended to happen" rather than "what I actually, currently observe" can drift from reality in exactly the way the example above illustrates, which is exactly why grounding state in fresh observation, not just assumption, matters.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Treating memory and state as interchangeable, or building only one and assuming it covers both needs. A reasoner that only has full history (memory) but no clear, current snapshot (state) has to re-derive "where am I right now" from scratch at every step — genuinely more error-prone and slower than maintaining a clear, current state directly.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>A genuinely useful habit when designing or debugging an agent: whenever something goes wrong, explicitly check "did the agent's TRACKED state match its ACTUAL, real situation at that moment?" A surprising number of confusing agent failures trace back to exactly this kind of drift, not to a genuine reasoning error.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Keep state as a small, current-moment snapshot — distinct from memory's full history — refreshed from real observation, not assumption.</li>
+  <li>Verify an action's actual result before updating state to reflect it as successful, rather than assuming success based on intent.</li>
+  <li>When debugging unexpected agent behavior, explicitly check whether tracked state matches real, current reality.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>State is a current-moment snapshot of where an agent is in its task; memory is the accumulated history of what's happened so far — genuinely different, complementary things.</li>
+  <li>State should be grounded in fresh, real observation at each step, not just updated based on what the agent assumed or intended to happen.</li>
+  <li>State drifting out of sync with real, actual reality is a genuine, common source of confusing agent failures.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>For a task where an agent submits a form and the page takes a genuinely long time to respond, describe what the agent's state should show WHILE waiting, and explain what real observation would need to happen before state could correctly be updated to reflect either success or failure.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>An agent duplicates a cart item because it believes it's still on the product page when it's actually already on the cart page. Using this page's concepts, diagnose what likely went wrong.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This is a textbook example of state drift — the agent's TRACKED state (current_page: "product") no longer matches its ACTUAL, real situation (already navigated to the cart page), leading the reasoner to make a decision based on stale, incorrect information.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Likely root cause:
+After the successful "add to cart and navigate" action, state
+  was either never updated, or was updated based on an
+  ASSUMPTION ("this action should have navigated me to cart")
+  rather than a FRESH, real observation confirming it actually
+  did.
+
+The fix, per this page's best practices:
+After EVERY action, explicitly re-observe reality (what page
+  is ACTUALLY showing right now?) and update state FROM that
+  fresh observation — never purely from what the action was
+  supposed to accomplish.</code></pre>
+<p>This diagnosis directly follows from distinguishing state (a snapshot needing to stay accurate) from memory (a history log) — the bug is specifically in HOW state gets updated, not in what the agent remembers about earlier steps.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why can't an agent simply re-derive "where am I right now" from its full memory history, instead of maintaining separate, explicit state?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Technically it's possible, but it's genuinely more error-prone and computationally wasteful than maintaining an explicit, current snapshot directly — and re-derivation from history is itself vulnerable to the exact same "what actually happened vs. what was assumed" problem.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Re-deriving state from history, at every single step:
+"Let me review all 8 previous actions... step 6 attempted to
+  navigate to cart, which appeared to succeed based on the
+  action's own reported result... so I'm PROBABLY on the cart
+  page now." — this is slower, and STILL relies on trusting
+  what earlier actions reported, not fresh verification.
+
+Maintaining explicit state, refreshed from observation:
+Immediately after step 6, check what page is ACTUALLY showing
+  RIGHT NOW, and store that directly as current state. No
+  re-derivation needed at step 7 — the answer is already
+  there, and it's grounded in a genuinely fresh observation.</code></pre>
+<p>Explicit state isn't just a convenience — done correctly (refreshed from real observation), it's genuinely more reliable than re-deriving a snapshot from a history that itself might contain unverified assumptions.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Give an example of information that belongs in state but would be genuinely awkward or wrong to store as part of memory instead.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>"retry_count: 2 for the current step" is a clean example — it's meaningful specifically as a CURRENT, transient value tied to the step happening right now, not as a historical fact worth remembering after the task ends.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>As STATE (correct):
+{ current_step: 5, retry_count: 2 }
+Clearly meaningful RIGHT NOW — "I've retried this specific
+  step twice, if it fails again I should try a different
+  approach or give up." Directly informs the immediate decision.
+
+As MEMORY (awkward, wrong fit):
+"Step 5 was retried 2 times" sitting in a growing history log
+  makes sense as a RECORD of what happened, but memory alone
+  doesn't cleanly answer "is retry_count STILL at 2 right now,
+  or has something reset it?" — that's a current-state question,
+  not something a history log directly, cleanly answers.</code></pre>
+<p>The distinguishing test: does this value need to be immediately, directly available for the NEXT decision (state), or is it primarily useful as a record of what already happened (memory)? Retry counters, current position, and current status all lean firmly toward state.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might grounding state in "fresh observation" rather than "the agent's own intent" matter more for agentic testing specifically than it might for some other kinds of software?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because the entire point of agentic testing is often to catch cases where the application DOESN'T behave as intended — an agent that trusts its own intent over real observation would systematically miss exactly the kind of genuine bugs it's supposed to be finding.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>If state trusted INTENT over observation:
+Agent clicks "Place Order," assumes (based on intent) that
+  state should now be "order_placed: true" — even if the
+  ACTUAL page shows a genuine error that the click silently
+  failed to handle. The agent would proceed as if the order
+  succeeded, completely missing a real, genuine bug.
+
+If state is grounded in FRESH OBSERVATION (correct):
+Agent clicks "Place Order," then ACTUALLY CHECKS what the
+  page currently shows before updating state — correctly
+  catching the real failure, exactly the kind of discovery
+  agentic testing exists to provide.</code></pre>
+<p>This connects directly back to Chapter 1's discussion of agentic testing's genuine value — an agent that only tracks its own intentions rather than real, observed reality would lose exactly the capability (noticing genuinely unexpected things) that makes agentic testing worth using in the first place.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you design a test specifically to catch state-drift bugs in a real agent implementation, before they cause a confusing production failure?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A genuinely effective approach: deliberately introduce a scenario where an action's REPORTED result and its ACTUAL real-world effect diverge, and check whether the agent's state correctly reflects reality rather than the (potentially wrong) reported result.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A deliberate test case:
+Simulate an action that REPORTS success but where the real
+  underlying effect actually FAILED silently (a genuinely
+  realistic case — a click event registers, but a subsequent
+  network request the click triggered fails without a clear
+  on-page error).
+
+Check: does the agent's state correctly reflect the REAL
+  outcome (still on the same page, action didn't truly
+  complete) by re-observing reality, or does it incorrectly
+  trust the surface-level "click succeeded" signal and update
+  state to reflect an outcome that didn't actually happen?</code></pre>
+<p>This kind of test directly targets whether state updates are genuinely grounded in real, current observation (this page's core recommendation) or are quietly trusting assumed outcomes — exactly the gap that produces the confusing, hard-to-diagnose failures this page uses as its running example.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

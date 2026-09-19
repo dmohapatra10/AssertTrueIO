@@ -1,0 +1,99 @@
+<!doctype html>
+<html><head>
+<title>GitHub Actions Expressions: The ${{ }} Syntax Explained</title>
+<meta name="description" content="How GitHub Actions expressions actually work — the ${{ }} wrapper, comparison and logical operators, string concatenation, and useful built-in functions like hashFiles." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/expressions-and-the-double-curly-syntax.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Expressions: The ${{ }} Syntax</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="github-actions-contexts-explained.html">GitHub Actions Contexts Explained</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>An expression is how GitHub Actions actually evaluates a dynamic value — reading a context, comparing two things, combining conditions — wrapped in the <code>${{ }}</code> syntax that's appeared throughout this course without a dedicated explanation until now.</p>
+
+<h2 id="why-the-wrapper-is-necessary">Why the ${{ }} Wrapper Is Necessary</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>env:
+  BRANCH: github.ref          # ❌ this is treated as the literal TEXT "github.ref"
+  BRANCH: ${{ github.ref }}    # ✅ this is EVALUATED, giving the actual branch value</code></pre>
+<p>Without <code>${{ }}</code>, GitHub Actions has no way to know you meant "evaluate this as an expression" rather than "use this exact text" — the wrapper is what signals evaluation should actually happen.</p>
+
+<h2 id="comparison-operators">Comparison Operators</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>github.ref == 'refs/heads/main'    # equals
+github.event_name != 'push'         # not equals</code></pre>
+
+<h2 id="logical-operators">Logical Operators</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>github.ref == 'refs/heads/main' && needs.test.result == 'success'   # AND
+github.event_name == 'push' || github.event_name == 'pull_request'   # OR
+!contains(github.event.head_commit.message, '[skip ci]')              # NOT</code></pre>
+
+<h2 id="string-concatenation">String Concatenation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>run: echo "Deploying version ${{ github.sha }} to production"</code></pre>
+<p>An expression can sit directly inside a larger string — GitHub Actions evaluates just the <code>${{ }}</code> portion and inserts the result into the surrounding text.</p>
+
+<h2 id="useful-built-in-functions">Useful Built-in Functions</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>contains(github.event.head_commit.message, 'skip')   # substring/item check
+startsWith(github.ref, 'refs/tags/')                    # prefix check
+hashFiles('**/package-lock.json')                        # hash a file (seen in caching)
+success()                                                  # did every previous step succeed?
+failure()                                                   # did any previous step fail?
+always()                                                     # run regardless of outcome</code></pre>
+<p><code>success()</code>, <code>failure()</code>, and <code>always()</code> are genuinely important — they're specifically what lets a step run (or not run) based on the outcome of everything before it, which is exactly what's needed for things like "always upload logs, even if a test failed."</p>
+
+<h2 id="detailed-example-building-toward-the-real-requirement">Detailed Example — Building Toward the Real Requirement</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Requirement (from this chapter's hub page): "Run deployment only when
+tests pass and the workflow runs on the main branch."
+
+if: github.ref == 'refs/heads/main' && needs.test.result == 'success'</code></pre>
+<p>Every piece of this line is now explainable: <code>github.ref</code> is a context (previous page), <code>==</code> is a comparison operator, <code>&&</code> is a logical AND, <code>needs.test.result</code> is another context, and the whole thing is an expression evaluated because it's used inside an <code>if:</code> — which the next page covers in full depth.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might <code>always()</code> genuinely matter for something like uploading test logs or screenshots, specifically when a test has already failed? By default, a failed step stops the rest of the job (covered in Chapter 4) — without <code>always()</code>, a cleanup or reporting step would never run precisely when it's most needed: right after a failure, when those logs or screenshots are the most valuable for actually diagnosing what went wrong.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Forgetting the <code>${{ }}</code> wrapper is sometimes optional and sometimes required, depending on context — inside an <code>if:</code> condition specifically, GitHub Actions often evaluates the expression even without the explicit wrapper, but in most other places (like <code>env:</code>), it's genuinely required. When uncertain, including the wrapper explicitly is always safe and never wrong.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>GitHub Actions expressions support a decent range of built-in functions beyond the ones shown here (string manipulation, JSON parsing, and more) — worth checking the official documentation's expression reference when a specific need arises, rather than assuming a capability doesn't exist.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Always wrap an expression in <code>${{ }}</code> explicitly, even in places where it might technically work without it — clarity and consistency matter more than saving a few characters.</li>
+  <li>Use <code>always()</code> deliberately for genuinely important cleanup or reporting steps that should run regardless of earlier failures.</li>
+  <li>Prefer built-in functions like <code>contains()</code> and <code>startsWith()</code> over trying to replicate the same logic with plain shell commands.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li><code>${{ }}</code> signals that GitHub Actions should evaluate what's inside as an expression, not treat it as literal text.</li>
+  <li>Expressions support comparison (<code>==</code>, <code>!=</code>), logical (<code>&&</code>, <code>||</code>, <code>!</code>) operators, and useful built-in functions.</li>
+  <li><code>success()</code>, <code>failure()</code>, and <code>always()</code> let a step's execution depend on the outcome of everything before it.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Write an expression that would evaluate to true only when the triggering event is a pull request AND the commit message does NOT contain the text "WIP" — using the <code>contains()</code> function combined with a logical NOT and AND.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why does env: BRANCH: github.ref (without ${{ }}) not actually give you the branch value?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Without the ${{ }} wrapper, GitHub Actions has no signal that github.ref should be evaluated as an expression — it's simply treated as the literal string "github.ref". The ${{ }} syntax is specifically what tells GitHub Actions "evaluate what's inside this as an expression," which is required to actually retrieve the real, dynamic value from a context.</div>
+</details>
+<details class="faq-item">
+<summary>Why might a step specifically need the always() function rather than relying on default step behavior?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">By default, a failed step stops the rest of a job's remaining steps from running at all. A step that should genuinely run regardless of outcome — like uploading diagnostic logs or screenshots, which are often most valuable exactly when something has failed — needs always() specifically to override that default fail-fast behavior and execute no matter what happened before it.</div>
+</details>
+<details class="faq-item">
+<summary>What's the difference between the logical operators && and || in a GitHub Actions expression?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">&& represents logical AND, requiring both conditions on either side to be true for the overall expression to be true. || represents logical OR, requiring only one of the two conditions to be true. Choosing correctly between them is essential — using && where || was intended (or vice versa) produces a condition that evaluates completely differently from what was actually intended.</div>
+</details>
+<details class="faq-item">
+<summary>Why is hashFiles() specifically useful for cache key configuration, as covered in an earlier chapter?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">hashFiles() computes a hash based on the actual content of one or more specified files — using it in a cache key means the key automatically changes whenever those files' content changes (like a dependency lock file being updated), correctly invalidating a stale cache without needing any manual intervention to detect that the underlying dependencies have changed.</div>
+</details>
+<details class="faq-item">
+<summary>Why does the expression github.ref == 'refs/heads/main' && needs.test.result == 'success' require understanding both contexts and operators to fully read?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The expression combines two separate context lookups (github.ref and needs.test.result) with a comparison operator applied to each, joined together by a logical AND. Fully understanding what this line actually does requires knowing what each context represents, what the comparison operator is checking, and how the logical operator combines the two resulting true/false values into one final condition.</div>
+</details>
+</div>
+</article>
+</body></html>

@@ -1,0 +1,118 @@
+<!doctype html>
+<html><head>
+<title>YAML Syntax: Keys, Values, Lists &amp; Nesting Explained</title>
+<meta name="description" content="Every core YAML building block explained with real GitHub Actions examples — key-value pairs, strings, booleans, lists, nesting, comments, and how indentation actually works." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/yaml-syntax-keys-values-lists-and-nesting.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>YAML Syntax: Keys, Values, Lists &amp; Nesting</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="what-is-yaml-and-why-github-actions-uses-it.html">What is YAML? Why GitHub Actions Uses It</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>This page covers every core YAML building block you'll actually use in a GitHub Actions workflow — key-value pairs, strings, booleans, lists, nesting, and comments — each with a real workflow example, not an abstract one.</p>
+
+<h2 id="key-value-pairs">Key-Value Pairs</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>name: My Workflow
+on: push</code></pre>
+<p>The most basic unit — a key, a colon, a space, then a value. The space after the colon is required; <code>name:My Workflow</code> (no space) is actually invalid YAML.</p>
+
+<h2 id="strings">Strings</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>name: My Workflow          # no quotes needed for most simple strings
+description: "Runs tests"  # quotes are fine too, and sometimes necessary</code></pre>
+<p>Most strings don't need quotes at all. Quotes become necessary specifically when a value could otherwise be misread — starting with a special character, containing a colon, or being a value that looks like another YAML type (like the word <code>true</code> or a number).</p>
+
+<h2 id="booleans-and-numbers">Booleans and Numbers</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>fail-fast: false
+max-parallel: 4</code></pre>
+<p>YAML recognizes <code>true</code>/<code>false</code> and plain numbers automatically, without quotes — this matters because <code>"false"</code> (quoted) and <code>false</code> (unquoted) are technically different types, string versus boolean, even though they look almost identical.</p>
+
+<h2 id="lists">Lists</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>branches: [main, develop]
+
+# equivalent, written as a multi-line list instead:
+branches:
+  - main
+  - develop</code></pre>
+<p>A list can be written inline with square brackets, or as multiple lines each starting with a dash. Both mean exactly the same thing — the multi-line form is generally preferred once a list has more than a couple of items, purely for readability.</p>
+
+<h2 id="nesting-via-indentation">Nesting via Indentation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "step 1"</code></pre>
+<p>Each deeper level of indentation means "this belongs to the thing above it." <code>build:</code> belongs to <code>jobs:</code>; <code>runs-on:</code> and <code>steps:</code> both belong to <code>build:</code>; the step belongs to <code>steps:</code>. Indentation amount is your choice (2 spaces is the near-universal convention), but it must be <em>consistent</em> at each level.</p>
+
+<h2 id="comments">Comments</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>name: My Workflow  # this is a comment, ignored entirely
+# a comment can also take a whole line by itself</code></pre>
+<p>A <code>#</code> starts a comment that runs to the end of the line — genuinely useful for explaining <em>why</em> a specific workflow setting exists, not just what it does.</p>
+
+<h2 id="detailed-example-every-building-block-in-one-real-workflow">Detailed Example — Every Building Block in One Real Workflow</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>name: ShopEasy CI              # string (key-value)
+on:
+  push:
+    branches: [main, develop]  # list, inline form
+jobs:
+  test:                        # nested under jobs
+    runs-on: ubuntu-latest     # string
+    strategy:
+      fail-fast: false         # boolean
+      max-parallel: 4          # number
+    steps:                     # list, multi-line form
+      - uses: actions/checkout@v4
+      - run: npm test</code></pre>
+<p>Every single syntax rule from this page appears somewhere in this one realistic example — this is genuinely the complete vocabulary; more complex workflows just combine these same few ideas at greater depth.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why does <code>fail-fast: false</code> (unquoted) behave differently from <code>fail-fast: "false"</code> (quoted) if they look almost identical? The unquoted version is a genuine boolean value; the quoted version is a string containing the four characters f-a-l-s-e. Depending on what GitHub Actions expects for that specific setting, sending the wrong type can cause a subtle, confusing failure that has nothing to do with your actual intent.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Forgetting the required space after a colon. <code>name:My Workflow</code> (no space) isn't merely bad style — it's invalid YAML, and will fail to parse. This one is easy to miss visually, especially in a font where colons and following characters sit close together.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>When in doubt about whether a value needs quotes, quoting a string never hurts — <code>"main"</code> and <code>main</code> mean the same thing for an ordinary string. Quotes only become meaningfully different from no-quotes for booleans, numbers, and a handful of special characters.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Use 2-space indentation consistently — it's the near-universal convention for GitHub Actions YAML, making files instantly familiar to any other contributor.</li>
+  <li>Prefer the multi-line list form once a list has more than two or three items — genuinely easier to scan and to add to later.</li>
+  <li>Use comments to explain <em>why</em> a non-obvious setting exists, not to restate what a self-explanatory line already says.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>A key-value pair always needs a space after the colon.</li>
+  <li>Lists can be written inline with brackets or as multiple dash-prefixed lines — both are equivalent.</li>
+  <li>Indentation depth expresses "belongs to" relationships — it must be consistent, though the exact number of spaces is your choice (2 is conventional).</li>
+  <li>Quoted and unquoted values aren't always identical — <code>false</code> and <code>"false"</code> are genuinely different types.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Write a small YAML snippet (not a full workflow, just the data structure) representing a recipe: a name (string), a prep time in minutes (number), whether it's vegetarian (boolean), and a list of at least three ingredients. Use the multi-line list form for the ingredients.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why is a space after the colon required in a YAML key-value pair?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">YAML's parser specifically uses "colon followed by a space" as the signal that separates a key from its value — without that space, the parser can't reliably distinguish where the key ends and the value begins, which is why name:My Workflow (no space) is actually invalid YAML rather than just unconventional formatting.</div>
+</details>
+<details class="faq-item">
+<summary>What's the practical difference between writing a YAML list inline with brackets versus as multiple dash-prefixed lines?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Both forms represent exactly the same data — a list of items — and are functionally identical to whatever parses the YAML. The choice between them is purely about readability: inline brackets are compact and fine for a short list, while the multi-line dash form scales better and stays easier to scan once a list grows to more than a couple of items.</div>
+</details>
+<details class="faq-item">
+<summary>Why can fail-fast: false and fail-fast: "false" behave differently even though they look almost the same?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Without quotes, false is interpreted as a genuine boolean value. With quotes, "false" is interpreted as a string containing those four characters. Depending on what a specific GitHub Actions setting expects to receive, supplying the wrong type (a string where a boolean was expected, or vice versa) can cause unexpected behavior that has nothing to do with the actual value you intended.</div>
+</details>
+<details class="faq-item">
+<summary>Does the exact number of spaces used for indentation matter in YAML, as long as it's consistent?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The specific number of spaces per indentation level is a matter of convention rather than a strict YAML rule — what genuinely matters is that indentation is consistent at each given level throughout the file. Two spaces per level is the near-universal convention for GitHub Actions workflows, chosen for consistency and readability rather than being a technical requirement.</div>
+</details>
+<details class="faq-item">
+<summary>When does a YAML string actually need to be wrapped in quotes?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Most ordinary strings don't need quotes at all. Quotes become necessary when a value could otherwise be misinterpreted — starting with certain special characters, containing a colon that could be confused with a key-value separator, or being a value that would otherwise be read as a different type entirely, like the word true or a plain number.</div>
+</details>
+</div>
+</article>
+</body></html>

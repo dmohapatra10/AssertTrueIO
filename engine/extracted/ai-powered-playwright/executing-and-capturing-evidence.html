@@ -1,0 +1,94 @@
+<!doctype html>
+<html><head>
+<title>Executing and Capturing Evidence</title>
+<meta name="description" content="Stage two — running the generated plan with Chapter 5&#x27;s execution loop, and, because the capstone&#x27;s objective is genuinely open-ended, layering in Chapter 13&#x27;s exploration on top." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/executing-and-capturing-evidence.html" />
+</head><body>
+<p class="difficulty">Advanced</p>
+<h1>Executing and Capturing Evidence</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="generating-the-test-plan.html">Generating the Test Plan</a></p>
+<article class="content">
+<h2>What You'll Learn</h2>
+<ul>
+  <li>Running the previous stage's generated plan with Chapter 5's execution loop</li>
+  <li>Adding Chapter 13's exploration specifically because the objective is genuinely open-ended</li>
+  <li>Capturing complete evidence for every real outcome, using Chapter 9's own bundle</li>
+</ul>
+
+<h2>Introduction</h2>
+<p>The previous stage produced a real, executable plan. This stage runs it — and because the capstone's actual objective is "report anything unexpected," not just "run these specific cases," this stage does something the plan alone wouldn't: exploring beyond it.</p>
+
+<h2>Step-by-Step Implementation</h2>
+<pre><code>// src/capstone-pipeline.ts (stage 2)
+import { executeAction } from './map-to-playwright';
+import { setupEvidenceCollection, buildEvidenceBundle } from './capture-evidence';
+import { chooseNextExploration } from './exploration-strategy';
+import { Page, TestInfo } from '@playwright/test';
+
+export async function executeCapstonePlan(
+  playwrightTests: any[], page: Page, testInfo: TestInfo
+) {
+  const { consoleLogs, networkFailures } = setupEvidenceCollection(page);
+  const results = [];
+
+  // RUN the generated plan (Chapter 5's execution)
+  for (const test of playwrightTests) {
+    const outcome = await executeAction(test.action, page);
+    results.push({ test, outcome });
+  }
+
+  // THEN, because the REAL objective is open-ended (Chapter
+  // 13), explore ONE step beyond the fixed plan:
+  const exploration = await chooseNextExploration(
+    'checkout flow, discount handling', await observeForExploration(page), []
+  );
+  const explorationOutcome = await executeAction(exploration.action, page);
+  results.push({ test: exploration, outcome: explorationOutcome });
+
+  const evidence = buildEvidenceBundle(testInfo, consoleLogs, networkFailures);
+  return { results, evidence };
+}</code></pre>
+
+<h2>Code Explanation</h2>
+<p>The plan-execution loop and the single exploration step are both real, unchanged calls into Chapter 5 and Chapter 13's own functions. Running just one real exploration step beyond the fixed plan is deliberate — it's exactly this kind of extra step that let Chapter 13's original agent stumble onto the discount-code field nobody explicitly planned for.</p>
+
+<h2>Example — The Real, Concrete Discovery</h2>
+<pre><code>// The FIXED plan's own tests PASS cleanly — single discount
+// application works CORRECTLY, matching Chapter 4'S own
+// generated expectations.
+
+// The ONE exploration step, following Chapter 13'S OWN
+// strategy, tries applying the SAME discount code AGAIN —
+// exactly the hypothesis Chapter 13'S original agent
+// generated. The cart total now reflects a DOUBLED discount.
+
+// evidence.consoleLogs, evidence.networkFailures, AND a
+// SCREENSHOT are all captured, exactly as Chapter 9'S OWN
+// buildEvidenceBundle was built to DO</code></pre>
+
+<h2>Why It Matters</h2>
+<p>This is the real, concrete moment this capstone's fixed plan and its open-ended exploration genuinely diverge in outcome — the plan alone would have reported clean success, missing the bug entirely. Combining Chapter 5's systematic execution with even one real Chapter 13-style exploration step is what actually surfaces it here, in this continuous run.</p>
+
+<h2>Common Mistakes</h2>
+<ul>
+  <li><strong>Running only the fixed, generated plan, skipping exploration entirely.</strong> This page's own example shows exactly what would be missed — the plan alone reports clean, misleading success.</li>
+  <li><strong>Forgetting to set up Chapter 9's evidence collection before execution begins.</strong> Console and network listeners need to be active during the run, not added afterward, or this stage's evidence bundle would be incomplete.</li>
+</ul>
+
+<h2>Best Practices</h2>
+<ul>
+  <li>Combine systematic plan execution with at least some real exploration whenever an objective is genuinely open-ended, following this page's own pattern.</li>
+  <li>Always set up evidence collection before execution starts, using Chapter 9's own established discipline.</li>
+</ul>
+
+<h2>Hands-On Exercise</h2>
+<p>Run this page's <code>executeCapstonePlan</code> function against a real or simulated ShopSmart checkout. Confirm the fixed plan's tests pass cleanly while the single exploration step genuinely surfaces the discount-stacking behavior.</p>
+
+<h2>Key Takeaways</h2>
+<ul>
+  <li>This stage combines Chapter 5's systematic execution with Chapter 13's exploration, since the capstone's real objective is genuinely open-ended.</li>
+  <li>The fixed plan alone would have reported clean, misleading success — the single exploration step is what actually surfaces the real bug.</li>
+  <li>Complete evidence, built using Chapter 9's own bundle, is captured for whatever this stage's execution genuinely reveals.</li>
+</ul>
+</article>
+</body></html>

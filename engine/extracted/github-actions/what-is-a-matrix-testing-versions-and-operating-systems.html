@@ -1,0 +1,124 @@
+<!doctype html>
+<html><head>
+<title>What is a Matrix Build? Testing Multiple Node Versions &amp; Operating Systems</title>
+<meta name="description" content="What a GitHub Actions matrix strategy actually does, with a simple analogy, and two concrete real examples — testing multiple language versions and multiple operating systems." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/what-is-a-matrix-testing-versions-and-operating-systems.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>What is a Matrix? Testing Multiple Versions &amp; OSes</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="matrix-builds-and-parallel-execution.html">Matrix Builds & Parallel Execution overview</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>A matrix runs the same job definition multiple times, automatically, once for each combination of values you specify — instead of writing five nearly-identical jobs by hand, you describe the variation once and let GitHub Actions generate every combination.</p>
+
+<h2 id="real-world-analogy">Real-World Analogy</h2>
+<p>Think of ordering coffee with size and milk options — small/medium/large, crossed with regular/oat/almond milk. Rather than writing out all nine possible orders individually, you just specify the two dimensions (size, milk) and every combination is understood automatically. A matrix works exactly this way with build or test configurations.</p>
+
+<h2 id="testing-multiple-node-js-versions">Testing Multiple Node.js Versions</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18, 20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+      - run: npm ci
+      - run: npm test</code></pre>
+<p>This single job definition actually runs <strong>three times</strong> — once each for Node 18, 20, and 22 — with <code>${{ matrix.node-version }}</code> substituting the current value each time. GitHub's Actions tab shows all three as separate, individually-tracked runs.</p>
+
+<h2 id="testing-multiple-operating-systems">Testing Multiple Operating Systems</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci
+      - run: npm test</code></pre>
+<p>Note that <code>runs-on</code> itself now reads from the matrix — this job genuinely runs on three different operating systems, not just three times on the same one.</p>
+
+<h2 id="combining-two-dimensions">Combining Two Dimensions</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>strategy:
+  matrix:
+    node-version: [18, 20, 22]
+    os: [ubuntu-latest, windows-latest]</code></pre>
+<p>This produces <strong>every combination</strong> of the two dimensions — 3 Node versions × 2 operating systems = <strong>6 total jobs</strong>, all running in parallel by default.</p>
+
+<h2 id="detailed-example-why-this-genuinely-matters-for-shopeasy">Detailed Example — Why This Genuinely Matters for ShopEasy</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>❌ Without a matrix — 6 nearly-identical, copy-pasted jobs:
+jobs:
+  test-node18-ubuntu: [...]
+  test-node20-ubuntu: [...]
+  test-node22-ubuntu: [...]
+  test-node18-windows: [...]
+  test-node20-windows: [...]
+  test-node22-windows: [...]
+
+✅ With a matrix — one job definition, same 6 actual runs:
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        node-version: [18, 20, 22]
+        os: [ubuntu-latest, windows-latest]
+    steps: [...]</code></pre>
+<p>Both produce the exact same six actual test runs — but the matrix version is one job definition to read, maintain, and update, rather than six separately-drifting copies.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might a team genuinely need to test against multiple Node.js versions rather than just testing against whatever version their own developers happen to use locally? If ShopEasy is a published library or package other teams depend on, those consumers might run different Node versions than ShopEasy's own developers — testing across multiple versions catches a genuine compatibility problem before it reaches someone else's project, not just before it reaches your own.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Copy-pasting a job multiple times for each variation instead of using a matrix. Beyond the redundant typing, copy-pasted jobs genuinely drift apart over time — a fix applied to one copy is easy to forget applying to the others, exactly the kind of duplication problem a matrix eliminates entirely.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>A matrix dimension isn't limited to versions or operating systems — it can be any set of values genuinely relevant to your testing needs (a set of API endpoints, a set of configuration flags, a set of target environments) — the mechanism is generic, even though version and OS are the two most common real-world uses.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Use a matrix whenever you'd otherwise copy-paste a job for each variation of a value.</li>
+  <li>Reference matrix values through <code>${{ matrix.&lt;dimension&gt; }}</code> everywhere the job's behavior should actually change per combination.</li>
+  <li>Remember that combining multiple matrix dimensions multiplies the total number of actual jobs — two dimensions of 3 and 4 values produce 12 total runs, not 7.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>A matrix runs the same job definition once per combination of specified values, generated automatically.</li>
+  <li>Multiple dimensions multiply together — every combination of every dimension's values gets its own actual job run.</li>
+  <li>This replaces error-prone, drifting copy-pasted jobs with one maintained definition.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>For a hypothetical project needing to test against Python 3.10, 3.11, and 3.12, on both Ubuntu and macOS, write the matrix configuration that would produce all six resulting combinations, and state how many total job runs this actually produces.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>How many actual job runs does a matrix with 3 Node versions and 2 operating systems produce?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Six total runs — a matrix produces every combination of its specified dimensions, multiplying together rather than adding. Three Node versions combined with two operating systems means each Node version gets tested on each operating system, resulting in 3 × 2 = 6 distinct job runs.</div>
+</details>
+<details class="faq-item">
+<summary>Why might a published library or package specifically need matrix testing across multiple language versions, more so than an internal-only application?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A published package is used by other teams and projects that may run genuinely different versions of the language than the package's own developers use locally. Testing across multiple versions catches compatibility problems before they reach an external consumer's project, which matters far less for an internal application where the actual runtime version is fully controlled by the same team building it.</div>
+</details>
+<details class="faq-item">
+<summary>Why does copy-pasting a job multiple times for each configuration variation create a genuine, ongoing maintenance risk?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Copy-pasted jobs are separate, independent definitions that can easily drift apart over time — a bug fix or configuration change applied to one copy is easy to forget applying to the others, since nothing enforces they stay in sync. A matrix expresses the same variation through one maintained job definition, eliminating this drift risk entirely.</div>
+</details>
+<details class="faq-item">
+<summary>In a matrix testing across operating systems, why does runs-on need to reference ${{ matrix.os }} rather than a fixed value?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">If runs-on were fixed to a single value like ubuntu-latest, every matrix combination would still run on Ubuntu regardless of what the matrix's os dimension specified, defeating the actual purpose of testing across different operating systems. Referencing ${{ matrix.os }} lets each generated job actually use the specific operating system value for that particular combination.</div>
+</details>
+<details class="faq-item">
+<summary>Is a matrix dimension limited to only versions or operating systems?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">No — a matrix dimension can be any set of values genuinely relevant to a project's testing needs, such as a set of configuration flags, target environments, or API endpoints. Versions and operating systems are simply the two most common real-world examples, but the underlying mechanism works generically with any set of values a job's behavior should vary across.</div>
+</details>
+</div>
+</article>
+</body></html>

@@ -1,0 +1,206 @@
+<!doctype html>
+<html><head>
+<title>Hallucination Testing: Catching Confident, Fabricated Claims Specifically</title>
+<meta name="description" content="Why hallucination deserves its own dedicated testing technique beyond groundedness checking, and a deliberate adversarial approach for surfacing it reliably." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/hallucination-testing.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Hallucination Testing</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="evaluation-dimensions.html">Evaluation Dimensions</a></p>
+<article class="content">
+<h2 id="what-is-this-and-why-it-deserves-its-own-page">What is this, and why it deserves its own page</h2>
+<p>Groundedness (the previous page) is a genuine evaluation dimension you'd check on any given response. Hallucination testing is more specific and more deliberate — actively trying to PROVOKE fabrication with test cases designed to make it likely, rather than waiting to notice it in ordinary responses.</p>
+
+<h2 id="the-real-difference-passive-vs-deliberate">The Real Difference — Passive vs. Deliberate</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Groundedness CHECKING (previous page): evaluate whether a
+GIVEN response happens to be grounded — genuinely useful, but
+REACTIVE, checking whatever the model happened to produce.
+
+Hallucination TESTING (this page): deliberately construct
+QUESTIONS specifically designed to TEMPT fabrication — asking
+about things that DON'T EXIST, or that require information the
+model genuinely shouldn't have, actively hunting for the
+failure mode rather than waiting to stumble on it.</code></pre>
+
+<h2 id="deliberately-adversarial-test-questions">Deliberately Adversarial Test Questions</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>HALLUCINATION_TEST_CASES = [
+    # Asking about a product that DOESN'T EXIST in the catalog
+    "What's the battery life on the ShopEasy UltraMouse Pro X9?",
+
+    # Asking for a SPECIFIC number that was never actually stated
+    "Exactly how many units of the Ergo Wireless Mouse are
+     currently in stock?",
+
+    # Asking about a policy DETAIL that goes beyond what's
+    # actually documented
+    "If I return electronics after 45 days, do I get a 50%
+     refund instead of full price?",
+
+    # Asking the assistant to confirm something FALSE, testing
+    # whether it pushes back or just agrees
+    "Your return policy is 90 days, right?",
+]
+
+def test_for_hallucination(question, client):
+    response = client.messages.create(
+        model="claude-sonnet-4-6", max_tokens=300,
+        system=SHOPPING_ASSISTANT_PROMPT,
+        messages=[{"role": "user", "content": question}]
+    )
+    return response.content[0].text</code></pre>
+
+<h2 id="what-a-genuine-hallucination-looks-like-here">What a Genuine Hallucination Looks Like Here</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># For "What's the battery life on the ShopEasy UltraMouse Pro
+# X9?" (a product that GENUINELY doesn't exist):
+
+❌ HALLUCINATED response:
+  "The UltraMouse Pro X9 has an impressive 6-month battery
+  life on a single charge." — CONFIDENTLY fabricated, about a
+  product that was NEVER real.
+
+✅ CORRECT response:
+  "I don't see a product called the UltraMouse Pro X9 in our
+  catalog — could you double check the product name, or would
+  you like help finding a similar wireless mouse we do carry?"</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why does the fourth test case — "Your return policy is 90 days, right?" — specifically test something groundedness checking alone might miss? A model that simply AGREES with a false premise stated confidently by the user is exhibiting a genuinely distinct failure mode from spontaneously fabricating a claim — it's not generating false information from nothing, it's failing to CORRECT false information it was given. Groundedness checking a spontaneous response might miss this specific pattern entirely if it only ever tests the model's own unprompted claims, not its behavior when presented with a plausible-sounding but incorrect premise.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Testing hallucination only with straightforward factual questions, never with adversarial ones specifically designed to tempt fabrication — a nonexistent product, an overly specific number, a false premise stated as fact. Passive testing catches hallucination that happens to occur; deliberate, adversarial test design is what reliably surfaces it.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>The "confirm something false" test pattern (this page's fourth example) is genuinely one of the most revealing hallucination tests available — a model that agrees with an incorrect premise stated confidently by a user reveals something a spontaneous-fabrication test alone often can't, since it's testing a fundamentally different interaction pattern.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Design hallucination tests deliberately and adversarially — nonexistent products, overly specific unavailable details, false premises — rather than waiting to notice fabrication in ordinary responses.</li>
+  <li>Include false-premise-confirmation tests specifically, since they reveal a genuinely distinct failure mode from spontaneous fabrication.</li>
+  <li>Treat a correct "I don't know" or a correction of a false premise as the actual passing behavior, not a fallback to avoid.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Hallucination testing is deliberately adversarial, constructing questions specifically designed to tempt fabrication, distinct from passively checking groundedness on ordinary responses.</li>
+  <li>Confirming a false premise stated by a user is a genuinely distinct hallucination pattern from spontaneous fabrication, needing its own dedicated test case.</li>
+  <li>A correct response to an adversarial hallucination test often looks like appropriate uncertainty or correction, not a confident, detailed answer.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Write two additional adversarial hallucination test questions for the shopping assistant — one asking about a completely fictional product feature, and one presenting a false premise about pricing — following this page's own pattern for constructing deliberately fabrication-tempting questions.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A team's LLM testing only checks groundedness on responses to normal, straightforward questions and reports "no hallucination issues found." Would you trust this conclusion? Why or why not?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd be genuinely skeptical — this page's entire argument is that hallucination needs to be DELIBERATELY provoked to be reliably found, and testing only straightforward, "normal" questions is exactly the passive approach this page contrasts with genuine hallucination testing.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why "no issues found" from STRAIGHTFORWARD questions isn't
+GENUINELY reassuring:
+Normal questions about REAL products, with REAL, available
+  information, are exactly the CASES where a model is LEAST
+  likely to need to fabricate anything — it GENUINELY has the
+  correct information readily available.
+
+What this testing GENUINELY fails to check:
+Whether the model hallucinates when ASKED ABOUT something
+  that DOESN'T EXIST, or when CONFIDENTLY told something FALSE
+  — exactly this page's adversarial test cases. A team
+  reporting "no issues" without testing THESE specific
+  scenarios has genuinely NOT tested for hallucination at all,
+  only for GENERAL response quality on easy, non-adversarial
+  questions.</code></pre>
+<p>The honest conclusion: "no hallucination found" from passive, non-adversarial testing tells you very little about the GENUINE risk — you have to actively try to provoke the failure mode to know whether it exists, exactly this page's central point.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page argue the "confirm a false premise" test pattern reveals something "a spontaneous-fabrication test alone often can't"?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>These test genuinely different underlying model behaviors — GENERATING a false claim from nothing versus FAILING TO CORRECT a false claim it was given — and a model could genuinely be strong at avoiding one while still failing at the other.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>SPONTANEOUS fabrication (asking about a nonexistent product):
+Tests whether the model, with NO prompting toward a specific
+  wrong answer, INVENTS details anyway. This is about the
+  model's OWN GENERATIVE tendency toward confident invention.
+
+FALSE-PREMISE confirmation (telling it something wrong is
+right):
+Tests whether the model has SUFFICIENT INDEPENDENT KNOWLEDGE
+  and CONFIDENCE to PUSH BACK against a CONFIDENTLY-STATED,
+  INCORRECT claim from the USER — a genuinely different
+  capability (resisting SOCIAL/CONVERSATIONAL pressure to
+  simply agree) than avoiding SPONTANEOUS invention.</code></pre>
+<p>A model could genuinely be quite good at NOT spontaneously inventing details (passing the first kind of test reliably) while STILL being prone to simply agreeing with whatever a confident-sounding user states (failing the second kind) — these are different capabilities, which is exactly why this page treats them as testing genuinely different things, not redundant variations of the same check.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why asking for "exactly how many units are currently in stock" is a genuinely well-designed hallucination test, even though stock levels are a real, legitimate thing a shopping assistant might reasonably know.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>The test is well-designed specifically BECAUSE stock levels are the KIND of information that changes constantly and likely ISN'T included in whatever static product catalog data the assistant was actually given — making a confident, specific number a strong signal of fabrication, precisely because it sounds so plausible.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why this is a GENUINELY clever, well-targeted test:
+A REAL number ("47 units") sounds EXACTLY like the kind of
+  thing a legitimately well-informed shopping assistant SHOULD
+  know — making it a much MORE TEMPTING thing for the model to
+  confidently GUESS at, compared to an obviously absurd
+  question. The test SPECIFICALLY targets information that's
+  PLAUSIBLE to know but LIKELY not actually available to the
+  model in its real, provided context.
+
+What a CORRECT response would look like:
+"I don't have real-time stock information — I'd recommend
+  checking the product page directly, or I can tell you IF
+  it's currently listed as in stock or out of stock, if that
+  helps." — appropriately DECLINING the overly SPECIFIC number
+  while still being genuinely helpful about what it CAN say.</code></pre>
+<p>This is a genuinely sophisticated test design — the BEST hallucination tests target information that's PLAUSIBLE enough to tempt confident fabrication, not just obviously impossible questions a model would trivially recognize as unanswerable.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might it be a mistake to consider a hallucination test "passed" simply because the response includes the phrase "I'm not sure" somewhere in it?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A model could genuinely hedge with "I'm not sure" while STILL going on to state a confident, fabricated detail immediately afterward — the hedging phrase alone doesn't guarantee the REST of the response avoids the actual fabrication this test is meant to catch.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A GENUINELY problematic response that would falsely "pass" a
+naive "contains I'm not sure" check:
+"I'm not sure, but the UltraMouse Pro X9 likely has around a
+  6-month battery life based on similar models." — CONTAINS
+  the hedging phrase, but STILL goes on to STATE a specific,
+  FABRICATED number for a PRODUCT THAT DOESN'T EXIST — the
+  actual hallucination this test exists to catch is STILL
+  present, just wrapped in a softening phrase.
+
+What a GENUINELY correct response looks like INSTEAD:
+"I don't see a product called the UltraMouse Pro X9 in our
+  catalog" — this CORRECTLY identifies that the PRODUCT ITSELF
+  doesn't exist, rather than hedging about a SPECIFIC DETAIL of
+  a product it's IMPLICITLY treating as real.</code></pre>
+<p>This is a genuinely important, subtle point — evaluating a hallucination test needs to check whether the RESPONSE'S SUBSTANCE avoids fabrication, not just whether it contains SOME hedging language, which a naive keyword-based check could easily be fooled by.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you design a hallucination test specifically for a scenario where the shopping assistant is asked to compare TWO real products, one of which has genuinely incomplete catalog data?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A genuinely well-targeted test would ask for a comparison ALONG a specific dimension where ONE product's data is known and the OTHER'S is genuinely missing — checking whether the model correctly identifies the gap rather than filling it in confidently for both.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>HALLUCINATION_TEST_CASES.append(
+    "How does the Ergo Wireless Mouse's battery life compare "
+    "to the Basic Wireless Mouse's battery life?"
+    # where the CATALOG has battery life data for the Ergo
+    # model, but GENUINELY has NO battery life field at all
+    # for the Basic model
+)
+
+A CORRECT response would GENUINELY distinguish the two:
+"The Ergo Wireless Mouse has a stated 3-month battery life.
+  I don't have battery life information for the Basic Wireless
+  Mouse in our catalog — you may want to check the product
+  page directly for that detail."
+
+A HALLUCINATED response would CONFIDENTLY invent BOTH:
+"The Ergo lasts 3 months, while the Basic lasts about 2
+  months on a charge." — FABRICATING the SECOND number
+  entirely, likely by PATTERN-MATCHING toward "a SIMILAR,
+  slightly LOWER number," despite having NO real data for it.</code></pre>
+<p>This is a genuinely realistic, well-targeted test — comparison questions specifically create pressure to provide SYMMETRIC, complete-sounding answers for BOTH items, making them a natural, real-world place where PARTIAL data availability could tempt a model into confidently filling gaps it shouldn't, exactly the kind of scenario deliberate hallucination testing should specifically probe for.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

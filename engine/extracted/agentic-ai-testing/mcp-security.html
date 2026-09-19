@@ -1,0 +1,201 @@
+<!doctype html>
+<html><head>
+<title>MCP Security: The Guardrail Questions a Shared Server Specifically Raises</title>
+<meta name="description" content="Why a reusable MCP server needs stricter guardrail thinking than a single hardcoded agent — untrusted clients, tool poisoning, and honest scope discipline." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/mcp-security.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>MCP Security</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="ai-agent-and-mcp.html">AI Agent + MCP</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>The hub page was explicit: MCP doesn't replace the guardrail thinking from Chapter 2. This final page is about what genuinely changes once a server can be used by multiple, possibly untrusted clients — a real, honest look at the new risks this reusability introduces.</p>
+
+<h2 id="the-core-shift-trust-was-implicit-now-it-s-explicit">The Core Shift — Trust Was Implicit, Now It's Explicit</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Chapter 3's HARDCODED tools were called ONLY by Chapter 3's
+OWN agent — the SAME code, WRITTEN by the SAME team, with
+IMPLICIT trust baked in by CONSTRUCTION.
+
+An MCP server, by DESIGN, can be CALLED by ANY compliant
+CLIENT — possibly WRITTEN by a DIFFERENT team, possibly
+CONNECTED with LESS oversight than the ORIGINAL developer
+INTENDED. The SAME server-side GUARDRAILS Chapter 2 taught
+(scope discipline, INPUT validation) now need to be
+GENUINELY, EXPLICITLY enforced, since they can NO LONGER rely
+on "ONLY my OWN code CALLS this."</code></pre>
+
+<h2 id="a-real-concrete-risk-overly-broad-server-scope">A Real, Concrete Risk — Overly Broad Server Scope</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>❌ A SERVER exposing GENUINELY dangerous scope:
+@mcp.tool()
+def run_shell_command(command: str) -> str:
+    """Runs an ARBITRARY shell command on the server."""
+    import subprocess
+    return subprocess.run(command, shell=True, capture_output=True).stdout
+
+ANY client CONNECTING to this server can EXECUTE arbitrary
+code on WHATEVER machine the SERVER runs on — EXACTLY the
+kind of OVER-BROAD tool scope Chapter 2's Guardrails page
+warned against, now with a GENUINELY larger BLAST RADIUS,
+since ANY client (not JUST the ORIGINAL developer's OWN
+agent) can REACH it.
+
+✅ The SAME underlying NEED, scoped SAFELY:
+@mcp.tool()
+def run_smoke_test(environment: str) -> dict:
+    """Runs ONLY the ShopEasy smoke test suite against 'staging'
+    or 'production' — NO arbitrary commands."""
+    if environment not in ("staging", "production"):
+        return {"error": f"Unknown environment: {environment}"}
+    # ... runs a SPECIFIC, KNOWN test suite, NOTHING else ...</code></pre>
+
+<h2 id="a-real-concrete-risk-tool-poisoning">A Real, Concrete Risk — Tool Poisoning</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A GENUINELY documented MCP-specific risk: a MALICIOUS or
+COMPROMISED server could DESCRIBE a tool DECEPTIVELY —
+CLAIMING to do ONE thing in its DOCSTRING, while ACTUALLY
+doing something ELSE entirely (or ADDITIONALLY) when CALLED.
+
+Since a CLIENT'S reasoning TRUSTS the DESCRIPTION (EXACTLY
+Chapter 2's OWN point that DESCRIPTIONS are the ONLY
+information AVAILABLE), a DECEPTIVE description could
+GENUINELY mislead an AGENT into CALLING a tool it WOULDN'T
+have chosen if it KNEW what the tool ACTUALLY did.</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why does tool poisoning specifically exploit the same property that makes MCP tools genuinely useful in the first place? A client's reasoning has to trust a tool's description to make any decision at all — this chapter's own earlier pages relied on this repeatedly, treating well-written docstrings as load-bearing. Tool poisoning is the adversarial flip side of that same necessary trust: if a client could independently verify every tool's actual behavior before ever calling it, descriptions wouldn't need to be trusted at all — but then tools wouldn't be usable through reasoning alone either. This is a genuine, structural tension, not a simple oversight to patch.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Connecting an agent to an MCP server without any consideration of where that server actually comes from or who controls it — treating "it speaks the MCP protocol correctly" as equivalent to "it's safe to connect to." Protocol compliance says nothing about a server's actual trustworthiness.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>Chapter 2's original scope-guardrail principle — expose the narrowest capability that genuinely satisfies the need — applies with MORE force for MCP servers than for a single hardcoded agent's tools, precisely because the audience calling them is genuinely wider and less controllable.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Scope every server-exposed tool to the narrowest genuine capability needed, since the audience calling it is wider and less controllable than a single hardcoded agent's own tools.</li>
+  <li>Only connect agents to MCP servers whose source and maintainer are genuinely trusted, not just servers that happen to speak the protocol correctly.</li>
+  <li>Recognize tool poisoning as a real, structural risk inherent to trusting descriptions at all, not a simple bug to eliminate entirely.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>MCP's reusability genuinely widens who can call a server's tools, making Chapter 2's scope-discipline guardrails more, not less, important.</li>
+  <li>Tool poisoning exploits the same necessary trust in descriptions that makes tool-calling through reasoning possible at all — a genuine, structural tension.</li>
+  <li>Protocol compliance alone says nothing about a server's actual trustworthiness — connecting to an MCP server is a genuine trust decision, not just a technical one.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Take this page's <code>run_shell_command</code> example and identify two additional, genuinely narrower tools that could replace its underlying legitimate need (running specific, known maintenance tasks) without exposing arbitrary command execution — following the same scoping principle as this page's <code>run_smoke_test</code> fix.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A team wants to connect their QA agent to a third-party MCP server they found online, reasoning "it implements the protocol correctly, so it should be safe." What would you want them to consider first?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd want them to consider WHO maintains this SERVER and WHETHER it's GENUINELY trustworthy — this page is EXPLICIT that PROTOCOL compliance and TRUSTWORTHINESS are COMPLETELY separate questions, and "implements the PROTOCOL correctly" says NOTHING about the SECOND one.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What "implements the PROTOCOL correctly" GENUINELY confirms:
+The SERVER speaks JSON-RPC CORRECTLY, RESPONDS to DISCOVERY
+  requests PROPERLY, and FOLLOWS the MCP SPECIFICATION'S
+  MECHANICAL rules — a TECHNICAL, NOT a TRUST-related,
+  confirmation.
+
+What it does NOT confirm, per THIS page's OWN tool-poisoning
+discussion:
+WHETHER the tool DESCRIPTIONS are HONEST, WHETHER the ACTUAL
+  implementation DOES what it CLAIMS, WHETHER the SERVER'S
+  maintainer is TRUSTWORTHY — a MALICIOUS server COULD be
+  PERFECTLY protocol-COMPLIANT while STILL being GENUINELY
+  dangerous to CONNECT to.</code></pre>
+<p>The TEAM'S reasoning conflates TWO genuinely SEPARATE questions — "does THIS speak the PROTOCOL correctly" and "SHOULD I trust WHAT this SERVER claims to DO" — and THIS page's ENTIRE argument is that ONLY the FIRST is TECHNICALLY verifiable; the SECOND requires GENUINE, DELIBERATE trust EVALUATION.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page describe tool poisoning as exploiting "the same property that makes MCP tools genuinely useful," rather than an unrelated, separate vulnerability?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A CLIENT'S reasoning has NO way to make ANY tool-selection DECISION WITHOUT trusting DESCRIPTIONS — this TRUST is EXACTLY what LETS reasoning-based tool CALLING work AT ALL, and TOOL poisoning is SPECIFICALLY the ADVERSARIAL exploitation of THAT SAME necessary TRUST.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why DESCRIPTIONS being TRUSTED is GENUINELY necessary, not
+just CONVENIENT:
+Chapter 2's OWN foundational ARGUMENT was that a CLIENT'S
+  reasoning has NOTHING BUT the DESCRIPTION to WORK with — NO
+  ability to INSPECT actual IMPLEMENTATION code BEFORE
+  DECIDING whether to CALL a tool. WITHOUT trusting
+  DESCRIPTIONS, reasoning-based TOOL selection SIMPLY couldn't
+  FUNCTION at ALL.
+
+Why this SAME necessity CREATES the tool-poisoning
+vulnerability:
+PRECISELY BECAUSE descriptions MUST be TRUSTED for the SYSTEM
+  to WORK, a MALICIOUS actor CAN exploit that SAME trust by
+  WRITING a DECEPTIVE description — THERE'S no WAY to GET the
+  BENEFITS of reasoning-BASED tool selection WITHOUT ALSO
+  accepting THIS SAME, STRUCTURAL vulnerability to
+  DECEPTION.</code></pre>
+<p>This is EXACTLY why this page CALLS this a "GENUINE, structural TENSION" rather than a SIMPLE bug — it's NOT something that CAN be PATCHED away WITHOUT also REMOVING the VERY property (TRUSTING descriptions) that MAKES the WHOLE approach USEFUL in the FIRST place.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why run_shell_command represents a genuinely WORSE version of the SAME mistake Chapter 2's Guardrails page originally warned against, rather than a NEW, DIFFERENT kind of problem.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Chapter 2 ALREADY warned against OVER-BROAD tool SCOPE — this page's EXAMPLE is the SAME MISTAKE, just with a GENUINELY LARGER blast RADIUS, since an MCP SERVER'S over-BROAD tool can be REACHED by ANY connecting CLIENT, not JUST the ONE agent Chapter 2's ORIGINAL example was SCOPED to.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Chapter 2's ORIGINAL over-broad EXAMPLE (a SINGLE agent's OWN
+tool):
+A tool with UNRESTRICTED file-system ACCESS, USED by ONE,
+  SPECIFIC agent — GENUINELY risky, but the RISK is BOUNDED
+  by WHOEVER controls THAT one agent's CODE and DEPLOYMENT.
+
+THIS page's run_shell_command (an MCP SERVER'S exposed tool):
+The SAME kind of OVER-BROAD capability — but NOW reachable by
+  ANY MCP client that HAPPENS to CONNECT to this SERVER,
+  GENUINELY multiplying the NUMBER of POTENTIAL paths to
+  MISUSE, EXACTLY why THIS page frames it as "the SAME
+  underlying MISTAKE... now with a LARGER blast RADIUS."</code></pre>
+<p>This is a GENUINELY important CONTINUITY to RECOGNIZE — MCP DOESN'T introduce a BRAND NEW category of MISTAKE here; it AMPLIFIES the REAL, PRACTICAL consequences of an ALREADY-known mistake (Chapter 2's OWN scope-DISCIPLINE warning), EXACTLY why this CHAPTER argues Chapter 2's GUARDRAIL thinking matters MORE, not LESS, once MCP is INVOLVED.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might it be a mistake to conclude "reasoning-based tool selection is fundamentally too risky given tool poisoning" and abandon the approach entirely?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This OVERSTATES the CONCLUSION this page ACTUALLY draws — the point is that TRUST needs to be DELIBERATE and EXPLICIT (WHO maintains a SERVER, IS it TRUSTWORTHY), not that the ENTIRE approach is UNSALVAGEABLE; the SAME risk EXISTS, in DIFFERENT forms, for ANY system that TRUSTS EXTERNAL input OR DESCRIPTIONS.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why "ABANDON reasoning-based tool SELECTION entirely" GOES
+too FAR:
+This would THROW AWAY GENUINE, real VALUE (the REUSABILITY
+  and FLEXIBILITY this ENTIRE chapter has ARGUED for) OVER a
+  RISK that's GENUINELY MANAGEABLE through DELIBERATE trust
+  EVALUATION — NOT a REASON the APPROACH is FUNDAMENTALLY
+  broken.
+
+What THIS page ACTUALLY recommends INSTEAD:
+Being DELIBERATE and EXPLICIT about TRUST — CONNECTING ONLY
+  to SERVERS whose SOURCE and MAINTAINER are GENUINELY
+  verified, SCOPING tools NARROWLY (REDUCING the IMPACT of
+  ANY single DECEPTIVE tool), and RECOGNIZING this as a REAL,
+  ONGOING consideration — NOT a REASON to ABANDON the
+  APPROACH, but a REASON to APPROACH it with GENUINE, informed
+  CAUTION.</code></pre>
+<p>This is a GENUINELY important, HONEST distinction — NAMING a REAL risk HONESTLY (WHICH this page DOES) is DIFFERENT from CONCLUDING the ENTIRE approach is UNUSABLE, EXACTLY the SAME honest-BUT-NOT-ALARMIST framing this COURSE has maintained SINCE Chapter 1's OWN treatment of AI's GENUINE limitations ALONGSIDE its GENUINE value.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you design a genuine safeguard specifically against tool poisoning, given that a client can't directly inspect a server's actual implementation?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A GENUINELY useful SAFEGUARD, given a CLIENT CAN'T inspect IMPLEMENTATION directly, is BEHAVIORAL verification — RUNNING a NEWLY-connected SERVER'S tools AGAINST KNOWN test CASES BEFORE trusting it FOR real work, checking WHETHER ACTUAL behavior MATCHES the CLAIMED description.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>async def verify_tool_matches_description(session, tool_name, test_cases):
+    """Before trusting a NEWLY-connected server's tool for REAL
+    work, run it against KNOWN test cases and confirm its
+    ACTUAL behavior matches what its description CLAIMS."""
+    results = []
+    for case in test_cases:
+        actual_result = await session.call_tool(tool_name, case["input"])
+        matches_expectation = case["expected_check"](actual_result)
+        results.append({
+            "input": case["input"],
+            "matched_description": matches_expectation,
+        })
+    if not all(r["matched_description"] for r in results):
+        return "WARNING: tool behavior does NOT match its claimed description — do NOT trust for production use."
+    return "Tool behavior CONFIRMED to match its description across test cases."</code></pre>
+<p>This DIRECTLY applies Chapter 3's OWN "TEST the SIMPLEST piece FIRST" and Chapter 12's OWN BEHAVIORAL-verification PRINCIPLES to a GENUINELY new context — rather than TRUSTING a description BLINDLY, RUNNING it AGAINST KNOWN, EXPECTED cases FIRST provides GENUINE, EMPIRICAL evidence about WHETHER a SERVER'S claimed BEHAVIOR matches its ACTUAL behavior, BEFORE that TRUST is EXTENDED to REAL, CONSEQUENTIAL use — a PRACTICAL, CONCRETE way to PARTIALLY address the STRUCTURAL tension this PAGE'S earlier discussion IDENTIFIED.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

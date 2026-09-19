@@ -1,0 +1,142 @@
+<!doctype html>
+<html><head>
+<title>RestAssured Parallel Execution &amp; Thread Safety</title>
+<meta name="description" content="How to run RestAssured tests in parallel safely — thread safety, shared state, shared tokens, test data collisions, static variables, and ThreadLocal." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/parallel-execution-and-thread-safety.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Parallel Execution &amp; Thread Safety</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="parallel-execution-reporting-cicd.html">Parallel Execution, Reporting & CI/CD overview</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Running tests in parallel — multiple tests executing simultaneously across several threads — is one of the most impactful ways to make a large suite finish faster. It's also where a whole class of subtle, intermittent bugs can appear that never show up when tests run sequentially.</p>
+
+<h2 id="enabling-parallel-execution-in-junit-5">Enabling Parallel Execution in JUnit 5</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># junit-platform.properties (in src/test/resources)
+junit.jupiter.execution.parallel.enabled=true
+junit.jupiter.execution.parallel.mode.default=concurrent
+junit.jupiter.execution.parallel.config.strategy=dynamic</code></pre>
+<p>This is a project-wide, configuration-based switch — no changes needed to individual test methods for basic parallel execution to take effect. <code>dynamic</code> sizing scales the worker thread count to the available CPU cores automatically, a reasonable default to start from.</p>
+
+<h2 id="the-core-danger-shared-mutable-state">The Core Danger — Shared Mutable State</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ A static field, shared across every thread — a genuine race condition
+public class OrderTests {
+    static String lastCreatedOrderId; // DANGEROUS under parallel execution
+
+    @Test void createOrder() {
+        lastCreatedOrderId = createAnOrder(); // Thread A writes...
+    }
+
+    @Test void checkLastOrder() {
+        given().pathParam("id", lastCreatedOrderId)... // ...Thread B reads, possibly BEFORE Thread A finished
+    }
+}</code></pre>
+<p>This is the single most common source of parallel-execution bugs: a <code>static</code> field is shared across every thread running the test class, and if one test writes to it while another reads it, the outcome depends entirely on unpredictable thread timing — a test that passes reliably in isolation starts failing intermittently, seemingly at random, purely because of execution order that changes from run to run.</p>
+
+<h2 id="the-fix-instance-state-not-static">The Fix — Instance State, Not Static</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ✅ Instance fields — JUnit 5 creates a NEW test instance per test method by default,
+// so there's no shared state between them at all
+public class OrderTests {
+    String createdOrderId; // instance field — safe, private to each test's own execution
+
+    @Test void createOrder() {
+        createdOrderId = createAnOrder(); // only visible within THIS test's own instance
+    }
+}</code></pre>
+<p>JUnit 5's default lifecycle already protects you here — each test method gets its own fresh instance of the test class, so instance fields (unlike static ones) are naturally isolated per test. The danger is specifically <code>static</code> fields, which genuinely are shared across the whole class regardless of instance boundaries.</p>
+
+<h2 id="shared-tokens-a-legitimate-exception-handled-carefully">Shared Tokens — A Legitimate Exception, Handled Carefully</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>public class TokenManager {
+    private static volatile String cachedToken; // shared BY DESIGN, but thread-safe
+
+    public static synchronized String getToken() {
+        if (cachedToken == null || isExpired(cachedToken)) {
+            cachedToken = fetchNewToken();
+        }
+        return cachedToken;
+    }
+}</code></pre>
+<p>The token manager from Chapter 6 is a deliberate exception to "avoid static shared state" — sharing a token across threads is exactly the point (avoiding redundant logins), but it needs to be done safely: <code>synchronized</code> ensures only one thread refreshes the token at a time, preventing a race where multiple threads simultaneously detect an expired token and all attempt to refresh it concurrently.</p>
+
+<h2 id="test-data-collisions-under-parallelism">Test Data Collisions Under Parallelism</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Two parallel tests both using the same hardcoded email — a race to create it first
+@Test void testA() { given().body(Map.of("email", "shared@test.com"))... }
+@Test void testB() { given().body(Map.of("email", "shared@test.com"))... } // races with testA
+
+// ✅ Chapter 10's dynamic uniqueness — each thread gets its own safe value
+@Test void testA() { given().body(TestDataFactory.uniqueUser())... }
+@Test void testB() { given().body(TestDataFactory.uniqueUser())... } // no collision, ever</code></pre>
+<p>This is exactly why Chapter 10 emphasized dynamic, unique test data so heavily — it's not just about safe re-runs, it's a hard requirement for safe parallel execution. Static test data that happens to work sequentially will produce intermittent, hard-to-reproduce failures the moment tests genuinely run concurrently.</p>
+
+<h2 id="threadlocal-when-you-genuinely-need-per-thread-state">ThreadLocal — When You Genuinely Need Per-Thread State</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>public class RequestContext {
+    private static final ThreadLocal&lt;String&gt; currentTestId = new ThreadLocal&lt;&gt;();
+
+    public static void set(String testId) { currentTestId.set(testId); }
+    public static String get() { return currentTestId.get(); }
+}</code></pre>
+<p><code>ThreadLocal</code> gives each thread its own independent copy of a value — useful for genuinely thread-scoped state (like a request-tracing ID unique per test, tying into Chapter 8's logging) that needs to persist across multiple method calls within one test's execution, without being visible to or interfered with by other threads running concurrently.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ A static counter, incremented across parallel tests — produces unpredictable values
+static int testCounter = 0;
+@Test void test() { testCounter++; /* which value THIS test sees is unpredictable */ }
+
+// ✅ No shared counter at all — each test generates its own unique value independently
+@Test void test() { String uniqueId = UUID.randomUUID().toString(); }</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Using static fields for anything test-specific</strong> — the single most common cause of parallel-execution bugs, subtle and intermittent by nature.</li>
+  <li><strong>Assuming a suite that passes sequentially is automatically safe in parallel</strong> — race conditions specifically don't manifest until genuine concurrency is introduced.</li>
+  <li><strong>Not making legitimately shared resources (like a token cache) properly thread-safe</strong> — <code>synchronized</code> or equivalent concurrency controls are necessary, not optional, for anything genuinely shared.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Tests that must NOT run in parallel with each other</strong> (a test that modifies genuinely global state, like a feature flag affecting the whole environment) — JUnit 5 supports <code>@Isolated</code> or <code>@ResourceLock</code> annotations to exempt specific tests from parallel execution when genuinely necessary.</li>
+  <li><strong>Flaky-looking failures that only happen in CI, never locally</strong> — a strong signal to specifically investigate parallel-execution race conditions, since local runs are more likely to happen sequentially or with fewer workers than CI.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a test fails intermittently with no clear pattern, and passes reliably when run alone, suspect shared mutable state under parallel execution first — try running the suite with parallelism disabled to confirm whether the failure disappears, which strongly points to a race condition rather than a genuine, deterministic bug.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Default to instance fields, never static, for anything test-specific.</li>
+  <li>Use dynamic, unique test data (Chapter 10) as a hard requirement for safe parallelism, not just a nice-to-have.</li>
+  <li>Make any deliberately shared resource (token caches, connection pools) properly thread-safe with appropriate synchronization.</li>
+  <li>Use <code>@Isolated</code>/<code>@ResourceLock</code> for the rare test that genuinely can't run alongside others.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Take a hypothetical test class using a static field to pass a created resource's ID between two test methods, refactor it to be parallel-safe (using instance fields or a properly-extracted chained test, per Chapter 7), and explain why the original version would fail intermittently under parallel execution.</p>
+
+<h2 id="summary">Summary</h2>
+<p>Parallel execution makes a large suite dramatically faster but introduces real risk from shared mutable state — static fields are the primary danger, since JUnit 5's default per-test instance lifecycle already protects instance fields naturally. Dynamic, unique test data (from Chapter 10) is a hard requirement for safe parallelism, and any genuinely shared resource (like a token cache) needs deliberate thread-safety, not just careful hoping.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why might a test suite pass reliably when run sequentially but fail intermittently once parallel execution is enabled?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Sequential execution means tests run one at a time, so even genuinely unsafe shared state (a static field two tests both read and write) never actually gets accessed concurrently — the race condition exists in the code but never gets triggered, since there's no actual simultaneous access happening. Parallel execution introduces real concurrency, and now the order in which threads happen to read and write that shared state becomes unpredictable — sometimes producing the correct result by chance, sometimes not, which is exactly what makes this class of bug so much harder to reproduce and debug than a deterministic failure.</div>
+</details>
+<details class="faq-item">
+<summary>Why is a static field the most common source of parallel-execution bugs?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It's shared across every thread running the test class — if one thread writes to it while another reads it, the outcome depends on unpredictable thread timing, producing intermittent failures that don't manifest when tests run sequentially.</div>
+</details>
+<details class="faq-item">
+<summary>Why does JUnit 5's default lifecycle already protect instance fields, but not static ones?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">JUnit 5 creates a NEW test instance per test method by default, so instance fields are naturally isolated per test — static fields, by contrast, genuinely belong to the class itself and are shared regardless of instance boundaries.</div>
+</details>
+<details class="faq-item">
+<summary>Why is the Chapter 6 token manager a deliberate, careful exception to 'avoid shared static state'?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Sharing a token across threads is exactly the point — avoiding redundant logins — but it needs synchronized access specifically to prevent multiple threads from simultaneously detecting an expired token and racing to refresh it concurrently.</div>
+</details>
+<details class="faq-item">
+<summary>Why is dynamic, unique test data a hard requirement for safe parallelism, not just a nice-to-have?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Static test data that happens to work sequentially produces intermittent, hard-to-reproduce failures the moment tests genuinely run concurrently — this connects Chapter 10's uniqueness principle directly to safe parallel execution.</div>
+</details>
+</div>
+</article>
+</body></html>

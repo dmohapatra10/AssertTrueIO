@@ -1,0 +1,189 @@
+<!doctype html>
+<html><head>
+<title>MCP Client and Server: Two Roles, Two Genuinely Different Responsibilities</title>
+<meta name="description" content="What an MCP client is actually responsible for versus an MCP server, with a real, minimal server built using the official Python SDK." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/mcp-client-and-server.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>MCP Client and Server</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="what-is-mcp-and-mcp-architecture.html">What is MCP? MCP Architecture</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>The previous page's diagram named client and server; this page is about what each one is genuinely responsible for, with a real, minimal working server to make it concrete.</p>
+
+<h2 id="the-client-s-real-responsibilities">The Client's Real Responsibilities</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>The CLIENT hosts the LLM and:
+  - Discovers what tools/resources a connected server offers
+  - Decides, through reasoning, WHEN to call which one
+  - Sends the actual call, with parameters, to the server
+  - Receives the result and feeds it back into reasoning
+
+This is GENUINELY Chapter 3's QAAgent.think() and
+QAAgent.run() loop — the client is where the "thinking" that
+Chapter 2 described actually happens.</code></pre>
+
+<h2 id="the-server-s-real-responsibilities">The Server's Real Responsibilities</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>The SERVER:
+  - Declares what tools/resources it offers, with descriptions
+    (exactly Chapter 2's point about descriptions being the
+    ONLY information the LLM has to work with)
+  - Executes the actual, real logic when a tool is called
+  - Returns a genuine result back to the client
+
+This is Chapter 3's execute_tool function and the actual
+Playwright/API calls it dispatches to — the server is
+genuinely all "doing," no "thinking" at all.</code></pre>
+
+<h2 id="a-real-minimal-mcp-server">A Real, Minimal MCP Server</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># server.py — using the official MCP Python SDK
+from mcp.server.fastmcp import FastMCP
+
+mcp = FastMCP("shopeasy-qa-tools")
+
+@mcp.tool()
+def get_page_title(url: str) -> str:
+    """Returns the title of the page at the given URL."""
+    import urllib.request, re
+    html = urllib.request.urlopen(url).read().decode()
+    match = re.search(r"&lt;title&gt;(.*?)&lt;/title&gt;", html)
+    return match.group(1) if match else "No title found"
+
+if __name__ == "__main__":
+    mcp.run()</code></pre>
+<p>Notice the <code>@mcp.tool()</code> decorator and the function's own docstring — this is genuinely the same information Chapter 2's <code>TOOL_DEFINITIONS</code> needed to provide manually (a name, a description, parameters), just expressed through the SDK's own conventions instead of a hand-written dictionary.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why does the server's tool description come from the function's own docstring, rather than being written separately? This directly mirrors Chapter 2's warning that a tool's description is the ONLY information the calling client has — keeping the description attached to the actual implementation (as a docstring) makes it much harder for the description to drift out of sync with what the function genuinely does, compared to a separately-maintained description that could silently become stale.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Writing a vague or generic docstring for an MCP tool, assuming the client's LLM will "figure out" how to use it correctly regardless. Exactly Chapter 5's own AI-Generated Playwright Tests lesson about descriptions being load-bearing applies here — a client has no way to inspect the actual implementation, only the description.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>Testing an MCP server in isolation — calling its tools directly, without a full agent client attached — is a genuinely useful first verification step, exactly the same "verify the simplest piece first" principle Chapter 3 established for testing the basic LLM connection before adding tools, instructions, and a loop.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Keep a tool's description attached directly to its implementation, as a docstring, to prevent it from drifting out of sync.</li>
+  <li>Write genuinely specific, accurate tool descriptions, since a client has no way to inspect the actual implementation beneath them.</li>
+  <li>Test a server's tools in isolation before connecting a full client, verifying the simplest piece first.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>A client is responsible for reasoning and deciding what to call; a server is responsible for actually executing tool logic — genuinely the same split as Chapter 3's reasoning-vs-tools architecture.</li>
+  <li>An MCP tool's description, kept as a docstring attached to its implementation, plays exactly the load-bearing role Chapter 2 established for tool descriptions generally.</li>
+  <li>Testing a server's tools in isolation, before connecting a client, mirrors the same incremental verification principle Chapter 3 established for building an agent.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Extend this page's minimal server with a second tool, <code>check_status_code(url: str) -> int</code>, following the same <code>@mcp.tool()</code> pattern, with a genuinely clear, specific docstring describing exactly what it does.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A teammate writes an MCP tool with the docstring "Does stuff with pages." What real problem would this cause, connecting to a specific earlier chapter's lesson?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This is exactly the vague-description problem Chapter 5's AI-Generated Playwright Tests page warned about — the client has ONLY this description to decide WHEN and HOW to use the tool, and "does stuff with pages" provides essentially no genuine guidance for that decision.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What "Does stuff with pages" GENUINELY fails to communicate:
+WHICH kind of "stuff"? Reading content? Modifying something?
+  Checking a STATUS? WHAT parameters does it actually NEED,
+  and WHAT do they MEAN? A client's REASONING has NOTHING
+  concrete to work WITH here.
+
+What a GENUINELY clear docstring provides INSTEAD:
+"""Returns the title of the page at the given URL.""" —
+  IMMEDIATELY tells a client EXACTLY what this tool does and
+  WHEN it's the RIGHT choice (needing a page's TITLE
+  specifically), directly enabling SOUND tool-selection
+  reasoning, exactly Chapter 12's OWN concern.</code></pre>
+<p>This is a direct, concrete continuation of a principle this course established explicitly back in Chapter 5 — a vague description is a genuine, real cause of poor tool-selection decisions, not a minor documentation nicety.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page recommend testing an MCP server's tools in isolation before connecting a full client, rather than testing the whole system together from the start?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This directly reuses Chapter 3's own incremental-verification principle — if something's wrong, isolating the SERVER from the CLIENT means any FAILURE can be more confidently attributed to WHICHEVER piece was ADDED most recently, rather than needing to debug the ENTIRE combined system at once.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Chapter 3's ORIGINAL reasoning (applied here IDENTICALLY):
+"Confirming the most basic piece works FIRST means any LATER
+  failure can be more confidently attributed to WHATEVER was
+  added most RECENTLY, rather than re-debugging the ENTIRE
+  stack from scratch every time something breaks."
+
+Applied to MCP SPECIFICALLY:
+Testing get_page_title(url) DIRECTLY, calling it AS a PLAIN
+  Python FUNCTION (or via a SIMPLE test client) BEFORE ever
+  connecting a FULL reasoning-based CLIENT, confirms the
+  SERVER'S OWN logic works CORRECTLY in ISOLATION — so if the
+  FULL system LATER misbehaves, the PROBLEM is more likely in
+  the CLIENT'S reasoning or the PROTOCOL connection, not the
+  SERVER'S underlying implementation.</code></pre>
+<p>This is EXACTLY the SAME debugging discipline Chapter 3 established for BUILDING an agent, now APPLIED to VERIFYING an MCP server SPECIFICALLY — a CONSISTENT principle across this ENTIRE course, not a NEW idea INTRODUCED for THIS chapter alone.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why the server's role is described as "genuinely all doing, no thinking at all" — is this GENUINELY accurate, or could a server ALSO reason about something?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>For a GENUINELY well-designed MCP server, this is ACCURATE — mirroring EXACTLY Chapter 2's Anatomy page distinction that TOOLS should be RELIABLE, DETERMINISTIC code, with REASONING reserved SPECIFICALLY for the CLIENT side.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why a server SHOULD genuinely avoid its OWN "reasoning":
+Chapter 2's Anatomy page ARGUED that tools being DETERMINISTIC
+  and RELIABLE is a DELIBERATE, IMPORTANT design choice — an
+  MCP server that ITSELF makes JUDGMENT calls (rather than
+  EXECUTING clear, DEFINED logic) would BLUR this SAME
+  important BOUNDARY, making the OVERALL system HARDER to
+  DEBUG and REASON about, exactly the SAME concern that page
+  RAISED originally.
+
+Could a server TECHNICALLY include an LLM call INTERNALLY?
+TECHNICALLY yes — nothing in the PROTOCOL itself PREVENTS
+  this. But doing so would GENUINELY blur the CLEAR client-
+  server SEPARATION this page (and Chapter 2 BEFORE it)
+  argues is VALUABLE — a WELL-DESIGNED server SHOULD generally
+  stick to DETERMINISTIC EXECUTION, letting the CLIENT own
+  ALL the genuine REASONING.</code></pre>
+<p>This is a genuinely important architectural PRINCIPLE, not just an INCIDENTAL description — keeping SERVERS deterministic and CLIENTS reasoning-focused PRESERVES the SAME debuggability and RELIABILITY benefits Chapter 2 ESTABLISHED for tool design GENERALLY, now APPLIED specifically to MCP's OWN client-server SPLIT.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might keeping a tool's description as a DOCSTRING (this page's approach) be safer than maintaining it in a SEPARATE configuration file, even though both are technically possible?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A DOCSTRING sits DIRECTLY next to the CODE it describes, making it FAR more likely a DEVELOPER updates BOTH together — a SEPARATE file creates GENUINE, real DISTANCE between implementation and DOCUMENTATION, exactly the kind of gap that lets DRIFT happen UNNOTICED.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why a SEPARATE config file GENUINELY risks DRIFT:
+A developer CHANGES get_page_title's ACTUAL behavior (perhaps
+  it now ALSO returns the page's META description) but FORGETS
+  to update a SEPARATE, DISTANT config file's description —
+  GENUINELY easy to OVERLOOK since the TWO files aren't
+  VISUALLY or STRUCTURALLY connected AT ALL.
+
+Why the DOCSTRING approach GENUINELY reduces this risk:
+The description lives LITERALLY inside the SAME function
+  DEFINITION being MODIFIED — a developer CHANGING the
+  function's BEHAVIOR is FAR more likely to NOTICE and UPDATE
+  the IMMEDIATELY-ADJACENT docstring, SIMPLY because it's
+  RIGHT THERE, in the SAME place they're ALREADY editing.</code></pre>
+<p>This is a genuinely practical, REAL-WORLD software engineering PRINCIPLE (keep RELATED things PHYSICALLY close together) APPLIED specifically to MCP tool design — NOT unique to THIS protocol, but ESPECIALLY important HERE given Chapter 2's OWN emphasis on WHY description ACCURACY matters SO much for TOOL-calling systems SPECIFICALLY.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you extend this page's minimal server to expose a genuine QA-relevant capability beyond just fetching a page title — connecting to something from an earlier chapter?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A genuinely useful extension would expose Chapter 6's own <code>make_request</code> capability as an MCP tool, letting any MCP client make API calls against ShopEasy's staging environment through this same server.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@mcp.tool()
+def call_shopeasy_api(method: str, endpoint: str, json_body: dict = None) -&gt; dict:
+    """Makes an HTTP request to the ShopEasy staging API and
+    returns the status code and response body. Method must be
+    GET or POST. Endpoint should start with '/', e.g. '/orders/1042'."""
+    import requests
+    if method not in ("GET", "POST"):
+        return {"error": f"Method '{method}' not allowed for this tool"}
+    response = requests.request(
+        method, f"https://staging.shopeasy.example.com/api{endpoint}",
+        json=json_body, timeout=10
+    )
+    return {"status_code": response.status_code,
+            "body": response.json() if response.content else None}</code></pre>
+<p>This directly reuses Chapter 6's own <code>make_request</code> logic — including its scope guardrail (rejecting methods outside GET/POST) and its sensible timeout — now exposed as a genuine, reusable MCP tool, exactly demonstrating this chapter's own central claim: capabilities already built in earlier chapters become directly shareable once wrapped as an MCP server, rather than needing to be reimplemented for each new use.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

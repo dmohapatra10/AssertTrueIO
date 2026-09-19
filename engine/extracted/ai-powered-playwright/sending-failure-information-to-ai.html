@@ -1,0 +1,102 @@
+<!doctype html>
+<html><head>
+<title>Sending Failure Information to AI</title>
+<meta name="description" content="Selecting what evidence to actually send, deliberately, rather than forwarding the entire captured bundle for every single failure — applying Chapter 2&#x27;s token-cost lesson concretely." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/sending-failure-information-to-ai.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Sending Failure Information to AI</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="capturing-test-evidence.html">Capturing Test Evidence</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Why sending the entire evidence bundle for every failure is a genuine, real waste</li>
+  <li>Selecting evidence deliberately, based on what's actually useful for analysis</li>
+  <li>Handling binary evidence — screenshots, video, trace files — that can't just be pasted into a prompt</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>The previous page captured everything comprehensively — genuinely cheap to do. Sending everything to AI for every single failure is a different decision, with a real, ongoing cost this page addresses directly.</p>
+
+<h2 id="why-it-matters-comprehensive-capture-selective-sending">Why It Matters — Comprehensive Capture, Selective Sending</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>The PREVIOUS page's EvidenceBundle can include a FULL video
+FILE, a MULTI-megabyte trace, and PAGES of console LOGS.
+
+SENDING all of this, for EVERY failure, EVERY time:
+  - Costs REAL money — Chapter 18 covers this in DEPTH
+  - Adds REAL latency to EVERY analysis
+  - Often adds NOISE, not SIGNAL — most console LOGS from a
+    LOCATOR failure are COMPLETELY irrelevant to WHY it failed</code></pre>
+
+<h2 id="step-by-step-implementation-selecting-relevant-evidence">Step-by-Step Implementation — Selecting Relevant Evidence</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/select-evidence-for-analysis.ts
+import { EvidenceBundle } from './capture-evidence';
+
+export interface AnalysisPayload {
+  errorMessage: string;
+  relevantStackFrames: string;
+  recentConsoleErrors: string[];
+  recentNetworkFailures: string[];
+}
+
+export function selectEvidenceForAnalysis(
+  bundle: EvidenceBundle
+): AnalysisPayload {
+  return {
+    errorMessage: bundle.errorMessage,
+    // Only the FIRST few frames — usually where the REAL
+    // problem is; deep framework internals rarely help
+    relevantStackFrames: bundle.stackTrace.split('\n').slice(0, 5).join('\n'),
+    // Only the LAST few — most RECENT, most likely RELEVANT
+    recentConsoleErrors: bundle.consoleLogs.slice(-5),
+    recentNetworkFailures: bundle.networkFailures.slice(-5),
+  };
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p>Notice <code>screenshotPath</code>, <code>videoPath</code>, and <code>tracePath</code> from the previous page's bundle don't appear here at all — they're binary or large files, genuinely different from text that can be pasted into a prompt. They're not discarded; they stay available as real artifacts a human (or, later in this tutorial, a vision-capable analysis step) can open directly, rather than being forced into a text prompt where they don't belong.</p>
+
+<h2 id="example-sending-the-selected-payload">Example — Sending the Selected Payload</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import { askClaude } from './ai-client';
+
+async function analyzeFailure(payload: AnalysisPayload) {
+  const prompt = `A Playwright test failed.
+
+Error: ${payload.errorMessage}
+Relevant stack frames: ${payload.relevantStackFrames}
+Recent console errors: ${JSON.stringify(payload.recentConsoleErrors)}
+Recent network failures: ${JSON.stringify(payload.recentNetworkFailures)}
+
+Analyze this failure.`;
+
+  return askClaude(prompt);
+}
+
+// A REAL, meaningfully smaller prompt than sending the ENTIRE
+// bundle — genuinely faster, genuinely cheaper, and RARELY
+// missing anything the FULL bundle would have added for a
+// TYPICAL failure</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Sending the full, unfiltered stack trace, console log, and network history every time.</strong> This page's whole point is that most of this is noise for a typical failure — a deliberate, small selection is usually just as useful, and consistently cheaper.</li>
+  <li><strong>Assuming binary evidence like screenshots should be discarded since they can't be sent as text.</strong> They remain real, valuable artifacts for direct human review — being unsuitable for a text prompt doesn't make them worthless.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Select evidence deliberately for each analysis — recent, relevant entries rather than the complete, raw history.</li>
+  <li>Keep binary evidence (screenshots, video, trace) available as linked artifacts alongside the analysis, not forced into the text sent to the model.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Run <code>selectEvidenceForAnalysis</code> against a real evidence bundle from one of your own captured failures. Compare the resulting payload's size against the full bundle — and check by eye whether anything genuinely useful for understanding the failure got left out.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Comprehensive capture and selective sending are different decisions — Playwright makes the first cheap, but the second still needs deliberate judgment.</li>
+  <li>A well-chosen, smaller selection of evidence is usually just as useful as the full bundle, at meaningfully lower cost.</li>
+  <li>Binary evidence stays valuable as a directly-reviewable artifact, even when it doesn't belong in a text prompt.</li>
+</ul>
+</article>
+</body></html>

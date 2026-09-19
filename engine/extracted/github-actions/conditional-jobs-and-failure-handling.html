@@ -1,0 +1,116 @@
+<!doctype html>
+<html><head>
+<title>Conditional Jobs &amp; Failure Handling in GitHub Actions: The Complete Status Vocabulary</title>
+<meta name="description" content="The full success, failure, cancelled, and skipped status vocabulary, continue-on-error, and designing a real pipeline&#x27;s failure-handling behavior deliberately." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/conditional-jobs-and-failure-handling.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Conditional Jobs &amp; Failure Handling</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="passing-information-between-jobs.html">Passing Information Between Jobs</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Chapter 6 introduced <code>success()</code>, <code>failure()</code>, and <code>always()</code>. This page completes the picture — the full set of status values a job or step can actually have, and designing real pipeline behavior around all of them deliberately, not just the two obvious ones.</p>
+
+<h2 id="the-complete-status-vocabulary">The Complete Status Vocabulary</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>success   — completed without error
+failure   — completed, but something went wrong
+cancelled — someone or something stopped it before it finished
+skipped   — never ran at all, because a condition prevented it</code></pre>
+<p><code>needs.&lt;job&gt;.result</code> can be any of these four — not just success or failure. Designing conditional logic that only accounts for two of the four is a genuinely common, incomplete approach.</p>
+
+<h2 id="continue-on-error-allowing-a-step-to-fail-without-stopping-the-job">continue-on-error — Allowing a Step to Fail Without Stopping the Job</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>- name: Run experimental linter
+  run: npm run experimental-lint
+  continue-on-error: true</code></pre>
+<p>Normally, a failing step stops the rest of the job (Chapter 4's default). <code>continue-on-error: true</code> overrides this for one specific step — genuinely useful for something like an experimental or non-critical check that shouldn't block the entire pipeline if it fails.</p>
+
+<h2 id="checking-whether-a-dependency-was-skipped">Checking Whether a Dependency Was Skipped</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>if: needs.optional-check.result == 'skipped' || needs.optional-check.result == 'success'</code></pre>
+<p>This deliberately treats "skipped" the same as "success" for this specific decision — appropriate when a job being skipped (because its own condition wasn't met) shouldn't itself block something downstream, distinct from that job having genuinely run and failed.</p>
+
+<h2 id="detailed-example-the-real-pipeline-with-deliberate-failure-handling">Detailed Example — The Real Pipeline, With Deliberate Failure Handling</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps: [...]
+
+  unit-tests:
+    needs: build
+    runs-on: ubuntu-latest
+    steps: [...]
+
+  api-tests:
+    needs: build
+    runs-on: ubuntu-latest
+    steps: [...]
+
+  ui-tests:
+    needs: build
+    runs-on: ubuntu-latest
+    steps: [...]
+
+  deploy:
+    needs: [unit-tests, api-tests, ui-tests]
+    if: needs.unit-tests.result == 'success' && needs.api-tests.result == 'success' && needs.ui-tests.result == 'success'
+    runs-on: ubuntu-latest
+    steps: [...]
+
+  notify:
+    needs: [unit-tests, api-tests, ui-tests, deploy]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Pipeline finished — check individual job results for details"</code></pre>
+<p>This is the complete, real pipeline from this chapter's hub page, now with deliberate failure handling: <code>deploy</code> explicitly requires all three test categories to have genuinely succeeded (not just completed), and <code>notify</code> runs <em>regardless</em> of what happened anywhere else in the pipeline — exactly the always-run pattern from Chapter 6, now applied at the job level across an entire multi-job pipeline.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might <code>deploy</code>'s condition explicitly check each test job's result individually, rather than just relying on <code>needs:</code> alone to prevent it from running after a failure? As covered back in Chapter 6, <code>needs:</code> alone only establishes order, not a success requirement — without the explicit <code>if:</code> check here, <code>deploy</code> would still attempt to run even if one of the three test jobs had genuinely failed, since GitHub Actions doesn't automatically skip a dependent job just because a dependency failed.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Writing conditional logic that only distinguishes success and failure, forgetting that "skipped" and "cancelled" are genuinely different, real states a dependency can be in. A job's result being <code>skipped</code> (because an earlier condition wasn't met) is a fundamentally different situation from that same job actually running and failing — treating them identically can produce incorrect pipeline behavior.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p><code>continue-on-error: true</code> on a step still shows that step's actual failure in the log and in the job's summary — it doesn't hide the failure, it just prevents that specific failure from stopping the rest of the job. This distinction matters: the failure is still visible and worth investigating, just not blocking.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Design conditional logic accounting for all four possible states — success, failure, cancelled, and skipped — not just the two most obvious ones.</li>
+  <li>Use <code>continue-on-error: true</code> deliberately for genuinely non-blocking checks, not as a way to silence a failure that should actually be addressed.</li>
+  <li>Combine <code>if: always()</code> at the job level with an explicit result check when a "notify regardless of outcome" job needs to also report what actually happened.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>A job or step's result can be success, failure, cancelled, or skipped — four genuinely distinct states, not just two.</li>
+  <li><code>continue-on-error: true</code> lets a specific step fail without stopping the rest of its job, while still showing that failure clearly.</li>
+  <li>A real pipeline's deploy and notify logic should account for the complete status vocabulary, not just the success case.</li>
+</ul>
+
+<h2 id="challenge">🏆 Challenge</h2>
+<p>Modify the <code>notify</code> job in this page's example so its message actually differs depending on outcome — printing "All tests passed and deployed" if <code>deploy</code> succeeded, or "Pipeline failed — check test results" otherwise — using an explicit check against <code>needs.deploy.result</code>.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>What are the four possible result values a job or step can have, beyond just success and failure?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The complete set is success, failure, cancelled, and skipped. Cancelled means something stopped the job or step before it finished (like a manual cancellation), while skipped means it never ran at all because a condition prevented it from starting. Designing conditional logic around only success and failure misses these two genuinely distinct states.</div>
+</details>
+<details class="faq-item">
+<summary>Why does a deploy job need an explicit if: condition checking each dependency's result, rather than relying on needs: alone to prevent deployment after a test failure?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">needs: only establishes execution order — it ensures deploy waits for its dependencies to finish, but doesn't automatically prevent deploy from running if one of those dependencies actually failed. An explicit if: condition checking that every dependency's result equals 'success' is what genuinely enforces that deployment only proceeds after real success, not just after completion.</div>
+</details>
+<details class="faq-item">
+<summary>What does continue-on-error: true actually do, and what does it NOT do?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It allows a specific step to fail without stopping the rest of that job's remaining steps from running — overriding the default fail-fast behavior for just that one step. It does NOT hide or suppress the failure itself; the step's actual failure is still visible in the log and job summary, just no longer blocking subsequent steps.</div>
+</details>
+<details class="faq-item">
+<summary>Why might treating a skipped dependency the same as a failed one produce incorrect pipeline behavior?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A skipped job never actually ran — often because its own condition legitimately wasn't met, which may be entirely expected and fine. A failed job genuinely ran and encountered a real problem. Treating these identically could incorrectly block a downstream job in a situation where a dependency being skipped was actually the correct, intended outcome, not a problem requiring the same response as a genuine failure.</div>
+</details>
+<details class="faq-item">
+<summary>Why does the notify job in the pipeline example use if: always() combined with needs: on every other job?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">if: always() ensures notify runs regardless of what happened in any other job — success, failure, or otherwise — which is exactly the intended behavior for a job whose entire purpose is reporting the pipeline's outcome no matter what that outcome actually was. Combining it with needs: on the relevant jobs ensures notify still waits for them to genuinely finish first, so it has real, final results to actually report on.</div>
+</details>
+</div>
+</article>
+</body></html>

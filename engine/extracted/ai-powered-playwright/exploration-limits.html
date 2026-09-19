@@ -1,0 +1,98 @@
+<!doctype html>
+<html><head>
+<title>Exploration Limits</title>
+<meta name="description" content="Real, working guardrails against runaway exploration — max steps, max depth, time budget — necessary specifically because there&#x27;s no fixed sequence to naturally end." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/exploration-limits.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Exploration Limits</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="browser-observation.html">Browser Observation</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Why open-ended exploration genuinely needs explicit limits, unlike Chapter 5's naturally-terminating sequence</li>
+  <li>Three real, concrete limit types — step count, depth, and time</li>
+  <li>Building a real function that enforces all three</li>
+</ul>
+
+<h2 id="introduction-why-this-wasn-t-needed-in-chapter-5">Introduction — Why This Wasn't Needed in Chapter 5</h2>
+<p>Chapter 5's loop had a natural end — five known steps, and the loop finished when they were done. This chapter's exploration has no such natural end; "explore checkout and find unexpected behavior" could, in principle, continue indefinitely. Real limits are what prevent that from becoming a genuine, practical problem.</p>
+
+<h2 id="step-by-step-implementation">Step-by-Step Implementation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/exploration-limits.ts
+
+export interface ExplorationLimits {
+  maxSteps: number;
+  maxDepthFromStart: number;
+  maxDurationMs: number;
+}
+
+export interface ExplorationState {
+  stepCount: number;
+  currentDepth: number;
+  startTime: number;
+}
+
+export function shouldStopExploring(
+  state: ExplorationState, limits: ExplorationLimits
+): { stop: boolean; reason?: string } {
+  if (state.stepCount &gt;= limits.maxSteps) {
+    return { stop: true, reason: `Reached max steps (${limits.maxSteps})` };
+  }
+  if (state.currentDepth &gt; limits.maxDepthFromStart) {
+    return { stop: true, reason: `Exceeded max depth (${limits.maxDepthFromStart})` };
+  }
+  if (Date.now() - state.startTime &gt; limits.maxDurationMs) {
+    return { stop: true, reason: `Exceeded time budget (${limits.maxDurationMs}ms)` };
+  }
+  return { stop: false };
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p>Three genuinely different, real risks, each with its own check. <code>maxSteps</code> bounds total AI calls and real cost. <code>maxDepthFromStart</code> prevents exploration from wandering arbitrarily far from the actual objective — three or four navigations away from checkout is probably no longer "exploring checkout" in any meaningful sense. <code>maxDurationMs</code> bounds real wall-clock time, important for keeping exploration practical within a CI run or a bounded investigation session.</p>
+
+<h2 id="example-setting-reasonable-limits-for-shopsmart">Example — Setting Reasonable Limits for ShopSmart</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const limits: ExplorationLimits = {
+  maxSteps: 30,
+  maxDepthFromStart: 4,
+  maxDurationMs: 5 * 60 * 1000, // 5 minutes
+};
+
+const state: ExplorationState = {
+  stepCount: 0, currentDepth: 0, startTime: Date.now(),
+};
+
+// After EACH step, in the exploration LOOP:
+state.stepCount++;
+const check = shouldStopExploring(state, limits);
+if (check.stop) {
+  console.log(`Exploration stopped: ${check.reason}`);
+  // BREAK out of the loop — this is a GENUINE, expected
+  // stopping condition, not a FAILURE</code></pre>
+
+<h2 id="why-it-matters">Why It Matters</h2>
+<p>Without these limits, a genuinely curious agent could keep generating plausible-sounding hypotheses indefinitely, accumulating real cost with diminishing real value — the tenth hypothesis about the discount field is unlikely to be as valuable as the first three. Explicit limits make exploration bounded and predictable, a real requirement for using it reliably in a real CI pipeline or investigation workflow.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Running exploration with no limits at all "since it's just testing."</strong> Real API cost and real wall-clock time accumulate regardless of intent — this chapter's opening cost discipline from Chapter 2 applies here just as much as anywhere else.</li>
+  <li><strong>Treating hitting a limit as a failure to investigate.</strong> It's an expected, healthy stopping condition — this page's example code explicitly treats it as a normal loop exit, not an error.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Set all three limit types explicitly before running any exploration — never rely on just one dimension to bound real risk.</li>
+  <li>Log the specific reason exploration stopped — this is genuinely useful context for anyone reviewing what the agent did and why it stopped there.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Set reasonable limits for a real exploration objective in your own application, considering your own real constraints — how much time you're willing to spend, how many AI calls are affordable. Run a simulated exploration loop and confirm it stops cleanly for the correct, logged reason.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Open-ended exploration has no natural end, unlike Chapter 5's fixed sequence — explicit limits are what prevent that from becoming unbounded, costly, or impractical.</li>
+  <li>Step count, depth, and time budget are three genuinely different, real risks, each deserving its own explicit check.</li>
+  <li>Hitting a limit is an expected, healthy stopping condition — not a failure of the exploration itself.</li>
+</ul>
+</article>
+</body></html>

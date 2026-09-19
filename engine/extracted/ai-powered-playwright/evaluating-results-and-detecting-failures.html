@@ -1,0 +1,92 @@
+<!doctype html>
+<html><head>
+<title>Evaluating Results and Detecting Failures</title>
+<meta name="description" content="Stage three — running the previous stage&#x27;s evidence through Chapter 9&#x27;s classification and Chapter 12&#x27;s flaky check, confirming this is a genuine, real defect worth pursuing." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/evaluating-results-and-detecting-failures.html" />
+</head><body>
+<p class="difficulty">Advanced</p>
+<h1>Evaluating Results and Detecting Failures</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="executing-and-capturing-evidence.html">Executing and Capturing Evidence</a></p>
+<article class="content">
+<h2>What You'll Learn</h2>
+<ul>
+  <li>Turning the previous stage's raw evidence into a real classification</li>
+  <li>Checking Chapter 12's flaky history before committing to a full investigation</li>
+  <li>Confirming, with real evidence, this is genuinely worth pursuing further</li>
+</ul>
+
+<h2>Introduction</h2>
+<p>The previous stage's exploration surfaced something real, but discovery alone doesn't confirm it's a genuine defect worth this capstone's remaining stages. This page runs it through the same real checks this track built for exactly this judgment.</p>
+
+<h2>Step-by-Step Implementation</h2>
+<pre><code>// src/capstone-pipeline.ts (stage 3)
+import { selectEvidenceForAnalysis } from './select-evidence-for-analysis';
+import { classifyFailure } from './classify-failure';
+import { detectFlakyCandidates } from './detect-flaky-candidates';
+
+export async function evaluateCapstoneResults(
+  evidence: EvidenceBundle, history: TestRunRecord[]
+) {
+  const payload = selectEvidenceForAnalysis(evidence);
+
+  // Chapter 12'S OWN check, FIRST — is this ALREADY a KNOWN,
+  // flaky pattern, not a genuinely NEW finding at all?
+  const flakyCandidates = detectFlakyCandidates(history);
+  const isKnownFlaky = flakyCandidates.some(
+    (c) =&gt; c.testName === 'discount code application'
+  );
+  if (isKnownFlaky) {
+    return { genuineFailure: false, reason: 'Matches known flaky pattern' };
+  }
+
+  const classification = await classifyFailure(payload);
+  const genuineFailure = ['Application Defect', 'Test Defect'].includes(
+    classification.category
+  );
+
+  return { genuineFailure, classification };
+}</code></pre>
+
+<h2>Code Explanation</h2>
+<p>The flaky check runs first, deliberately, the same discipline Chapter 16's own quality gate established — no reason to spend a fresh classification call investigating something already known and understood. Only once the flaky check comes back clean does this stage reach for Chapter 9's own classification.</p>
+
+<h2>Example — The Real, Confirmed Classification</h2>
+<pre><code>const evaluation = await evaluateCapstoneResults(evidence, history);
+
+// {
+//   genuineFailure: true,
+//   classification: {
+//     category: "Application Defect",
+//     reasoning: "The cart total reflects a stacked, doubled
+//       discount after applying the same code twice — this is
+//       a real calculation error in the application's own
+//       discount logic, not a test or environment issue."
+//   }
+// }</code></pre>
+
+<h2>Why It Matters — This Confirmation Is What Justifies Continuing</h2>
+<p>Without this stage, this capstone would be pursuing every exploration finding equally, regardless of whether it's a genuine defect, a known flaky pattern, or a real but low-severity cosmetic issue. This confirmation — a real "Application Defect" classification, backed by concrete evidence — is exactly what justifies committing to this capstone's remaining, more expensive stages: root cause analysis and a real fix proposal.</p>
+
+<h2>Common Mistakes</h2>
+<ul>
+  <li><strong>Skipping the flaky check and classifying every exploration finding fresh.</strong> This wastes real cost on findings that already have a known, understood explanation.</li>
+  <li><strong>Proceeding to root cause analysis without confirming genuine failure first.</strong> Not every unexpected observation is actually a defect — this stage's classification step exists specifically to make that distinction before committing further resources.</li>
+</ul>
+
+<h2>Best Practices</h2>
+<ul>
+  <li>Check known flaky patterns before running a fresh classification, the same order Chapter 16's quality gate established.</li>
+  <li>Only commit to a pipeline's more expensive, later stages once a finding is confirmed as a genuine failure — not on discovery alone.</li>
+</ul>
+
+<h2>Hands-On Exercise</h2>
+<p>Run this page's <code>evaluateCapstoneResults</code> function against the previous stage's real evidence. Confirm the classification genuinely matches "Application Defect," with reasoning that references the specific, real discount-doubling behavior observed.</p>
+
+<h2>Key Takeaways</h2>
+<ul>
+  <li>Checking known flaky patterns before classification avoids wasting real cost on findings that already have an understood explanation.</li>
+  <li>A confirmed "Application Defect" classification, grounded in real evidence, is what justifies committing to this capstone's remaining, more expensive stages.</li>
+  <li>Not every exploration finding is a genuine defect — this stage's real job is distinguishing which ones are before pursuing them further.</li>
+</ul>
+</article>
+</body></html>

@@ -1,0 +1,81 @@
+<!doctype html>
+<html><head>
+<title>Security and Scalability</title>
+<meta name="description" content="Combining Chapter 18&#x27;s cost discipline and Chapter 19&#x27;s security controls at the level a shared, multi-agent system actually needs them — not per-agent, but system-wide." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/security-and-scalability.html" />
+</head><body>
+<p class="difficulty">Advanced</p>
+<h1>Security and Scalability</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="components-and-responsibilities.html">Components and Responsibilities</a></p>
+<article class="content">
+<h2>What You'll Learn</h2>
+<ul>
+  <li>Why shared infrastructure needs security and scale thinking beyond what any single agent required</li>
+  <li>A real, concrete case where per-agent safety controls aren't enough on their own</li>
+  <li>Combining Chapter 18's cost lessons and Chapter 19's security lessons at system scale</li>
+</ul>
+
+<h2>Introduction — Beyond Any Single Agent</h2>
+<p>Chapter 18 covered cost per call and per agent. Chapter 19 covered security per agent's own guardrails. Once multiple agents share one real MCP server, genuinely new questions appear that neither chapter addressed alone — questions about the shared infrastructure itself, not any one agent using it.</p>
+
+<h2>How It Works — A Real, Concrete Case Neither Earlier Chapter Covered</h2>
+<pre><code>THREE agents, each individually well-behaved, each RESPECTING
+their OWN Chapter 15 allowlist and Chapter 13 rate limits —
+but ALL THREE running their OWN exploration SIMULTANEOUSLY
+against the SAME shared MCP server.
+
+NEITHER Chapter 18 (per-call COST) nor Chapter 19 (per-agent
+SECURITY) asked: what happens when the SERVER ITSELF receives
+THREE times the load it was SIZED for?</code></pre>
+
+<h2>Why It Matters — Shared Infrastructure Has Its Own, Real Limits</h2>
+<p>A well-behaved agent respecting its own rate limits doesn't automatically mean the shared server can handle several well-behaved agents' combined load. This is a genuinely different question from anything this track's earlier, single-agent-focused chapters addressed — it's about the infrastructure's own capacity, not any individual agent's behavior.</p>
+
+<h2>Example — A Real, Concrete Mitigation</h2>
+<pre><code>// A REAL, server-side rate limit, INDEPENDENT of any single
+// agent's OWN self-imposed limits from Chapter 13:
+
+const SERVER_WIDE_RATE_LIMIT = 50; // real calls per MINUTE,
+                                     // across ALL connected
+                                     // clients COMBINED
+
+let recentCallTimestamps: number[] = [];
+
+export function checkServerCapacity(): boolean {
+  const now = Date.now();
+  recentCallTimestamps = recentCallTimestamps.filter(
+    (t) =&gt; now - t &lt; 60_000
+  );
+  if (recentCallTimestamps.length &gt;= SERVER_WIDE_RATE_LIMIT) {
+    return false; // REJECT — server is genuinely at CAPACITY
+  }
+  recentCallTimestamps.push(now);
+  return true;
+}</code></pre>
+
+<h2>Why It Matters — Combining Chapter 18 and Chapter 19 at This Level</h2>
+<p>This server-wide limit is genuinely a cost control (Chapter 18's concern — bounding total real spend across every client combined) and a security control (Chapter 19's concern — preventing one misbehaving or compromised client from starving every other legitimate one). At system scale, these two earlier chapters' concerns converge into the same real mechanism, rather than remaining separate.</p>
+
+<h2>Common Mistakes</h2>
+<ul>
+  <li><strong>Assuming each agent's own rate limits make server-wide limits unnecessary.</strong> This page's three-agents example shows exactly why that assumption fails — individually respectful behavior can still combine into genuine, real overload.</li>
+  <li><strong>Treating cost and security as unrelated concerns at system scale.</strong> This page's server-wide limit example shows they often converge into the same real, shared mechanism once multiple agents share infrastructure.</li>
+</ul>
+
+<h2>Best Practices</h2>
+<ul>
+  <li>Add server-wide, infrastructure-level limits independent of any single agent's own self-imposed limits, once multiple agents genuinely share a server.</li>
+  <li>Think about cost and security together at the infrastructure level — they frequently share the same real, practical mitigation.</li>
+</ul>
+
+<h2>Hands-On Exercise</h2>
+<p>If your own system has, or is planning, multiple agents sharing infrastructure, estimate what happens if all of them ran their heaviest real workload simultaneously. Identify whether your current design has a genuine, server-wide limit, or only individual agent-level ones.</p>
+
+<h2>Key Takeaways</h2>
+<ul>
+  <li>Multiple well-behaved agents sharing infrastructure can still combine into genuine overload — individual good behavior doesn't guarantee system-wide capacity.</li>
+  <li>Server-wide, infrastructure-level limits are a real, necessary layer independent of any single agent's own self-imposed limits.</li>
+  <li>At system scale, cost and security concerns frequently converge into the same real, shared mitigation, rather than remaining the separate concerns they were per-agent.</li>
+</ul>
+</article>
+</body></html>

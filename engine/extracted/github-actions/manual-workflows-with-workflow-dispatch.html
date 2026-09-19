@@ -1,0 +1,117 @@
+<!doctype html>
+<html><head>
+<title>Manual GitHub Actions Workflows: workflow_dispatch Explained</title>
+<meta name="description" content="How to trigger a GitHub Actions workflow manually on demand with workflow_dispatch, including input parameters, and when manual triggering is genuinely the right choice." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/manual-workflows-with-workflow-dispatch.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Manual Workflows: workflow_dispatch</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="push-and-pull-request-triggers.html">Push & Pull Request Triggers</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p><code>workflow_dispatch</code> is an event that lets a human deliberately trigger a workflow on demand, from GitHub's own interface — no push, no pull request, no schedule, just a person deciding "run this now."</p>
+
+<h2 id="why-do-we-need-it">Why do we need it?</h2>
+<p>Not everything should run automatically. Deploying to production is the classic example: you generally don't want that happening automatically on every push, even if every automated check passed — a genuine human decision to deploy right now is often exactly what's wanted instead.</p>
+
+<h2 id="real-world-analogy">Real-World Analogy</h2>
+<p>Think of a manual fire alarm pull station versus an automatic smoke detector — most safety systems should react automatically, but some actions genuinely need a deliberate human decision at the exact right moment, not an automatic trigger. Deployment to production is often that kind of action.</p>
+
+<h2 id="the-basic-syntax">The Basic Syntax</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>on: workflow_dispatch</code></pre>
+<p>This alone adds a "Run workflow" button, visible in the repository's Actions tab, for this specific workflow — clicking it triggers a run immediately, with no other event needed.</p>
+
+<h2 id="adding-input-parameters">Adding Input Parameters</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Which environment to deploy to'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production</code></pre>
+<p>Inputs let the person triggering the workflow provide real information at the moment they trigger it — here, a dropdown choosing between staging and production, shown directly in GitHub's "Run workflow" interface.</p>
+
+<h2 id="using-an-input-inside-the-workflow">Using an Input Inside the Workflow</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Deploying to ${{ github.event.inputs.environment }}"</code></pre>
+<p>The value the person actually selected is accessible via <code>github.event.inputs.&lt;name&gt;</code> — this specific expression syntax (<code>${{ }}</code>) is covered properly in Chapter 6, but this is a genuine, working preview of what it looks like in practice.</p>
+
+<h2 id="detailed-example-a-real-manual-deployment-workflow">Detailed Example — A Real Manual Deployment Workflow</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>name: Deploy ShopEasy
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options: [staging, production]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo "Deploying ShopEasy to ${{ github.event.inputs.environment }}"
+      # real deployment steps would go here</code></pre>
+<p>This directly satisfies the third part of ShopEasy's original requirement — deployment happens only when someone deliberately clicks "Run workflow" and picks an environment, never automatically.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might a workflow combine <code>workflow_dispatch</code> with other events, rather than using it exclusively? A workflow can genuinely have more than one trigger — for instance, running tests automatically on every push, <em>and</em> also being manually runnable on demand for a one-off situation, like re-running a diagnostic check without needing to make a new commit just to trigger it.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Forgetting that <code>workflow_dispatch</code> only shows the "Run workflow" button once the workflow file itself has already been merged into the repository's default branch — a workflow file that only exists on a feature branch typically won't show this manual trigger option until it reaches the branch GitHub considers default.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>Input types beyond <code>choice</code> include <code>string</code> (free text), <code>boolean</code> (a checkbox), and <code>environment</code> (picks from configured GitHub Environments, covered in Chapter 12) — pick whichever genuinely matches the kind of value you need from the person triggering the run.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Reach for <code>workflow_dispatch</code> specifically for actions that genuinely warrant a deliberate human decision at the moment of triggering, not as a default for everything.</li>
+  <li>Use meaningful input descriptions and sensible defaults — the person triggering the workflow should understand exactly what each input controls without needing to read the YAML.</li>
+  <li>Combine <code>workflow_dispatch</code> with other triggers when a workflow genuinely serves both an automated and an on-demand purpose.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li><code>workflow_dispatch</code> adds a manual "Run workflow" trigger, visible in the Actions tab.</li>
+  <li>Inputs let the person triggering a run supply real values at that moment — choices, text, booleans.</li>
+  <li>The workflow file needs to exist on the repository's default branch before the manual trigger button appears.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Design (in YAML, without necessarily testing it) a <code>workflow_dispatch</code> configuration for a hypothetical "send a test notification" workflow, with one required text input for the notification message and one boolean input for whether it's urgent.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why might production deployment specifically be a good candidate for a manual, workflow_dispatch-triggered workflow rather than an automatic one?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Deploying to production is often a decision that genuinely warrants deliberate human judgment at a specific moment — even if every automated check has passed, a team may want a person to consciously decide "deploy now," rather than having it happen automatically the instant checks succeed. workflow_dispatch is specifically designed for this kind of deliberate, on-demand action.</div>
+</details>
+<details class="faq-item">
+<summary>How does a value entered through a workflow_dispatch input actually get used inside the workflow's steps?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The value is accessed through an expression using the github.event.inputs.&lt;name&gt; syntax, wrapped in ${{ }}. This lets a step reference whatever the person triggering the workflow actually selected or typed at that moment, making the workflow's behavior dynamic based on that specific manual trigger.</div>
+</details>
+<details class="faq-item">
+<summary>Can a single workflow file combine workflow_dispatch with an automatic trigger like push?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Yes — a workflow can be configured to respond to multiple event types at once. This is useful when the same underlying logic (like running a diagnostic check) should both happen automatically on certain triggers and also be available for a person to run manually on demand, without needing two separate workflow files.</div>
+</details>
+<details class="faq-item">
+<summary>Why might the "Run workflow" button not appear for a workflow file that was just added on a feature branch?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">GitHub typically only surfaces the manual workflow_dispatch trigger button for workflow files that exist on the repository's default branch. A workflow file sitting only on a feature branch, not yet merged, generally won't show this option in the Actions tab until it actually reaches the default branch.</div>
+</details>
+<details class="faq-item">
+<summary>What's the practical purpose of setting a default value on a workflow_dispatch input, like defaulting environment to "staging"?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A sensible default reduces the chance of an accidental mistake — someone triggering the workflow without thinking carefully gets the safer option (staging) unless they deliberately choose otherwise (production). It's a small design choice that meaningfully reduces the risk of an unintended production action triggered by an oversight.</div>
+</details>
+</div>
+</article>
+</body></html>

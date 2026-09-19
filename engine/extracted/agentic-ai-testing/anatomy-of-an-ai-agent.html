@@ -1,0 +1,187 @@
+<!doctype html>
+<html><head>
+<title>Anatomy of an AI Agent: The Complete Picture</title>
+<meta name="description" content="A full architectural diagram of an AI agent&#x27;s parts — LLM, planner, reasoner, memory, tools, state, and guardrails — and how they connect, before diving into each piece individually." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/anatomy-of-an-ai-agent.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Anatomy of an AI Agent</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="ai-agent-fundamentals.html">AI Agent Fundamentals overview</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Before zooming into any single piece, it's worth seeing the whole machine at once — every AI agent, regardless of what it's built for, is assembled from the same small set of parts working together.</p>
+
+<h2 id="the-complete-diagram">The Complete Diagram</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>                    ┌─────────────┐
+                    │     GOAL     │  "Verify checkout works on ShopEasy"
+                    └──────┬───────┘
+                           │
+                    ┌──────▼───────┐
+              ┌────►│   PLANNER     │  breaks the goal into a rough
+              │     └──────┬───────┘  sequence of steps
+              │            │
+              │     ┌──────▼───────┐
+        ┌─────┤     │   REASONER    │  decides the SPECIFIC next
+        │     │     └──────┬───────┘  action, given what's happened
+        │     │            │
+        │     │     ┌──────▼───────┐
+   ┌────▼──┐  │     │     TOOLS     │  actually DOES something —
+   │MEMORY │  │     │ (browser, API,│  click, request, assertion
+   └───┬───┘  │     │  test runner) │
+       │      │     └──────┬───────┘
+       │      │            │
+       │      │     ┌──────▼───────┐
+       └──────┴─────┤  OBSERVATION  │  what actually happened,
+                     └──────┬───────┘  fed back to the reasoner
+                            │
+                     ┌──────▼───────┐
+                     │  GUARDRAILS   │  checks EVERY step against
+                     │ (throughout)  │  what's actually allowed
+                     └───────────────┘</code></pre>
+<p>Every one of these boxes gets its own dedicated page in this chapter — this diagram is the map you'll keep referring back to as each piece gets its own real depth.</p>
+
+<h2 id="walking-through-it-with-a-real-example">Walking Through It With a Real Example</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>GOAL: "Verify a user can complete checkout on ShopEasy."
+
+PLANNER produces a rough sequence:
+  1. Log in  2. Add item to cart  3. Go to checkout  4. Place order
+
+REASONER decides the SPECIFIC first action:
+  "The plan says 'log in' — I need to find the actual login form
+   on the current page before I can do anything."
+
+TOOLS execute that decision:
+  browser.fill('#email', 'user@example.com')
+
+OBSERVATION reports what actually happened:
+  "Email field now contains the value. Page did not change."
+
+MEMORY retains this for later:
+  "Already filled email — don't repeat this step."
+
+REASONER uses memory + the new observation to decide what's next:
+  "Email is filled. Now I need the password field."
+
+...this cycle repeats until the goal is reached, checked at every
+step by GUARDRAILS (can this agent actually submit a real order?
+Is this within its allowed scope?).</code></pre>
+
+<h2 id="where-each-piece-genuinely-lives">Where Each Piece Genuinely Lives</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>LLM-powered:        Planner, Reasoner — the "thinking" parts
+Not LLM-powered:      Tools, Memory storage, Guardrail checks —
+                       these are typically ordinary code, deliberately
+                       NOT left to an LLM's judgment for reliability
+                       and safety reasons covered later in this chapter</code></pre>
+<p>This distinction matters more than it might seem: an agent's "thinking" is genuinely AI-powered, but the actual mechanics — remembering things, executing a click, checking a permission — are usually built with plain, reliable, deterministic code, precisely because those parts need to be trustworthy every single time.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might it be a deliberate design choice to keep memory storage and guardrail checks as ordinary, non-AI code, rather than having the LLM itself "remember" things or "decide" whether an action is allowed? An LLM's output can genuinely vary between calls, even for very similar inputs. A memory system or a safety check that behaved unpredictably would undermine the entire reason those pieces exist — you specifically want memory and guardrails to be the reliable, boring parts of an otherwise adaptive system.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Assuming "AI agent" means every single part of the system runs on an LLM. In a genuinely well-built agent, the LLM is doing specific, bounded work — planning and reasoning — while the surrounding scaffolding (tools, memory, guardrails) is often conventional software engineering, chosen deliberately for its reliability.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>When reading about or evaluating any real agent framework, it's a genuinely useful habit to ask "which of these seven pieces is this actually describing?" Many frameworks and products emphasize one piece heavily (often the reasoner) while glossing over how they handle memory or guardrails — worth noticing before assuming a tool is more complete than it actually is.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Keep the "thinking" pieces (planning, reasoning) and the "doing" pieces (tools) conceptually and architecturally separate, even in a simple agent.</li>
+  <li>Default to ordinary, reliable code for memory and guardrails rather than delegating those to the LLM's own judgment.</li>
+  <li>Use this chapter's diagram as a genuine mental checklist when designing or debugging any real agent later in this course.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Every AI agent is built from the same core pieces: a goal, a planner, a reasoner, tools, memory, observation, and guardrails.</li>
+  <li>The LLM specifically powers the "thinking" pieces — planning and reasoning — not necessarily every part of the system.</li>
+  <li>Memory and guardrails are typically built as reliable, ordinary code by deliberate design, not left to an LLM's own judgment.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>For the goal "explore ShopEasy's new user-profile page and report anything that seems broken," walk through this page's diagram step by step — write out what the planner might produce, what the reasoner's first decision might be, and what a tool call and observation might look like for that specific first step.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A colleague says "our agent's memory sometimes forgets things randomly — must be an LLM quirk." Given this page's architecture, what would you actually check first, and why?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd check the memory implementation itself before assuming it's an LLM issue — in a well-architected agent, memory storage is deliberately ordinary, deterministic code specifically so it doesn't behave unpredictably. If memory is "forgetting randomly," that's a strong signal the memory system itself has a genuine bug, not that the LLM is being flaky.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Questions to actually check first:
+- Is memory being correctly WRITTEN after each step, or is
+  there a bug causing writes to sometimes be skipped?
+- Is memory being correctly READ before the reasoner makes
+  its next decision, or is there a race condition?
+- Is there a SIZE LIMIT on memory that's silently dropping
+  older entries once exceeded? (a genuine, common cause)</code></pre>
+<p>Attributing unpredictable behavior in a deliberately-deterministic component to "the LLM" is exactly the kind of misdiagnosis this page's architectural separation is meant to help you avoid — it points you toward checking the actual, most likely cause first.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does the diagram place guardrails as checking "throughout" the whole loop, rather than as a single step at the beginning or end?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because a real, unsafe action could happen at any point in the loop — not just at the very start (a bad initial plan) or the very end (a bad final result). A guardrail checking only the final outcome would miss a genuinely harmful action taken along the way, even if the final result looked fine.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Example of why "check only at the end" fails:
+Goal: "test the delete-account flow"
+Step 3: agent actually deletes a REAL account (not a test one)
+Step 7: agent reports "delete flow works correctly"
+
+A guardrail checking only the FINAL report would see a
+successful, well-written summary — completely missing that
+step 3 did something genuinely harmful along the way.</code></pre>
+<p>Guardrails need to evaluate each individual action as it's about to happen, not just judge the overall outcome after the fact — which is exactly why they're drawn touching every stage of the loop in this page's diagram, not sitting off to one side.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>In the checkout example, why does the reasoner need BOTH memory ("already filled email") and the fresh observation ("email field now contains the value") to decide its next action — wouldn't one be enough?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>They answer genuinely different questions, and losing either one creates a real failure mode.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Observation ALONE, no memory:
+Agent sees the email field is filled — but has no record of
+WHY, or what it already tried. If the page reloaded and reset
+the field, agent might loop forever re-filling the same thing,
+with no memory of "I've already tried this twice."
+
+Memory ALONE, no fresh observation:
+Agent "remembers" it filled the email field — but if something
+changed (a validation error appeared, the field got cleared),
+acting purely on stale memory without checking the CURRENT
+real state means the agent could confidently proceed based on
+something that's no longer true.</code></pre>
+<p>The reasoner genuinely needs both: memory for continuity across steps, and fresh observation for grounding in what's actually true right now — exactly the same reason a human completing a multi-step form benefits from both remembering what they already filled in AND actually looking at the current screen before proceeding.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page describe the planner and reasoner as two separate boxes, when both are "LLM-powered thinking" — what's the actual difference in what each one is doing?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>The planner operates at a broader scope — breaking a goal into a rough sequence — while the reasoner operates at each individual step, deciding the specific next action given what's actually happened so far. Both later pages in this chapter go into this distinction in real depth, but the short version:</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>PLANNER (broad, upfront): "To verify checkout works, I'll roughly
+  need to: log in, add an item, go to checkout, place the order."
+  — produced largely BEFORE acting, based on the goal alone
+
+REASONER (narrow, ongoing): "The plan says 'log in' — but right
+  now, specifically, what does the actual login form look like,
+  and what's the very next click or fill I should make?"
+  — produced AT EACH STEP, based on real, current observation</code></pre>
+<p>A genuinely useful analogy: planning is like sketching a route on a map before a road trip; reasoning is like deciding, in the moment, how to handle the actual traffic and road conditions you encounter while driving that route.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>If you were debugging a real agent that completed a task but took a genuinely strange, roundabout path to get there, which specific piece of this architecture would you investigate first, and why?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd start with the planner and reasoner's actual decision history (assuming it's logged, which it genuinely should be) before assuming anything about the tools or memory — a strange path is most directly a symptom of the "thinking" pieces, not the "doing" or "remembering" pieces.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Diagnostic approach:
+1. Review the LOGGED sequence of reasoner decisions — where,
+   specifically, did the path diverge from what a sensible
+   human tester would have done?
+2. At that specific divergence point, what OBSERVATION was the
+   reasoner actually given? Was it accurate, or was there a
+   tool/observation bug feeding it bad information?
+3. Only if the observation was accurate but the DECISION was
+   still strange, is this genuinely a reasoning/prompt issue
+   worth investigating on the LLM side specifically</code></pre>
+<p>This ordered approach — check what the agent was actually told before assuming its reasoning is at fault — matches a broader debugging principle worth internalizing: a "bad decision" often turns out to be a perfectly reasonable decision given genuinely bad or incomplete information, which is a different (and often easier) problem to actually fix.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

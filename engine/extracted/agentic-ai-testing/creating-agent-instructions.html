@@ -1,0 +1,201 @@
+<!doctype html>
+<html><head>
+<title>Creating Agent Instructions: Shaping How Your Agent Behaves</title>
+<meta name="description" content="How to write the system instructions that shape an agent&#x27;s testing behavior — its role, boundaries, and reporting style — and why this differs from the objective itself." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/creating-agent-instructions.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Creating Agent Instructions</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="defining-the-testing-objective.html">Defining the Testing Objective</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>The objective (previous page) tells the agent what THIS task is. Instructions tell it who it is and how it should generally behave — set once, applying across every objective it's ever given, not just the current one.</p>
+
+<h2 id="the-difference-concretely">The Difference, Concretely</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>OBJECTIVE (changes per task):
+  "Verify that a user with valid credentials can successfully
+  log into ShopEasy, ending up on their account dashboard."
+
+INSTRUCTIONS (stay the same across every task):
+  "You are a QA testing agent for ShopEasy. You verify features
+  work correctly and report genuine issues clearly. You never
+  submit real orders or modify real customer data. When you
+  encounter something ambiguous, note it explicitly rather than
+  guessing silently."</code></pre>
+<p>The objective changes every time you run the agent for a different test. The instructions are set once and shape every single run, regardless of what specific objective is given.</p>
+
+<h2 id="what-genuinely-belongs-in-instructions">What Genuinely Belongs in Instructions</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>1. ROLE — what kind of agent this is
+   "You are a QA testing agent for ShopEasy."
+
+2. BEHAVIORAL BOUNDARIES — connects directly to Chapter 2's
+   guardrails, stated in plain language here
+   "You never submit real orders or modify real customer data."
+
+3. REPORTING STYLE — how it should communicate what it finds
+   "Report genuine issues clearly, with enough detail that a
+   human could reproduce what you observed."
+
+4. HANDLING AMBIGUITY — what to do when something's unclear
+   "When you encounter something ambiguous, note it explicitly
+   rather than guessing silently."</code></pre>
+
+<h2 id="in-actual-code">In Actual Code</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># agent.py
+
+class QAAgent:
+    def __init__(self, api_key):
+        self.client = Anthropic(api_key=api_key)
+        self.model = "claude-sonnet-4-6"
+        self.objective = None
+        self.instructions = """You are a QA testing agent for
+ShopEasy, an e-commerce application. Your job is to verify that
+features work correctly and report genuine issues clearly.
+
+Rules you must always follow:
+- Never submit a real order or modify real customer data
+- When something is ambiguous, note it explicitly rather than
+  silently guessing what was intended
+- Report exactly what you observed, distinguishing clearly
+  between what you're certain of and what you're inferring"""
+
+    def set_objective(self, objective):
+        self.objective = objective
+
+    def think(self, prompt):
+        full_prompt = f"{self.instructions}\n\nCurrent task: {self.objective}\n\n{prompt}"
+        response = self.client.messages.create(
+            model=self.model,
+            max_tokens=1024,
+            messages=[{"role": "user", "content": full_prompt}]
+        )
+        return response.content[0].text</code></pre>
+<p>Notice <code>think()</code> now combines instructions and the current objective into every single prompt — this is genuinely how the agent "remembers" who it is and what boundaries apply, on every single call, not just the first one.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might explicitly instructing the agent to "note ambiguity rather than guessing silently" matter as much as any specific behavioral rule? An agent that silently guesses at ambiguous situations produces reports that LOOK confident and complete, while actually containing unstated assumptions a human reviewer has no way to notice or question. Making ambiguity-handling an explicit instruction turns a genuinely hard-to-detect failure mode into something visible in the agent's own output.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Putting task-specific details into instructions instead of the objective, or vice versa. "Never submit real orders" belongs in instructions (true across every task); "verify the login flow specifically" belongs in the objective (true for this one task). Mixing these up makes both genuinely harder to maintain as the agent takes on new objectives over time.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>Instructions are a genuinely natural place to encode some of Chapter 2's guardrails in plain language — "never submit real orders" is a real behavioral boundary. This complements, but doesn't replace, the stronger tool-level and scope guardrails from that chapter; instructions are advisory to the LLM's reasoning, while tool restrictions are structurally enforced regardless of what the LLM decides.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Keep instructions genuinely stable across tasks — role, boundaries, and reporting style, not task-specific details.</li>
+  <li>Explicitly instruct the agent on how to handle ambiguity, rather than leaving that behavior implicit and unpredictable.</li>
+  <li>Treat instructions as a complement to, not a replacement for, the stronger structural guardrails covered in Chapter 2.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Instructions shape how an agent behaves generally, set once and applied across every task; the objective states what a specific task actually is.</li>
+  <li>Genuinely useful instructions cover role, behavioral boundaries, reporting style, and how to handle ambiguity.</li>
+  <li>Instructions are advisory to the LLM's own reasoning — they complement, but don't replace, the structural guardrails covered in Chapter 2.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Write a genuine set of instructions for an agent testing ShopEasy's search feature specifically — including role, at least one real behavioral boundary, and explicit guidance on handling ambiguous search results (like a search that returns zero results — is that a failure, or a genuinely valid outcome worth reporting as-is?).</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A colleague puts "verify the checkout flow works correctly" directly into the agent's instructions rather than the objective. What's wrong with this, and what real problem does it cause once the agent is used for a different task?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This conflates a task-specific detail with something meant to be stable across every task — instructions apply to EVERY run of the agent, so putting a specific testing target there effectively locks the agent into always being "about" checkout, even when given a genuinely different objective later.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>The real, concrete problem this causes:
+Agent is later given the objective "verify the search feature
+  returns relevant results" — but its INSTRUCTIONS still say
+  "verify the checkout flow works correctly," creating a
+  genuine, confusing conflict between what it's being told to
+  do right now versus what its "identity" supposedly is.
+
+The fix: move checkout-specific language to the OBJECTIVE
+  (where it correctly belongs, changing per task), leaving
+  instructions with only genuinely stable content — role,
+  boundaries, reporting style — that make sense regardless of
+  which specific feature is being tested on a given run.</code></pre>
+<p>This is exactly the mixing-up this page's "Common Mistake" section warns about — the fix is recognizing which category (stable vs. task-specific) a given piece of guidance actually belongs to.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page describe instructions as "advisory" to the LLM's reasoning, in contrast to tool-level guardrails from Chapter 2, which are described as structurally enforced?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because an instruction like "never submit real orders" only works if the LLM's reasoning actually follows it — there's no structural mechanism preventing a submit action if the agent WAS given a tool capable of it and its reasoning, for whatever reason, decided to use it anyway.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Instructions (advisory — depends on the LLM actually complying):
+"Never submit a real order." — genuinely helps shape behavior,
+  but if the agent has a submit_order TOOL available and its
+  reasoning concludes (correctly OR incorrectly) that using it
+  is appropriate, nothing STRUCTURALLY stops that call.
+
+Tool-level guardrail (structurally enforced — Chapter 2):
+Simply never GIVE the agent a submit_order tool at all for a
+  task that shouldn't need it. Now there's no code path,
+  regardless of what the reasoning concludes, that could
+  result in a real order actually being submitted.</code></pre>
+<p>This is precisely why Chapter 2 called tool-level restrictions the strongest safety category — instructions are a genuinely useful FIRST layer shaping intended behavior, but the stronger, more reliable guarantee comes from what the agent is structurally even capable of doing in the first place.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why instructing an agent to "note ambiguity explicitly rather than guessing silently" is harder to verify is actually happening than a rule like "never submit real orders."<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>"Never submit real orders" has a clear, observable, binary outcome you could verify (did a real order get submitted, yes or no) — while "handle ambiguity well" is a genuinely harder-to-verify behavioral quality with no single clear signal of success or failure.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Easy to verify (binary, observable):
+Check: did the agent's tool calls include an actual
+  submit_order call during this run? Yes/no — directly
+  checkable from the agent's own action log.
+
+Hard to verify (a judgment call):
+Did the agent CORRECTLY identify every genuinely ambiguous
+  situation it encountered, and note EACH one appropriately,
+  rather than silently guessing at some of them? This requires
+  a human to actually review the agent's full reasoning trace
+  and judge whether its ambiguity-handling was genuinely good,
+  not just check a single log entry.</code></pre>
+<p>This doesn't mean the instruction isn't worth giving — it genuinely shapes behavior in the right direction — but it's worth being honest that some instructions are easier to verify compliance with than others, and "handle ambiguity well" falls into the harder, more judgment-dependent category.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might it be a mistake to write instructions that are extremely long and detailed, covering every conceivable scenario the agent might encounter?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Extremely long, exhaustive instructions genuinely risk the same problem Chapter 2's Reasoning page warned about with excessive observation detail — diluting what actually matters among a large volume of content, some of which may be irrelevant to any given specific situation.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Genuinely useful, focused instructions (this page's example):
+Role, a few clear behavioral boundaries, reporting style,
+  ambiguity handling — each sentence doing real, distinct work
+  applicable across essentially every task the agent might run.
+
+Excessively detailed instructions (a real risk):
+Attempting to enumerate specific handling for dozens of
+  hypothetical scenarios ("if you see a cookie banner, do X;
+  if you see a newsletter popup, do Y; if the page is slow,
+  do Z...") — this bloats every single prompt with content
+  that's IRRELEVANT most of the time, and risks the SAME
+  attention-dilution problem covered for observation earlier
+  in this course.</code></pre>
+<p>The better approach, consistent with this course's broader theme: keep instructions covering genuinely general, stable principles (like "handle ambiguity by noting it explicitly"), and trust the reasoning step — informed by real, current observation — to apply those principles to whatever specific situation actually arises, rather than trying to pre-script every possible case.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you test whether a given piece of agent behavior is actually working as instructed, versus just happening to look right in the cases you've tried so far?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Deliberately construct a scenario specifically designed to test the instruction's boundary, rather than only relying on the agent's behavior during ordinary, expected task runs where the instruction might never actually get exercised.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>To genuinely test "never submit real orders":
+Give the agent an objective that WOULD naturally lead toward
+  a real submission if it weren't following that instruction
+  — e.g., "verify the full checkout flow works end to end" —
+  and confirm it stops short of an ACTUAL submission (perhaps
+  reporting "checkout flow appears correct up to the final
+  submit step, which I did not execute per my instructions").
+
+To genuinely test ambiguity handling:
+Deliberately create a genuinely ambiguous situation (like
+  Chapter 2's two-similar-forms example) and check whether the
+  agent explicitly FLAGS the ambiguity in its report, rather
+  than just checking whether it happened to pick correctly.</code></pre>
+<p>The key insight: an instruction that's never actually put in a position to matter can't be confirmed as genuinely working — testing instructions means deliberately constructing the specific situations where following (or not following) them would actually be visible in the agent's behavior.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

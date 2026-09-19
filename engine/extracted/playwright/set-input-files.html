@@ -1,0 +1,113 @@
+<!doctype html>
+<html><head>
+<title>Playwright setInputFiles(): File Upload Action Explained</title>
+<meta name="description" content="How Playwright&#x27;s setInputFiles() action uploads files without a native file picker dialog, single vs multiple files, in-memory buffers, and clearing a file input." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/set-input-files.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1><code class="api-name">setInputFiles()</code></h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="actions.html">Actions overview</a></p>
+<article class="content">
+<h2 id="what-is-setinputfiles">What is <code>setInputFiles()</code>?</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>locator.setInputFiles(
+  files: string | string[] | { name: string, mimeType: string, buffer: Buffer } | Array&lt;...&gt;
+)</code></pre>
+      <p><code>setInputFiles()</code> sets the files on an <code>&lt;input type="file"&gt;</code> element directly, without ever opening the operating system's native file picker dialog — which, like a native <code>&lt;select&gt;</code>'s dropdown, isn't part of the page's DOM and can't be automated the way ordinary UI can.</p>
+
+      <h2 id="why-it-s-important">Why it's important</h2>
+      <p>File upload is one of the few interactions where "simulate what a user does" (click the input, wait for an OS dialog, click through a file browser) simply isn't automatable in a headless browser context. <code>setInputFiles()</code> sidesteps the entire problem by operating on the file input's underlying file list directly, then dispatching the same <code>change</code> event a real file selection would produce — so the app's upload-handling JavaScript runs exactly as it would for a real user.</p>
+
+      <h2 id="basic-example-uploading-from-disk">Basic Example — Uploading from Disk</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>await page.getByLabel('Upload resume').setInputFiles('./test-data/resume.pdf');</code></pre>
+
+      <h2 id="detailed-example-multiple-files">Detailed Example — Multiple Files</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>await page.getByLabel('Upload photos').setInputFiles([
+  './test-data/photo-1.jpg',
+  './test-data/photo-2.jpg',
+  './test-data/photo-3.jpg',
+]);
+
+await expect(page.getByTestId('upload-count')).toHaveText('3 files selected');</code></pre>
+
+      <h2 id="real-world-example-generating-a-file-in-memory">Real-World Example — Generating a File In-Memory</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('user can upload a generated CSV without touching disk', async ({ page }) =&gt; {
+  await page.goto('/import');
+
+  const csvContent = 'name,email\nJordan Lee,jordan@example.com\n';
+
+  await page.getByLabel('Upload contacts CSV').setInputFiles({
+    name: 'contacts.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from(csvContent),
+  });
+
+  await page.getByRole('button', { name: 'Import' }).click();
+  await expect(page.getByText('1 contact imported')).toBeVisible();
+});</code></pre>
+      <p>Passing an in-memory <code>buffer</code> instead of a path avoids needing real fixture files checked into the repo for content that's easy to generate — useful for tests that need many slightly different file variations.</p>
+
+      <h2 id="clearing-a-file-input">Clearing a File Input</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>await page.getByLabel('Upload resume').setInputFiles([]); // empty array clears selection</code></pre>
+
+      <h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Attempting to click the input and interact with an OS file dialog — not automatable
+await page.getByLabel('Upload resume').click();
+// (no way to reliably drive the native OS file picker from here)
+
+// ✅ Set the file directly — dispatches the same change event a real selection would
+await page.getByLabel('Upload resume').setInputFiles('./test-data/resume.pdf');</code></pre>
+
+      <h2 id="common-mistakes">Common Mistakes</h2>
+      <ul>
+        <li><strong>Using relative paths that depend on the current working directory</strong> — resolve fixture paths relative to the test file (e.g., via <code>path.join(__dirname, ...)</code>) rather than assuming a specific CWD, which differs between local runs and CI.</li>
+        <li><strong>Not testing file-type/size validation</strong> — a common gap is only testing the happy path; use a generated in-memory buffer to easily produce an oversized or wrong-mimetype file and verify the app rejects it correctly.</li>
+        <li><strong>Forgetting drag-and-drop file upload zones aren't <code>&lt;input&gt;</code> elements</strong> — a "drag files here" dropzone often still has a hidden <code>&lt;input type="file"&gt;</code> underneath that <code>setInputFiles()</code> can target directly, without needing to simulate an actual drag gesture.</li>
+      </ul>
+
+      <h2 id="edge-cases">Edge Cases</h2>
+      <ul>
+        <li><strong>Hidden file inputs</strong> (common — many upload UIs style a button that triggers a visually-hidden <code>&lt;input type="file"&gt;</code>) — <code>setInputFiles()</code> works on it directly regardless of its CSS visibility, since it doesn't rely on clicking to open a dialog.</li>
+        <li><strong>Uploads that trigger immediately on file selection</strong> (no separate "Upload" button) — assert on the resulting upload progress/completion UI right after <code>setInputFiles()</code>, since the <code>change</code> event firing is what kicks off the upload.</li>
+      </ul>
+
+      <h2 id="debugging">Debugging</h2>
+      <p>If an upload doesn't appear to trigger any app behavior, confirm the target element really is the <code>&lt;input type="file"&gt;</code> and not a wrapping button or label — <code>setInputFiles()</code> must be called on the actual file input itself, even if that input is visually hidden behind other UI.</p>
+
+      <h2 id="best-practices">Best Practices</h2>
+      <ul>
+        <li>Keep small fixture files in a dedicated test-data folder, referenced via absolute paths built from <code>__dirname</code>.</li>
+        <li>Use in-memory buffers for generated or parameterized file content instead of maintaining many near-duplicate fixture files.</li>
+        <li>Test both the happy path and validation failures (wrong type, oversized file) — file upload is a common area for under-tested edge cases.</li>
+      </ul>
+
+      <h2 id="practice-exercise">Practice Exercise</h2>
+      <p>Write a test that generates a plain-text file in memory larger than an app's stated 5MB limit and asserts the correct validation error appears, without keeping a large fixture file in the repository.</p>
+
+      <h2 id="summary">Summary</h2>
+      <p><code>setInputFiles()</code> sets a file input's value directly, bypassing the unautomatable native OS file picker, and works equally well with real files on disk or generated in-memory buffers. It's the only reliable way to test file upload in a headless browser context.</p>
+
+      <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why can't Playwright automate a native OS "Choose File" dialog the way it clicks buttons or fills text fields?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The OS file picker is a native operating-system dialog rendered entirely outside the browser's page content and DOM — Playwright's automation model operates on the page, not the OS. <code>setInputFiles()</code> avoids the problem altogether by setting the file input element's file list directly and dispatching the same <code>change</code> event a real selection would produce, so the app's upload logic behaves identically without ever needing to interact with a real dialog.</div>
+</details>
+<details class="faq-item">
+<summary>Why can't Playwright automate the native 'Choose File' OS dialog?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It's rendered entirely outside the browser page by the operating system, outside what browser automation protocols can control.</div>
+</details>
+<details class="faq-item">
+<summary>How do you upload a file without keeping it as a fixture on disk?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Pass an object with name, mimeType, and a Buffer to setInputFiles() instead of a file path.</div>
+</details>
+<details class="faq-item">
+<summary>How do you clear a file input's current selection?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Call setInputFiles([]) with an empty array.</div>
+</details>
+<details class="faq-item">
+<summary>Does setInputFiles() require the target input to be visible?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">No — it works even on a visually hidden &lt;input type="file"&gt;, which is common behind styled upload buttons.</div>
+</details>
+</div>
+</article>
+</body></html>

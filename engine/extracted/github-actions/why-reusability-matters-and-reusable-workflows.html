@@ -1,0 +1,103 @@
+<!doctype html>
+<html><head>
+<title>Why Reusability Matters &amp; Reusable Workflows in GitHub Actions: workflow_call Explained</title>
+<meta name="description" content="Why duplicated CI/CD logic across repositories becomes a genuine liability, and how workflow_call turns a workflow into something other repositories can actually call." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/why-reusability-matters-and-reusable-workflows.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Why Reusability Matters &amp; Reusable Workflows</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="reusable-workflows-composite-actions-and-dry-cicd.html">Reusable Workflows, Composite Actions & DRY CI/CD overview</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>A reusable workflow is a workflow file specifically designed to be called <em>from</em> other workflows, rather than triggered directly by an event — the mechanism that lets an organization define "Setup → Build → Test → Report" exactly once, and have every repository that needs it call the same definition.</p>
+
+<h2 id="why-do-we-need-it">Why do we need it?</h2>
+<p>An organization with twenty repositories, each independently maintaining its own near-identical CI setup logic, faces the exact same drift risk as copy-pasted jobs within one workflow (Chapter 10) — just multiplied across twenty separately-maintained files. A fix or improvement made in one repository's copy doesn't automatically reach the other nineteen.</p>
+
+<h2 id="defining-a-reusable-workflow">Defining a Reusable Workflow</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># .github/workflows/shared-ci.yml
+name: Shared CI
+
+on:
+  workflow_call:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm ci
+      - run: npm run build
+      - run: npm test</code></pre>
+<p>The genuinely distinguishing detail is <code>on: workflow_call</code> — instead of (or in addition to) <code>push</code> or <code>pull_request</code>, this workflow declares that it can be triggered <em>by another workflow calling it</em>.</p>
+
+<h2 id="where-this-kind-of-workflow-actually-lives">Where This Kind of Workflow Actually Lives</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A reusable workflow can live in:
+- The SAME repository as the workflows that call it
+- A DIFFERENT, centralized repository, called by many other repositories</code></pre>
+<p>This second option is exactly what solves the real-world scenario from this chapter's hub page — one central repository defines "Setup → Build → Test → Report" once, and every other repository's own workflow simply calls it.</p>
+
+<h2 id="detailed-example-the-real-scenario-centralized">Detailed Example — The Real Scenario, Centralized</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>❌ Before — 20 repositories, 20 nearly-identical, separately-maintained copies:
+Repo A: .github/workflows/ci.yml (checkout → setup → build → test → report)
+Repo B: .github/workflows/ci.yml (checkout → setup → build → test → report)
+... (18 more, each independently drifting)
+
+✅ After — one shared definition, called by every repository:
+Central repo: .github/workflows/shared-ci.yml (on: workflow_call)
+Repo A, B, C, ... each just call it (covered fully on the next page)</code></pre>
+<p>A genuine improvement to the shared setup — a new caching strategy, an updated Node version — now needs to change in exactly one place, and every calling repository picks it up automatically the next time their own workflow runs.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might centralizing CI logic this way matter more as an organization grows, rather than at a very small scale? With two or three repositories, keeping copy-pasted logic in sync by hand is annoying but manageable. At twenty or a hundred repositories, manual synchronization becomes genuinely impractical — reusable workflows turn an organizational-scale maintenance burden into a single point of update.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Assuming <code>workflow_call</code> is the only trigger a reusable workflow can have. A workflow file can actually combine <code>workflow_call</code> with other events (like <code>push</code>), letting it be both independently triggered <em>and</em> callable from elsewhere — though many genuinely reusable workflows are designed to be called exclusively, keeping their purpose focused and clear.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>A reusable workflow living in a separate, centralized repository needs that repository to actually be accessible to whatever repositories will call it — for a private repository, this involves real permission configuration worth checking GitHub's current documentation for, since cross-repository access has genuine security implications.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Identify genuinely shared CI/CD logic across multiple repositories as a strong candidate for centralization into a reusable workflow.</li>
+  <li>Keep a reusable workflow's actual purpose focused — a shared setup-build-test sequence, not an attempt to handle every repository's unique needs in one file.</li>
+  <li>Consider where a reusable workflow should live (same repository vs. a dedicated, centralized one) based on how broadly it's genuinely shared.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>A reusable workflow uses <code>on: workflow_call</code> to declare that it can be triggered by another workflow calling it.</li>
+  <li>It can live in the same repository or a separate, centralized one shared across many repositories.</li>
+  <li>Centralizing shared CI/CD logic this way turns organization-wide maintenance into a single point of update.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>For a hypothetical organization with five microservice repositories, all needing the identical sequence "checkout → install dependencies → run linter → run tests," sketch out (in plain English) what a centralized reusable workflow for this sequence would need to contain.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>What does on: workflow_call actually declare about a workflow file?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It declares that this workflow can be triggered by being called from a different workflow, rather than only through ordinary events like push or pull_request. This is the specific mechanism that allows one workflow definition to be reused by other workflows, potentially across entirely different repositories.</div>
+</details>
+<details class="faq-item">
+<summary>Why does duplicated CI/CD logic across many repositories become a genuinely bigger problem as an organization grows?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">With just a couple of repositories, manually keeping copy-pasted logic synchronized is annoying but manageable. At a much larger scale — twenty, fifty, a hundred repositories — manually propagating a fix or improvement to every single copy becomes genuinely impractical, and inconsistencies inevitably accumulate as some copies get updated while others are missed.</div>
+</details>
+<details class="faq-item">
+<summary>Can a reusable workflow live in a different repository than the ones that actually call it?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Yes — a reusable workflow can live in a dedicated, centralized repository specifically for this purpose, called by many other repositories across an organization. This is exactly the setup that solves the real-world scenario of many repositories needing the same setup-build-test-report sequence without each maintaining its own separate copy.</div>
+</details>
+<details class="faq-item">
+<summary>Can a workflow file combine workflow_call with other triggers like push?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Yes — a single workflow file can declare multiple triggers, including both workflow_call and ordinary events like push, letting it be both independently triggered on its own and callable from other workflows. Many genuinely reusable workflows, however, are designed to be called exclusively, keeping their specific purpose clear and focused.</div>
+</details>
+<details class="faq-item">
+<summary>What's the practical benefit of updating a shared reusable workflow in one central place, compared to updating twenty separate copies?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A genuine improvement or fix — like an updated caching strategy or a new language version — only needs to be made once, in the single centralized definition, and every calling repository automatically picks up that change the next time its own workflow runs. This eliminates the real risk of some copies being updated while others are missed or forgotten.</div>
+</details>
+</div>
+</article>
+</body></html>

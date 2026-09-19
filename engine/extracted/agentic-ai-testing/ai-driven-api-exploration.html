@@ -1,0 +1,184 @@
+<!doctype html>
+<html><head>
+<title>AI-Driven API Exploration: Deciding Which Endpoints to Call</title>
+<meta name="description" content="How an agent explores an API it doesn&#x27;t have complete documentation for, using real responses to discover structure, and handling genuinely undocumented behavior honestly." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/ai-driven-api-exploration.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>AI-Driven API Exploration</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="connecting-an-ai-agent-with-restassured.html">Connecting an AI Agent with RestAssured</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Sometimes an agent has complete API documentation; sometimes — genuinely common in real work — it has to explore and discover an API's actual shape from real responses. This page covers both, but focuses on the more genuinely interesting second case.</p>
+
+<h2 id="exploration-without-complete-documentation">Exploration Without Complete Documentation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>GOAL: "Explore the ShopEasy orders API and determine what
+filtering options the list endpoint actually supports."
+
+Step 1: make_request(method="GET", endpoint="/orders")
+  → 200 OK, body: {"orders": [...20 orders...], "total": 145}
+
+REASONING: "This returned 20 of 145 total orders — there's
+LIKELY pagination. Let me check for query parameters."
+
+Step 2: make_request(method="GET", endpoint="/orders", params={"status": "pending"})
+  → 200 OK, body: {"orders": [...8 orders, ALL status='pending'...], "total": 8}
+
+REASONING: "The 'status' parameter genuinely works — all
+returned orders match. Let me test an INVALID status value to
+understand error handling."
+
+Step 3: make_request(method="GET", endpoint="/orders", params={"status": "nonexistent_status"})
+  → 200 OK, body: {"orders": [], "total": 0}
+
+REASONING: "Interesting — an invalid status doesn't error, it
+just returns zero results. This is worth NOTING explicitly:
+the API doesn't validate the status value against a known
+list; it just filters and finds nothing. This might be
+intentional, or might be a gap worth flagging."</code></pre>
+
+<h2 id="why-this-genuinely-matters-discovering-not-just-confirming">Why This Genuinely Matters — Discovering, Not Just Confirming</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>This is a real, concrete instance of Chapter 1's agentic-
+testing value: the agent didn't just CONFIRM a pre-written
+expectation — it DISCOVERED something (invalid status values
+silently return empty results rather than erroring) that
+nobody necessarily thought to write a specific test for in
+advance.
+
+This finding is genuinely similar in KIND to Chapter 5's
+"filtering leaves only an out-of-stock item" discovery — not
+a bug, necessarily, but a real, concrete behavior worth a
+human's explicit review.</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might exploring an API WITHOUT complete documentation actually be MORE valuable for testing purposes than exploring one with perfect, exhaustive documentation, even though it's genuinely harder? Testing against documentation alone only verifies that the API matches what someone WROTE DOWN — it can't catch a case where the actual, real behavior diverges from what the documentation claims, or where the documentation is simply silent on some behavior (like this page's invalid-status-value case). Exploring against REAL, live responses grounds testing in what the API genuinely does, which is exactly what actually matters to a real client calling it, regardless of what any documentation happens to say.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Treating every observed behavior during exploration as definitely correct simply because it's what the API currently, actually does. The invalid-status-value example is a genuine finding worth flagging for human review — not an automatic confirmation that this is the intended, correct behavior. Exploration discovers what IS; it doesn't automatically confirm what SHOULD be.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>When exploring an undocumented or partially-documented API, deliberately testing a genuinely invalid or unexpected input value (like this page's <code>nonexistent_status</code>) early is a consistently useful technique — how an API handles invalid input often reveals more about its actual, real behavior than testing only clearly valid inputs does.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Explore against real, live responses when documentation is incomplete or potentially stale, rather than only testing against what's written down.</li>
+  <li>Deliberately test invalid or unexpected input early in exploration — this often reveals genuinely useful information about real API behavior.</li>
+  <li>Treat every discovered behavior as a finding worth human review, not an automatic confirmation that it's correct or intentional.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>API exploration without complete documentation means discovering real structure from actual responses, not just confirming pre-written expectations.</li>
+  <li>Testing invalid or unexpected input early is a genuinely useful, consistent technique for revealing real API behavior.</li>
+  <li>A discovered behavior is a finding worth flagging, not an automatic confirmation of correctness — exploration and validation remain genuinely separate steps.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Continue this page's exploration trace with a fourth step, testing what happens when the <code>/orders</code> endpoint is called with a genuinely malformed query parameter (like a non-numeric value for something that should be numeric), and write out the reasoning you'd expect an agent to produce from whatever response comes back.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A teammate says "the API returning zero results for an invalid status is clearly a bug — the agent should have reported it as one." Do you agree? Why or why not?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I wouldn't agree with the "clearly" — this page is explicit that a discovered behavior is a finding worth flagging for review, not an automatic bug determination, and "silently returns empty results for unrecognized values" is a genuinely plausible, sometimes intentional design choice, not obviously wrong.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why this ISN'T necessarily a bug:
+Some APIs deliberately treat filter parameters permissively —
+  "no status value matches this filter" genuinely, reasonably
+  translates to "no results," rather than an error, in many
+  legitimate API designs. This could be entirely intentional.
+
+Why it's STILL worth flagging, without calling it a bug:
+It's also PLAUSIBLE this represents a missing validation step
+  that should reject unrecognized status values with a clear
+  error instead — genuinely unclear without knowing the API's
+  actual INTENDED design, which the agent doesn't have access
+  to just from observing behavior.</code></pre>
+<p>The correct response is exactly what this page recommends: report it as a finding worth human review ("is this intentional?"), not confidently label it a bug — the teammate's certainty ("clearly a bug") is exactly the kind of premature conclusion this page's validation-before-conclusion principle argues against.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page argue that exploring against real, live API responses can be more valuable than testing only against written documentation?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because documentation can be incomplete, stale, or simply silent on specific behaviors — testing only against what's written down means never discovering anything the documentation didn't happen to mention, while real responses reveal the API's actual, current behavior regardless of what any document claims.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What testing ONLY against documentation would MISS:
+If the ShopEasy API's documentation never explicitly states
+  what happens for an invalid status filter value, a test
+  suite built PURELY from documentation would never even think
+  to check this case — there's nothing DOCUMENTED to test
+  against, so it simply wouldn't be covered.
+
+What exploring REAL responses genuinely reveals:
+Calling the ACTUAL, live endpoint with an invalid value shows
+  EXACTLY what happens, regardless of whether anyone ever
+  wrote it down — grounding the test in REALITY, not just in
+  whatever happened to make it into a document.</code></pre>
+<p>This is a direct, concrete application of the same principle from Chapter 5's live-observation generation page — working from real, current behavior catches things a written description (whether a test scenario or API documentation) simply can't, because it was never anticipated when the description was written.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why testing a genuinely invalid input value EARLY in exploration (as this page's step 3 does) is described as "consistently useful," rather than something to save for later, more thorough testing.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Testing invalid input early often reveals genuinely important information about the API's OVERALL design philosophy — strict validation versus permissive handling — which then usefully informs how you'd interpret and test everything else discovered afterward.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What this page's EARLY invalid-input test reveals about the
+API's genuine design philosophy:
+"Invalid status → empty results, not an error" suggests this
+  API generally favors PERMISSIVE handling over strict
+  up-front validation — a genuinely useful piece of context
+  for interpreting OTHER behaviors discovered later in the
+  SAME exploration (are other endpoints likely similarly
+  permissive, or does this vary endpoint by endpoint?).
+
+Why doing this LATE would be less useful:
+Discovering this same fact AFTER already exploring several
+  OTHER endpoints means you'd have interpreted THOSE earlier
+  findings without this useful, genuinely relevant context
+  about the API's overall design tendencies.</code></pre>
+<p>The practical lesson: an early, deliberate invalid-input test isn't just "one more test case" — it's specifically useful because it provides interpretive CONTEXT that makes every SUBSEQUENT finding easier to reason about correctly.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you distinguish, using this page's own example, between what the agent "discovered" and what it "validated" — and why does this distinction matter?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>"Discovered" means observing what the API actually, currently does; "validated" means confirming that behavior is genuinely correct or intended — this page's example only does the FIRST, explicitly leaving the SECOND to human review, and conflating them would mean treating an observation as a verdict.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What was DISCOVERED in this page's trace:
+- Pagination likely exists (145 total, 20 returned)
+- The 'status' filter parameter genuinely works correctly for
+  a valid value
+- An invalid status value returns empty results, not an error
+
+What was NOT validated (deliberately left to a human):
+Whether the invalid-status-returns-empty behavior is actually
+  CORRECT, intentional design — the agent explicitly flagged
+  this as "worth noting," not as a confirmed, judged outcome
+  either way.</code></pre>
+<p>This distinction matters because collapsing "discovered" into "validated" would mean the agent is silently making judgment calls about correctness that it genuinely isn't positioned to make reliably — exactly the same human-checkpoint principle Chapter 1 established for consequential decisions, now applied specifically to interpreting exploration findings.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might API exploration be considered a genuinely lower-risk activity than the autonomous UI exploration from Chapter 5, in terms of what guardrails it might need?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This is a genuinely reasonable question worth examining carefully rather than assuming — while GET requests used for exploration are typically read-only and low-risk, this page's own toolkit (from the previous page) includes POST and PATCH, meaning the SAME exploration mindset applied carelessly could have real, consequential side effects.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why explorATION via GET requests specifically IS genuinely
+lower-risk:
+Read-only requests typically don't MODIFY anything — exploring
+  "what does GET /orders return for various parameters" is
+  fundamentally safer than exploring "what does POST /orders
+  do for various payloads," since the latter could genuinely
+  CREATE real, unintended data with every single exploratory
+  attempt.
+
+Why this DOESN'T mean API exploration needs NO guardrails at
+all:
+The SAME tool-scoping principle from the previous page still
+  applies — an exploration task should likely be scoped to
+  GET-only methods specifically, exactly matching that page's
+  own "Try It Yourself" exercise, rather than assuming
+  "exploration" as a general concept is inherently safe
+  regardless of which specific methods are actually used.</code></pre>
+<p>The honest, careful answer: exploration CAN be lower-risk, but only when genuinely scoped to read-only operations — the risk profile depends on the ACTUAL tool restrictions in place, not on "exploration" being some inherently safe category of activity on its own.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

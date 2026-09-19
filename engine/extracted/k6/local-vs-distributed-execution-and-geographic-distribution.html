@@ -1,0 +1,135 @@
+<!doctype html>
+<html><head>
+<title>k6: Local vs. Distributed Execution &amp; Geographic Load Distribution</title>
+<meta name="description" content="A real decision framework for when a single machine is genuinely sufficient for k6 testing, when distributed execution actually becomes necessary, and why geographic distribution matters." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/local-vs-distributed-execution-and-geographic-distribution.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Local vs. Distributed Execution &amp; Geographic Distribution</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="recognizing-when-the-load-generator-is-the-bottleneck.html">Recognizing When the Load Generator Is the Bottleneck</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Once you can recognize the load generator itself becoming the constraint (the previous page), the natural next question is what to actually do about it — and when geographic location, not just raw capacity, matters too.</p>
+
+<h2 id="when-a-single-machine-is-genuinely-sufficient">When a Single Machine Is Genuinely Sufficient</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Rule of thumb: if the required VU count and request rate can be
+sustained without the load generator hitting its own CPU, memory, or
+network ceiling (the previous page's diagnostics), a single machine
+is sufficient — no additional complexity is actually needed.</code></pre>
+<p>Modern hardware can realistically generate a genuinely substantial amount of load from a single, well-resourced machine — k6's Go-based architecture (Chapter 2) is specifically efficient for exactly this reason. Reaching for distributed execution before actually confirming a single machine can't handle the required load adds real operational complexity for no benefit.</p>
+
+<h2 id="when-distributed-execution-actually-becomes-necessary">When Distributed Execution Actually Becomes Necessary</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Genuine signals distributed execution is needed:
+- The load generator hits its own resource ceiling (Chapter 12's
+  previous page) at a VU count below what the test actually requires
+- The required load genuinely exceeds what any single realistic
+  machine could generate, even a powerful one
+- Geographic distribution is a real requirement, not just raw capacity
+  (covered below)</code></pre>
+<p>Distributed execution means running multiple k6 instances — on multiple machines — simultaneously, each generating a portion of the total required load, with results aggregated afterward. This solves a genuine capacity problem, at the cost of real added complexity: coordinating multiple machines, aggregating results consistently, and often paying for cloud infrastructure to run them.</p>
+
+<h2 id="k6-cloud-and-third-party-distributed-execution">k6 Cloud and Third-Party Distributed Execution</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>$ k6 cloud script.js
+# Runs the test across k6's managed cloud infrastructure instead of
+# a single local machine — genuinely useful once local capacity
+# has been confirmed as actually insufficient</code></pre>
+<p>Rather than manually coordinating multiple self-managed machines, k6 Cloud (and similar third-party services) handles distributed execution as a managed service — worth considering specifically once the previous page's diagnostics have confirmed local capacity genuinely isn't enough, not as a default starting point.</p>
+
+<h2 id="geographic-distribution-a-different-problem-than-raw-capacity">Geographic Distribution — A Different Problem Than Raw Capacity</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Scenario: your application serves users across three continents, but
+          every test so far has run from one location (near your own
+          infrastructure).
+
+Problem: this test has never actually measured the network latency a
+         genuinely distant real user experiences — Chapter 6's
+         connecting/waiting/receiving breakdown looks great specifically
+         because the load generator is geographically close to the
+         target system, not because distant users would see the same thing.</code></pre>
+<p>This is a genuinely different concern from raw capacity — even a single machine, perfectly capable of generating the required load, still only tests from wherever it physically is. If real users are geographically distributed, a test run entirely from one location structurally cannot reveal what those distant users actually experience.</p>
+
+<h2 id="detailed-example-comparing-results-from-multiple-locations">Detailed Example — Comparing Results From Multiple Locations</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Same test, run from three different regions:
+
+From a data center near the target system:  p95 = 180ms
+From a distant region, same test:            p95 = 640ms
+
+Both are "correct" — they're measuring genuinely different things.
+The first shows server-side performance in near-ideal network
+conditions; the second shows what a real, distant user would
+actually experience.</code></pre>
+<p>Neither number alone tells the whole story — a team serving a genuinely global user base needs to know both, and specifically needs the geographically distant number if a meaningful fraction of real users are in that region.</p>
+
+<h2 id="real-world-example-deciding-whether-geographic-testing-is-actually-needed">Real-World Example — Deciding Whether Geographic Testing Is Actually Needed</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Question: "Do we actually need geographically distributed testing?"
+
+If real user base is genuinely concentrated in one region → probably not
+necessary; a local test already represents the real experience closely.
+
+If real user base is genuinely global or spans multiple distant
+regions → yes, geographic distribution reveals something a single-
+location test structurally cannot.</code></pre>
+<p>This decision should be grounded in where your actual real users are — the same "derive from reality, not assumption" principle from Chapter 7's threshold-sourcing applies directly here: geographic testing is worth the added complexity specifically when real user geography justifies it, not as a default for every project.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Defaulting to complex distributed, multi-region execution for
+// every test, regardless of whether it's actually needed
+
+// ✅ Confirming local capacity is genuinely insufficient (Chapter 12's
+// previous page) before adding distributed execution, and adding
+// geographic distribution specifically when real user geography
+// justifies it</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Reaching for distributed execution as a default</strong>, before confirming a single machine genuinely can't handle the required load.</li>
+  <li><strong>Never testing from more than one geographic location</strong> for an application with a genuinely distributed real user base, missing real latency characteristics entirely.</li>
+  <li><strong>Treating a single-location test's results as universally representative</strong> of every real user's experience, regardless of where they actually are.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>A system where the real bottleneck genuinely is CPU/memory-bound rather than latency-bound</strong> — for this kind of system, geographic distribution may matter less than raw capacity, since the specific problem being investigated isn't primarily about network distance.</li>
+  <li><strong>Aggregating results consistently across multiple distributed instances</strong> — worth having a deliberate plan for how percentiles and other statistics get combined correctly when data comes from more than one source, rather than simply averaging separate summary outputs together naively.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If real user complaints about slowness come specifically from one geographic region while your own testing (run from a single, different location) shows healthy results, that mismatch is a strong signal that geographic distribution — not raw capacity — is the actual gap in your testing approach.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Confirm local capacity is genuinely insufficient (using the previous page's diagnostics) before adopting distributed execution.</li>
+  <li>Base the decision to test geographically on where real users actually are, not as an automatic default.</li>
+  <li>When testing from multiple locations, keep results from each location separate and clearly labeled, rather than blending them into one undifferentiated aggregate.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>For an application whose real user base is split roughly evenly between North America and Southeast Asia, but whose infrastructure is hosted only in North America, design a testing approach that would reveal what Southeast Asian users actually experience, and explain what a North-America-only test would structurally miss.</p>
+
+<h2 id="summary">Summary</h2>
+<p>A single, well-resourced machine is genuinely sufficient for most k6 testing needs — distributed execution is worth its added complexity specifically once local capacity has been confirmed as actually insufficient, not as a default. Geographic distribution addresses a fundamentally different concern than raw capacity: a test run from one location can never reveal what a real user in a distant region actually experiences, which matters specifically when real user geography justifies the additional testing effort.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>What's the correct order of investigation before adopting distributed k6 execution?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">First, confirm using the load generator's own resource diagnostics that a single machine genuinely can't sustain the required load — checking CPU, memory, and network usage against the actual required VU count and request rate. Only once that's confirmed insufficient does distributed execution address a genuine problem; reaching for it by default adds real operational complexity without first verifying it's actually necessary.</div>
+</details>
+<details class="faq-item">
+<summary>Why is geographic distribution described as a fundamentally different concern than raw testing capacity?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Raw capacity is about whether a machine can generate enough load — a single powerful machine can often do this perfectly well. Geographic distribution is about where that load originates from, which affects network latency measurements specifically. A single, extremely capable machine still only tests from one physical location, meaning it structurally cannot reveal what a genuinely distant real user experiences, regardless of how much raw load it can generate.</div>
+</details>
+<details class="faq-item">
+<summary>Why might the same test produce a p95 of 180ms from one location and 640ms from another, with both results being equally "correct"?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Each result accurately measures the real network latency between that specific load-generating location and the target system — a location near the target system's infrastructure genuinely experiences lower latency, while a geographically distant location genuinely experiences higher latency. Both numbers are true measurements; they're just measuring different real-world scenarios, and neither is more "correct" in isolation.</div>
+</details>
+<details class="faq-item">
+<summary>Why shouldn't every project automatically adopt geographically distributed testing?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Geographic testing adds real complexity and cost, and its value depends entirely on whether real users are actually geographically distributed in a way that would produce meaningfully different experiences. For an application whose real user base is genuinely concentrated in one region, a single-location test already closely represents what real users experience, and the added complexity of geographic distribution wouldn't reveal anything meaningfully new.</div>
+</details>
+<details class="faq-item">
+<summary>If real user complaints about slowness come from a specific geographic region that local testing never actually covers, what does that suggest about the testing approach?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">This is a strong, direct signal that the testing approach has a genuine geographic blind spot — local testing from a single location is structurally incapable of revealing the network latency experience of users in a different region, and the mismatch between "our tests look healthy" and "real users in this region are complaining" points specifically toward needing geographically distributed testing to actually see what's happening for that user population.</div>
+</details>
+</div>
+</article>
+</body></html>

@@ -1,0 +1,153 @@
+<!doctype html>
+<html><head>
+<title>Playwright Pages and Navigation: goto, back, and URL Assertions</title>
+<meta name="description" content="Learn how Playwright handles page navigation — goto, reload, back/forward, waiting for navigation, and asserting on the resulting URL." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/pages-and-navigation.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Chapter 8: Pages and Navigation</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="architecture.html">Playwright Architecture</a>, <a href="waiting-and-synchronization.html">Waiting and Synchronization</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>This chapter covers everything the <code>page</code> object gives you for controlling and observing navigation: moving between URLs, reloading, browser history, and confirming where a test actually ended up — both for full page loads and for the client-side routing used by single-page apps.</p>
+
+<h2 id="why-it-s-important">Why it's important</h2>
+<p>Nearly every test starts with a navigation, and many end by asserting the user landed somewhere specific — a confirmation page, a redirect after login, a client-side route change with no full reload at all. Getting navigation right avoids two common failure modes: tests that race ahead of a page that hasn't finished loading, and tests that hardcode brittle full URLs that break the moment the same suite runs against a different environment.</p>
+
+<h2 id="mental-model">Mental Model</h2>
+<p>There are really two distinct kinds of "navigation" a test needs to handle differently:</p>
+<ul>
+  <li><strong>Full page navigation</strong> — <code>page.goto()</code>, clicking a normal link, form submission. The browser tears down the old page and loads a new one; Playwright's own navigation-wait logic (Chapter 7's Waiting content) applies automatically.</li>
+  <li><strong>Client-side (SPA) navigation</strong> — a JavaScript router changes the URL and swaps content without a real page reload. <code>page.goto()</code> is never involved; the URL just changes as a side effect of something else happening on the page.</li>
+</ul>
+<p>Confusing these two is the source of most navigation-related test bugs — assuming a client-side route change is covered by the same automatic waiting a full <code>goto()</code> gets, when it isn't.</p>
+
+<h2 id="core-navigation-methods">Core navigation methods</h2>
+<table>
+  <thead><tr><th>Method</th><th>Use for</th></tr></thead>
+  <tbody>
+    <tr><td><code>page.goto(url)</code></td><td>Navigate to a URL; waits for load by default</td></tr>
+    <tr><td><code>page.reload()</code></td><td>Refresh the current page</td></tr>
+    <tr><td><code>page.goBack()</code> / <code>page.goForward()</code></td><td>Browser history navigation</td></tr>
+    <tr><td><code>page.waitForURL(pattern)</code></td><td>Wait for the URL to match after a client-side navigation</td></tr>
+  </tbody>
+</table>
+
+<h2 id="basic-example">Basic Example</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>await page.goto('/login');
+await page.reload();
+await page.goBack();
+await page.goForward();</code></pre>
+
+<h2 id="using-a-base-url">Using a Base URL</h2>
+<p>Hardcoding the full domain in every test is a common early mistake. Setting <code>baseURL</code> once in <code>playwright.config.ts</code> lets every test use short, relative paths instead:</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// playwright.config.ts
+export default defineConfig({
+  use: {
+    baseURL: 'https://staging.example.com',
+  },
+});
+
+// In a test — no hardcoded domain:
+await page.goto('/login');</code></pre>
+<p>This also means switching environments (staging vs. production) is a one-line config change instead of a find-and-replace across the whole suite — covered fully in Chapter 10 (Configuration).</p>
+
+<h2 id="client-side-navigation-and-waitforurl">Client-Side Navigation and waitForURL()</h2>
+<p>Single-page apps often change the URL via client-side routing (no full page reload), which <code>goto()</code> isn't involved in at all — that navigation happens as a side effect of clicking something on the page. <code>waitForURL()</code> is the correct tool for confirming it happened:</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>await page.getByRole('link', { name: 'Settings' }).click();
+await page.waitForURL('**/settings');
+await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();</code></pre>
+
+<h2 id="detailed-example-page-events">Detailed Example — Page Events</h2>
+<p>Beyond direct navigation, the <code>page</code> object emits events for things that happen as a byproduct of navigation — useful when a test needs to react to something the app triggers rather than something it directly calls:</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Capture a new tab/window opened by a link with target="_blank"
+const [newPage] = await Promise.all([
+  context.waitForEvent('page'),
+  page.getByRole('link', { name: 'View invoice (opens in new tab)' }).click(),
+]);
+await newPage.waitForLoadState();
+await expect(newPage).toHaveURL(/\/invoices\//);
+
+// React to an unexpected page-level JavaScript error during a test
+page.on('pageerror', (err) =&gt; console.log('Uncaught exception:', err));</code></pre>
+<p>Multiple tabs/windows get their own full treatment in the next chapter — this is just the entry point: navigation and multi-page handling share the same underlying event model.</p>
+
+<h2 id="real-world-example-login-redirect">Real-World Example — Login Redirect</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import { test, expect } from '@playwright/test';
+
+test('redirects to the dashboard after login', async ({ page }) =&gt; {
+  await page.goto('/login');
+
+  await page.getByLabel('Email').fill('user@example.com');
+  await page.getByLabel('Password').fill('correct-horse-battery-staple');
+  await page.getByRole('button', { name: 'Sign in' }).click();
+
+  await page.waitForURL('**/dashboard');
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+});</code></pre>
+<p>Note the combination: <code>waitForURL()</code> actively waits for the redirect to happen, while <code>expect(page).toHaveURL()</code> is the web-first assertion that documents the expectation and would retry if needed. They serve related but distinct purposes — waiting vs. asserting — covered in depth in the Waiting & Synchronization chapter.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Hardcoded full domain, breaks in every other environment
+await page.goto('https://myapp.com/login');
+
+// ✅ Relative path against a configured baseURL
+await page.goto('/login');</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Hardcoding full URLs</strong> (<code>https://myapp.com/login</code>) in every test instead of setting <code>baseURL</code> once.</li>
+  <li><strong>Asserting on the URL immediately after a click without <code>waitForURL()</code> first</strong>, when the navigation is client-side and not instantaneous.</li>
+  <li><strong>Using an exact string match for a URL that includes a dynamic segment</strong> (like an order ID) instead of a regex or wildcard pattern.</li>
+  <li><strong>Assuming <code>goto()</code>'s wait covers a subsequent client-side route change</strong> triggered by something the user does after the page loads — it doesn't; that's a separate wait.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Redirect chains</strong> (login → intermediate page → final destination) — match the final expected URL with a pattern rather than asserting on every intermediate hop, which can change without affecting the feature under test.</li>
+  <li><strong>Navigation that fails</strong> (404, DNS error, network failure) — <code>page.goto()</code> throws in genuine navigation failures; wrap in a try/catch only when a test specifically needs to verify failure handling.</li>
+  <li><strong>Anchor-only URL changes</strong> (<code>#section</code>) — these don't trigger a full navigation event; <code>waitForURL()</code> still works since it just watches the URL string, but no <code>load</code> event fires.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a URL-related assertion fails unexpectedly, check whether the actual issue is a client-side route that simply takes longer than expected — Trace Viewer's timeline (Chapter 15) shows exactly when the URL changed relative to the triggering action, which is usually faster than guessing from the code alone.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Always configure <code>baseURL</code>; never hardcode the domain inside individual tests.</li>
+  <li>Use <code>toHaveURL()</code> with a regex when only part of the URL is predictable (e.g., matching a path but not a dynamic ID).</li>
+  <li>Reach for <code>waitForURL()</code> specifically after actions that trigger client-side routing, not after a plain <code>page.goto()</code>, which already waits for navigation itself.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Write a test that clicks a link opening a new tab, waits for that new tab/page to load, and asserts its URL matches a dynamic invoice ID pattern without hardcoding a specific ID.</p>
+
+<h2 id="summary">Summary</h2>
+<p>Playwright's navigation methods — <code>goto()</code>, <code>reload()</code>, history navigation, and <code>waitForURL()</code> — cover both full page loads and client-side routing. Configure <code>baseURL</code> once, use <code>waitForURL()</code> for SPA navigation, and assert on the final URL with <code>toHaveURL()</code> rather than assuming it's already correct.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why might you need waitForURL() even though goto() already waits for navigation?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer"><code>goto()</code> only waits for navigations it itself initiates. When a URL changes as a side effect of a client-side action — like clicking a link in a single-page app — that navigation isn't tied to a <code>goto()</code> call at all, so <code>waitForURL()</code> is needed to wait for the resulting URL change explicitly.</div>
+</details>
+<details class="faq-item">
+<summary>Why might you need waitForURL() even though goto() already waits for navigation?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">goto() only waits for navigations it itself initiates; a URL change from client-side routing needs its own explicit wait.</div>
+</details>
+<details class="faq-item">
+<summary>What's the benefit of configuring baseURL instead of hardcoding full domains?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Switching environments becomes a one-line config change instead of a find-and-replace across every test file.</div>
+</details>
+<details class="faq-item">
+<summary>How would you capture a new tab opened by a target="_blank" link?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Wrap the click and context.waitForEvent('page') together in Promise.all to avoid a race condition.</div>
+</details>
+<details class="faq-item">
+<summary>Does an anchor-only URL change (like #section) trigger a full load event?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">No — waitForURL() still works since it watches the URL string, but no navigation load event fires for a same-page anchor change.</div>
+</details>
+</div>
+</article>
+</body></html>

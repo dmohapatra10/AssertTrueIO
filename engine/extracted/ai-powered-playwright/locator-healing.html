@@ -1,0 +1,94 @@
+<!doctype html>
+<html><head>
+<title>Locator Healing</title>
+<meta name="description" content="Turning Chapter 6&#x27;s healed, runtime-only locator into an actual candidate code change — generating a real diff against the source test file." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/locator-healing.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Locator Healing</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="what-is-self-healing.html">What is Self-Healing?</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Turning Chapter 6's healed locator into an actual code change</li>
+  <li>Generating a real diff against the source test file, not just a runtime replacement</li>
+  <li>Why this specific step still isn't the same as applying the fix</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>Chapter 6 already found a working, validated replacement locator. This page's job is narrower and more concrete: turning that already-validated locator into an actual, reviewable code change to the file where the old one lives.</p>
+
+<h2 id="step-by-step-implementation">Step-by-Step Implementation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/generate-locator-fix.ts
+import { readFileSync } from 'fs';
+
+export interface CodeFix {
+  filePath: string;
+  originalLine: string;
+  proposedLine: string;
+  lineNumber: number;
+}
+
+export function generateLocatorFix(
+  filePath: string, brokenLocatorCode: string, healedLocatorCode: string
+): CodeFix | null {
+  const content = readFileSync(filePath, 'utf-8');
+  const lines = content.split('\n');
+
+  const lineIndex = lines.findIndex((line) =&gt; line.includes(brokenLocatorCode));
+  if (lineIndex === -1) return null;
+
+  const proposedLine = lines[lineIndex].replace(brokenLocatorCode, healedLocatorCode);
+
+  return {
+    filePath,
+    originalLine: lines[lineIndex],
+    proposedLine,
+    lineNumber: lineIndex + 1,
+  };
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p>Notice this function only reads the file — it never writes to it. This is deliberate, and it's the same discipline Chapter 6's own healing function followed: producing a candidate is a genuinely different action than applying one, and this chapter keeps that boundary explicit at every single stage, not just at the very end.</p>
+
+<h2 id="example-fixing-shopsmart-s-add-to-cart-test">Example — Fixing ShopSmart's Add-to-Cart Test</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const fix = generateLocatorFix(
+  'tests/cart.spec.ts',
+  "getByRole('button', { name: 'Add to Cart' })",
+  "getByTestId('add-to-cart-btn')"
+);
+
+console.log(fix);
+// {
+//   filePath: "tests/cart.spec.ts",
+//   originalLine: "  await page.getByRole('button', { name: 'Add to Cart' }).click();",
+//   proposedLine: "  await page.getByTestId('add-to-cart-btn').click();",
+//   lineNumber: 14
+// }</code></pre>
+
+<h2 id="why-it-matters-this-is-still-just-a-proposal">Why It Matters — This Is Still Just a Proposal</h2>
+<p>The <code>CodeFix</code> object above is genuinely useful information — a specific file, a specific line, a specific before-and-after. It's also nothing more than that yet. This chapter's remaining pages exist specifically because a syntactically correct, well-targeted change like this one can still be wrong in ways this function has no way to detect on its own — it doesn't know whether the new locator is genuinely equivalent in meaning, only that it exists on the page, which Chapter 6 already confirmed.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Writing the proposed line directly back to the file in this same function.</strong> This chapter's later pages exist specifically to validate and gate this change first — combining generation and application defeats that structure entirely.</li>
+  <li><strong>Assuming a locator that passed Chapter 6's runtime validation is automatically safe to commit permanently.</strong> Existing uniquely on the page confirms it works today — it says nothing about whether it's the semantically right, intentional choice going forward.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Keep fix generation strictly read-only, producing a candidate object rather than writing to disk — the same boundary this page's code demonstrates.</li>
+  <li>Carry forward Chapter 6's own validation results as part of this candidate's supporting evidence, rather than discarding that context.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Run this page's function against a real test file, using a healed locator from one of Chapter 6's own exercises. Review the resulting <code>CodeFix</code> object by eye and confirm the proposed line is syntactically valid and semantically sensible before moving to this chapter's later validation pages.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Turning a healed locator into a candidate code change is a real, concrete step — a specific file, line, and proposed replacement.</li>
+  <li>This function deliberately stays read-only, keeping generation and application as separate, distinct actions throughout this chapter.</li>
+  <li>A candidate that's syntactically correct and runtime-validated by Chapter 6 still isn't automatically safe to commit — this chapter's remaining pages address exactly that gap.</li>
+</ul>
+</article>
+</body></html>

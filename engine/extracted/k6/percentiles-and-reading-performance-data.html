@@ -1,0 +1,117 @@
+<!doctype html>
+<html><head>
+<title>Percentiles Explained: p50, p90, p95, p99 &amp; Reading Performance Data Correctly</title>
+<meta name="description" content="Why an average response time can lie, what p50/p90/p95/p99 actually mean, and how error rate and requests per second round out a genuinely honest picture of performance." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/percentiles-and-reading-performance-data.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Percentiles &amp; Reading Performance Data</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="core-performance-metrics.html">Response Time, Throughput, Latency & Concurrency</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>This is arguably the single most important idea in the entire fundamentals chapter: an average response time can look perfectly healthy while completely hiding a bad experience for a meaningful slice of real users. Percentiles are the tool that reveals what an average conveniently smooths over.</p>
+
+<h2 id="average-vs-percentile-response-times">Average vs. Percentile Response Times</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>100 requests: 99 complete in 100ms, 1 takes 10,000ms
+
+Average: (99 × 100 + 10,000) / 100 = 199ms  ← looks fine
+p99:     10,000ms                            ← reveals the real problem</code></pre>
+<p>The average here — 199ms — looks entirely reasonable. But it was computed by blending 99 fast requests with one catastrophically slow one, and the average alone gives you no way to know that a real, disastrous outlier is hiding inside those numbers.</p>
+
+<h2 id="p50-p90-p95-p99-what-they-actually-mean">p50, p90, p95, p99 — What They Actually Mean</h2>
+<ul>
+  <li><strong>p50</strong> (the median) — half of all requests were faster than this value, half were slower.</li>
+  <li><strong>p90</strong> — 90% of requests were faster than this value; the slowest 10% were worse.</li>
+  <li><strong>p95</strong> — 95% of requests were faster than this value — a very common threshold for real SLAs, since it tolerates a small tail of naturally slower requests without over-fitting to the absolute worst case.</li>
+  <li><strong>p99</strong> — 99% of requests were faster than this value; this exposes your worst 1% of experiences, which for a high-traffic system can still represent thousands of genuinely frustrated real users.</li>
+</ul>
+
+<h2 id="why-p99-matters-more-than-it-first-appears-to">Why p99 Matters More Than It First Appears To</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A system handling 1,000,000 requests per day:
+p99 = "the slowest 1% of requests" = 10,000 requests per day
+      having a meaningfully worse experience than everyone else</code></pre>
+<p>At real scale, "only 1%" is never a small number in absolute terms — it's exactly why p99 (and sometimes even p99.9 for very high-traffic systems) gets tracked explicitly rather than dismissed as a negligible edge case. A system that looks excellent at p95 can still be quietly failing thousands of real people every day at p99.</p>
+
+<h2 id="error-rate">Error Rate</h2>
+<p>Error rate is the percentage of requests that failed outright — timeouts, 5xx errors, connection failures. A system can technically have fast average response times while quietly failing a meaningful fraction of requests, which is exactly why error rate is tracked as its own metric, never assumed to be fine just because response times look good. A fast failure is still a failure.</p>
+
+<h2 id="requests-per-second-rps">Requests Per Second (RPS)</h2>
+<p>RPS is the most common throughput unit in performance testing — directly comparable to a business requirement like "handle 200 checkouts per minute" (roughly 3.3 RPS sustained). Tracking RPS alongside response time and error rate together gives a genuinely complete picture: how much work is being done, how long each piece takes, and how much of it is failing outright.</p>
+
+<h2 id="detailed-example-reading-a-full-result-set-correctly">Detailed Example — Reading a Full Result Set Correctly</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>avg=210ms  min=45ms  med=180ms  p90=310ms  p95=480ms  p99=3,200ms
+http_req_failed: 0.4%
+http_reqs: 850 (28.3/s)</code></pre>
+<p>Reading this properly: the typical experience is genuinely good (median 180ms), but there's a real tail problem — p99 jumps to 3.2 seconds, a more than 6x increase over the median. Combined with a 0.4% failure rate, this points toward a specific subset of requests (perhaps hitting a particular slow code path, or a resource intermittently under contention) rather than a uniform, system-wide slowdown. A report that only said "average: 210ms" would have completely hidden this story.</p>
+
+<h2 id="real-world-example-setting-a-realistic-threshold-using-percentiles">Real-World Example — Setting a Realistic Threshold Using Percentiles</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Business requirement: "95% of checkout requests should complete within 2 seconds."
+
+k6 threshold (covered fully in Chapter 7):
+thresholds: {
+  http_req_duration: ['p(95)&lt;2000'],
+}</code></pre>
+<p>This requirement is only expressible using a percentile — "95% of requests" has no meaningful average-based equivalent. This is exactly why percentile literacy from this page feeds directly into Chapter 7's thresholds, which are the mechanism that turns a business requirement into an automated pass/fail gate.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Reporting only the average
+"Average response time: 220ms" — sounds healthy, hides a bad p99
+
+// ✅ Reporting percentiles alongside the average, plus error rate
+"Average: 220ms, p95: 340ms, p99: 4,100ms, error rate: 0.4%" — the real story</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Relying on average response time alone</strong> — a healthy-looking average can hide a genuinely bad experience for a meaningful percentage of real users.</li>
+  <li><strong>Dismissing p99 as "just the extreme edge case, doesn't matter"</strong> — at real traffic volume, 1% of requests is a large absolute number of genuinely affected people.</li>
+  <li><strong>Ignoring error rate</strong> while looking only at response times — a system can be fast AND be silently failing a meaningful fraction of requests.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>A percentile calculated from too small a sample</strong> — p99 from only 50 requests is statistically unstable; percentiles need a meaningfully large sample size to be trustworthy, especially at the far end (p99, p99.9).</li>
+  <li><strong>A p95 that looks great while p99 is disastrous</strong> — this specific pattern (a sharp cliff between p95 and p99) often points to a distinct subset of requests hitting a genuinely different, much slower code path, worth investigating as its own separate problem rather than averaging it away.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a performance test's results seem to contradict what users are actually reporting, check whether you're looking at average or percentile data first — a huge fraction of "the numbers look fine but users are complaining" mismatches trace back to exactly this gap.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Always report percentiles (at minimum p95 and p99) alongside any average — never average alone.</li>
+  <li>Track error rate as its own first-class metric, not an afterthought to response time.</li>
+  <li>Use a large enough sample size that far-end percentiles like p99 are statistically meaningful, not noise.</li>
+  <li>Investigate a sharp gap between p95 and p99 specifically — it usually signals a distinct, separate problem rather than general slowness.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Given a result set with average=180ms, p50=150ms, p95=220ms, and p99=6,500ms, write a two-sentence summary of what this data actually reveals, and identify which single number would be most dangerous to present on its own without the others.</p>
+
+<h2 id="summary">Summary</h2>
+<p>An average response time can look perfectly healthy while hiding a genuinely bad experience for a meaningful slice of real users — percentiles (p50, p90, p95, p99) reveal what the average smooths over, with p99 specifically surfacing the worst 1% of experiences, which at real traffic volume represents a real, non-trivial number of people. Error rate and requests per second round out a genuinely complete, honest picture — no single number tells the whole story alone.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why can an average response time of 200ms still represent a bad experience for real users?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">An average can be dragged down to a healthy-looking number by a large majority of fast requests, while a meaningful minority take dramatically longer — those slow requests are still real experiences for real users, just invisible in the average. Percentiles like p95 and p99 specifically surface that hidden slice, which is why they're reported alongside, never instead of, the average.</div>
+</details>
+<details class="faq-item">
+<summary>Why does p99 matter even though it represents "only" 1% of requests?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">At real traffic scale, 1% is never a small absolute number — a system handling a million requests a day has ten thousand requests in that "only 1%," each representing a genuinely frustrated real user. Dismissing p99 as a negligible edge case ignores that it can represent thousands of real, affected people every single day for any system with meaningful traffic.</div>
+</details>
+<details class="faq-item">
+<summary>Why is error rate tracked as its own metric instead of just relying on response time?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A system can maintain fast response times while silently failing a meaningful fraction of requests — timeouts, 5xx errors, or dropped connections don't necessarily show up as "slow," they show up as failed. Looking only at response time can completely miss a real and serious problem that error rate would catch immediately, since a fast failure is still a failure.</div>
+</details>
+<details class="faq-item">
+<summary>What does a sharp gap between p95 and p99 usually indicate?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It typically signals that a distinct subset of requests is hitting a genuinely different, much slower code path or resource — rather than the whole system being uniformly a bit slow. This pattern is worth investigating specifically as its own separate problem, since averaging it into the general performance picture would obscure a real, isolatable issue.</div>
+</details>
+<details class="faq-item">
+<summary>Why does a business requirement like "95% of requests complete within 2 seconds" require a percentile, not an average?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The phrase "95% of requests" is inherently a percentile statement — there's no average-based way to express "the vast majority, but not necessarily all, requests meet this target." An average could technically meet a 2-second target while a meaningful percentage of individual requests take far longer, which wouldn't actually satisfy what the business requirement is asking for. Only a percentile-based threshold correctly expresses and enforces that kind of requirement.</div>
+</details>
+</div>
+</article>
+</body></html>

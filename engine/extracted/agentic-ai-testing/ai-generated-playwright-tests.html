@@ -1,0 +1,219 @@
+<!doctype html>
+<html><head>
+<title>AI-Generated Playwright Tests: From Live Observation to Real Code</title>
+<meta name="description" content="Having an agent observe a live page and draft real Playwright test code directly from what it sees — genuinely different from Chapter 4&#x27;s text-to-code conversion, and the same review discipline applied to it." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/ai-generated-playwright-tests.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>AI-Generated Playwright Tests</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="autonomous-browser-testing.html">Autonomous Browser Testing</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Chapter 4 converted a written scenario into code. This page is genuinely different: an agent observes a REAL, LIVE page directly and drafts Playwright code from that live observation — closer to "record and generate" than "read and translate."</p>
+
+<h2 id="observing-a-live-page-to-generate-a-test">Observing a Live Page to Generate a Test</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def generate_test_from_observation(page, task_description, client):
+    # Capture REAL, current page structure — not a written
+    # description, actual live DOM information
+    page_structure = page.locator("body").evaluate("""el => {
+        const interactive = el.querySelectorAll(
+            'button, input, a, select, [role]'
+        );
+        return Array.from(interactive).slice(0, 30).map(e => ({
+            tag: e.tagName,
+            role: e.getAttribute('role') || e.tagName.toLowerCase(),
+            text: e.textContent?.trim().slice(0, 50),
+            label: e.getAttribute('aria-label') || e.labels?.[0]?.textContent
+        }));
+    }""")
+
+    prompt = f"""Here is the REAL, current interactive content
+of a live web page:
+
+{page_structure}
+
+Write a Playwright test that accomplishes this task:
+{task_description}
+
+Use role-based locators (getByRole) matching the ACTUAL elements
+shown above. Include a genuine, specific assertion confirming
+the task's expected outcome."""
+
+    response = client.messages.create(
+        model="claude-sonnet-4-6", max_tokens=1024,
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return response.content[0].text</code></pre>
+
+<h2 id="a-genuinely-real-output">A Genuinely Real Output</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># Given the actual, current ShopEasy search page's real elements,
+# for the task "search for a wireless mouse and add the first
+# result to the cart":
+
+import { test, expect } from '@playwright/test';
+
+test('search and add first result to cart', async ({ page }) => {
+  await page.goto('/search');
+  await page.getByPlaceholder('Search products...').fill('wireless mouse');
+  await page.keyboard.press('Enter');
+
+  const firstResult = page.locator('[data-testid="product-card"]').first();
+  await firstResult.getByRole('button', { name: 'Add to Cart' }).click();
+
+  await expect(page.getByText('Added to cart')).toBeVisible();
+});</code></pre>
+<p>This genuinely used the REAL page structure — the actual placeholder text, the actual test IDs present on the live page — rather than guessing at plausible-sounding selectors from a written description alone.</p>
+
+<h2 id="why-this-is-genuinely-different-from-chapter-4-s-conversion">Why This Is Genuinely Different From Chapter 4's Conversion</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Chapter 4's conversion:
+  WRITTEN SCENARIO (text) → real Playwright code
+  The AI never sees the actual, live application — it works
+  purely from a description, meaning selectors are educated
+  GUESSES about what probably exists.
+
+THIS page's observation-based generation:
+  LIVE PAGE (real DOM) → real Playwright code
+  The AI sees ACTUAL, current elements — selectors are chosen
+  based on what genuinely, verifiably exists right now, not
+  guessed at from a description alone.</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might observation-based generation still need the same validation discipline from Chapter 4's final page, even though it's working from real, live data rather than guesses? Seeing the real page structure genuinely improves selector accuracy — but it doesn't guarantee the generated ASSERTION correctly reflects what the task actually needed to verify, or that the test covers the task completely and correctly. Real page observation solves the selector-guessing problem specifically; it doesn't solve the broader "is this generated test actually correct and complete" problem that validation exists for.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Assuming observation-based generation is automatically more trustworthy than text-based conversion, simply because it used real page data. The selectors are genuinely more likely to be accurate — but the same Chapter 4 validation checklist (does the assertion match the actual intended outcome, is anything about the task being silently assumed) still fully applies.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>Limiting the captured page structure to a reasonable number of elements (this page's example caps at 30) is a genuinely practical choice — a real, complex page might have hundreds of interactive elements, and including all of them would bloat the prompt with mostly irrelevant detail, exactly the attention-dilution risk Chapter 2's Reasoning page warned about.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Prefer observation-based generation over pure text-to-code conversion whenever a live, real application is genuinely available to observe.</li>
+  <li>Cap the captured page structure to a reasonable, relevant size rather than including every element on a complex page.</li>
+  <li>Apply the same Chapter 4 validation checklist to observation-based generated code — real selectors don't guarantee a genuinely correct or complete test.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Observation-based generation works from a live page's real, current structure, producing more likely-accurate selectors than text-based conversion's educated guesses.</li>
+  <li>This solves the selector-accuracy problem specifically — it doesn't solve the broader question of whether a generated test is genuinely correct and complete.</li>
+  <li>The same validation discipline from Chapter 4 remains fully necessary, regardless of which generation approach produced the code.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Using this page's exact <code>generate_test_from_observation</code> pattern, write out what the captured <code>page_structure</code> might realistically look like for ShopEasy's product detail page, then write the Playwright test you'd expect to be generated for the task "verify the Add to Cart button is disabled when a product is out of stock."</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A teammate argues that observation-based generation makes Chapter 4's validation step unnecessary, since the selectors come from real, live data. How would you respond?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd point out this conflates two genuinely separate problems — selector accuracy and overall test correctness — and observation-based generation only solves the first one, not the second.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What observation-based generation GENUINELY improves:
+Selectors are chosen from REAL, current elements, meaningfully
+  reducing the "the AI guessed a selector that doesn't exist"
+  risk that pure text-based conversion carries.
+
+What it does NOT automatically solve:
+Whether the generated ASSERTION actually checks the right
+  thing, whether the test covers the task's FULL intended
+  scope, or whether the AI correctly understood an AMBIGUOUS
+  task description — none of these are about selector
+  accuracy, and real page observation doesn't inherently fix
+  any of them.</code></pre>
+<p>Real selectors reduce ONE specific, real risk — they don't eliminate the broader need for the same review discipline Chapter 4 established, which is about the test's overall correctness and completeness, not just whether its selectors happen to point at real elements.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page's page_structure capture limit itself to 30 interactive elements, rather than capturing the entire page's full DOM?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This directly applies Chapter 2's Reasoning page principle — providing MORE context than genuinely needed can dilute attention and reduce decision quality, not just add harmless extra detail, exactly the same reasoning now applied to test generation specifically.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why capturing the FULL DOM would genuinely be counterproductive:
+A real, complex e-commerce page might have HUNDREDS of DOM
+  elements — navigation menus, footer links, cookie banners,
+  unrelated sidebar content — most of which has NOTHING to do
+  with the SPECIFIC task being tested. Including all of this
+  genuinely risks the reasoning focusing on irrelevant elements,
+  or simply exceeding reasonable prompt size for no real benefit.
+
+Why 30 RELEVANT elements is a more genuinely useful choice:
+Interactive elements (buttons, inputs, links, ARIA roles)
+  specifically are what a Playwright test would actually
+  INTERACT with — capturing THESE, and only a reasonable
+  number of them, keeps the prompt focused on what's actually
+  relevant to generating correct, working test code.</code></pre>
+<p>This is a direct, practical application of a principle this course has returned to repeatedly: more context isn't automatically better — RELEVANT, appropriately-scoped context tends to produce better results than exhaustive, unfiltered context.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain a realistic scenario where observation-based generation could still produce an incorrect test, DESPITE using real, live page data.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A genuinely realistic case: the task description is ambiguous, and the AI correctly captures real elements but makes a reasonable-sounding but WRONG assumption about which specific element the ambiguous task actually referred to.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Genuinely realistic failure scenario:
+Task: "add the mouse to the cart" — but the CURRENT live page
+  has TWO products with "mouse" in their name visible
+  ("Wireless Mouse Pro" AND "Gaming Mouse Elite"). The captured
+  page_structure ACCURATELY includes both, real elements — but
+  the GENERATED code might pick just ONE of them (perhaps the
+  first one encountered), based on a genuinely ambiguous task
+  description, not a selector accuracy problem at all.
+
+Why this ISN'T a selector-accuracy failure:
+The selector for whichever product WAS chosen is likely
+  perfectly VALID and accurate — the actual problem is that the
+  TASK itself was ambiguous about WHICH product was intended,
+  a problem real observation data genuinely can't resolve on
+  its own.</code></pre>
+<p>This is exactly why Chapter 4's validation checklist item — "is the expected outcome actually correct, and does it match what was genuinely intended" — remains essential even with accurate, real observation data; real selectors don't resolve genuine task ambiguity.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might this page's approach be genuinely more practical for a rapidly-changing application under active development, compared to Chapter 4's text-based conversion approach?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because it works from the CURRENT, real state of the application at generation time, rather than from a written scenario that might describe an assumed page structure that's already drifted from what's actually currently deployed.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>The genuine risk with text-based conversion on a rapidly
+changing app:
+A scenario written last week might describe UI elements or
+  flows that have already CHANGED by the time someone converts
+  it into code — the generated selectors would be based on an
+  assumption that's now STALE, even before the code is ever run.
+
+Why observation-based generation is more resilient here:
+Generating DIRECTLY from the CURRENT live page means the
+  captured structure reflects whatever's ACTUALLY deployed
+  RIGHT NOW — genuinely reducing the risk of generating code
+  based on an outdated assumption about the application's
+  current structure.</code></pre>
+<p>This is a real, practical advantage specifically for active, fast-moving development — though it's worth noting this doesn't eliminate the NEED for validation, just reduces one particular, real source of staleness that text-based conversion is more exposed to.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you extend this page's generation approach to also capture and use CSS or visual information, not just DOM structure and text?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This genuinely connects to this chapter's next page — capturing a SCREENSHOT alongside the DOM structure, and using an LLM's actual visual reasoning capability, would let generation reason about layout and appearance, not just interactive element structure.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def generate_test_with_visual_context(page, task_description, client):
+    page_structure = page.locator("body").evaluate("""...""")  # same as before
+    screenshot_bytes = page.screenshot()
+
+    # Send BOTH the structured DOM info AND the actual image
+    # to a vision-capable model call — genuinely different from
+    # this page's text-only approach
+    response = client.messages.create(
+        model="claude-sonnet-4-6", max_tokens=1024,
+        messages=[{
+            "role": "user",
+            "content": [
+                {"type": "text", "text": f"Page elements: {page_structure}\n\nTask: {task_description}"},
+                {"type": "image", "source": {"type": "base64",
+                    "media_type": "image/png",
+                    "data": base64.b64encode(screenshot_bytes).decode()}}
+            ]
+        }]
+    )
+    return response.content[0].text</code></pre>
+<p>This would let generation reason about things pure DOM structure alone can't capture — whether an element is genuinely VISUALLY prominent, whether a layout looks broken despite technically-correct underlying HTML — exactly the kind of visual reasoning this chapter's final page covers in depth.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

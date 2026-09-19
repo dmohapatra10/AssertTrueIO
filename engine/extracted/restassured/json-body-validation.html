@@ -1,0 +1,151 @@
+<!doctype html>
+<html><head>
+<title>RestAssured JSON Body Validation: Nested Objects &amp; Arrays</title>
+<meta name="description" content="How to validate JSON response bodies with RestAssured — flat fields, nested objects with dot notation, and arrays with hasItem() vs. indexed access." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/json-body-validation.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>JSON Body Validation</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="response-header-validation.html">Response Header Validation</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>.then()
+    .body("name", equalTo("John"));</code></pre>
+<p>The string <code>"name"</code> is a JsonPath expression — a way of addressing into a JSON structure by field name. This page covers the three shapes you'll validate constantly: flat fields, nested objects, and arrays.</p>
+
+<h2 id="flat-fields">Flat Fields</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>{ "name": "John", "active": true, "age": 30 }</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>.then()
+    .body("name", equalTo("John"))
+    .body("active", equalTo(true))
+    .body("age", equalTo(30));</code></pre>
+
+<h2 id="nested-objects">Nested Objects</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>{
+  "name": "John",
+  "address": {
+    "city": "Delhi",
+    "zip": "110001"
+  }
+}</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>.then()
+    .body("address.city", equalTo("Delhi"))
+    .body("address.zip", equalTo("110001"));</code></pre>
+<p>Dot notation walks into nested objects exactly as you'd describe the structure verbally — <code>address.city</code> reads almost identically to "the city field inside the address object." Arbitrarily deep nesting works the same way: <code>a.b.c.d</code> for four levels deep.</p>
+
+<h2 id="arrays-two-different-questions">Arrays — Two Different Questions</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>{
+  "users": [
+    { "name": "John", "active": true },
+    { "name": "Jane", "active": false }
+  ]
+}</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// "Is John ANYWHERE in this array?" — membership, order doesn't matter
+.then().body("users.name", hasItem("John"));
+
+// "Is the array non-empty?"
+.then().body("users.size()", greaterThan(0));
+
+// "Is John SPECIFICALLY the first element?" — position matters
+.then().body("users[0].name", equalTo("John"));
+
+// Collecting a field from every array element into a list
+.then().body("users.name", hasItems("John", "Jane"));</code></pre>
+<p><code>users.name</code> (no index) collects the <code>name</code> field from <em>every</em> object in the array into a list — which is exactly why <code>hasItem()</code>/<code>hasItems()</code> (membership matchers) pair naturally with it. <code>users[0].name</code> is a different question entirely: it addresses one specific element by position, appropriate when order genuinely matters (the most recent item, the top search result) rather than just "is this value present somewhere."</p>
+
+<h2 id="filtering-within-an-array">Filtering Within an Array</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Find the name of whichever user has active == true
+.then().body("users.find { it.active == true }.name", equalTo("John"));</code></pre>
+<p>JsonPath supports Groovy-style closures for filtering — genuinely useful once responses contain arrays where you need a specific element matching a condition, not just "any element" or "the element at position N." This becomes especially relevant once you reach the Advanced Response Validation chapter, where responses get considerably more complex.</p>
+
+<h2 id="real-world-example-validating-a-realistic-list-response">Real-World Example — Validating a Realistic List Response</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>given()
+.when()
+    .get("/users")
+.then()
+    .statusCode(200)
+    .body("data", hasSize(greaterThan(0)))
+    .body("data.email", everyItem(containsString("@")))
+    .body("data[0].id", notNullValue());</code></pre>
+<p><code>everyItem()</code> is a strong pattern worth knowing: instead of checking one specific array element, it asserts that <em>every</em> element in the collected list satisfies a condition — every email contains an <code>@</code>, for instance — catching a data-quality regression that only affects some elements, which a single-index check would completely miss.</p>
+
+<h2 id="a-common-gotcha-numeric-types">A Common Gotcha — Numeric Types</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>{ "id": 42, "price": 19.99 }</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ This can fail with a type mismatch — JsonPath may parse "id" as
+// Integer, and comparing it to a long or the wrong wrapper type can trip up equalTo()
+.then().body("id", equalTo(42L)); // might fail — 42 (int) != 42L (long)
+
+// ✅ Match the exact type JsonPath actually produces, or use a looser numeric matcher
+.then().body("id", equalTo(42));           // int, matches JsonPath's default parsing
+.then().body("price", equalTo(19.99f));    // JsonPath often parses decimals as Float</code></pre>
+<p>This is a genuinely common source of confusing failures for people new to RestAssured: <code>equalTo()</code> uses strict type equality, and JsonPath's default numeric parsing (int for whole numbers, float for decimals) doesn't always match the type you'd naturally reach for in Java. When a numeric assertion fails with values that look identical when printed, suspect a type mismatch before assuming your data is wrong.</p>
+
+<h2 id="comparing-an-entire-object-or-list-at-once">Comparing an Entire Object or List at Once</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Map&lt;String, Object&gt; expected = new HashMap&lt;&gt;();
+expected.put("name", "John");
+expected.put("active", true);
+
+.then().body("", equalTo(expected)); // compares the WHOLE response body against the map</code></pre>
+<p>Most of the time, asserting field-by-field (as shown throughout this page) is clearer and gives better failure messages — when one field is wrong, the error names exactly that field. Whole-object comparison is a narrower tool, useful mainly when you have a known-correct reference object already available and want a single terse check that literally everything matches, accepting that a mismatch failure message will be less specific about which field was wrong.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Asserting only the first element, missing regressions elsewhere in the array
+.then().body("data[0].email", containsString("@"));
+
+// ✅ Asserting the property holds across the whole collection
+.then().body("data.email", everyItem(containsString("@")));</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Using indexed access (<code>[0]</code>) when membership is what you actually mean</strong> — brittle against re-ordering that doesn't represent a real bug.</li>
+  <li><strong>Only validating one array element</strong> when the property being checked should hold for every element — use <code>everyItem()</code> instead.</li>
+  <li><strong>Forgetting arrays can legitimately be empty</strong> — <code>hasItem()</code> against an empty array correctly fails; make sure an empty result is actually the failure case you intend to test, not an accidental empty response.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Deeply nested arrays of objects</strong> (an order containing a list of line items, each with nested product details) — chain dot notation and array syntax together: <code>orders[0].items.productName</code>.</li>
+  <li><strong>Fields that are sometimes null</strong> — <code>equalTo(null)</code> works, but <code>nullValue()</code>/<code>notNullValue()</code> read more clearly for presence checks.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>When a body assertion fails and the reason isn't obvious, print the response with <code>.log().ifValidationFails()</code> (or <code>response.getBody().asPrettyString()</code>) before assuming your JsonPath expression itself is wrong — many failures turn out to be "the response doesn't have the shape I assumed," not a syntax mistake.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Use <code>hasItem()</code>/<code>hasItems()</code> for membership questions, indexed access only when position genuinely matters.</li>
+  <li>Prefer <code>everyItem()</code> over single-element checks when a property should hold across an entire collection.</li>
+  <li>Keep JsonPath expressions as close to how you'd describe the structure verbally as possible — it keeps tests readable months later.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Against a public API returning a list of resources, write assertions that: confirm the list is non-empty, confirm every item has a non-null ID, and confirm at least one item matches a specific known value — using the most appropriate matcher for each.</p>
+
+<h2 id="summary">Summary</h2>
+<p>JSON body validation covers three shapes: flat fields (direct name access), nested objects (dot notation), and arrays (membership via <code>hasItem()</code>, position via indexing, or every-element checks via <code>everyItem()</code>). Choosing the matcher that actually matches your intent — membership vs. position vs. universal — is what keeps these assertions both correct and resilient to harmless changes.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>What's the difference between body("users.name", hasItem("John")) and body("users[0].name", equalTo("John"))?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The first checks whether "John" appears anywhere in the array, regardless of position — a membership question. The second checks specifically whether the first element's name is "John" — a positional question. Using the positional version when you actually mean membership makes a test brittle against harmless reordering; using the membership version when order genuinely matters can let a real bug (wrong item first) slip through undetected.</div>
+</details>
+<details class="faq-item">
+<summary>What's the difference between users.name with hasItem() and users[0].name with equalTo()?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The first checks membership — is this value anywhere in the collected list, order irrelevant; the second checks a specific position — appropriate only when order genuinely matters, like the most recent item.</div>
+</details>
+<details class="faq-item">
+<summary>Why might a numeric assertion like equalTo(42L) unexpectedly fail even though the values look identical?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">JsonPath's default parsing (int for whole numbers) may not match the type you naturally reach for in Java (long) — equalTo() uses strict type equality, so a type mismatch fails even when the printed values are identical.</div>
+</details>
+<details class="faq-item">
+<summary>When is everyItem() a stronger check than asserting just the first array element?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">When a property should hold across an ENTIRE collection — everyItem() catches a regression affecting only some elements, which checking just index 0 would completely miss.</div>
+</details>
+<details class="faq-item">
+<summary>Why is whole-object comparison with equalTo(expectedMap) a narrower tool than field-by-field assertions?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It gives a much less specific failure message when something doesn't match — field-by-field assertions name exactly which field was wrong, which is usually more useful for diagnosing a failure.</div>
+</details>
+</div>
+</article>
+</body></html>

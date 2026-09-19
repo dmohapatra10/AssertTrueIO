@@ -1,0 +1,141 @@
+<!doctype html>
+<html><head>
+<title>Playwright Multiple Tabs and Windows: Handling popup Events</title>
+<meta name="description" content="Learn how to capture new tabs and popup windows in Playwright using the page event, and how to interact with more than one tab in the same test." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/multiple-tabs-and-windows.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Chapter 11: Multiple Tabs and Windows</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="architecture.html">Playwright Architecture</a>, <a href="pages-and-navigation.html">Pages and Navigation</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Some interactions open a new tab or window — a link with <code>target="_blank"</code>, a "sign in with Google" popup, a print preview. Recall from the Architecture chapter that a BrowserContext can hold multiple Pages: a new tab is just another <code>Page</code> within the same context, and Playwright exposes it through an event rather than a return value.</p>
+
+<h2 id="why-it-s-important">Why it's important</h2>
+<p>The original page object your test started with never becomes the new tab — the two coexist as separate <code>Page</code> instances. Missing this is the most common reason engineers new to Playwright get stuck: they keep interacting with the original page and wonder why nothing happens on the new tab.</p>
+
+<h2 id="mental-model">Mental Model</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>BrowserContext
+   │
+   ├── page       (original tab — still open, still usable)
+   │
+   └── newPage    (the tab that just opened — a distinct object)</code></pre>
+<p>Both pages are alive simultaneously and share the same context (same cookies, same login session) — but every locator, action, and assertion has to be called on the specific <code>Page</code> object that represents the tab you actually mean.</p>
+
+<h2 id="capturing-a-new-tab-with-the-popup-event">Capturing a New Tab With the popup Event</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const [newPage] = await Promise.all([
+  context.waitForEvent('page'),
+  page.getByRole('link', { name: 'Open in new tab' }).click(),
+]);
+
+await newPage.waitForLoadState();
+await expect(newPage).toHaveTitle(/Documentation/);</code></pre>
+<p>The <code>Promise.all</code> pattern matters here: the click that triggers the new tab and the wait for that tab's page event have to be started together, not sequentially — otherwise there's a race where the event could fire before you start listening for it. This mirrors the same race-condition pattern covered for network waits in the Waiting & Synchronization chapter.</p>
+
+<h2 id="basic-example-switching-focus-between-tabs">Basic Example — Switching Focus Between Tabs</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Do something in the new tab, then come back to the original
+await newPage.getByRole('button', { name: 'Download PDF' }).click();
+await page.bringToFront(); // switch focus back to the original tab
+await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();</code></pre>
+<p><code>bringToFront()</code> doesn't affect what a test can interact with (both pages remain fully scriptable regardless of visual focus) — it's mainly useful when running headed for visual debugging, or for apps that behave differently based on tab visibility.</p>
+
+<h2 id="real-world-example-oauth-login-popup">Real-World Example — OAuth Login Popup</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import { test, expect } from '@playwright/test';
+
+test('signs in through a Google OAuth popup', async ({ page, context }) =&gt; {
+  await page.goto('/login');
+
+  const [popup] = await Promise.all([
+    context.waitForEvent('page'),
+    page.getByRole('button', { name: 'Sign in with Google' }).click(),
+  ]);
+
+  await popup.waitForLoadState();
+  await popup.getByLabel('Email').fill('user@example.com');
+  await popup.getByRole('button', { name: 'Next' }).click();
+  await popup.getByLabel('Password').fill('correct-horse-battery-staple');
+  await popup.getByRole('button', { name: 'Sign in' }).click();
+
+  // The popup closes itself after auth completes; assert back on the main page
+  await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+});</code></pre>
+<p>Notice the test interacts with <code>popup</code> while the OAuth flow is happening, then switches back to asserting on the original page once control returns there — each <code>Page</code> object is used only for the tab it actually represents.</p>
+
+<h2 id="working-with-several-open-pages-at-once">Working With Several Open Pages at Once</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const allPages = context.pages();
+console.log(`${allPages.length} tabs currently open`);
+
+// Find a specific tab among several by its URL or title
+const settingsTab = allPages.find((p) =&gt; p.url().includes('/settings'));</code></pre>
+
+<h2 id="closing-tabs-explicitly">Closing Tabs Explicitly</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>await popup.close();
+// The context and original page remain open and usable afterward</code></pre>
+<p>Playwright doesn't require you to close extra tabs — the context is cleaned up automatically at the end of the test — but explicitly closing a popup once you're done with it keeps a test with many tabs easier to reason about, and matches what a real user would typically do.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Click first, listen for the event after — race condition
+await page.getByRole('button', { name: 'Sign in with Google' }).click();
+const popup = await context.waitForEvent('page'); // may already have fired
+
+// ✅ Register the listener and trigger the action together
+const [popup] = await Promise.all([
+  context.waitForEvent('page'),
+  page.getByRole('button', { name: 'Sign in with Google' }).click(),
+]);</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Continuing to call actions on the original page after a new tab opens</strong>, expecting them to affect the new tab.</li>
+  <li><strong>Triggering the click and then calling <code>waitForEvent('page')</code> afterward</strong> instead of together in <code>Promise.all</code>, creating a race condition that's intermittent rather than reliably broken.</li>
+  <li><strong>Forgetting to call <code>waitForLoadState()</code> on the new page</strong> before interacting with it — a freshly opened tab may not have finished loading yet.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Popup blockers</strong> — Playwright's browsers don't apply real popup-blocking behavior the way a default browser profile might, so a <code>window.open()</code> call reliably produces a <code>page</code> event in tests even if it might be blocked for real users; this is a deliberate difference worth knowing about, not a bug.</li>
+  <li><strong>Tabs that open and close very quickly</strong> (some OAuth flows) — if a popup closes itself before your test finishes interacting with it, actions on the closed page throw a clear "page has been closed" error rather than hanging silently.</li>
+  <li><strong>Print preview and other browser-native dialogs</strong> that aren't real pages — these are handled differently, via the Dialogs chapter's <code>page.on('dialog')</code> pattern, not the page event covered here.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a test seems to "do nothing" after an action that should open a new tab, check whether it's still acting on the original <code>page</code> variable — this single mistake accounts for a large share of confused multi-tab test failures. Trace Viewer (Chapter 15) shows every page in the context as a separate tab in its own timeline, making this easy to spot visually.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Always pair the triggering action and <code>waitForEvent('page')</code> inside the same <code>Promise.all</code>.</li>
+  <li>Give each <code>Page</code> object a clear name (<code>popup</code>, <code>newTab</code>) rather than reusing <code>page</code> for multiple tabs, to avoid confusing which tab a given line is acting on.</li>
+  <li>Close popups explicitly with <code>await popup.close()</code> if the application under test doesn't close them itself, to keep the context tidy for the rest of the test.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Write a test that opens three separate tabs by clicking three different links, uses <code>context.pages()</code> to find the one whose URL matches a specific pattern, and asserts content on that specific tab only.</p>
+
+<h2 id="summary">Summary</h2>
+<p>A new tab or window is a separate Page within the same BrowserContext, captured via the context's page event rather than returned from the action that opened it. Pair the triggering click with <code>waitForEvent('page')</code> in a <code>Promise.all</code>, and keep track of which Page object represents which tab throughout the test.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why do you need Promise.all() when capturing a new tab, instead of clicking first and then calling waitForEvent('page')?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">If the click happens first, the new tab's page event could fire and complete before the test starts listening for it, causing the wait to hang or miss the event entirely. Wrapping both in <code>Promise.all</code> starts listening for the event and performs the triggering action at the same time, eliminating that race condition.</div>
+</details>
+<details class="faq-item">
+<summary>Why does clicking a link that opens a new tab seem to 'do nothing' if you keep using the original page variable?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The new tab is a separate Page object — the original page reference never becomes it, so actions on the old variable have no effect on the new tab.</div>
+</details>
+<details class="faq-item">
+<summary>Why must the page event listener be registered before the triggering click?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Otherwise there's a race — the new tab could open and its event could fire before the listener starts, causing the wait to hang.</div>
+</details>
+<details class="faq-item">
+<summary>Does closing a popup page affect the rest of the browser context?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">No — the context and its other pages remain open and usable; popups can be closed independently.</div>
+</details>
+<details class="faq-item">
+<summary>How would you find one specific tab among several open ones?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Use context.pages() to get all open pages, then find the one matching a specific URL or title.</div>
+</details>
+</div>
+</article>
+</body></html>

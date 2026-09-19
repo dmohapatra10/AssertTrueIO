@@ -1,0 +1,186 @@
+<!doctype html>
+<html><head>
+<title>AI Test Metrics: Quantifying Quality Across Many Evaluations, Not Just Pass or Fail</title>
+<meta name="description" content="Tracking dimension scores as genuine trends over time, and why an LLM feature&#x27;s quality metric needs a different shape than a traditional test suite&#x27;s pass rate." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/ai-test-metrics.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>AI Test Metrics</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="llm-evaluation-and-llm-as-a-judge.html">LLM Evaluation and LLM-as-a-Judge</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>A traditional test suite reports pass/fail counts — genuinely meaningful because each test has a definite, binary outcome. This chapter's evaluations produce SCORES across four dimensions, not binary results, and this final page is about what genuinely useful metrics look like for that.</p>
+
+<h2 id="why-a-pass-rate-alone-genuinely-doesn-t-fit">Why a Pass Rate Alone Genuinely Doesn't Fit</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>❌ Forcing a binary "pass/fail" from a 1-5 dimension score:
+  "Correctness &gt;= 3 counts as PASS" — this THROWS AWAY real
+  information. A response scoring 5/5 and one scoring 3/5 both
+  count as identical "passes," despite being genuinely,
+  meaningfully different in quality.
+
+✅ Tracking the actual DISTRIBUTION of scores over time:
+  Week 1: correctness scores across 50 test questions average
+    4.2, with 3 responses scoring 2 or below
+  Week 2: average drops to 3.8, with 9 responses scoring 2 or
+    below — a genuine, real QUALITY REGRESSION, invisible to
+    a binary pass/fail count if the THRESHOLD were still
+    technically being "met" on average.</code></pre>
+
+<h2 id="a-genuine-metrics-dashboard-per-dimension">A Genuine Metrics Dashboard, Per Dimension</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def compute_dimension_metrics(evaluation_results):
+    from statistics import mean
+    metrics = {}
+    for dimension in ["relevance", "correctness", "groundedness", "consistency"]:
+        scores = [r[dimension] for r in evaluation_results]
+        metrics[dimension] = {
+            "mean": round(mean(scores), 2),
+            "min": min(scores),
+            "below_threshold_count": sum(1 for s in scores if s &lt; 3),
+            "below_threshold_pct": round(
+                sum(1 for s in scores if s &lt; 3) / len(scores) * 100, 1),
+        }
+    return metrics</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># A genuinely useful output — notice this preserves EXACTLY
+# the per-dimension distinction Evaluation Dimensions argued for:
+{
+  "relevance":    {"mean": 4.6, "min": 3, "below_threshold_count": 0, ...},
+  "correctness":  {"mean": 4.1, "min": 1, "below_threshold_count": 4, ...},
+  "groundedness": {"mean": 3.2, "min": 1, "below_threshold_count": 11, ...},
+  "consistency":  {"mean": 4.4, "min": 2, "below_threshold_count": 1, ...},
+}
+# GROUNDEDNESS specifically stands out — a lower mean AND far
+# more below-threshold cases than the other three dimensions —
+# EXACTLY the kind of dimension-specific signal a blended
+# score would have hidden</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why does tracking <code>min</code> and <code>below_threshold_count</code> alongside the mean matter, rather than reporting only the average score for each dimension? A high average can genuinely coexist with a small number of severely bad responses — Chapter 6's own principle about aggregate metrics hiding real patterns applies directly here. A mean of 4.1 for correctness sounds solid, but if 4 responses scored a genuine 1 (a serious, real failure), the average alone hides exactly the kind of severe, individual problem worth immediate attention, not just gradual quality tracking.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Reporting only a single, blended average across all four dimensions and all responses, collapsing exactly the distinctions this entire chapter has built up — per-dimension scores, and the shape of the distribution within each dimension, not just its center.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>Tracking these metrics over TIME (as this page's opening example does, week over week) is genuinely more valuable than a single snapshot — a gradual decline in groundedness scores, even while still "acceptable" in absolute terms, is exactly the kind of trend Chapter 7's Anomaly and Trend Detection page taught you to watch for, now applied to LLM quality instead of performance metrics.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Track scores per dimension, never collapsed into one blended average across relevance, correctness, groundedness, and consistency.</li>
+  <li>Report the distribution — mean, minimum, and below-threshold count — not just a single average per dimension.</li>
+  <li>Track these metrics over time to catch gradual quality regressions, not just single-snapshot quality checks.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>LLM feature quality needs distribution-based metrics per dimension, not a binary pass/fail count borrowed from traditional testing.</li>
+  <li>A high average score can hide a small number of severely bad individual responses — minimum and below-threshold counts catch what an average alone conceals.</li>
+  <li>Tracking these metrics over time, the same way Chapter 7 tracked performance trends, catches gradual quality regressions before they become severe.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Using this page's <code>compute_dimension_metrics</code> function's output format, write out what a genuinely concerning WEEK-OVER-WEEK trend would look like for the consistency dimension specifically, and explain what kind of underlying issue (connecting to earlier pages in this chapter) that trend might reasonably suggest investigating.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A dashboard reports "Correctness: 4.1/5 average, all good." A reviewer asks to see the full distribution instead. What might this reveal that the average alone hides?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Exactly this page's own worked example — a solid-looking 4.1 average could be masking a genuine handful of severely bad responses (scoring 1 or 2), which the reviewer's request for the full distribution would immediately surface.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What the AVERAGE alone genuinely hides:
+"4.1/5, all good" SOUNDS reassuring — but per THIS page's own
+  example output, this SAME average coexisted with 4 responses
+  scoring as low as 1/5 — a GENUINE, serious failure for THOSE
+  specific responses, completely invisible in the blended
+  average alone.
+
+What the FULL distribution reveals INSTEAD:
+min: 1, below_threshold_count: 4 — IMMEDIATELY visible,
+  prompting the GENUINELY important follow-up question: "WHICH
+  4 responses scored this badly, and WHY?" — exactly the kind
+  of investigation a bare average would never have prompted.</code></pre>
+<p>The reviewer's instinct is exactly right, and exactly what this page argues for — "all good" based on an average alone is a genuinely premature conclusion until the full distribution, not just its center, has actually been examined.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page argue tracking metrics per DIMENSION, not blended, connects directly back to the Evaluation Dimensions page from earlier in this chapter?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This page is the direct, practical continuation of that earlier page's core argument — if relevance, correctness, groundedness, and consistency are genuinely independent (that page's own claim), then METRICS tracking them need to preserve that independence too, or the entire point of separating them in the first place is lost.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Evaluation Dimensions' ORIGINAL argument:
+"A response can score HIGH on THREE dimensions and BADLY FAIL
+  the FOURTH" — the WHOLE reason for tracking dimensions
+  SEPARATELY, rather than as one blended quality score.
+
+THIS page's metrics DIRECTLY implement that SAME principle:
+If metrics COLLAPSED all four dimensions into ONE number, the
+  EXACT same problem that page warned against (a fabrication
+  problem hidden by high scores elsewhere) would simply
+  RESURFACE at the METRICS level instead — this page's
+  per-dimension tracking is what PREVENTS that regression from
+  happening in the AGGREGATE reporting layer.</code></pre>
+<p>This is a genuinely important continuity across this chapter — the EVALUATION principle (keep dimensions separate) and the METRICS principle (report them separately too) need to stay ALIGNED, or a well-designed evaluation process could still end up with a poorly-designed reporting layer that undoes its own careful distinctions.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why below_threshold_count is tracked as BOTH a raw count and a percentage in this page's function, rather than just one or the other.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>These serve genuinely different, complementary purposes — the raw count tells you the actual, absolute scale of the problem (how many real responses need attention), while the percentage tells you the RATE, which matters for comparing across periods with different total sample sizes.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why the RAW COUNT matters:
+"11 responses scored below threshold" is DIRECTLY actionable —
+  it tells a reviewer EXACTLY how many INDIVIDUAL responses
+  genuinely need to be looked at and potentially addressed,
+  regardless of anything else.
+
+Why the PERCENTAGE ALSO matters, separately:
+If WEEK 1 had 50 total test questions and WEEK 2 had 200 (a
+  larger test suite), comparing RAW COUNTS alone (say, 5 vs 15)
+  might make week 2 look WORSE, when the PERCENTAGE (10% vs
+  7.5%) actually shows a GENUINE IMPROVEMENT in the underlying
+  RATE — the percentage controls for CHANGES in sample size
+  that the raw count alone doesn't account for.</code></pre>
+<p>This is a genuinely practical, real consideration for metrics that might be computed across DIFFERENT-sized test runs over time — tracking BOTH the absolute count (for direct action) and the rate (for fair comparison across changing sample sizes) avoids misleading conclusions either measure alone could produce.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might it be reasonable to set a DIFFERENT below_threshold cutoff for groundedness specifically, compared to the other three dimensions?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This connects directly to the Evaluation Dimensions page's own honest point that different applications (and arguably different dimensions within the same application) can genuinely carry different real stakes — groundedness failures specifically risk real, fabricated claims reaching real customers, arguably warranting a stricter threshold than, say, a slightly awkward but harmless relevance miss.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why a STRICTER groundedness threshold might be genuinely
+reasonable:
+A groundedness score of even 3/5 might already represent a
+  GENUINE, real fabrication risk (per the WARRANTY example
+  from Evaluation Dimensions) — the REAL-WORLD cost of a
+  fabricated claim reaching a customer is arguably HIGHER than
+  the cost of a slightly LESS relevant, but still harmless and
+  honest, response.
+
+A more CALIBRATED metrics function, REFLECTING this:
+def compute_dimension_metrics(evaluation_results, thresholds=None):
+    thresholds = thresholds or {"relevance": 3, "correctness": 3,
+                                  "groundedness": 4,  # STRICTER
+                                  "consistency": 3}
+    # ... uses thresholds[dimension] instead of the same
+    # hardcoded 3 for every dimension ...</code></pre>
+<p>This is a genuinely sensible refinement, directly connecting back to this chapter's own earlier point about dimensions carrying different real stakes — a single, uniform threshold across all four dimensions treats them as equally risky when they may genuinely not be, for THIS specific application's actual, real concerns.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Looking back across this entire chapter, how does this final metrics page connect to the honest, non-hyped approach to autonomous QA established back in Chapter 1?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This page is a concrete, practical closing of the loop — Chapter 1 argued autonomous QA's genuine value comes from real, honest measurement rather than confident-sounding but unsubstantiated claims of quality, and this page's distribution-based, per-dimension metrics are exactly what honest measurement looks like for LLM features specifically.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What a GENUINELY honest metrics approach avoids:
+A single, reassuring-sounding "quality score: 8.5/10" that
+  masks real, serious problems — exactly the kind of
+  FALSE CONFIDENCE Chapter 1 warned against throughout its own
+  discussion of autonomous QA's genuine, honest limitations.
+
+What THIS page's approach provides INSTEAD:
+Per-dimension distributions, minimums, and below-threshold
+  counts that SURFACE real problems rather than hiding them
+  behind a reassuring AVERAGE — genuinely honest measurement,
+  even when (especially when) the honest answer is "groundedness
+  needs real attention," not a comfortable, blended number.</code></pre>
+<p>This is a fitting way to close this entire chapter — testing LLM applications genuinely, honestly requires exactly the same commitment to real, unflinching measurement that Chapter 1 established as this ENTIRE course's founding principle, now shown concretely applied to the genuinely hardest kind of system to measure honestly: one whose own output is itself unpredictable, fluent text.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

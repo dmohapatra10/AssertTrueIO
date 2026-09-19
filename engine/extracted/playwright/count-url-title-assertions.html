@@ -1,0 +1,119 @@
+<!doctype html>
+<html><head>
+<title>Playwright Count, URL &amp; Title Assertions: toHaveCount, toHaveURL, toHaveTitle</title>
+<meta name="description" content="How Playwright&#x27;s toHaveCount, toHaveURL, and toHaveTitle assertions work for verifying collection sizes and page-level navigation state." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/count-url-title-assertions.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Count, URL & Title Assertions</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="assertions.html">Assertions overview</a>, <a href="text-and-value-assertions.html">Text & Value Assertions</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+  <p><code>toHaveCount()</code> checks how many elements a locator matches; <code>toHaveURL()</code> and <code>toHaveTitle()</code> check page-level navigation state rather than anything about a specific element.</p>
+
+  <h2 id="why-it-s-important">Why it's important</h2>
+  <p>These three answer questions the element-level assertions can't: "did the right number of things render," and "did we actually end up on the page we expected." Both come up constantly in list/table testing and in any flow involving navigation.</p>
+
+  <h2 id="basic-example-tohavecount">Basic Example — toHaveCount()</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const results = page.getByRole('listitem');
+await expect(results).toHaveCount(12);
+
+// A count of zero is a clean way to assert absence, with full auto-retry
+await expect(page.getByText('Out of stock')).toHaveCount(0);</code></pre>
+  <p>Because <code>toHaveCount()</code> retries, it correctly handles a list that renders progressively — it waits until the count settles at the expected value instead of checking prematurely mid-render.</p>
+
+  <h2 id="basic-example-tohaveurl-and-tohavetitle">Basic Example — toHaveURL() and toHaveTitle()</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>await page.getByRole('link', { name: 'Settings' }).click();
+await expect(page).toHaveURL('/settings');
+await expect(page).toHaveTitle('Account Settings — Acme');
+
+// Both accept a regex for dynamic/partial matching
+await expect(page).toHaveURL(/\/orders\/ORD-\d+/);
+await expect(page).toHaveTitle(/Settings/);</code></pre>
+  <p>Notice these are called on <code>page</code>, not a locator — a meaningful difference from every other assertion in this chapter, since URL and title are properties of the page itself, not of any element within it.</p>
+
+  <h2 id="detailed-example-pagination">Detailed Example — Pagination</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('pagination shows 10 items per page', async ({ page }) =&gt; {
+  await page.goto('/products');
+
+  await expect(page.getByRole('listitem')).toHaveCount(10);
+  await page.getByRole('button', { name: 'Next page' }).click();
+
+  await expect(page).toHaveURL(/page=2/);
+  await expect(page.getByRole('listitem')).toHaveCount(10);
+});</code></pre>
+
+  <h2 id="real-world-example-post-login-redirect">Real-World Example — Post-Login Redirect</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('successful login redirects to the dashboard', async ({ page }) =&gt; {
+  await page.goto('/login');
+  await page.getByLabel('Email').fill('user@example.com');
+  await page.getByLabel('Password').fill('correct-horse-battery-staple');
+  await page.getByRole('button', { name: 'Sign in' }).click();
+
+  await expect(page).toHaveURL('/dashboard');
+  await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+});</code></pre>
+  <p>Asserting both the URL and a piece of visible content is a stronger check than either alone — the URL confirms navigation happened, and the heading confirms the destination page actually rendered correctly rather than showing a blank or error state at the right address.</p>
+
+  <h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Hardcoding the full origin makes the test fail the moment it runs against
+// a different environment (staging vs. production vs. local)
+await expect(page).toHaveURL('https://app.example.com/dashboard');
+
+// ✅ Relative path — works across environments when baseURL is configured
+await expect(page).toHaveURL('/dashboard');</code></pre>
+
+  <h2 id="common-mistakes">Common Mistakes</h2>
+  <ul>
+    <li><strong>Hardcoding a full absolute URL</strong> instead of a relative path — breaks the moment the same test runs against a different <code>baseURL</code> (local, staging, production).</li>
+    <li><strong>Asserting an exact count for a genuinely dynamic list</strong> without accounting for real variability (e.g., a live inventory count) — consider asserting a minimum or a range instead when exact counts aren't stable.</li>
+    <li><strong>Checking <code>page.url()</code> manually and comparing with a plain equality</strong> instead of using <code>toHaveURL()</code> — loses auto-retry, which matters because navigation isn't always instantaneous.</li>
+  </ul>
+
+  <h2 id="edge-cases">Edge Cases</h2>
+  <ul>
+    <li><strong>Query parameter order</strong> — <code>toHaveURL()</code> with a string does an exact match including query string order; use a regex when parameter order isn't guaranteed or doesn't matter to the test.</li>
+    <li><strong>Single-page apps with client-side routing</strong> — <code>toHaveURL()</code> still works correctly since it reads the browser's current URL regardless of whether navigation was a full page load or client-side route change.</li>
+  </ul>
+
+  <h2 id="debugging">Debugging</h2>
+  <p>If <code>toHaveURL()</code> times out, check whether the navigation is genuinely happening but slowly (a real network wait) versus not happening at all (e.g., a click that silently failed) — Trace Viewer's network panel distinguishes these quickly.</p>
+
+  <h2 id="best-practices">Best Practices</h2>
+  <ul>
+    <li>Use relative paths with <code>toHaveURL()</code> so tests remain environment-agnostic.</li>
+    <li>Pair <code>toHaveURL()</code> with a content assertion on the destination page rather than treating URL alone as proof the navigation fully succeeded.</li>
+    <li>Prefer a regex over an exact count when a list's size can legitimately vary for reasons unrelated to the feature under test.</li>
+  </ul>
+
+  <h2 id="practice-exercise">Practice Exercise</h2>
+  <p>Write a test that searches for a product, asserts the results count is greater than zero (without hardcoding an exact number), and asserts the URL contains the search query as a parameter.</p>
+
+  <h2 id="summary">Summary</h2>
+  <p><code>toHaveCount()</code> checks how many elements match a locator, with full auto-retry for progressively rendering lists. <code>toHaveURL()</code> and <code>toHaveTitle()</code> check page-level state and are called on <code>page</code> rather than a locator — both accept regex for dynamic or partial matching.</p>
+
+  <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why should toHaveURL() generally use a relative path rather than a full absolute URL?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A relative path lets the exact same test run unchanged against local, staging, and production environments, since Playwright resolves it against the configured <code>baseURL</code>. Hardcoding a full URL ties the test to one specific environment and breaks the moment it's run anywhere else.</div>
+</details>
+<details class="faq-item">
+<summary>Why does toHaveCount() work reliably even on a progressively-rendering list?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Because it retries, it waits until the count settles at the expected value instead of checking prematurely mid-render.</div>
+</details>
+<details class="faq-item">
+<summary>Why should toHaveURL() generally use a relative path rather than a full domain?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A relative path resolves against the configured baseURL, letting the same test run unchanged across local, staging, and production.</div>
+</details>
+<details class="faq-item">
+<summary>What's a stronger check than toHaveURL() alone after a navigation?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Pairing it with a content assertion on the destination page, confirming it actually rendered correctly, not just that the address changed.</div>
+</details>
+<details class="faq-item">
+<summary>How do you handle a URL with unpredictable query parameter order?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Use a regex with toHaveURL() instead of an exact string match, which requires an exact match including order.</div>
+</details>
+</div>
+</article>
+</body></html>

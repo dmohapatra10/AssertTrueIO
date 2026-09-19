@@ -1,0 +1,198 @@
+<!doctype html>
+<html><head>
+<title>AI-Powered Pipeline Design: Reasoning About Stage Structure</title>
+<meta name="description" content="Using AI to reason about pipeline stage ordering and parallelization from real dependency data — and why the reasoning needs genuine evidence, not just plausible-sounding structure." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/ai-powered-pipeline-design.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>AI-Powered Pipeline Design</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="why-ai-in-cicd.html">Why AI in CI/CD?</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>ShopEasy's pipeline structure (lint → unit → integration → E2E → deploy) wasn't arbitrary — it reflects genuine dependencies and genuine cost tradeoffs. This page is about using AI reasoning to evaluate and suggest that structure, grounded in real data about the pipeline, not just plausible-sounding advice.</p>
+
+<h2 id="reasoning-about-structure-from-real-data">Reasoning About Structure From Real Data</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def analyze_pipeline_structure(stage_history, client):
+    prompt = f"""Here is real historical data about this CI
+pipeline's stages: {stage_history}
+
+Given each stage's typical duration and failure rate, does the
+CURRENT ordering (lint, unit, integration, E2E, deploy) make
+sense? Are there stages that could run in PARALLEL rather than
+sequentially, given what you can tell about their actual
+dependencies from this data?"""
+    result = client.messages.create(
+        model="claude-sonnet-4-6", max_tokens=500,
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return result.content[0].text</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># Real data, and a genuinely useful finding:
+stage_history = {
+    "lint": {"avg_duration_s": 25, "failure_rate": 0.02},
+    "unit_tests": {"avg_duration_s": 120, "failure_rate": 0.08},
+    "integration_tests": {"avg_duration_s": 360, "failure_rate": 0.05},
+    "e2e_tests": {"avg_duration_s": 1080, "failure_rate": 0.12},
+}
+
+"Lint and unit tests both have low duration and don't appear
+to depend on each other's output based on this data — running
+them in PARALLEL rather than sequentially could save roughly
+25 seconds per run with no apparent loss of signal. E2E tests
+have both the HIGHEST duration and the HIGHEST failure rate —
+worth confirming this stage's placement LAST is genuinely
+intentional (catching real problems only after cheaper stages
+already passed) rather than simply historical convention."</code></pre>
+
+<h2 id="why-this-needs-real-data-not-just-plausible-reasoning">Why This Needs Real Data, Not Just Plausible Reasoning</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Without the ACTUAL duration and failure-rate numbers, an LLM
+asked "how should this pipeline be structured" would be
+REASONING from GENERAL software engineering conventions —
+GENUINELY useful, but NOT grounded in THIS SPECIFIC pipeline's
+ACTUAL behavior. The REAL numbers (25s lint, 12% E2E failure
+rate) are what let the SUGGESTION above be GENUINELY specific
+and ACTIONABLE, not just generically plausible advice.</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why does this page's example specifically flag the E2E stage's placement as worth CONFIRMING rather than just recommending a change? The data shows E2E has both the highest cost and highest failure rate — this is CONSISTENT with either a deliberate, sound design (catch problems only after cheaper stages already passed, minimizing wasted E2E runs on changes that would have failed lint or unit tests anyway) or an unexamined default that happens to look reasonable. The reasoning can't tell these apart from the data alone — flagging it for confirmation, rather than asserting a change, respects that genuine uncertainty rather than overstating confidence.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Asking an LLM to suggest pipeline structure without providing real, current data about the pipeline's own actual stages. This produces genuinely plausible-sounding but ungrounded advice — exactly the same gap Chapter 11's LLM-as-a-Judge page warned about for evaluation without reference information.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>When a pipeline-design suggestion flags something as worth "confirming" rather than asserting a definite recommendation, that phrasing itself is a genuinely useful signal — it distinguishes findings the data can directly support from ones that need additional context a human actually has.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Ground pipeline-design reasoning in real, current data about the specific pipeline being analyzed, not generic conventions.</li>
+  <li>Let genuinely ambiguous findings be flagged as worth confirming rather than asserted as definite recommendations.</li>
+  <li>Treat this as a tool for generating well-reasoned suggestions a human reviews, not an automatic restructuring authority.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Pipeline-design reasoning needs real, specific data about the pipeline's actual stages to produce genuinely actionable suggestions, not generic advice.</li>
+  <li>A finding that's consistent with multiple explanations should be flagged for human confirmation, not asserted with unwarranted confidence.</li>
+  <li>This technique generates suggestions for human review, not an automated authority to restructure a pipeline unilaterally.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Using this page's <code>stage_history</code> format, add a hypothetical <code>deploy</code> stage's data (duration and failure rate) and write out what a genuinely well-grounded suggestion about ITS placement — relative to the other four stages — would look like, following this page's own style of citing specific numbers.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A teammate asks an LLM "how should we structure our CI pipeline" with no data provided, and gets a confident, detailed answer. Should this be trusted for ShopEasy's specific pipeline?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Genuinely, no — without ShopEasy's OWN real duration and failure-rate DATA, the answer is REASONING from GENERIC software engineering CONVENTIONS, not ShopEasy's ACTUAL pipeline's ACTUAL behavior, exactly THIS page's OWN core ARGUMENT.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What an UNGROUNDED answer CAN genuinely provide:
+GENERALLY sound, WIDELY-applicable software engineering
+  PRINCIPLES — "put FAST, CHEAP checks FIRST," "run
+  INDEPENDENT stages in PARALLEL where POSSIBLE" — REAL,
+  USEFUL PRINCIPLES, but NOT specific to SHOPEASY'S OWN
+  ACTUAL numbers.
+
+What it CANNOT provide WITHOUT real data:
+Whether SHOPEASY'S SPECIFIC lint and UNIT test stages ACTUALLY
+  have NO dependency on EACH other (per THIS page's OWN
+  example), or WHETHER ShopEasy's E2E stage's SPECIFIC 12%
+  failure RATE is GENUINELY worth INVESTIGATING — THESE
+  require ShopEasy's OWN real DATA, which a GENERIC prompt
+  simply DOESN'T have ACCESS to.</code></pre>
+<p>The CONFIDENT-sounding ANSWER might be GENUINELY reasonable in the ABSTRACT, but TRUSTING it for SHOPEASY'S SPECIFIC pipeline WITHOUT grounding it in SHOPEASY'S OWN real DATA repeats EXACTLY the UNGROUNDED-evaluation MISTAKE Chapter 11 ALREADY warned against.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page treat "worth confirming" as a GENUINELY different, more honest response than a confident recommendation, rather than just weaker phrasing?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>The UNDERLYING data GENUINELY supports MULTIPLE explanations EQUALLY well — "worth CONFIRMING" accurately REFLECTS this genuine AMBIGUITY, while a CONFIDENT recommendation would OVERSTATE what the DATA alone can ACTUALLY determine.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why the DATA alone CAN'T distinguish BETWEEN two GENUINELY
+different explanations:
+High COST + high FAILURE rate for E2E is EQUALLY consistent
+  with (1) a DELIBERATE, SOUND design (RUN expensive checks
+  LAST, after CHEAPER ones already PASSED) and (2) an
+  UNEXAMINED default that HAPPENS to look REASONABLE. The
+  NUMBERS alone genuinely CAN'T tell these APART.
+
+Why "worth CONFIRMING" is the HONEST response GIVEN this
+genuine AMBIGUITY:
+STATING a CONFIDENT recommendation ("MOVE E2E tests EARLIER")
+  would ASSERT MORE certainty than the DATA actually SUPPORTS
+  — "worth CONFIRMING" accurately COMMUNICATES "the DATA is
+  CONSISTENT with SEVERAL explanations; a HUMAN with
+  ADDITIONAL context should RESOLVE this," EXACTLY the SAME
+  honest-UNCERTAINTY standard THIS course has MAINTAINED since
+  Chapter 1.</code></pre>
+<p>This ISN'T just SOFTER language — it's a GENUINELY more ACCURATE representation of WHAT the evidence ACTUALLY supports, EXACTLY the SAME distinction Chapter 8's OWN root-cause ANALYSIS made BETWEEN confident CLASSIFICATION and HONEST acknowledgment of GENUINE ambiguity.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why this page's example specifically cites "roughly 25 seconds per run" as the parallelization benefit, rather than just saying "running these in parallel would help."<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A SPECIFIC, QUANTIFIED benefit lets a HUMAN reviewer make a GENUINELY informed COST-benefit decision — "WOULD help" gives NO basis for WEIGHING this CHANGE against its IMPLEMENTATION effort or RISK; "25 seconds per RUN" gives a CONCRETE number to ACTUALLY reason WITH.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why a VAGUE "would HELP" is GENUINELY less USEFUL:
+A human REVIEWER has NO way to JUDGE whether THIS change is
+  WORTH the ENGINEERING effort to IMPLEMENT — "helps SOME
+  amount" could MEAN anything from GENUINELY negligible to
+  GENUINELY significant.
+
+Why the SPECIFIC "25 SECONDS per run" enables REAL decision-
+making:
+A human can DIRECTLY weigh THIS specific, QUANTIFIED benefit
+  against the REAL engineering EFFORT of RESTRUCTURING the
+  pipeline — if the PIPELINE runs 15 TIMES a day, THIS
+  concretely TRANSLATES to ROUGHLY 6 MINUTES of daily
+  SAVINGS, a GENUINELY concrete number a HUMAN can ACTUALLY
+  evaluate AGAINST the COST of MAKING the change.</code></pre>
+<p>This DIRECTLY connects to Chapter 4's OWN reviewability PRINCIPLE — a SPECIFIC, QUANTIFIED finding is GENUINELY more ACTIONABLE and VERIFIABLE than a VAGUE, QUALITATIVE claim, EXACTLY the SAME standard THIS course has APPLIED consistently to EVERY kind of AI-GENERATED output SINCE that CHAPTER.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might it be a mistake to AUTOMATICALLY implement EVERY suggestion this function PRODUCES, even when EACH one is WELL-grounded in real DATA?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This CONNECTS directly to Chapter 8's OWN human-checkpoint PRINCIPLE — even a WELL-grounded, EVIDENCE-based suggestion is STILL a CONSEQUENTIAL change to REAL infrastructure, and DESERVES human REVIEW before EXECUTION, not AUTOMATIC application.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why WELL-grounded EVIDENCE doesn't AUTOMATICALLY justify
+AUTOMATIC action:
+EVEN a GENUINELY well-SUPPORTED suggestion (like THIS page's
+  PARALLELIZATION example) MIGHT have REAL, PRACTICAL
+  considerations the DATA alone doesn't CAPTURE — perhaps
+  lint and UNIT tests SHARE a resource (a DATABASE connection,
+  a BUILD cache) that WOULD genuinely CONFLICT if RUN in
+  PARALLEL, something NEITHER stage's DURATION or FAILURE-rate
+  DATA alone would REVEAL.
+
+Why HUMAN review REMAINS necessary REGARDLESS:
+CHANGING a REAL, PRODUCTION pipeline's STRUCTURE is a
+  GENUINELY consequential ACTION — EXACTLY the kind of
+  DECISION Chapter 2's GUARDRAILS discussion and CHAPTER 8's
+  report-WRITING principle BOTH argued DESERVES a HUMAN
+  checkpoint BEFORE execution, REGARDLESS of how WELL-
+  evidenced the UNDERLYING suggestion HAPPENS to be.</code></pre>
+<p>This is a DIRECT, CONSISTENT continuation of a PRINCIPLE this COURSE has MAINTAINED since ITS earliest CHAPTERS — GENUINE evidence STRENGTHENS a RECOMMENDATION'S case, but DOESN'T eliminate the NEED for HUMAN review before a CONSEQUENTIAL, REAL-WORLD change is ACTUALLY made.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you extend this page's approach to specifically check WHETHER lint and unit tests GENUINELY have no dependency on each OTHER, rather than just ASSUMING this from DURATION data alone?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A GENUINELY rigorous check would EXAMINE the ACTUAL pipeline configuration (WHICH stage's OUTPUT, if any, FEEDS into the OTHER) rather than INFERRING independence PURELY from DURATION and FAILURE-rate NUMBERS, which DON'T directly CAPTURE dependency INFORMATION at ALL.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def verify_stage_independence(pipeline_config, stage_a, stage_b):
+    """Checks whether stage_a's OUTPUTS are actually CONSUMED
+    as INPUTS by stage_b, or vice versa, using the pipeline's
+    OWN configuration — NOT inferred from duration/failure
+    data ALONE, which says NOTHING about genuine dependencies."""
+    stage_a_outputs = pipeline_config[stage_a].get("outputs", [])
+    stage_b_inputs = pipeline_config[stage_b].get("inputs", [])
+    stage_b_outputs = pipeline_config[stage_b].get("outputs", [])
+    stage_a_inputs = pipeline_config[stage_a].get("inputs", [])
+
+    shared = (set(stage_a_outputs) & set(stage_b_inputs)) | \
+             (set(stage_b_outputs) & set(stage_a_inputs))
+    return {
+        "genuinely_independent": len(shared) == 0,
+        "shared_artifacts": list(shared),
+    }</code></pre>
+<p>This EXPLICITLY addresses a GENUINE gap in THIS page's ORIGINAL example — the LLM's suggestion was BASED on duration and FAILURE-rate data, which is USEFUL for COST reasoning but SAYS NOTHING DIRECTLY about ACTUAL dependencies; a GENUINELY rigorous pipeline-DESIGN process should VERIFY independence AGAINST the pipeline's OWN real CONFIGURATION, not just INFER it from UNRELATED metrics, EXACTLY the KIND of additional, DELIBERATE verification a HUMAN reviewer (per the PREVIOUS question's OWN argument) should APPLY before ACTUALLY implementing a PARALLELIZATION suggestion.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

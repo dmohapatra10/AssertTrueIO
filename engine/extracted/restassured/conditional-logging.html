@@ -1,0 +1,140 @@
+<!doctype html>
+<html><head>
+<title>RestAssured Conditional Logging: ifValidationFails() and CI-Friendly Output</title>
+<meta name="description" content="How to use RestAssured&#x27;s conditional logging — log().ifValidationFails(), ifError(), and status-code-specific logging — to keep CI output clean while still capturing full detail on failure." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/conditional-logging.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Conditional Logging</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="response-logging.html">Response Logging</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>.then()
+    .log().ifValidationFails()   // stays SILENT if the test passes
+    .statusCode(200)
+    .body("name", equalTo("John"));</code></pre>
+<p><code>.log().ifValidationFails()</code> is the resolution to the tension the chapter overview raised: it prints nothing at all for a passing test, but automatically dumps the full response the instant any assertion in the same chain actually fails — exactly when you need the detail, and not a moment before.</p>
+
+<h2 id="why-it-s-important">Why it's important</h2>
+<p>This is the single most valuable logging pattern for real, committed test code — it gives you the debugging value of full logging without the CI-noise cost of always-on logging. Most production RestAssured codebases default to this pattern rather than either extreme (always logging, or never logging).</p>
+
+<h2 id="basic-example">Basic Example</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>given()
+    .pathParam("id", 2)
+.when()
+    .get("/users/{id}")
+.then()
+    .log().ifValidationFails()
+    .statusCode(200)
+    .body("data.first_name", equalTo("Janet"));
+
+// If this passes: ZERO log output
+// If this fails: the full response prints automatically, right in the failure output</code></pre>
+
+<h2 id="iferror-a-related-but-distinct-variant">ifError() — A Related but Distinct Variant</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>.then()
+    .log().ifError()  // logs only if the STATUS CODE indicates an error (4xx/5xx)
+    .statusCode(200);</code></pre>
+<p><code>.log().ifError()</code> triggers based specifically on the response's status code falling in the error range, independent of whether your own assertions pass or fail. This is a subtly different trigger condition from <code>ifValidationFails()</code> — a response could have a successful 200 status while still failing one of your body assertions (in which case <code>ifError()</code> would stay silent but <code>ifValidationFails()</code> would trigger), or conversely return a 500 that you're deliberately testing for and asserting against successfully (in which case <code>ifError()</code> triggers even though your test is passing).</p>
+
+<h2 id="detailed-example-choosing-the-right-trigger-for-the-situation">Detailed Example — Choosing the Right Trigger for the Situation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void mostTestsWantIfValidationFails() {
+    // The common case: log only when something you asserted didn't match
+    given().when().get("/users/2").then()
+        .log().ifValidationFails()
+        .statusCode(200)
+        .body("data.id", equalTo(2));
+}
+
+@Test
+void deliberatelyTestingAnErrorResponse() {
+    // Here, a 404 is the EXPECTED, correct outcome — ifError() would
+    // log every time this test runs (even though it's passing), which
+    // is noise; ifValidationFails() is still the better choice here too
+    given().pathParam("id", 999999).when().get("/users/{id}").then()
+        .log().ifValidationFails()
+        .statusCode(404);
+}</code></pre>
+<p>In practice, <code>ifValidationFails()</code> is the right default for nearly every test — it directly tracks whether the assertions you actually wrote passed, which is what you actually care about. <code>ifError()</code> is a narrower tool, more useful for exploratory or monitoring-style scripts that want visibility into any error response regardless of what's being explicitly asserted.</p>
+
+<h2 id="real-world-example-a-team-wide-default">Real-World Example — A Team-Wide Default</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// A shared base test class establishing the team convention
+public abstract class BaseApiTest {
+    protected ValidatableResponse validate(Response response) {
+        return response.then().log().ifValidationFails();
+    }
+}
+
+// Individual tests use it consistently, without each one repeating the log() call
+public class UserApiTest extends BaseApiTest {
+    @Test
+    void getUser() {
+        Response response = given().pathParam("id", 2).when().get("/users/{id}");
+        validate(response).statusCode(200).body("data.id", equalTo(2));
+    }
+}</code></pre>
+<p>Baking conditional logging into a shared base class or helper method means every test in the project gets clean-by-default, detailed-on-failure output automatically, without every individual test author needing to remember to add it themselves.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ No logging at all — a CI failure gives you a bare assertion
+// message with no context about what the actual response looked like
+.then().statusCode(200).body("data.id", equalTo(2));
+
+// ✅ Silent when passing, fully detailed the moment something fails
+.then().log().ifValidationFails().statusCode(200).body("data.id", equalTo(2));</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Using <code>.log().all()</code> in committed code</strong> "to be safe," when <code>ifValidationFails()</code> gives strictly more useful information (only appears on genuine failures) at a fraction of the log volume.</li>
+  <li><strong>Choosing <code>ifError()</code> when <code>ifValidationFails()</code> is actually the better fit</strong> — for most tests, what you care about is whether your assertions passed, not the raw status code range in isolation.</li>
+  <li><strong>Not standardizing conditional logging as a team convention</strong> — inconsistent logging across a codebase means some failures are easy to debug and others aren't, depending on which pattern the original author happened to use.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>A test with multiple separate <code>.then()</code> chains</strong> (rare, but possible) — conditional logging only covers the chain it's actually attached to; a failure in a separate, unlogged chain won't trigger it.</li>
+  <li><strong>Assertions that throw before reaching <code>.then()</code> at all</strong> (a NullPointerException from bad test setup, for instance) — conditional response logging can't help here, since there's no response validation step to trigger from; this is a different failure category entirely.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a CI failure lacks the detail you need despite conditional logging being in place, confirm <code>.log().ifValidationFails()</code> is actually positioned within the same <code>.then()</code> chain as the assertion that failed — it only captures failures in its own chain, not globally.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Default to <code>.log().ifValidationFails()</code> in essentially all committed test code — it's the right balance for the overwhelming majority of cases.</li>
+  <li>Consider baking it into a shared base class or helper method so the whole team gets it consistently, without repeating it in every test.</li>
+  <li>Reserve <code>.log().all()</code> for active, temporary local debugging only.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Take a test with a deliberately wrong assertion (one that will fail), add <code>.log().ifValidationFails()</code>, and run it — confirm the full response prints automatically. Then fix the assertion so the test passes, and confirm the log output disappears entirely on the next run.</p>
+
+<h2 id="summary">Summary</h2>
+<p><code>.log().ifValidationFails()</code> is the standard, recommended logging pattern for real test code — silent when a test passes, automatically detailed the moment any assertion in its chain fails. This resolves the core tension between debugging usefulness and CI noise better than either always-on or always-off logging, and is worth establishing as a team-wide default via a shared base class.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>What's the difference between log().ifValidationFails() and log().ifError(), and when might they behave differently for the same test?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer"><code>ifValidationFails()</code> triggers based on whether the assertions you actually wrote pass or fail. <code>ifError()</code> triggers based on the response's status code falling in the 4xx/5xx range, regardless of your assertions. They diverge in two cases: a 200 response that still fails one of your body assertions (ifValidationFails triggers, ifError stays silent), and a deliberately-tested error response — like asserting a 404 is correctly returned — where the test passes but ifError still triggers because the status code itself is in the error range. For most tests, ifValidationFails is the more useful default since it directly tracks what you actually care about: did my assertions pass.</div>
+</details>
+<details class="faq-item">
+<summary>Why is .log().ifValidationFails() considered the standard pattern for committed test code?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It's silent for a passing test but automatically dumps the full response the moment an assertion in its chain fails — full debugging value with none of the CI-noise cost of always-on logging.</div>
+</details>
+<details class="faq-item">
+<summary>What's the actual difference between ifValidationFails() and ifError()?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">ifValidationFails() triggers based on whether YOUR assertions passed; ifError() triggers based on the response's status code alone, regardless of what you actually asserted — they diverge whenever a test deliberately expects an error status and passes.</div>
+</details>
+<details class="faq-item">
+<summary>Why might baking conditional logging into a shared base class be better than repeating it per test?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Every test in the project gets clean-by-default, detailed-on-failure output automatically, without individual authors needing to remember to add the logging call themselves.</div>
+</details>
+<details class="faq-item">
+<summary>In what scenario would ifError() trigger even though the test is actually passing?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A test deliberately asserting a 404 is correctly returned — the status code IS in the error range even though the test's own assertion (expecting exactly that) succeeds; ifValidationFails() would correctly stay silent here, but ifError() would still fire.</div>
+</details>
+</div>
+</article>
+</body></html>

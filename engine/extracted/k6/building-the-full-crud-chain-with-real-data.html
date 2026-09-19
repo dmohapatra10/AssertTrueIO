@@ -1,0 +1,160 @@
+<!doctype html>
+<html><head>
+<title>Building a Full CRUD Chain in k6 With Real, Unique Data</title>
+<meta name="description" content="Create, Get, Update, Delete — chained correctly with genuinely unique data per iteration, so the workflow holds up under real concurrent load, not just when run alone." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/building-the-full-crud-chain-with-real-data.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Building the Full CRUD Chain With Real Data</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="parameterization-csv-json-and-sharedarray.html">Parameterization: CSV, JSON & SharedArray</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>This page brings together everything from this chapter — unique data generation and efficient parameterization — into one complete Create → Get → Update → Delete workflow that genuinely holds up under real concurrent load, not just when tested alone with one virtual user.</p>
+
+<h2 id="step-1-create-with-genuinely-unique-data">Step 1 — Create, With Genuinely Unique Data</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>function createUser() {
+  const uniqueEmail = `user-${__VU}-${__ITER}-${Date.now()}@example.com`;
+
+  const response = http.post('https://api.example.com/users',
+    JSON.stringify({ email: uniqueEmail, name: `Test User ${__VU}-${__ITER}` }),
+    { headers: { 'Content-Type': 'application/json' } });
+
+  check(response, { 'user created': (r) => r.status === 201 });
+  return response.json('id');
+}</code></pre>
+<p>This is the direct application of the previous pages — the email is genuinely unique per VU, per iteration, and protected against cross-run collisions, exactly as covered.</p>
+
+<h2 id="step-2-get-verifying-the-created-data">Step 2 — Get, Verifying the Created Data</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>function getUser(userId, expectedEmail) {
+  const response = http.get(`https://api.example.com/users/${userId}`);
+
+  check(response, {
+    'user retrieved': (r) => r.status === 200,
+    'email matches what was created': (r) => r.json('email') === expectedEmail,
+  });
+}</code></pre>
+<p>This functional check — confirming the retrieved email matches exactly what was created — is only meaningful because the created email was genuinely unique. With the collision-prone hardcoded approach from earlier in this chapter, this check could pass by coincidence (matching some other VU's identically-named user) rather than genuinely confirming correctness.</p>
+
+<h2 id="step-3-update">Step 3 — Update</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>function updateUser(userId) {
+  const response = http.patch(`https://api.example.com/users/${userId}`,
+    JSON.stringify({ name: `Updated Name ${__VU}-${__ITER}` }),
+    { headers: { 'Content-Type': 'application/json' } });
+
+  check(response, { 'user updated': (r) => r.status === 200 });
+}</code></pre>
+
+<h2 id="step-4-delete-and-verify-deletion">Step 4 — Delete, and Verify Deletion</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>function deleteUser(userId) {
+  const deleteResponse = http.del(`https://api.example.com/users/${userId}`);
+  check(deleteResponse, { 'user deleted': (r) => r.status === 204 });
+
+  // Verify it's actually gone, not just that the delete call "succeeded"
+  const verifyResponse = http.get(`https://api.example.com/users/${userId}`);
+  check(verifyResponse, { 'user no longer exists': (r) => r.status === 404 });
+}</code></pre>
+<p>The verification step here matters — a delete endpoint returning 204 tells you the request was accepted, not necessarily that the resource is genuinely gone. Confirming a subsequent GET returns 404 is what actually verifies deletion took effect.</p>
+
+<h2 id="detailed-example-the-complete-chain-assembled">Detailed Example — The Complete Chain, Assembled</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export default function () {
+  group('User Lifecycle', function () {
+    const uniqueEmail = `user-${__VU}-${__ITER}-${Date.now()}@example.com`;
+    const userId = createUser(uniqueEmail);
+    sleep(1);
+
+    getUser(userId, uniqueEmail);
+    sleep(1);
+
+    updateUser(userId);
+    sleep(1);
+
+    deleteUser(userId);
+  });
+}
+
+export const options = {
+  vus: 100,
+  duration: '5m',
+  thresholds: {
+    checks: ['rate>0.98'],
+    http_req_duration: ['p(95)&lt;500'],
+  },
+};</code></pre>
+<p>Run with 100 concurrent VUs, this creates, reads, updates, and deletes 100 genuinely distinct users simultaneously, repeated for 5 minutes — with real functional verification at every step and thresholds gating the whole run. This is what a genuinely production-ready k6 workflow test looks like, combining every concept from this chapter and the ones before it.</p>
+
+<h2 id="real-world-example-what-reusing-data-would-have-broken">Real-World Example — What Reusing Data Would Have Broken</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>❌ If createUser() used a hardcoded email instead:
+   - Most of the 100 concurrent "create" calls fail with a duplicate error
+   - getUser()'s "email matches" check becomes meaningless — it might
+     match a DIFFERENT VU's user that happens to share the same email
+   - deleteUser() might delete a user another VU is still actively using
+   - The test is now measuring error-handling and race conditions,
+     not the actual CRUD workflow's real performance</code></pre>
+<p>This is the concrete, practical cost of skipping proper unique data generation — not just failed requests, but a test that's silently measuring something completely different from what it was designed to measure, while still technically "running" the whole time.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Hardcoded data, breaks under real concurrency
+function createUser() {
+  return http.post(url, JSON.stringify({ email: 'test@example.com' }));
+}
+
+// ✅ Genuinely unique data, holds up at any concurrency level
+function createUser() {
+  const email = `user-${__VU}-${__ITER}-${Date.now()}@example.com`;
+  return http.post(url, JSON.stringify({ email }));
+}</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Testing a CRUD chain only with a single VU</strong> before running it at real concurrency — collision problems are often completely invisible at VU count 1.</li>
+  <li><strong>Trusting a delete's status code without verifying the resource is actually gone</strong> — a 204 confirms the request was accepted, not that deletion genuinely took effect.</li>
+  <li><strong>Not cleaning up created data</strong> at all, letting thousands of test users accumulate in a shared environment across repeated test runs.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>A delete step failing partway through a long-running test</strong> — worth considering whether a failed delete should be retried, logged for manual cleanup, or simply accepted as a known limitation, since accumulated undeleted test data can itself become a problem for a shared test environment over time.</li>
+  <li><strong>Update operations racing with delete operations</strong> in a more complex, less linear workflow than the simple sequential chain shown here — worth being deliberate about whether your specific workflow's steps could ever legitimately overlap in ways this simple example doesn't.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a CRUD chain test shows a high failure rate specifically at higher VU counts but works perfectly at VU count 1, revisit whether every piece of data used across the chain is genuinely unique per VU and iteration — this is far and away the most common cause of that specific symptom.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Test a CRUD workflow at meaningful concurrency, not just VU count 1, before trusting that it's genuinely collision-free.</li>
+  <li>Verify deletion actually took effect with a follow-up read, not just the delete call's own status code.</li>
+  <li>Combine unique data generation with functional checks at every step — the checks are only meaningful when the underlying data is genuinely unique.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Extend the CRUD chain on this page with a fifth step — attempting to update a user's email to one that's already taken by another user, and verifying the system correctly rejects it with an appropriate error status — using the unique-data techniques from this chapter to guarantee the "already taken" email genuinely belongs to a different, real user in the test.</p>
+
+<h2 id="summary">Summary</h2>
+<p>A CRUD chain that only works correctly with a single virtual user isn't actually validated for real performance testing — genuinely unique data per VU and iteration, combined with functional verification at every step (including confirming deletion actually took effect, not just trusting a status code), is what makes a workflow test hold up at real concurrency. This is the complete, practical synthesis of unique-data generation, efficient parameterization, and workflow chaining covered across this entire chapter.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why might a CRUD chain test pass perfectly at VU count 1 but fail extensively at VU count 100?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">At VU count 1, there's no concurrency at all — a single VU can never collide with itself if it's simply reusing the same hardcoded data sequentially. At VU count 100, many virtual users are attempting the same operations simultaneously, and if the test data isn't genuinely unique per VU and iteration, this is exactly when duplicate-data collisions and race conditions become visible, which VU count 1 could never reveal in the first place.</div>
+</details>
+<details class="faq-item">
+<summary>Why is verifying a delete operation with a follow-up GET request more thorough than just checking the delete's own status code?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A 204 status code on a delete request confirms the server accepted and processed the request, but doesn't guarantee the underlying resource is actually, verifiably gone — there could be a delay, a caching issue, or a bug where the delete appears to succeed without genuinely removing the data. A follow-up GET expecting a 404 directly confirms the resource is actually gone, which is a stronger, more meaningful verification than trusting the delete call's status code alone.</div>
+</details>
+<details class="faq-item">
+<summary>In the "email matches what was created" check from this page, why does that check only become meaningful once the email itself is genuinely unique?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">If multiple VUs were using the same hardcoded email, the check comparing the retrieved user's email against "what was created" could pass by coincidence — matching a different VU's user that happens to share the identical email — without actually confirming that THIS VU's specific created resource was correctly retrieved. Genuine per-VU uniqueness is what makes the check a real, trustworthy verification rather than a check that could pass for the wrong reason.</div>
+</details>
+<details class="faq-item">
+<summary>What's a real, practical risk of never cleaning up test data created during a CRUD chain performance test?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Repeated test runs without cleanup can accumulate a large volume of leftover test data in a shared environment — this can itself eventually affect performance (a growing database table, as covered under volume testing earlier in this course), pollute reporting or analytics in a shared environment, and make it harder to distinguish genuine production data from test artifacts. A well-designed CRUD chain includes deletion specifically to avoid this accumulation.</div>
+</details>
+<details class="faq-item">
+<summary>Why does combining __VU, __ITER, and a timestamp in a single generated value provide stronger uniqueness guarantees than any one of those alone?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">__VU and __ITER together guarantee uniqueness within a single test run, since no two VUs share a VU number and no VU repeats an iteration number — but they don't protect against collision with leftover data from a previous run. Adding a timestamp captured once at script start protects specifically against that cross-run scenario. Together, the combination covers both within-run and cross-run uniqueness, which no single component alone can guarantee.</div>
+</details>
+</div>
+</article>
+</body></html>

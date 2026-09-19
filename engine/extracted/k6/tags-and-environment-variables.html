@@ -1,0 +1,135 @@
+<!doctype html>
+<html><head>
+<title>k6 Tags &amp; Environment Variables Explained</title>
+<meta name="description" content="Tagging requests and metrics for meaningful filtering, and using environment variables to configure a k6 test from outside its own code — target environment, credentials, and load level." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/tags-and-environment-variables.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Tags &amp; Environment Variables</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="advanced-k6-test-design.html">Advanced k6 Test Design overview</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Two genuinely new, practical tools: tags let you label requests and metrics for meaningful filtering afterward, and environment variables let you configure a test — which environment it targets, what credentials it uses — without editing the script itself every time.</p>
+
+<h2 id="tags-labeling-requests-for-later-filtering">Tags — Labeling Requests for Later Filtering</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>http.get('https://api.example.com/products', {
+  tags: { endpoint: 'products', workflow: 'browse' },
+});
+
+http.post('https://api.example.com/checkout', payload, {
+  tags: { endpoint: 'checkout', workflow: 'purchase' },
+});</code></pre>
+<p>Every request can carry custom tags — arbitrary key-value labels attached to that request's metrics. In result output and external dashboards (Grafana, covered in Chapter 13), these tags let you break down <code>http_req_duration</code> or <code>http_req_failed</code> by whichever dimension actually matters — by endpoint, by workflow stage, by user type — rather than only ever seeing one undifferentiated aggregate.</p>
+
+<h2 id="tags-on-groups-and-checks-too">Tags on Groups and Checks Too</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>group('Checkout', function () {
+  // requests inside automatically inherit the group name as a tag
+});
+
+check(response, { 'status ok': (r) => r.status === 200 }, { workflow: 'checkout' });</code></pre>
+<p><code>group()</code> already provides automatic tagging by group name (which is part of why <code>group()</code> from Chapter 3 is useful for more than just code organization — it feeds directly into this filtering capability). Explicit tags can be added to checks too, for the same kind of after-the-fact segmentation.</p>
+
+<h2 id="environment-variables-configuring-from-outside-the-script">Environment Variables — Configuring From Outside the Script</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>$ k6 run -e ENVIRONMENT=staging -e VUS=50 script.js</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Inside the script:
+const baseUrl = __ENV.ENVIRONMENT === 'production'
+  ? 'https://api.example.com'
+  : 'https://staging-api.example.com';
+
+const vuCount = Number(__ENV.VUS) || 10; // fallback default
+
+export const options = {
+  vus: vuCount,
+  duration: '5m',
+};</code></pre>
+<p><code>__ENV</code> gives a script access to values passed in via the <code>-e</code> flag at run time — this is what lets the exact same script target staging or production, or run at different VU counts, without ever editing the script's own source code. This becomes essential once a script runs in CI/CD (Chapter 13), where the same script typically needs to run against different environments depending on the pipeline stage.</p>
+
+<h2 id="detailed-example-a-fully-configurable-script">Detailed Example — A Fully Configurable Script</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const environments = {
+  staging: 'https://staging-api.example.com',
+  production: 'https://api.example.com',
+};
+
+const baseUrl = environments[__ENV.TARGET_ENV] || environments.staging;
+const apiKey = __ENV.API_KEY; // a real secret, never hardcoded
+
+export default function () {
+  http.get(`${baseUrl}/products`, {
+    headers: { 'X-API-Key': apiKey },
+    tags: { endpoint: 'products' },
+  });
+}</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>$ k6 run -e TARGET_ENV=production -e API_KEY=$SECRET_KEY script.js</code></pre>
+<p>This is the correct way to handle a secret like an API key — read from <code>__ENV</code>, sourced from an actual environment variable or CI/CD secret at run time, never hardcoded directly in the committed script, exactly the practice Chapter 9 flagged as necessary for OAuth client credentials.</p>
+
+<h2 id="real-world-example-using-tags-to-diagnose-a-multi-endpoint-problem">Real-World Example — Using Tags to Diagnose a Multi-Endpoint Problem</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Aggregate result: http_req_duration p95 = 890ms — something's off, but where?
+
+Filtered by tag:
+  { endpoint: 'products' }: p95 = 210ms   ✓ fine
+  { endpoint: 'checkout' }: p95 = 3,200ms  ← the actual problem</code></pre>
+<p>Without tags, this diagnosis would require re-running the test with only one endpoint at a time, or manually correlating timestamps — with tags, the same single test run's data can be filtered after the fact to immediately isolate exactly which part of the system is actually responsible for a poor aggregate result.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ A hardcoded target URL and secret, requiring a script edit for every environment
+const baseUrl = 'https://staging-api.example.com';
+const apiKey = 'abc123secretkey';
+
+// ✅ Configured from outside, no script edit needed to change environment or secret
+const baseUrl = __ENV.TARGET_ENV === 'production' ? prodUrl : stagingUrl;
+const apiKey = __ENV.API_KEY;</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Hardcoding environment URLs and secrets directly in a script</strong> — requires an edit (and a risk of accidentally committing a secret) every time the target needs to change.</li>
+  <li><strong>Never tagging requests in a multi-endpoint or multi-workflow test</strong> — makes after-the-fact result analysis far harder than it needs to be.</li>
+  <li><strong>Forgetting a fallback default for an environment variable</strong> that might not always be provided — <code>__ENV.VUS</code> is <code>undefined</code> if <code>-e VUS=...</code> wasn't passed, which can silently break a calculation downstream without a sensible default.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>An environment variable that's always a string</strong> — <code>__ENV</code> values are always strings, even if the value looks numeric; explicit conversion (like <code>Number(__ENV.VUS)</code>) is needed before using it in numeric configuration.</li>
+  <li><strong>Too many distinct tag combinations</strong> — tagging every request with a highly unique value (like a full request ID) can produce an unmanageable number of distinct series in an external dashboard; tags work best as a small number of meaningful, reusable categories, not unique-per-request identifiers.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a test behaves unexpectedly differently than intended (wrong environment, wrong VU count), check whether an expected environment variable was actually passed via <code>-e</code> and whether the script has a sensible fallback for when it's missing — a silently undefined <code>__ENV</code> value is a common, easy-to-miss cause of unexpected test behavior.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Configure environment targets and secrets via <code>__ENV</code>, never hardcoded directly in the script.</li>
+  <li>Tag requests by meaningful category (endpoint, workflow stage) to enable after-the-fact filtering, without over-tagging into unmanageably specific categories.</li>
+  <li>Always provide a sensible fallback default for any environment variable a script depends on.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Modify a script to accept the target environment, a VU count, and an API key all via environment variables, with sensible fallback defaults for each, and add tags distinguishing requests made during a "browse" phase versus a "checkout" phase.</p>
+
+<h2 id="summary">Summary</h2>
+<p>Tags attach meaningful, filterable labels to requests, groups, and checks, letting a single test run's results be broken down by whatever dimension actually matters afterward — endpoint, workflow stage, user type. Environment variables, accessed via <code>__ENV</code>, let a script's target environment, load level, and secrets be configured from outside its own source code, which is essential for a script that needs to run consistently across different environments, especially once it's running inside CI/CD.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why are tags useful even in a test that already uses group() for organization?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">group() provides automatic tagging by group name, which is useful, but explicit tags allow finer-grained or cross-cutting categorization that a group hierarchy alone might not capture — like tagging by endpoint, user type, or workflow stage independently of how the script happens to be structured into groups. Tags give more deliberate control over exactly which dimension of a result you want to filter by afterward.</div>
+</details>
+<details class="faq-item">
+<summary>Why should a script read its target environment and API credentials from __ENV rather than hardcoding them?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Hardcoding requires editing the script's own source code every time the target environment or credential needs to change, and risks accidentally committing a real secret into version control. Reading from __ENV lets the exact same script run against staging, production, or any other target, and receive secrets injected safely at run time — critical once the script runs inside a CI/CD pipeline that needs to target different environments at different stages.</div>
+</details>
+<details class="faq-item">
+<summary>Why does a value like __ENV.VUS need explicit conversion before being used in numeric configuration?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Every value accessed via __ENV is always a string, regardless of what it looks like — passing -e VUS=50 makes __ENV.VUS equal to the string "50", not the number 50. Using it directly in numeric configuration (like a VU count) without explicit conversion (Number(__ENV.VUS)) can produce unexpected behavior, since JavaScript's type coercion in that context doesn't always behave the way a raw number would.</div>
+</details>
+<details class="faq-item">
+<summary>Why might tagging every single request with a unique identifier actually be counterproductive?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Tags are most useful as a small number of meaningful, reusable categories that group many requests together for analysis — like "endpoint: checkout" applying to every checkout request. Tagging with a highly unique value per request (a full request ID, for instance) produces an enormous number of distinct series in results or dashboards, defeating the purpose of tags as an aggregation and filtering tool rather than a per-request identifier.</div>
+</details>
+<details class="faq-item">
+<summary>How do tags help diagnose a problem in a test covering multiple endpoints or workflow stages within a single run?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Without tags, a poor aggregate result (like an elevated p95) only tells you something is wrong somewhere in the test, requiring separate runs or manual correlation to isolate which part. With requests tagged by endpoint or workflow stage, the same single test run's data can be filtered after the fact to immediately see which specific tagged category is actually responsible for the poor result, without needing to re-run anything.</div>
+</details>
+</div>
+</article>
+</body></html>

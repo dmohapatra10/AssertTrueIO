@@ -1,0 +1,130 @@
+<!doctype html>
+<html><head>
+<title>Audit Logging</title>
+<meta name="description" content="A genuinely new capability closing this chapter — a real, complete record of every agent action, tying together everything from Chapter 13&#x27;s exploration to Chapter 19&#x27;s own security controls." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/audit-logging.html" />
+</head><body>
+<p class="difficulty">Advanced</p>
+<h1>Audit Logging</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="human-in-the-loop.html">Human-in-the-Loop</a></p>
+<article class="content">
+<h2>What You'll Learn</h2>
+<ul>
+  <li>Why "untraceable actions" was the second genuinely new risk this chapter opened with</li>
+  <li>Building a real, complete audit log for an autonomous agent's entire run</li>
+  <li>Chapter 19's closing interview questions</li>
+</ul>
+
+<h2>Introduction — The Second Genuinely New Risk</h2>
+<p>Chapter 19's opening page named prompt injection and untraceable actions as the two genuinely new risks in this chapter. This page addresses the second — without a real record of what an agent did, when, and why, every other safeguard in this chapter becomes much harder to verify after the fact.</p>
+
+<h2>Step-by-Step Implementation</h2>
+<pre><code>// src/agent-audit-log.ts
+import { appendFileSync } from 'fs';
+
+export interface AuditEntry {
+  timestamp: string;
+  agentId: string;
+  action: string;
+  input: any;
+  outcome: 'executed' | 'blocked-by-guardrail' | 'error';
+  reason?: string;
+}
+
+const AUDIT_LOG_PATH = 'logs/agent-audit.jsonl';
+
+export function logAuditEntry(entry: Omit&lt;AuditEntry, 'timestamp'&gt;): void {
+  const fullEntry: AuditEntry = {
+    timestamp: new Date().toISOString(),
+    ...entry,
+  };
+  appendFileSync(AUDIT_LOG_PATH, JSON.stringify(fullEntry) + '\n', 'utf-8');
+}</code></pre>
+
+<h2>Code Explanation</h2>
+<p>This is deliberately append-only — <code>appendFileSync</code>, never a rewrite of the file — meaning a genuine record of every past action stays permanent and can't be silently edited later, even by a compromised or malfunctioning process. The JSONL format (one JSON object per line) matches Chapter 10's own trace-file format, keeping this track's evidence formats consistent.</p>
+
+<h2>Example — Wiring This Into Chapter 14's Own Agent Loop</h2>
+<pre><code>// Chapter 14's runPlaywrightAgent, with audit logging ADDED
+// at EVERY real decision point:
+
+const guard = guardToolCall(toolCall.name, toolCall.input, page.url());
+logAuditEntry({
+  agentId: 'shopsmart-exploration-agent',
+  action: toolCall.name,
+  input: toolCall.input,
+  outcome: guard.allowed ? 'executed' : 'blocked-by-guardrail',
+  reason: guard.reason,
+});
+
+if (!guard.allowed) {
+  return { outcome: 'blocked-by-guardrail' as const, reason: guard.reason };
+}
+// ... proceed with EXECUTION, as Chapter 14 already BUILT it</code></pre>
+
+<h2>Why It Matters — This Ties Every Earlier Page Together</h2>
+<p>A real audit log is what lets a team actually verify this chapter's other safeguards worked as intended — confirming Chapter 19's own prompt-injection defense correctly labeled suspicious content, that Chapter 15's tool allowlist genuinely blocked an unauthorized call, or that Chapter 11's approval rule was never bypassed. Without this record, every other safeguard's effectiveness is a claim; with it, it's something a team can actually check.</p>
+
+<h2>Common Mistakes</h2>
+<ul>
+  <li><strong>Logging only successful actions, omitting blocked or errored ones.</strong> A blocked action is often the genuinely more important record — it's direct evidence a safeguard worked, exactly what a security review needs to confirm.</li>
+  <li><strong>Storing logs in a way that allows silent, later modification.</strong> Append-only storage, ideally to a system the agent itself can't overwrite, is what makes the log genuinely trustworthy as a real record.</li>
+</ul>
+
+<h2>Best Practices</h2>
+<ul>
+  <li>Log every real decision point — executed, blocked, and errored actions alike — not just the successful path.</li>
+  <li>Keep audit logs append-only and, where genuinely feasible, stored somewhere the agent process itself cannot modify or delete.</li>
+</ul>
+
+<h2>Hands-On Exercise</h2>
+<p>Add this page's audit logging to a real agent from Chapter 13 or 14 in your own project. Run it against a real or simulated objective, deliberately triggering at least one guardrail block, and review the resulting log to confirm it genuinely captures every real decision point.</p>
+
+<h2>Key Takeaways</h2>
+<ul>
+  <li>Untraceable actions was the second genuinely new risk this chapter opened with — a real audit log is the direct, working answer to it.</li>
+  <li>Append-only, complete logging — including blocked and errored actions, not just successes — is what makes a log trustworthy as an actual record.</li>
+  <li>This capability is what ties every other page in this chapter together, turning claims about safeguards working into something a team can actually verify.</li>
+</ul>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Beginner: What are the two genuinely new security risks this chapter introduces, beyond what earlier chapters already covered?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Prompt injection — malicious content embedded in a real page an autonomous agent visits, designed to hijack its behavior — and untraceable actions, the lack of a real record of what an agent did and why. The other four risk categories this chapter covers extend real discipline already established in Chapters 8, 11, 13, and 15; these two are genuinely new to this track.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Beginner: Why does an autonomous exploring agent face a security risk that a traditional, fixed Playwright script never encounters?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A traditional script only ever executes exactly what a human wrote — its behavior is fully determined by its own code, with no room for external content to influence what it does next. An autonomous agent, especially Chapter 13's exploratory kind, genuinely decides its own next action based on what it observes, including real content from pages nobody on the team wrote or reviewed — which is exactly what creates an opening for prompt injection that a fixed script structurally cannot have.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Intermediate: Explain why the prompt injection defense in this chapter is described as necessary but not sufficient on its own.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Wrapping page content in an explicit data boundary reduces the risk that injected text gets treated as a genuine instruction, but it's a framing technique, not a guarantee — a sufficiently crafted piece of content could still potentially influence the model's reasoning despite the boundary. This is exactly why the chapter insists on combining it with Chapter 13's action-level allowlist: even if injected content somehow influenced what the model wanted to do next, the allowlist would still block a genuinely dangerous action like deleting orders, providing a second, independent layer that doesn't depend on the first layer working perfectly.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Intermediate: Using the human-in-the-loop framework, explain why Chapter 13's exploration itself doesn't require approval, but a fix generated from an exploration finding does.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>The framework's real question is whether an action changes something persistent — source code, production data, a real customer-facing system. Exploration itself is read-only: observing a page, generating a hypothesis, and testing it against the live application produces a report, but changes nothing lasting. A fix generated from a finding during that exploration is different — it proposes an actual, persistent change to source code, which is exactly the category Chapter 11's rule was built for. The distinction isn't about which chapter a capability comes from; it's about whether the specific action itself is persistent or not.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Advanced: Why does this chapter insist that audit logs include blocked and errored actions, not just successfully executed ones?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A blocked action is direct, positive evidence that a safeguard — a guardrail, an allowlist, a permission restriction — actually did its job when it mattered. Logging only successes would mean a security review has no way to confirm these safeguards ever actually triggered, versus simply never having been tested by a real attempted violation. If an agent never once has a blocked entry in its log, that's ambiguous: it could mean the safeguards are working exactly as intended, or it could mean nothing has ever actually exercised them. A complete log, including blocked and errored actions, is what turns "we have safeguards" into something a team can verify actually functioned as designed.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Scenario-based: A teammate proposes only logging an agent's actions when something goes wrong, to reduce log volume and storage cost. How would you respond, using this chapter's own reasoning?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd point to why this chapter frames audit logging as the connective thread tying every other safeguard together — a log that only captures failures can't confirm that Chapter 19's other defenses, like the prompt-injection boundary or the permission restrictions, are genuinely working during normal operation, since there's no successful-action baseline to compare against. If a genuinely concerning pattern only becomes visible by comparing against normal behavior — say, an agent attempting an unusual sequence of actions that individually succeed but collectively look suspicious — a failures-only log would miss it entirely, since nothing in that sequence necessarily triggered an error. The real cost tradeoff here favors completeness: storage for structured, appended JSONL entries is genuinely cheap compared to the value of being able to reconstruct exactly what an autonomous agent did during any given run, successful or not.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

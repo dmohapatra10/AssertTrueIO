@@ -1,0 +1,109 @@
+<!doctype html>
+<html><head>
+<title>AI-Based Validation</title>
+<meta name="description" content="The real, working Role 2 implementation — sending content to a model for a genuine judgment call, with a structured, reviewable result instead of a bare pass or fail." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/ai-based-validation.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>AI-Based Validation</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="semantic-assertions-and-content-validation.html">Semantic Assertions and Content Validation</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Building a real, working Role 2 validation function</li>
+  <li>Returning a structured judgment with reasoning, not a bare boolean</li>
+  <li>Running it against ShopSmart's promo code error message</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>The previous page identified genuine judgment-call content; this page builds the real function that judges it. Unlike Chapters 3 through 6's structured JSON responses, the output here is deliberately not just a boolean — a bare true or false hides exactly the reasoning a human would need to trust or challenge the result.</p>
+
+<h2 id="step-by-step-implementation">Step-by-Step Implementation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/ai-content-validation.ts
+import { askClaude } from './ai-client';
+
+export interface ContentJudgment {
+  meetsRequirement: boolean;
+  reasoning: string;
+  confidence: 'high' | 'medium' | 'low';
+}
+
+export async function validateContentSemantically(
+  content: string, requirement: string
+): Promise&lt;ContentJudgment&gt; {
+  const prompt = `Content to evaluate: "${content}"
+Requirement: "${requirement}"
+
+Judge whether this content genuinely meets the requirement.
+This is a real judgment call, not a search for an exact string
+match — evaluate based on whether a real user would find this
+content clear and appropriate for the stated requirement.
+
+Respond with ONLY valid JSON:
+{"meetsRequirement": boolean, "reasoning": string,
+"confidence": "high" | "medium" | "low"}`;
+
+  const raw = await askClaude(prompt);
+  const parsed = JSON.parse(raw);
+  if (typeof parsed.meetsRequirement !== 'boolean') {
+    throw new Error(`Expected a boolean judgment but got: ${raw.slice(0, 200)}`);
+  }
+  return parsed;
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p><code>reasoning</code> is the genuinely important field here, not <code>meetsRequirement</code> alone. A bare boolean tells you the model's conclusion; the reasoning tells you whether that conclusion is actually sound — the same distinction this tutorial has cared about since Chapter 1's honest treatment of confident-but-wrong output. <code>confidence</code> adds a further, useful signal: a low-confidence judgment deserves more human scrutiny than a high-confidence one, even when both say the same thing.</p>
+
+<h2 id="example-judging-shopsmart-s-promo-code-error">Example — Judging ShopSmart's Promo Code Error</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const judgment = await validateContentSemantically(
+  "This promo code has expired or doesn't exist — double-check the code and try again",
+  "The error message should clearly explain why the promo code was rejected and suggest a next step"
+);
+
+// A REAL, useful judgment:
+// {
+//   meetsRequirement: true,
+//   reasoning: "The message explains two possible causes (expired
+//     or nonexistent) and suggests a clear next step (double-check
+//     and retry), meeting the stated requirement.",
+//   confidence: "high"
+// }</code></pre>
+
+<h2 id="why-it-matters-using-this-result-in-a-real-test">Why It Matters — Using This Result in a Real Test</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('promo code error message is genuinely helpful', async ({ page }) => {
+  await submitInvalidPromoCode(page);
+  const errorText = await page.getByRole('alert').textContent();
+
+  const judgment = await validateContentSemantically(
+    errorText ?? '',
+    'Clearly explains rejection reason and suggests a next step'
+  );
+
+  expect(judgment.meetsRequirement, judgment.reasoning).toBe(true);
+  // The REASONING becomes part of the TEST'S OWN failure
+  // message — a failing run tells a human WHY, immediately,
+  // not just THAT it failed</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Discarding <code>reasoning</code> and using only the boolean.</strong> This throws away exactly the information a human needs to trust or challenge a judgment call, turning a nuanced evaluation back into an opaque pass or fail.</li>
+  <li><strong>Treating every judgment result identically regardless of <code>confidence</code>.</strong> A low-confidence result is genuinely worth flagging for closer human review, not treating the same as a high-confidence one.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Always surface <code>reasoning</code> in test output — Playwright's own <code>expect(..., message)</code> pattern above is a simple, real way to do this.</li>
+  <li>Treat this function's result as a genuine judgment to review, especially at lower confidence — not an infallible, final verdict.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Run this page's function against two versions of a ShopSmart validation message — one genuinely helpful, one technically accurate but vague ("Error: invalid input"). Compare the judgments and reasoning for both, and confirm the confidence levels feel genuinely calibrated to how clear-cut each case is.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Role 2 validation returns a structured judgment with reasoning and confidence, not a bare boolean — this is what makes a genuine judgment call reviewable rather than opaque.</li>
+  <li>Surfacing reasoning directly in test failure output turns "the test failed" into "the test failed, and here's why," genuinely useful for whoever investigates.</li>
+  <li>This is real, working Role 2 — and it's exactly why the next two pages exist, to be explicit about when this approach is and isn't the right call.</li>
+</ul>
+</article>
+</body></html>

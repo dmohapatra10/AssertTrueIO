@@ -1,0 +1,151 @@
+<!doctype html>
+<html><head>
+<title>RestAssured JWT Authentication: Structure, Validation, and Testing</title>
+<meta name="description" content="How JWTs are structured (header, payload, signature), how to decode and validate them in tests, and common JWT-related testing scenarios in RestAssured." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/jwt-authentication.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>JWT Authentication</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="oauth2-authentication.html">OAuth 2.0 Authentication</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>A JWT (JSON Web Token) is a specific, self-contained token format — often what's actually inside the "access token" an OAuth flow hands you. Unlike an opaque token (a random string the server looks up in a database), a JWT carries its own claims directly, readable by anyone who decodes it, though not modifiable without invalidating its signature.</p>
+
+<h2 id="jwt-structure-three-parts">JWT Structure — Three Parts</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4ifQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
+└──────── header ────────┘└──────────── payload ────────────┘└──────── signature ────────┘</code></pre>
+<ul>
+  <li><strong>Header</strong> — metadata about the token itself, typically the signing algorithm used (e.g., <code>HS256</code>).</li>
+  <li><strong>Payload</strong> — the actual claims: who the token represents, when it was issued, when it expires, and any custom claims (roles, permissions) the API includes.</li>
+  <li><strong>Signature</strong> — a cryptographic signature over the header and payload, verifying the token hasn't been tampered with since it was issued.</li>
+</ul>
+<p>Each of the three parts is base64-encoded and joined with periods — which is why a JWT is human-recognizable at a glance (three dot-separated segments) even before you decode it.</p>
+
+<h2 id="decoding-a-jwt-s-payload-in-a-test">Decoding a JWT's Payload in a Test</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import com.auth0.jwt.JWT;
+import com.auth0.jwt.interfaces.DecodedJWT;
+
+String token = obtainedAccessToken; // e.g. from a login response
+
+DecodedJWT decoded = JWT.decode(token);
+String subject = decoded.getSubject();
+String role = decoded.getClaim("role").asString();
+Date expiresAt = decoded.getExpiresAt();
+
+assertThat(role, equalTo("admin"));
+assertThat(expiresAt, is(notNullValue()));</code></pre>
+<p>Decoding a JWT's payload — reading its claims — doesn't require verifying its signature or even knowing the signing secret; the payload is just base64-encoded, not encrypted. This means you can inspect what a token actually claims (its role, expiration, subject) directly in a test, which is genuinely useful for confirming the API issued a token with the correct claims, independent of whether the token is later accepted or rejected by a protected endpoint.</p>
+
+<h2 id="detailed-example-confirming-login-issues-a-token-with-correct-claims">Detailed Example — Confirming Login Issues a Token With Correct Claims</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void loginIssuesJwtWithCorrectRoleClaim() {
+    Response response =
+        given()
+            .body(Map.of("email", "admin@example.com", "password", "secret"))
+        .when()
+            .post("/login");
+
+    response.then().statusCode(200);
+    String token = response.jsonPath().getString("token");
+
+    DecodedJWT decoded = JWT.decode(token);
+    assertThat(decoded.getClaim("role").asString(), equalTo("admin"));
+    assertThat(decoded.getSubject(), equalTo("admin@example.com"));
+}</code></pre>
+<p>This test verifies something a plain "did the login succeed" check wouldn't catch: that the issued token's actual claims correctly reflect who logged in, independent of whether a later request using that token behaves correctly.</p>
+
+<h2 id="real-world-example-testing-token-validation-on-the-server-side">Real-World Example — Testing Token Validation on the Server Side</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void tamperedTokenSignatureIsRejected() {
+    String validToken = obtainAValidToken();
+    // Manually corrupt the signature segment — simulating tampering
+    String[] parts = validToken.split("\\\\.");
+    String tamperedToken = parts[0] + "." + parts[1] + ".corrupted-signature";
+
+    given()
+        .header("Authorization", "Bearer " + tamperedToken)
+    .when()
+        .get("/api/resource")
+    .then()
+        .statusCode(401); // must be rejected — signature verification failed
+}
+
+@Test
+void expiredTokenIsRejected() {
+    String expiredToken = obtainATokenWithVeryShortExpiry();
+    waitUntilExpired(expiredToken);
+
+    given()
+        .header("Authorization", "Bearer " + expiredToken)
+    .when()
+        .get("/api/resource")
+    .then()
+        .statusCode(401);
+}</code></pre>
+<p>These two tests verify the server-side half of JWT security — that tampering with a token's contents (even slightly) invalidates its signature and gets rejected, and that an expired token is correctly refused even though its signature is still technically valid. Both are meaningfully different failure modes worth testing distinctly.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Manually parsing a JWT with string splitting and manual base64 decoding
+String[] parts = token.split("\\\\.");
+String payloadJson = new String(Base64.getDecoder().decode(parts[1]));
+// error-prone, and doesn't handle padding/URL-safe base64 variants correctly
+
+// ✅ Use a real JWT library
+DecodedJWT decoded = JWT.decode(token);
+String role = decoded.getClaim("role").asString();</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Manually parsing JWT segments with string splitting</strong> instead of using a proper JWT library — base64 URL-safe encoding and padding have real edge cases a hand-rolled parser easily gets wrong.</li>
+  <li><strong>Assuming a JWT's contents are secret</strong> — the payload is only encoded, not encrypted; never put genuinely sensitive data (a raw password, for instance) inside a JWT claim.</li>
+  <li><strong>Only testing that a valid token works</strong>, never a tampered or expired one — these are the two failure modes JWT signature verification and expiration checking specifically exist to catch.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Tokens signed with different algorithms</strong> (RS256 asymmetric vs. HS256 symmetric) — decoding works the same way regardless, but verifying a signature (if you need to, beyond just decoding) requires the correct public key or shared secret matching the algorithm actually used.</li>
+  <li><strong>Custom claims specific to your API</strong> — beyond the standard claims (subject, expiration, issuer), most real APIs add their own (roles, permissions, tenant IDs); know which custom claims matter for your specific tests.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If you're unsure what a JWT actually contains, paste it into a tool like jwt.io (for local/non-sensitive tokens only — never paste a real production token into a third-party site) to visually inspect its header and payload before writing test assertions against it.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Use a proper JWT library for decoding, never manual string/base64 parsing.</li>
+  <li>Remember JWT payloads are encoded, not encrypted — never rely on their contents being secret.</li>
+  <li>Test both tampered-signature and expired-token rejection as distinct, deliberate scenarios.</li>
+  <li>Confirm a token's claims (role, subject) match expectations, not just that authentication succeeded.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Obtain a JWT from a login endpoint, decode it, and write assertions confirming its subject and role claims match the user who logged in. Then write a second test that deliberately corrupts the token's signature and confirms the API rejects it with a 401.</p>
+
+<h2 id="summary">Summary</h2>
+<p>A JWT is a self-contained, three-part token (header, payload, signature) — decodable (but not modifiable without invalidating its signature) by anyone, since only the signature is cryptographically protected, not the payload itself. Testing JWT-secured APIs means both decoding tokens to verify their claims are correct, and testing that the server correctly rejects tampered or expired tokens.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Is it a security risk that anyone can decode a JWT's payload without knowing the signing secret?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Not inherently — JWTs are designed to be readable, not secret; the payload is base64-encoded for transport, not encrypted. The security guarantee a JWT provides is integrity, not confidentiality: the signature ensures nobody can modify the claims without invalidating the token, but it was never meant to hide the claims from view. The real risk is putting genuinely sensitive data (passwords, secrets) inside a JWT claim, assuming it's protected the way an encrypted value would be — it isn't, and that's a design mistake in how the token is used, not a flaw in JWT itself.</div>
+</details>
+<details class="faq-item">
+<summary>Is it a security risk that anyone can decode a JWT's payload without the signing secret?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Not inherently — JWTs are designed to be readable, not secret; the payload is base64-encoded for transport, not encrypted. The signature protects integrity (can't be modified undetected), not confidentiality.</div>
+</details>
+<details class="faq-item">
+<summary>What are the three parts of a JWT, and what does each contain?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Header (signing algorithm metadata), Payload (the actual claims — subject, expiration, custom fields), and Signature (cryptographic proof the token wasn't tampered with) — joined by periods, base64-encoded.</div>
+</details>
+<details class="faq-item">
+<summary>Why should you never put genuinely sensitive data directly inside a JWT claim?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The payload is only encoded, not encrypted — anyone who obtains the token can read its contents; a raw password or secret inside a claim is fully exposed, not protected the way an encrypted value would be.</div>
+</details>
+<details class="faq-item">
+<summary>What's the difference between testing a tampered token and an expired token?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A tampered token has an invalidated signature (should fail signature verification); an expired token has a valid signature but a past expiration timestamp — two genuinely distinct failure modes worth testing separately.</div>
+</details>
+</div>
+</article>
+</body></html>

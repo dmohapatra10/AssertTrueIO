@@ -1,0 +1,122 @@
+<!doctype html>
+<html><head>
+<title>RestAssured API Key Authentication: Header and Query Parameter Approaches</title>
+<meta name="description" content="How to test APIs secured with API keys in RestAssured — both header-based and query-parameter-based conventions, and the security tradeoffs between them." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/api-key-authentication.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>API Key Authentication</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="basic-and-bearer-authentication.html">Basic & Bearer Authentication</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>An API key is a single, typically long-lived credential — no login step required, unlike Bearer tokens. It's issued once (often through a developer portal or account settings) and sent with every request, in one of two conventions: a header, or a query parameter.</p>
+
+<h2 id="header-based-api-keys">Header-Based API Keys</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>given()
+    .header("X-API-Key", apiKey)
+.when()
+    .get("/weather")
+.then()
+    .statusCode(200);</code></pre>
+<p>This is the more common, and generally more secure, convention — the key doesn't appear in the URL, which means it's less likely to leak through server access logs, browser history, or a URL accidentally shared/screenshotted. The header name itself varies by API — <code>X-API-Key</code> is common but not universal; always check the specific API's documentation.</p>
+
+<h2 id="query-parameter-based-api-keys">Query-Parameter-Based API Keys</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>given()
+    .queryParam("apikey", apiKey)
+.when()
+    .get("/weather")
+.then()
+    .statusCode(200);</code></pre>
+<p>Some APIs (especially older or simpler ones) expect the key as a query parameter instead. This is generally considered less secure than the header approach — the key ends up directly in the URL, which is far more likely to be logged, cached, or accidentally exposed than a header value. Testing an API you don't control means matching whichever convention it actually uses, regardless of which one is "better."</p>
+
+<h2 id="detailed-example-testing-both-valid-and-invalid-keys">Detailed Example — Testing Both Valid and Invalid Keys</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void validApiKeyReturns200() {
+    given().header("X-API-Key", validKey).when().get("/weather").then().statusCode(200);
+}
+
+@Test
+void invalidApiKeyReturns401() {
+    given().header("X-API-Key", "clearly-not-a-real-key").when().get("/weather")
+        .then().statusCode(401);
+}
+
+@Test
+void missingApiKeyReturns401() {
+    given().when().get("/weather").then().statusCode(401);
+}</code></pre>
+<p>The same three-case pattern from Basic/Bearer auth applies here — valid, invalid, and missing — each a genuinely distinct scenario worth its own test.</p>
+
+<h2 id="real-world-example-an-api-key-that-s-rate-limited-per-key">Real-World Example — An API Key That's Rate-Limited Per Key</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void rateLimitHeadersReflectPerKeyUsage() {
+    Response response = given().header("X-API-Key", apiKey).when().get("/weather");
+
+    response.then().statusCode(200);
+    String remaining = response.getHeader("X-RateLimit-Remaining");
+    assertThat(Integer.parseInt(remaining), greaterThanOrEqualTo(0));
+}</code></pre>
+<p>Many API-key-based services tie rate limiting directly to the key rather than to the authenticated user (since there may be no separate "user" concept at all) — worth testing that rate-limit headers actually reflect usage against your specific key, tying back to the Response Header Validation page from Chapter 4.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Committing a real API key directly into test source code, version control, or CI config in plain text
+given().header("X-API-Key", "sk_live_abc123realkey").when().get("/weather");
+
+// ✅ Reading it from an environment variable, never committed anywhere
+given().header("X-API-Key", System.getenv("WEATHER_API_KEY")).when().get("/weather");</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Committing a real API key to version control</strong>, even in a test file — treat it with the same care as any other secret.</li>
+  <li><strong>Assuming every API uses the same header name or query parameter name</strong> for its key — this varies significantly; always check the specific API's documentation rather than assuming a convention.</li>
+  <li><strong>Never testing the invalid/missing key paths</strong>, only the happy path with a known-good key.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>API keys with usage quotas</strong> (a limited number of calls per day/month) — running a full test suite repeatedly against a real, quota-limited key can exhaust it; consider whether a dedicated, higher-quota test key is available, or whether some tests should be mocked instead (Chapter 11 covers this tradeoff for Playwright-style network mocking, though RestAssured's equivalent tooling is more limited).</li>
+  <li><strong>Keys scoped to specific IP addresses or domains</strong> — a CI runner's IP may need to be allowlisted separately from a developer's local machine.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If an API-key-authenticated request unexpectedly fails, confirm you're using the exact header or query parameter name the API's documentation specifies — a near-miss (<code>Api-Key</code> vs. <code>X-API-Key</code>, for instance) produces the same 401 as a genuinely wrong key, and it's easy to assume the key itself is invalid when the real issue is the parameter name.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Read API keys from environment variables or a secrets manager, never hardcoded.</li>
+  <li>Confirm the exact header/query parameter name and convention from the specific API's documentation.</li>
+  <li>Test valid, invalid, and missing key scenarios as three distinct cases.</li>
+  <li>Be mindful of usage quotas on shared or rate-limited test keys.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Find a public API that uses header-based API key authentication (many weather or geocoding APIs offer free tiers), write a test confirming a valid key succeeds, and a second test confirming a deliberately malformed key returns the API's actual documented error response.</p>
+
+<h2 id="summary">Summary</h2>
+<p>API keys are simple, typically long-lived credentials sent via a header (more secure, more common) or a query parameter (less secure, still common with older APIs) — no login step required. Test valid, invalid, and missing key scenarios distinctly, and always source keys from environment variables rather than hardcoding them.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why is a header-based API key generally considered more secure than a query-parameter-based one?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A query parameter becomes part of the URL itself, which is far more likely to be captured incidentally — in server access logs, browser history, proxy logs, or even accidentally shared when someone copies a URL to send to a colleague. A header is not part of the URL and is generally excluded from those same logging and caching paths by default, making accidental exposure meaningfully less likely, even though neither approach is as secure as a properly scoped, short-lived OAuth token.</div>
+</details>
+<details class="faq-item">
+<summary>Why is a header-based API key generally more secure than a query-parameter-based one?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A query parameter becomes part of the URL, far more likely to be captured in server access logs, browser history, or accidentally shared; a header isn't part of the URL and is excluded from those same logging paths by default.</div>
+</details>
+<details class="faq-item">
+<summary>Why might running rate-limit tests routinely against a shared API key be risky?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It can exhaust a shared, quota-limited key's usage or disrupt other tests/users depending on the same limit — worth considering a dedicated, higher-quota test key instead.</div>
+</details>
+<details class="faq-item">
+<summary>What are the three canonical scenarios worth testing for API key auth?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Valid key (success), invalid key (401), and missing key entirely (401) — each a genuinely distinct case worth its own test.</div>
+</details>
+<details class="faq-item">
+<summary>Why isn't there one universal header name for API keys across all APIs?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The convention varies by API — X-API-Key is common but not universal; always check the specific API's documentation rather than assuming a standard name.</div>
+</details>
+</div>
+</article>
+</body></html>

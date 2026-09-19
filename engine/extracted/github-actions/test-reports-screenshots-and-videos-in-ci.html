@@ -1,0 +1,107 @@
+<!doctype html>
+<html><head>
+<title>Publishing Test Reports, Screenshots &amp; Videos as GitHub Actions Artifacts</title>
+<meta name="description" content="Publishing Playwright reports, screenshots, videos, and logs as artifacts, and why if: always() matters specifically for making sure a failed test&#x27;s evidence is actually preserved." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/test-reports-screenshots-and-videos-in-ci.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Test Reports, Screenshots &amp; Videos in CI</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="downloading-artifacts-and-passing-data-between-jobs.html">Downloading Artifacts & Passing Data Between Jobs</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Test artifacts — an HTML report, a failure screenshot, a recorded video — are arguably the single most valuable, most commonly used application of everything covered in this chapter. This page applies the upload pattern specifically to automation test output, tying directly into this site's Playwright track.</p>
+
+<h2 id="publishing-a-playwright-html-report">Publishing a Playwright HTML Report</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>- name: Run Playwright tests
+  run: npx playwright test
+
+- name: Upload Playwright report
+  if: always()
+  uses: actions/upload-artifact@v4
+  with:
+    name: playwright-report
+    path: playwright-report/
+    retention-days: 14</code></pre>
+<p>The <code>if: always()</code> here is genuinely essential, not optional — without it, a failing test stops the job (default fail-fast behavior from Chapter 4), and the upload step never runs at all, meaning the exact run that most needed investigating leaves no report behind whatsoever.</p>
+
+<h2 id="screenshots-and-videos-on-failure">Screenshots and Videos on Failure</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>- name: Upload failure screenshots
+  if: failure()
+  uses: actions/upload-artifact@v4
+  with:
+    name: failure-screenshots
+    path: test-results/**/*.png</code></pre>
+<p><code>if: failure()</code> (rather than <code>always()</code>) specifically uploads only when something genuinely failed — appropriate here, since screenshots are typically only generated on failure in the first place, so uploading them unconditionally wouldn't find anything to upload on a successful run anyway.</p>
+
+<h2 id="detailed-example-a-complete-playwright-ci-job">Detailed Example — A Complete Playwright CI Job</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  ui-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm ci
+      - run: npx playwright install --with-deps
+      - name: Run tests
+        run: npx playwright test
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14</code></pre>
+<p>This connects directly back to the Playwright track's own CI/CD coverage — this site's Playwright track goes further into sharding and multi-browser strategies in its own dedicated page: <a href="../playwright/github-actions-cicd.html">Playwright with GitHub Actions: A Complete CI/CD Pipeline</a>.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might a team specifically set <code>retention-days: 14</code> rather than leaving the artifact at whatever the repository's default retention is? Test reports genuinely accumulate — dozens of runs a day across an active project — and most are never actually looked at again once a run is confirmed passing. A shorter, deliberate retention period for test reports specifically balances "keep it long enough to investigate a recent failure" against "don't accumulate an unbounded amount of rarely-needed storage."</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Forgetting <code>if: always()</code> on a test report upload step, then discovering — precisely during the incident where it would have mattered most — that no report was ever actually published, because the default fail-fast behavior skipped the upload step entirely.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>Uploaded HTML reports (like Playwright's) can be downloaded and opened locally, but some teams additionally deploy them to a genuinely browsable location (like GitHub Pages) for easier access without needing to download and unzip an artifact first — worth considering for a team that reviews test reports frequently.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Always use <code>if: always()</code> for test reports specifically — a report from a failing run is often the most valuable one.</li>
+  <li>Use <code>if: failure()</code> for artifacts (like screenshots) that are genuinely only meaningful or only generated when something went wrong.</li>
+  <li>Set a deliberate, shorter retention period for high-volume test artifacts rather than relying on a long default.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li><code>if: always()</code> is essential for test report uploads — without it, a failing run's most valuable evidence never gets published.</li>
+  <li><code>if: failure()</code> is appropriate specifically for artifacts that only exist or matter when something failed.</li>
+  <li>This site's Playwright track covers the complete, deeper CI/CD pipeline for UI test reporting in its own dedicated page.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>For a hypothetical test suite that generates a JSON results file on every run and a video recording only on failure, write the two separate upload steps this would need, using the correct <code>if:</code> condition for each.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why is if: always() specifically essential for a test report upload step, rather than optional polish?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">By default, a failing step stops the rest of a job's remaining steps, which would mean the report-upload step never runs at all when tests actually fail. Since a failing run's report is often exactly the one worth investigating, if: always() ensures the upload happens regardless of the test outcome, rather than silently skipping it in precisely the situation where it matters most.</div>
+</details>
+<details class="faq-item">
+<summary>Why would if: failure() be more appropriate than if: always() for uploading failure screenshots specifically?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Failure screenshots are typically only generated by the test framework when something actually fails in the first place — on a successful run, there's usually nothing to upload. Using if: failure() correctly reflects this reality, only attempting the upload when it's actually meaningful, rather than running unconditionally and finding nothing there on successful runs.</div>
+</details>
+<details class="faq-item">
+<summary>Why might a team set a shorter, explicit retention period specifically for test report artifacts?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Test reports accumulate quickly in an active project with many runs per day, and most are never revisited once a run is confirmed successful. A deliberately shorter retention period balances keeping recent reports available long enough to investigate a failure against not accumulating an ever-growing, rarely-needed volume of stored artifacts over time.</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page connect to the Playwright track's own GitHub Actions coverage rather than fully repeating it?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The Playwright track already covers its own complete CI/CD pipeline in depth, including topics like test sharding and multi-browser execution strategies that go beyond this chapter's general artifact-publishing focus. This page's role is applying this chapter's general artifact concepts specifically to test reporting, then pointing to the deeper, framework-specific coverage that already exists rather than duplicating it.</div>
+</details>
+<details class="faq-item">
+<summary>Why might some teams deploy an uploaded HTML test report to a location like GitHub Pages instead of only relying on the artifact itself?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">An artifact must be downloaded and unzipped before an HTML report can actually be viewed, which adds friction for a team that reviews test reports frequently. Deploying the same report to a genuinely browsable location provides immediate, direct access without that extra download-and-extract step, which can matter for a team's actual day-to-day workflow around reviewing test results.</div>
+</details>
+</div>
+</article>
+</body></html>

@@ -1,0 +1,134 @@
+<!doctype html>
+<html><head>
+<title>Multiple RestAssured Specifications for Different APIs and Environments</title>
+<meta name="description" content="How to manage multiple RequestSpecifications in one RestAssured project — different APIs, different roles, and different environments — without duplicating logic." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/multiple-specifications-for-different-apis.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Multiple Specifications for Different APIs</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="response-specification-deep-dive.html">ResponseSpecification Deep Dive</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Real projects often need more than one specification — a different base API to test against, different authenticated roles, or an unauthenticated spec for the login request itself. This page is about managing several specs cleanly, without duplicating the logic that builds each one.</p>
+
+<h2 id="why-one-spec-usually-isn-t-enough">Why One Spec Usually Isn't Enough</h2>
+<p>A single hardcoded <code>RequestSpecification</code> works fine for a project testing one API with one role. Real projects are rarely that simple — a microservices architecture might mean testing several genuinely different base APIs; role-based testing (Chapter 6) needs a differently-authenticated spec per role; and the very first request in most test suites (logging in) can't use an authenticated spec at all, since there's no token yet.</p>
+
+<h2 id="basic-example-separate-specs-for-different-services">Basic Example — Separate Specs for Different Services</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>RequestSpecification usersServiceSpec =
+    new RequestSpecBuilder()
+        .setBaseUri(System.getenv("USERS_SERVICE_URL"))
+        .setContentType(ContentType.JSON)
+        .build();
+
+RequestSpecification ordersServiceSpec =
+    new RequestSpecBuilder()
+        .setBaseUri(System.getenv("ORDERS_SERVICE_URL"))
+        .setContentType(ContentType.JSON)
+        .build();
+
+given().spec(usersServiceSpec).when().get("/users/42").then().statusCode(200);
+given().spec(ordersServiceSpec).when().get("/orders/500").then().statusCode(200);</code></pre>
+<p>In a microservices architecture, different services often live at genuinely different base URLs — a shared spec per service, rather than one spec trying to serve every service, keeps each one correctly scoped to its own base URI.</p>
+
+<h2 id="detailed-example-unauthenticated-vs-authenticated-specs">Detailed Example — Unauthenticated vs. Authenticated Specs</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>RequestSpecification unauthenticatedSpec =
+    new RequestSpecBuilder()
+        .setBaseUri(System.getenv("API_BASE_URL"))
+        .setContentType(ContentType.JSON)
+        .build();
+
+// The login request itself CANNOT use an authenticated spec — there's no token yet
+String token = given().spec(unauthenticatedSpec).body(credentials).when().post("/login")
+    .then().statusCode(200).extract().path("token");
+
+RequestSpecification authenticatedSpec =
+    new RequestSpecBuilder()
+        .setBaseUri(System.getenv("API_BASE_URL"))
+        .setContentType(ContentType.JSON)
+        .addHeader("Authorization", "Bearer " + token)
+        .build();
+
+given().spec(authenticatedSpec).when().get("/profile").then().statusCode(200);</code></pre>
+<p>This is a genuine, common chicken-and-egg problem: you need a spec to make the login request, but the login request is exactly what produces the token the authenticated spec needs. The resolution is always the same shape — a minimal unauthenticated spec for the login step itself, and a separate, richer authenticated spec built afterward using the result.</p>
+
+<h2 id="real-world-example-role-scoped-specs-built-via-a-factory-method">Real-World Example — Role-Scoped Specs Built via a Factory Method</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>public class SpecFactory {
+    public static RequestSpecification forRole(String role) {
+        return new RequestSpecBuilder()
+            .setBaseUri(System.getenv("API_BASE_URL"))
+            .setContentType(ContentType.JSON)
+            .addHeader("Authorization", "Bearer " + TokenManager.getTokenForRole(role))
+            .build();
+    }
+}
+
+// Usage:
+given().spec(SpecFactory.forRole("admin")).when().get("/admin/users").then().statusCode(200);
+given().spec(SpecFactory.forRole("user")).when().get("/admin/users").then().statusCode(403);</code></pre>
+<p>Rather than manually building and storing a separate static spec for every possible role, a small factory method builds one on demand for whichever role a specific test needs — combining directly with the per-role token caching from Chapter 6, and scaling cleanly to however many roles the project actually has without needing a hardcoded static field for each one.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ One spec, manually mutated per test to switch roles —
+// error-prone, and easy to accidentally leave in the wrong state for a later test
+RequestSpecification sharedSpec = buildBaseSpec();
+sharedSpec = sharedSpec.header("Authorization", "Bearer " + adminToken); // mutating shared state
+
+// ✅ A factory producing a fresh, correctly-scoped spec per call, no shared mutable state
+given().spec(SpecFactory.forRole("admin")).when().get("/admin/users");</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Trying to force one spec to serve multiple genuinely different APIs or roles</strong> by mutating it between tests — risks state leaking between tests that shouldn't share it.</li>
+  <li><strong>Forgetting the login request itself needs an unauthenticated spec</strong> — a common chicken-and-egg oversight when first introducing specs to an existing suite.</li>
+  <li><strong>Hardcoding a static spec per role</strong> instead of a factory method, when the actual number of roles is large or grows over time.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>A project testing genuinely unrelated third-party APIs</strong> alongside its own — each deserves its own completely separate spec, with no attempt to share configuration that doesn't actually overlap.</li>
+  <li><strong>Specs that need per-test customization beyond just role</strong> (a specific locale header, a feature flag) — a factory method can accept additional parameters beyond just role to accommodate this.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a test seems to be using the wrong base URI or authentication, confirm which specific spec object it's actually referencing — in a project with several specs, it's easy to accidentally apply the wrong one, especially after a refactor.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Give each genuinely distinct API or service its own spec, rather than forcing one spec to serve multiple bases.</li>
+  <li>Use a minimal unauthenticated spec specifically for the login step, separate from the authenticated spec built afterward.</li>
+  <li>Use a factory method for role-scoped (or otherwise parameterized) specs rather than a hardcoded static field per variant.</li>
+  <li>Avoid mutating a shared spec object between tests — build fresh, correctly-scoped instances instead.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Build a <code>SpecFactory</code> with a method that returns a role-scoped, authenticated <code>RequestSpecification</code>, and a separate method that returns a minimal unauthenticated spec for login. Use both across a small test scenario: log in via the unauthenticated spec, then use the resulting token with a role-scoped spec for a follow-up request.</p>
+
+<h2 id="summary">Summary</h2>
+<p>Real projects often need more than one specification — separate specs per service in a microservices architecture, an unauthenticated spec for the login step itself, and role-scoped specs (often built via a factory method) for role-based testing. The unifying principle: give each genuinely distinct concern its own spec rather than forcing one spec to awkwardly serve everything, and avoid mutating shared spec state between tests.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why can't a single authenticated RequestSpecification be used for the login request itself?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">An authenticated spec includes an Authorization header built from a token — but the login request is exactly what produces that token in the first place. There's no token yet at the point the login request needs to be made, so it has to use a separate, minimal spec (typically just base URI and content type, no auth header) — only after the login succeeds and a token is extracted can an authenticated spec be built and used for every subsequent request.</div>
+</details>
+<details class="faq-item">
+<summary>Why might a project testing a microservices architecture need multiple RequestSpecifications?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Different services often live at genuinely different base URLs; a shared spec per service, rather than one spec forced to serve all of them, keeps each one correctly scoped to its own base URI.</div>
+</details>
+<details class="faq-item">
+<summary>What's the chicken-and-egg problem multiple specs need to resolve for authentication?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">You need a spec to make the login request, but the authenticated spec needs the login's own result (the token) — resolved with a minimal unauthenticated spec for login itself, and a richer authenticated spec built afterward.</div>
+</details>
+<details class="faq-item">
+<summary>Why use a factory method for role-scoped specs rather than a hardcoded static field per role?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A factory method scales cleanly to however many roles a project actually has, building a correctly-scoped spec on demand, rather than requiring a manually maintained static field for every possible role.</div>
+</details>
+<details class="faq-item">
+<summary>Why avoid mutating a shared spec object between tests to switch roles?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It risks state leaking between tests that shouldn't share it — a factory producing a fresh, correctly-scoped instance per call avoids this shared-mutable-state risk entirely.</div>
+</details>
+</div>
+</article>
+</body></html>

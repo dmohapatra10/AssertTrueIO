@@ -1,0 +1,70 @@
+<!doctype html>
+<html><head>
+<title>Prompts and Context</title>
+<meta name="description" content="The genuine difference between a system prompt and a user prompt, and why giving an LLM the right context is what separates a useful answer from a plausible-sounding guess." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/prompts-and-context.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Prompts and Context</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="how-llms-process-testing-instructions.html">How LLMs Process Testing Instructions</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>The genuine difference between a system prompt and a user prompt</li>
+  <li>What "context" means concretely, in a Playwright testing scenario</li>
+  <li>Why missing context is the single most common cause of a disappointing AI response</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>A prompt is what you send an LLM. That sounds simple, but two genuinely different kinds of prompt shape every interaction this tutorial builds: the system prompt, which sets standing behavior for an entire session, and the user prompt, which asks for something specific right now.</p>
+
+<h2 id="how-it-works-system-prompt-vs-user-prompt">How It Works — System Prompt vs User Prompt</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>SYSTEM PROMPT — set ONCE, applies to EVERYTHING that follows
+  "You are a QA assistant helping test ShopSmart, an
+  e-commerce application. Always respond with valid,
+  executable TypeScript Playwright code. Never invent
+  selectors — only use ones explicitly provided to you."
+
+USER PROMPT — the SPECIFIC ask, for THIS interaction
+  "Generate a test that adds a product to the cart and
+  verifies the cart count updates to 1."</code></pre>
+<p>The system prompt's constraint — "never invent selectors" — applies to every response for the rest of the session, without needing to repeat it in every user prompt. This is exactly the mechanism Chapter 3 uses to build a reliable AI client.</p>
+
+<h2 id="why-it-matters-context-is-what-makes-a-response-genuinely-useful">Why It Matters — Context Is What Makes a Response Genuinely Useful</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>WITHOUT context, asked "does this look like a good test for
+ShopSmart's cart":
+  The model can only GUESS at what "good" means for YOUR
+  application, based on GENERIC testing conventions
+
+WITH context — the ACTUAL cart page's structure, ShopSmart's
+ACTUAL business rules ("cart total must reflect any applied
+discount") — asked the SAME question:
+  The model can give a GENUINELY grounded answer, SPECIFIC
+  to what ShopSmart actually requires, not a generic guess</code></pre>
+
+<h2 id="example-a-real-context-starved-failure">Example — A Real Context-Starved Failure</h2>
+<p>Asked "is ShopSmart's checkout flow correct," with no context about ShopSmart's actual business rules, an LLM might confidently describe a GENERIC checkout flow — cart, shipping, payment, confirmation — that happens to be wrong for ShopSmart specifically, which requires an email verification step before payment. The model wasn't being careless; it genuinely had no way to know this without being told. This is exactly why Chapter 4's test generation techniques are explicit about what context to provide.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Expecting an LLM to know application-specific rules it was never given.</strong> Missing context, not model quality, is the most common cause of a disappointing response in this tutorial's experience.</li>
+  <li><strong>Repeating standing instructions in every single user prompt.</strong> That's exactly what a system prompt is for — set it once.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Put standing behavior and constraints in the system prompt; put the specific, current ask in the user prompt.</li>
+  <li>Before sending a testing instruction, ask "does the model actually have what it needs to answer this correctly about MY application specifically?"</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Write a system prompt for a ShopSmart-focused QA assistant, including at least two standing constraints (like "never invent selectors"). Then write a user prompt asking it to generate one specific test. Notice how much shorter the user prompt can be because the system prompt already did real, standing work.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>A system prompt sets standing behavior for an entire session; a user prompt asks for something specific right now — conflating them leads to repetitive, less reliable prompting.</li>
+  <li>Context is what turns a generic, plausible-sounding response into one genuinely grounded in your specific application.</li>
+  <li>Missing context, not model limitation, is usually the real cause when an AI response disappoints.</li>
+</ul>
+</article>
+</body></html>

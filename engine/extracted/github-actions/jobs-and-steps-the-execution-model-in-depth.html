@@ -1,0 +1,105 @@
+<!doctype html>
+<html><head>
+<title>Jobs &amp; Steps in GitHub Actions: The Execution Model in Depth</title>
+<meta name="description" content="What actually happens when a GitHub Actions job runs — step order, step failure behavior, job isolation, and what genuinely does and doesn&#x27;t carry over between jobs." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/jobs-and-steps-the-execution-model-in-depth.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Jobs &amp; Steps: The Execution Model in Depth</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="jobs-steps-and-runners.html">Jobs, Steps & Runners overview</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Chapter 1 defined a job as "one distinct stage" and a step as "one instruction inside it." This page goes past the definition into what actually, mechanically happens — step order, what a failure does, and job isolation.</p>
+
+<h2 id="steps-run-sequentially-always">Steps Run Sequentially, Always</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>steps:
+  - run: echo "first"
+  - run: echo "second"
+  - run: echo "third"</code></pre>
+<p>Unlike jobs (which can run in parallel by default), steps within a single job always execute strictly in order, one completing before the next begins. There's no parallel-steps concept within a job — if you need genuine parallelism, that happens at the job level, not the step level.</p>
+
+<h2 id="what-happens-when-a-step-fails">What Happens When a Step Fails</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>steps:
+  - run: echo "step 1"
+  - run: exit 1          # this step fails
+  - run: echo "step 3"   # this step is SKIPPED, not run</code></pre>
+<p>By default, a failing step stops the rest of that job immediately — subsequent steps in the same job are skipped, and the whole job is marked as failed. This default can be changed (using <code>continue-on-error</code>, worth knowing exists even before its full depth is covered in a later chapter on failure handling), but the default is fail-fast within a job.</p>
+
+<h2 id="job-isolation-each-job-gets-a-fresh-runner">Job Isolation — Each Job Gets a Fresh Runner</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "hello" > message.txt
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: cat message.txt   # this FAILS — message.txt doesn't exist here</code></pre>
+<p>Each job runs on its own separate, fresh runner — nothing from one job's filesystem automatically exists in another's. This surprises people who assume jobs share an environment the way steps within one job do; they genuinely don't, by default. (Passing data or files between jobs deliberately is covered fully in a later chapter — this page is specifically about understanding why it doesn't happen automatically.)</p>
+
+<h2 id="detailed-example-tracing-a-job-that-partially-fails">Detailed Example — Tracing a Job That Partially Fails</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4     # ✅ succeeds
+      - run: npm ci                    # ✅ succeeds
+      - run: npm test                  # ❌ fails — tests don't pass
+      - run: npm run build             # ⏭️ SKIPPED — never runs
+      - run: echo "Build complete"     # ⏭️ SKIPPED — never runs
+
+Result: the "test" job is marked FAILED, having stopped at the
+        failing test step.</code></pre>
+<p>This is exactly the behavior worth expecting by default — a failed test step correctly prevents a build step from running afterward, since building on top of failing tests usually isn't meaningful.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might job isolation (each job getting a completely fresh environment) actually be a genuinely good default, rather than an inconvenience? It prevents one job's leftover state — a stray file, a modified environment variable, a partially-installed dependency — from silently affecting another job's results. Each job starting clean means a job's outcome depends only on what it actually, deliberately did, not on accumulated side effects from something that happened to run before it.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Assuming that because steps within a job share state naturally, jobs must too. This is a genuinely common early misunderstanding — steps do share the same runner and filesystem throughout a single job, but that sharing stops entirely at the job boundary.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>A step's name (an optional <code>name:</code> field) shows up directly in the Actions tab's log view — using descriptive step names makes reading through a long job's execution log significantly faster than relying on the raw command text alone.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Design steps within a job assuming strict, sequential order — never rely on later steps somehow running before earlier ones.</li>
+  <li>Don't assume any state automatically carries between jobs — treat each job as starting from a genuinely clean slate.</li>
+  <li>Use descriptive step names for anything beyond the most trivial single command, to make log-reading easier later.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Steps within a job always run sequentially — never in parallel with each other.</li>
+  <li>A failing step, by default, stops the rest of that job's remaining steps and marks the job failed.</li>
+  <li>Each job gets a completely fresh runner — nothing automatically carries over from one job to another.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Write out (in YAML, without necessarily running it) a job with four steps where the second step deliberately fails (using something like <code>run: exit 1</code>), and predict exactly which of the remaining steps would actually execute versus be skipped, before checking your prediction against this page's explanation.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Can two steps within the same job ever run in parallel with each other?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">No — steps within a single job always execute strictly in sequential order, one completing before the next begins. Genuine parallelism in GitHub Actions happens at the job level (multiple jobs running simultaneously on separate runners), not at the step level within one job.</div>
+</details>
+<details class="faq-item">
+<summary>By default, what happens to the remaining steps in a job after one step fails?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">By default, a failing step immediately stops execution of that job — every subsequent step is skipped, not run, and the entire job is marked as failed. This fail-fast behavior can be changed for specific steps using continue-on-error, but the default assumes that continuing past a failure usually doesn't make sense.</div>
+</details>
+<details class="faq-item">
+<summary>Why does a file created in one job typically not exist when a different job in the same workflow tries to read it?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Each job in a workflow runs on its own separate, freshly-provisioned runner — there's no shared filesystem between jobs by default. A file written during one job's steps exists only on that job's specific runner, which is discarded once the job completes; a different job has no access to it unless data is deliberately passed between jobs using a mechanism designed for that purpose.</div>
+</details>
+<details class="faq-item">
+<summary>Why might job isolation — each job starting completely fresh — actually be a beneficial design rather than a limitation?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Job isolation prevents leftover state from one job (a stray file, a modified environment variable, a partially completed install) from silently influencing a different job's outcome. This means each job's result depends only on what that job itself explicitly did, which makes a workflow's overall behavior far more predictable and easier to reason about than if jobs implicitly shared an environment.</div>
+</details>
+<details class="faq-item">
+<summary>In a job with five steps where the third one fails, how many total steps actually execute?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Three steps execute — the first two run normally, the third one runs and fails, and the fourth and fifth are both skipped as a direct consequence of the default fail-fast behavior within a job. The job as a whole is then marked as failed, reflecting that it didn't complete all of its intended steps.</div>
+</details>
+</div>
+</article>
+</body></html>

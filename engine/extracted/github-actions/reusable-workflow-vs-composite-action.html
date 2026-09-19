@@ -1,0 +1,116 @@
+<!doctype html>
+<html><head>
+<title>Reusable Workflow vs. Composite Action: A Real GitHub Actions Decision Guide</title>
+<meta name="description" content="A genuine decision guide for choosing between a reusable workflow and a composite action, with a real comparison table and worked examples of each choice." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/reusable-workflow-vs-composite-action.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Reusable Workflow vs. Composite Action: Choosing the Right One</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="composite-actions-explained.html">Composite Actions Explained</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Both solve duplication — but at genuinely different scales, with different real capabilities. This page is a direct decision guide, not new mechanics, since both have already been covered individually.</p>
+
+<h2 id="the-genuine-distinction">The Genuine Distinction</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Reusable workflow — an entire WORKFLOW: multiple jobs, its own triggers,
+                     its own runners; called at the JOB level
+Composite action  — a sequence of STEPS: no jobs of its own, no runner
+                     selection; called at the STEP level, within a job</code></pre>
+
+<h2 id="a-real-decision-guide">A Real Decision Guide</h2>
+<table>
+<thead><tr><th>Use a Reusable Workflow when</th><th>Use a Composite Action when</th></tr></thead>
+<tbody>
+<tr><td>You need multiple jobs, possibly with a matrix or job dependencies</td><td>You need a repeated sequence of steps, nothing more structurally complex</td></tr>
+<tr><td>Different jobs might need different runners (OS, matrix)</td><td>Everything runs within one job's existing runner</td></tr>
+<tr><td>The shared logic represents a genuine, complete pipeline stage</td><td>The shared logic is a smaller, repeated setup or utility sequence</td></tr>
+<tr><td>You need workflow-level outputs derived from multiple jobs</td><td>You need simple step-level outputs, nothing more elaborate</td></tr>
+</tbody>
+</table>
+
+<h2 id="detailed-example-the-same-real-need-solved-two-different-ways">Detailed Example — The Same Real Need, Solved Two Different Ways</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Need: "Every repository needs to check out code, set up Node.js,
+       and install dependencies before doing anything else."
+
+This is a SEQUENCE OF STEPS, not a whole pipeline stage on its own
+→ COMPOSITE ACTION is the right tool (covered on the previous page)
+
+
+Need: "Every repository needs a complete CI pipeline: build, run unit
+       tests, run API tests, run UI tests, and report results —
+       potentially across a matrix of Node versions."
+
+This is genuinely MULTIPLE JOBS, with real job-level structure
+→ REUSABLE WORKFLOW is the right tool</code></pre>
+
+<h2 id="real-world-example-using-both-together">Real-World Example — Using Both Together</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># A reusable workflow that ITSELF uses a composite action internally:
+
+# .github/workflows/shared-ci.yml (REUSABLE WORKFLOW)
+on:
+  workflow_call:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ./.github/actions/setup-project   # COMPOSITE ACTION, used inside
+      - run: npm run build
+  test:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ./.github/actions/setup-project   # reused again, same composite action
+      - run: npm test</code></pre>
+<p>These aren't mutually exclusive alternatives — a reusable workflow can genuinely use a composite action internally, getting the benefit of both: job-level structure from the workflow, step-level reuse from the action.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might a team building shared CI/CD infrastructure for an organization end up using both tools together, rather than choosing just one? The two solve genuinely different scales of duplication — a composite action eliminates repeated step sequences <em>within</em> a reusable workflow's own jobs, while the reusable workflow itself eliminates duplicated pipeline structure <em>across</em> repositories. Using both together applies DRY thinking at both levels simultaneously.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Trying to force a composite action to do something genuinely requiring multiple jobs — like running a matrix, or having one job's outcome affect another's execution. A composite action has no concept of jobs at all; if you find yourself wanting job-level structure inside what you thought was a composite action, that's a real signal you actually need a reusable workflow instead.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>When genuinely unsure which to use, a useful question: "does this shared thing need its own runner selection?" A composite action always runs within whatever job called it, using that job's existing runner — if the shared logic genuinely needs to choose or vary its own runner, that's a reusable workflow's job specifically.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Choose based on genuine structural need — job-level complexity favors a reusable workflow; step-level repetition favors a composite action.</li>
+  <li>Consider combining both — a reusable workflow using composite actions internally — when a shared pipeline has both kinds of duplication to solve.</li>
+  <li>Treat "does this need its own runner or job structure" as the deciding question when genuinely uncertain.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>A reusable workflow operates at the job level — multiple jobs, its own runners, matrix support; a composite action operates at the step level within one existing job.</li>
+  <li>The two aren't mutually exclusive — a reusable workflow can use composite actions internally for its own step-level reuse.</li>
+  <li>"Does this need its own runner or job structure" is the practical deciding question.</li>
+</ul>
+
+<h2 id="challenge">🏆 Challenge</h2>
+<p>For each of these three real needs, decide whether a reusable workflow or a composite action is the correct tool, and justify each in one sentence: (1) a shared sequence for authenticating to a cloud provider, used at the start of several different jobs, (2) a complete, multi-stage deployment pipeline shared across a dozen microservice repositories, (3) a shared "build and test across three Node versions" sequence used by two related repositories.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>What's the fundamental structural difference between a reusable workflow and a composite action?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A reusable workflow represents an entire workflow — potentially multiple jobs, each with its own runner selection, matrix support, and job dependencies — called at the job level using uses:. A composite action is a sequence of steps with no concept of jobs or runner selection of its own, called at the step level within whatever job is already using it.</div>
+</details>
+<details class="faq-item">
+<summary>Why might a team building shared CI infrastructure genuinely use both a reusable workflow and a composite action together?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The two solve duplication at different scales — a composite action can eliminate a repeated step sequence within a reusable workflow's own jobs, while the reusable workflow itself eliminates duplicated pipeline structure across many calling repositories. Using both together applies the same duplication-avoidance principle at both the step level and the job/pipeline level simultaneously.</div>
+</details>
+<details class="faq-item">
+<summary>What's a clear signal that something intended as a composite action actually needs to be a reusable workflow instead?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Needing genuine job-level structure — multiple jobs, a matrix strategy, job dependencies, or different runners for different parts of the logic — is a clear signal, since a composite action has no concept of jobs at all and always runs entirely within whatever single job is already using it. Wanting any of these capabilities means a reusable workflow is the actual correct tool.</div>
+</details>
+<details class="faq-item">
+<summary>Why is "does this shared thing need its own runner selection" a useful practical question for choosing between the two?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A composite action always executes within the existing runner of whatever job called it — it has no ability to choose or vary its own runner. If the shared logic genuinely needs to select or vary its own runner (a specific OS, a matrix of environments), that capability only exists at the job level, meaning a reusable workflow is the tool that actually supports it.</div>
+</details>
+<details class="faq-item">
+<summary>Can a reusable workflow's own jobs use a composite action internally?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Yes — a reusable workflow's jobs can call a composite action just like any other job's steps would, getting the benefit of both tools simultaneously: the reusable workflow provides job-level structure and cross-repository sharing, while the composite action eliminates repeated step sequences within that workflow's own jobs.</div>
+</details>
+</div>
+</article>
+</body></html>

@@ -1,0 +1,115 @@
+<!doctype html>
+<html><head>
+<title>Locator Validation</title>
+<meta name="description" content="Never blindly accept the top-ranked candidate — checking it genuinely exists and uniquely matches on the real page before trusting it at all." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/locator-validation.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Locator Validation</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="locator-candidate-ranking.html">Locator Candidate Ranking</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Why even the top-ranked candidate needs real, empirical validation before use</li>
+  <li>Checking existence and uniqueness — two genuinely different failure modes</li>
+  <li>Falling back to the next-ranked candidate when validation fails</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>The previous page's ranking is a real, principled choice — and it's still a prediction based on strategy type, not a guarantee the top candidate actually works on the real page. This page adds the genuine, empirical check: does it actually exist, and does it match exactly one element, not several.</p>
+
+<h2 id="step-by-step-implementation">Step-by-Step Implementation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/validate-locator-candidate.ts
+import { Page } from '@playwright/test';
+import { RankedCandidate } from './rank-locator-candidates';
+
+export interface CandidateValidation {
+  candidate: RankedCandidate;
+  exists: boolean;
+  isUnique: boolean;
+  valid: boolean;
+}
+
+async function resolveLocatorCode(code: string, page: Page) {
+  // A SMALL, deliberately scoped interpreter — NOT a general
+  // eval of arbitrary code, which would be a genuine security
+  // risk. Only the patterns THIS chapter's generation produces.
+  const roleMatch = code.match(/getByRole\('(\w+)', \{ name: '([^']+)' \}\)/);
+  if (roleMatch) return page.getByRole(roleMatch[1] as any, { name: roleMatch[2] });
+
+  const testIdMatch = code.match(/getByTestId\('([^']+)'\)/);
+  if (testIdMatch) return page.getByTestId(testIdMatch[1]);
+
+  const textMatch = code.match(/getByText\('([^']+)'\)/);
+  if (textMatch) return page.getByText(textMatch[1]);
+
+  throw new Error(`Unrecognized locator pattern: ${code}`);
+}
+
+export async function validateCandidate(
+  candidate: RankedCandidate, page: Page
+): Promise&lt;CandidateValidation&gt; {
+  const locator = await resolveLocatorCode(candidate.locatorCode, page);
+  const count = await locator.count();
+
+  return {
+    candidate,
+    exists: count &gt; 0,
+    isUnique: count === 1,
+    valid: count === 1,
+  };
+}
+
+export async function findFirstValidCandidate(
+  ranked: RankedCandidate[], page: Page
+): Promise&lt;CandidateValidation | null&gt; {
+  for (const candidate of ranked) {
+    const result = await validateCandidate(candidate, page);
+    if (result.valid) return result;
+  }
+  return null;
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p>Two genuinely different checks matter here, not one combined pass/fail. <code>exists</code> catches a candidate that matches nothing at all — a hallucinated element or a stale one. <code>isUnique</code> catches something equally real but different: a locator matching several elements, which would click or fill the wrong one unpredictably. Both failure modes are real, and conflating them into one boolean would hide which specific problem occurred.</p>
+
+<h2 id="example-validating-the-top-ranked-candidate-with-fallback">Example — Validating the Top-Ranked Candidate, With Fallback</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const result = await findFirstValidCandidate(ranked, page);
+
+if (result) {
+  console.log(`Valid candidate found: ${result.candidate.locatorCode}`);
+  // If the testId-based candidate DOESN'T actually exist —
+  // maybe the developer never added that attribute yet — this
+  // function automatically FALLS BACK to the role-based one,
+  // rather than failing on the first, merely HIGHEST-ranked
+  // candidate
+} else {
+  console.error('No valid candidate found among any ranked options.');
+}</code></pre>
+
+<h2 id="why-it-matters">Why It Matters</h2>
+<p>Ranking predicts what's LIKELY to be most stable; validation confirms what's ACTUALLY, currently true on the real page. These are genuinely different questions, and this page's fallback logic is what makes the pipeline resilient to the top-ranked prediction occasionally being wrong — exactly the kind of gap between confident-sounding and correct that Chapter 1 warned about, closed here with a real, empirical check rather than trust.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Accepting the top-ranked candidate without checking it exists on the real page.</strong> Ranking is a prediction, not a guarantee — this page's whole point is closing that gap with a genuine check.</li>
+  <li><strong>Treating a locator matching multiple elements as acceptable.</strong> <code>isUnique</code> exists because this failure mode is just as real and just as likely to cause a wrong click as a missing element.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Always fall back through ranked candidates in order, rather than stopping at the first one and failing outright if it doesn't validate.</li>
+  <li>Keep the small, pattern-based <code>resolveLocatorCode</code> scoped deliberately — never use a general code-evaluation approach for AI-generated strings, a genuine security risk this page's comment calls out directly.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Run this page's <code>findFirstValidCandidate</code> against the previous page's ranked candidates, but first remove ShopSmart's <code>data-testid</code> attribute in a local test environment to simulate it never having existed. Confirm the function correctly falls back to the role-based candidate.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Ranking predicts likely stability; validation confirms real, current correctness — both are genuinely necessary, and neither substitutes for the other.</li>
+  <li>Existence and uniqueness are two distinct, real failure modes that deserve separate checks, not one combined pass/fail.</li>
+  <li>Falling back through ranked candidates in order is what makes this pipeline resilient when the top prediction doesn't hold up empirically.</li>
+</ul>
+</article>
+</body></html>

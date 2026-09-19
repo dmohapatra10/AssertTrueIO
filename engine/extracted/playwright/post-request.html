@@ -1,0 +1,145 @@
+<!doctype html>
+<html><head>
+<title>Playwright POST Requests: Creating Resources and Validating Payloads</title>
+<meta name="description" content="How to make and validate POST requests with Playwright&#x27;s APIRequestContext — request payloads, status codes, response validation, and why POST isn&#x27;t idempotent." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/post-request.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>POST Requests</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="get-request.html">GET Requests</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>request.post(url: string, options?: { data?, headers?, multipart? })</code></pre>
+  <p><code>POST</code> creates a new resource (or triggers a non-idempotent action) by sending a request body. This is the most common method for API-based test data setup — creating an order, registering a user, submitting a form — exactly the pattern the API Testing overview page's "API for setup, UI for verification" principle relies on.</p>
+
+  <h2 id="why-it-s-important">Why it's important</h2>
+  <p>Almost every UI-focused test that uses the API for fast setup is making a POST request somewhere. Getting the payload shape and validation right here is what makes that whole pattern reliable rather than a source of confusing, hard-to-debug setup failures.</p>
+
+  <h2 id="basic-example">Basic Example</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const response = await request.post('/api/orders', {
+  data: { item: 'Wireless Mouse', quantity: 2 },
+});
+
+expect(response.status()).toBe(201); // 201 Created, not 200 — a common validation detail
+const order = await response.json();
+expect(order.id).toBeDefined();</code></pre>
+  <p>Checking specifically for <code>201</code> rather than just <code>response.ok()</code> is worth being deliberate about — <code>ok()</code> is true for any 2xx status, but a well-behaved creation endpoint should specifically return <code>201 Created</code>, and asserting on the exact code catches an API that's technically succeeding but not following its own contract.</p>
+
+  <h2 id="the-data-option-request-payload">The data Option — Request Payload</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Playwright automatically serializes a plain object to JSON and sets
+// Content-Type: application/json — no manual JSON.stringify() needed
+await request.post('/api/orders', {
+  data: { item: 'Keyboard', quantity: 1, giftWrap: true },
+});
+
+// For non-JSON payloads, pass a string or Buffer directly
+await request.post('/api/webhooks/raw', {
+  data: 'raw-plain-text-payload',
+  headers: { 'Content-Type': 'text/plain' },
+});</code></pre>
+
+  <h2 id="detailed-example-multipart-form-data">Detailed Example — multipart/form-data</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// File uploads via API use the multipart option, not data
+const response = await request.post('/api/documents', {
+  multipart: {
+    title: 'Q3 Report',
+    file: {
+      name: 'report.pdf',
+      mimeType: 'application/pdf',
+      buffer: fs.readFileSync('fixtures/report.pdf'),
+    },
+  },
+});
+expect(response.status()).toBe(201);</code></pre>
+  <p>This is the API-level equivalent of the Actions chapter's <code>setInputFiles()</code> — same underlying goal (get a file to the server), completely different mechanism, since here there's no browser or file input involved at all, just a raw HTTP multipart body.</p>
+
+  <h2 id="real-world-example-validating-the-full-response-shape">Real-World Example — Validating the Full Response Shape</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('creating an order returns the full expected shape', async ({ request }) =&gt; {
+  const response = await request.post('/api/orders', {
+    data: { item: 'Wireless Mouse', quantity: 2 },
+  });
+
+  expect(response.status()).toBe(201);
+  const order = await response.json();
+
+  expect(order).toMatchObject({
+    item: 'Wireless Mouse',
+    quantity: 2,
+    status: 'pending',
+  });
+  expect(order.id).toEqual(expect.stringMatching(/^ORD-\d+$/));
+  expect(order.createdAt).toBeDefined();
+});</code></pre>
+  <p><code>toMatchObject()</code> checks that the listed fields match without requiring an exact match on every field in the response — the right tool when a response has server-generated fields (an ID, a timestamp) you want to validate the <em>shape</em> of, not an exact value.</p>
+
+  <h2 id="why-post-isn-t-idempotent">Why POST Isn't Idempotent</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Calling this twice creates TWO separate orders — POST has no built-in
+// protection against duplicate submission, unlike PUT (covered on the next page)
+await request.post('/api/orders', { data: { item: 'Mouse', quantity: 1 } });
+await request.post('/api/orders', { data: { item: 'Mouse', quantity: 1 } }); // a second, distinct order</code></pre>
+  <p>This matters directly for test design: if a test retries a POST request after a timeout without knowing whether the first attempt actually succeeded, it risks creating duplicate data. Some APIs support an idempotency key header for exactly this scenario — worth checking your API's documentation for one if retry-safety around POST is a genuine concern for your suite.</p>
+
+  <h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Only checking response.ok(), missing that the API returned the wrong status
+const response = await request.post('/api/orders', { data: { /* ... */ } });
+expect(response.ok()).toBeTruthy(); // true for 200 OR 201 — doesn't catch a wrong-but-passing status
+
+// ✅ Assert the specific expected status for a creation endpoint
+expect(response.status()).toBe(201);</code></pre>
+
+  <h2 id="common-mistakes">Common Mistakes</h2>
+  <ul>
+    <li><strong>Using <code>response.ok()</code> instead of an exact status check</strong> when the specific code (201 vs. 200) actually matters to the contract being tested.</li>
+    <li><strong>Manually calling <code>JSON.stringify()</code> on the <code>data</code> option</strong> — Playwright already serializes plain objects; double-stringifying sends malformed JSON.</li>
+    <li><strong>Not validating the response body at all</strong>, only the status code — a 201 with a malformed or incomplete body is still a real bug.</li>
+    <li><strong>Assuming POST requests are safe to blindly retry</strong> without considering duplicate-creation risk.</li>
+  </ul>
+
+  <h2 id="edge-cases">Edge Cases</h2>
+  <ul>
+    <li><strong>Validation errors</strong> — POST-ing invalid data (missing required field, wrong type) should return a 4xx with a useful error body; testing this path is as important as testing successful creation.</li>
+    <li><strong>Large payloads</strong> — some APIs cap request body size; a test intentionally exceeding it can verify the API rejects it gracefully rather than crashing.</li>
+  </ul>
+
+  <h2 id="debugging">Debugging</h2>
+  <p>If a POST unexpectedly fails, log both the status code and the full response body — a 400 response almost always includes a useful validation error message that immediately explains what was wrong with the payload, and reading it is faster than guessing.</p>
+
+  <h2 id="best-practices">Best Practices</h2>
+  <ul>
+    <li>Assert the specific expected status code for creation endpoints, not just <code>ok()</code>.</li>
+    <li>Use <code>toMatchObject()</code> to validate response shape while allowing for server-generated fields.</li>
+    <li>Test validation-error paths (missing/invalid fields), not just the happy path.</li>
+    <li>Use the <code>multipart</code> option specifically for file uploads — never try to encode file content into the <code>data</code> option.</li>
+  </ul>
+
+  <h2 id="practice-exercise">Practice Exercise</h2>
+  <p>Write a test that POSTs an order with a missing required field (e.g., no <code>quantity</code>) and asserts the API returns a 400 with a validation error message mentioning the missing field.</p>
+
+  <h2 id="summary">Summary</h2>
+  <p>POST creates resources via a request body — Playwright's <code>data</code> option handles JSON serialization automatically, and <code>multipart</code> handles file uploads. Assert the specific expected status code (usually 201) rather than just <code>ok()</code>, validate the response shape, and remember POST has no built-in protection against duplicate creation on retry.</p>
+
+  <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why might it be risky to automatically retry a failed POST request in a test, and what's a safer approach?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">POST isn't idempotent — if the first request actually succeeded on the server but the response was lost (a timeout, a network blip), retrying creates a second, duplicate resource. A safer approach is to first check whether the resource already exists (e.g., a GET by some natural key) before retrying, or to rely on an idempotency key if the API supports one, rather than blindly resubmitting the same POST.</div>
+</details>
+<details class="faq-item">
+<summary>Why check for status 201 specifically, not just response.ok()?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">ok() is true for any 2xx status; asserting the exact code catches an API that's technically succeeding but not following its documented contract.</div>
+</details>
+<details class="faq-item">
+<summary>How does Playwright handle serializing the data option?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It automatically converts a plain object to JSON and sets the Content-Type header — no manual JSON.stringify() needed.</div>
+</details>
+<details class="faq-item">
+<summary>How do you upload a file via a POST request?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Use the multipart option, not data — passing file content as name/mimeType/buffer.</div>
+</details>
+<details class="faq-item">
+<summary>Why is POST considered non-idempotent?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Calling the same POST twice creates two separate resources, unlike PUT, which has no built-in protection against duplicate submission on retry.</div>
+</details>
+</div>
+</article>
+</body></html>

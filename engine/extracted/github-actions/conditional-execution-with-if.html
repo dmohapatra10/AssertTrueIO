@@ -1,0 +1,113 @@
+<!doctype html>
+<html><head>
+<title>Conditional Execution in GitHub Actions: The if: Key Explained</title>
+<meta name="description" content="Using if: to conditionally run a job or step, applied to the real requirement of deploying only when tests pass and the workflow runs on main." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/conditional-execution-with-if.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Conditional Execution: if:</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="expressions-and-the-double-curly-syntax.html">Expressions: The ${{ }} Syntax</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p><code>if:</code> makes a job or step run conditionally — only when the expression it's given evaluates to true. Everything from this chapter (environment variables, contexts, expressions) exists in service of making this one key genuinely useful.</p>
+
+<h2 id="basic-syntax-on-a-step">Basic Syntax — On a Step</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>- run: echo "This only runs on main"
+  if: github.ref == 'refs/heads/main'</code></pre>
+
+<h2 id="basic-syntax-on-a-whole-job">Basic Syntax — On a Whole Job</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Deploying..."</code></pre>
+<p>Putting <code>if:</code> at the job level means the entire job is skipped when the condition is false — not just one step within it. Choose job-level versus step-level based on how much of the surrounding logic genuinely depends on the same condition.</p>
+
+<h2 id="detailed-example-the-complete-real-world-requirement-fully-built">Detailed Example — The Complete Real-World Requirement, Fully Built</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>name: ShopEasy CI/CD
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm ci
+      - run: npm test
+
+  deploy:
+    needs: test
+    if: github.ref == 'refs/heads/main' && needs.test.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo "Deploying ShopEasy to production"</code></pre>
+<p>This is the exact requirement from this chapter's opening page, fully realized: deployment only happens when both conditions hold — the workflow is running on <code>main</code>, and the <code>test</code> job (which this job explicitly depends on via <code>needs:</code>, covered fully in Chapter 9) actually succeeded. A pull request build runs tests but never reaches deployment; a push to main only deploys if those tests genuinely passed.</p>
+
+<h2 id="a-genuinely-common-pattern-always-upload-results">A Genuinely Common Pattern — Always Upload Results</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>- name: Upload test report
+  if: always()
+  uses: actions/upload-artifact@v4
+  with:
+    name: test-report
+    path: test-results/</code></pre>
+<p>Combining <code>if: always()</code> with an upload step means the test report gets published whether the tests passed or failed — genuinely useful, since a failure is often exactly when you most want to actually look at the detailed results.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why does the <code>deploy</code> job in the detailed example above need <em>both</em> <code>needs: test</code> AND the <code>if:</code> condition checking <code>needs.test.result</code>, rather than just one or the other? <code>needs: test</code> alone would still run <code>deploy</code> after <code>test</code> finishes, <em>even if <code>test</code> failed</em> — by default, GitHub Actions runs a dependent job regardless of whether its dependency succeeded, unless you explicitly check the result. The <code>if:</code> condition is what actually enforces "only if it succeeded."</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Assuming <code>needs: test</code> alone is sufficient to prevent deployment after a failed test job. It isn't — <code>needs:</code> only establishes ordering (deploy waits for test to finish), not a success requirement. Without an explicit <code>if:</code> checking <code>needs.test.result == 'success'</code>, a failed test job would still let deployment proceed.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>An <code>if:</code> condition doesn't strictly need the <code>${{ }}</code> wrapper — GitHub Actions specifically evaluates the entire <code>if:</code> value as an expression automatically. Many real workflows omit it here specifically for this reason, even though including it is never wrong.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Use job-level <code>if:</code> when an entire job's purpose depends on one condition; step-level when only part of a job does.</li>
+  <li>Always pair <code>needs:</code> with an explicit result check when a dependent job should only proceed after genuine success, not just after completion.</li>
+  <li>Use <code>if: always()</code> deliberately for reporting or cleanup steps that should run regardless of what happened earlier.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li><code>if:</code> conditionally runs a job or step based on an expression evaluating to true.</li>
+  <li><code>needs:</code> alone only establishes order, not a success requirement — an explicit <code>if:</code> check is needed to require success specifically.</li>
+  <li><code>if: always()</code> is the common, deliberate pattern for steps that should run regardless of earlier outcomes.</li>
+</ul>
+
+<h2 id="challenge">🏆 Challenge</h2>
+<p>Extend the ShopEasy pipeline above with a third job, <code>notify</code>, that should run <em>always</em> (whether tests and deployment succeeded or failed) and print a message summarizing the outcome — using <code>if: always()</code> and appropriate <code>needs:</code> configuration.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why is needs: test alone not sufficient to prevent a deploy job from running after a failed test job?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">needs: establishes execution order — it ensures the deploy job waits until the test job has finished — but by default, GitHub Actions still runs the dependent job even if the dependency failed, unless told otherwise. An explicit if: condition checking needs.test.result == 'success' is what actually enforces that deployment only proceeds after genuine success, not just after completion.</div>
+</details>
+<details class="faq-item">
+<summary>What's the practical difference between putting if: at the job level versus the step level?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A job-level if: skips the entire job — none of its steps run at all — when the condition is false. A step-level if: only skips that one specific step, while the rest of the job's steps proceed normally. Which to use depends on whether the condition genuinely applies to an entire job's purpose or just one specific action within it.</div>
+</details>
+<details class="faq-item">
+<summary>Why does if: always() specifically matter for uploading test reports or logs?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">By default, a failing step stops the rest of that job's steps from running — without always(), a reporting or upload step would never execute precisely when a test has failed, which is exactly when the detailed report or logs would be most valuable for diagnosing what went wrong. always() overrides the default fail-fast behavior specifically for that step.</div>
+</details>
+<details class="faq-item">
+<summary>Does an if: condition require the ${{ }} wrapper the way an env: value does?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">No — GitHub Actions automatically evaluates the entire value given to if: as an expression, without requiring the explicit ${{ }} wrapper, unlike most other places expressions are used. Including the wrapper anyway is never incorrect, but many real-world workflows omit it specifically within if: conditions for this reason.</div>
+</details>
+<details class="faq-item">
+<summary>In the ShopEasy example, why does a pull request never actually reach the deploy job, even though both jobs are defined in the same workflow?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The deploy job's if: condition specifically checks github.ref == 'refs/heads/main', which is only true for a push directly to the main branch — a pull request's ref refers to the pull request itself, not main, so this condition evaluates to false for any pull request run. The test job still runs on pull requests (since it has no such restriction), but deploy correctly never executes in that case.</div>
+</details>
+</div>
+</article>
+</body></html>

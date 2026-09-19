@@ -1,0 +1,143 @@
+<!doctype html>
+<html><head>
+<title>Playwright File Upload and Download: setInputFiles and waitForEvent</title>
+<meta name="description" content="Learn how to test file uploads with setInputFiles, handle drag-and-drop upload widgets, and verify downloads with Playwright&#x27;s download event." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/file-upload-and-download.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Chapter 13: File Upload and Download</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="actions.html">Actions</a>, <a href="waiting-and-synchronization.html">Waiting and Synchronization</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>File uploads and downloads both involve the browser talking to the local filesystem — something normal DOM interaction doesn't cover. Playwright provides dedicated APIs for both: <code>setInputFiles()</code> for uploads (covered in full depth on its own page in the Actions chapter), and a <code>download</code> event for downloads, which is this page's main focus.</p>
+
+<h2 id="why-it-s-important">Why it's important</h2>
+<p>Real operating-system file pickers and native "Save As" dialogs can't be automated through the DOM at all — Playwright sidesteps both entirely rather than trying to automate a dialog that's fundamentally outside a browser's control.</p>
+
+<h2 id="uploading-files-quick-recap">Uploading Files — Quick Recap</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>await page.getByLabel('Upload resume').setInputFiles('fixtures/resume.pdf');
+
+// Drag-and-drop widgets usually style over a hidden &lt;input type="file"&gt; —
+// target it directly rather than trying to simulate the drag gesture
+await page.locator('input[type="file"]').setInputFiles('fixtures/report.csv');</code></pre>
+<p>See the dedicated <a href="set-input-files.html">setInputFiles()</a> page in the Actions chapter for the full treatment — multiple files, in-memory buffers, and hidden-input edge cases.</p>
+
+<h2 id="mental-model-handling-downloads">Mental Model — Handling Downloads</h2>
+<p>Downloads are captured via a <code>download</code> event, following the same event-pairing pattern used for new tabs in the previous chapter: the download starts as a side effect of an action, and you need to be listening for the event before that action fires — not after.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const [download] = await Promise.all([
+  page.waitForEvent('download'),
+  page.getByRole('button', { name: 'Export CSV' }).click(),
+]);
+
+expect(download.suggestedFilename()).toBe('orders-export.csv');
+await download.saveAs('downloads/orders-export.csv');</code></pre>
+
+<h2 id="basic-example-inspecting-a-download-without-saving-it">Basic Example — Inspecting a Download Without Saving It</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const [download] = await Promise.all([
+  page.waitForEvent('download'),
+  page.getByRole('button', { name: 'Export CSV' }).click(),
+]);
+
+// Playwright keeps a temporary copy — read it directly without a permanent save
+const downloadPath = await download.path();
+const fs = require('fs');
+const contents = fs.readFileSync(downloadPath, 'utf-8');
+expect(contents).toContain('order_id,total,status');</code></pre>
+<p><code>download.path()</code> is often more useful than <code>saveAs()</code> for tests — you usually want to verify the file's contents, not keep a permanent copy on disk after the test run.</p>
+
+<h2 id="detailed-example-verifying-a-generated-pdf-s-size">Detailed Example — Verifying a Generated PDF's Size</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const [download] = await Promise.all([
+  page.waitForEvent('download'),
+  page.getByRole('button', { name: 'Download invoice' }).click(),
+]);
+
+const downloadPath = await download.path();
+const stats = fs.statSync(downloadPath);
+expect(stats.size).toBeGreaterThan(1000); // sanity check it's not an empty/broken file</code></pre>
+<p>Full content verification of a binary file like a PDF is often impractical, but confirming a plausible file size is a cheap, useful sanity check that catches the common failure mode of a broken or empty export.</p>
+
+<h2 id="real-world-example-upload-then-verify-processing">Real-World Example — Upload Then Verify Processing</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import { test, expect } from '@playwright/test';
+import path from 'path';
+
+test('uploads a CSV and shows a processed preview', async ({ page }) =&gt; {
+  await page.goto('/import');
+
+  await page.getByLabel('Choose file').setInputFiles(
+    path.join(__dirname, '../fixtures/customers.csv')
+  );
+
+  await page.getByRole('button', { name: 'Upload' }).click();
+
+  await expect(page.getByText('142 rows detected')).toBeVisible();
+  await expect(page.getByRole('table')).toBeVisible();
+});</code></pre>
+<p>Using <code>path.join(__dirname, ...)</code> keeps the fixture path correct regardless of which directory the test is run from — a small habit that avoids "file not found" errors that only show up in CI.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Click first, then listen — the download event may already have fired
+await page.getByRole('button', { name: 'Export CSV' }).click();
+const download = await page.waitForEvent('download'); // race condition
+
+// ✅ Listen and trigger together
+const [download] = await Promise.all([
+  page.waitForEvent('download'),
+  page.getByRole('button', { name: 'Export CSV' }).click(),
+]);</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Trying to click a native "Choose file" OS dialog</strong> instead of calling <code>setInputFiles()</code> directly on the input element.</li>
+  <li><strong>Using a relative fixture path</strong> that only happens to work when the test is run from the project root, breaking in CI or from a different working directory.</li>
+  <li><strong>Not pairing the download-triggering click with <code>waitForEvent('download')</code></strong> in a <code>Promise.all</code>, risking a race exactly like the one covered for new tabs.</li>
+  <li><strong>Calling <code>saveAs()</code> when the test only needs to verify content</strong> — reading via <code>download.path()</code> avoids leaving files scattered across CI runners.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Downloads that fail server-side</strong> (a broken export) — the <code>download</code> event still fires even for a failed/empty download in some cases; checking file size or content, not just that the event fired, catches this.</li>
+  <li><strong>Downloads triggered without a full page navigation</strong> (a client-side blob URL) — Playwright's download event handles these the same way as a traditional server-driven download.</li>
+  <li><strong>Very large files</strong> — for genuinely large downloads, prefer checking file size/hash over reading full contents into memory in the test process.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a download-triggering test hangs, confirm the button actually initiates a real browser download (versus, say, opening a PDF in a new tab for in-browser viewing, which is a different interaction entirely and wouldn't fire a <code>download</code> event).</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Store test fixture files (sample PDFs, CSVs, images) in a dedicated <code>fixtures/</code> directory and reference them with <code>path.join(__dirname, ...)</code>.</li>
+  <li>Assert on <code>download.suggestedFilename()</code> to catch cases where the wrong file or an unexpectedly-named file gets exported.</li>
+  <li>Prefer inspecting <code>download.path()</code> directly over <code>saveAs()</code> unless the test genuinely needs a permanent copy.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Write a test that uploads a CSV, triggers a "Download processed results" export, and verifies the downloaded file's content reflects the uploaded data (e.g., the same row count appears in both).</p>
+
+<h2 id="summary">Summary</h2>
+<p><code>setInputFiles()</code> sets a file input's value directly, sidestepping the native OS file picker Playwright can't automate. Downloads are captured with a <code>download</code> event using the same event-pairing pattern as new tabs, giving access to the suggested filename and the file's contents (via <code>path()</code>) for verification without necessarily saving a permanent copy.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why can't Playwright just click the native "Choose file" button and interact with the OS file picker directly?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The native OS file picker is outside the browser's DOM and outside what any browser automation protocol can control — it's rendered by the operating system, not the page. Playwright avoids the problem entirely by exposing <code>setInputFiles()</code>, which sets the file input's value programmatically, achieving the same end state as a real user picking a file without needing to automate a dialog that's fundamentally out of reach.</div>
+</details>
+<details class="faq-item">
+<summary>Why can't Playwright automate a native 'Save As' download dialog?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It's a native OS-level dialog outside the browser's control, the same reason the file upload picker can't be automated directly.</div>
+</details>
+<details class="faq-item">
+<summary>How do you inspect a downloaded file's contents without permanently saving it?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Use download.path() to get a temporary file path Playwright already keeps, and read it directly rather than calling saveAs().</div>
+</details>
+<details class="faq-item">
+<summary>Why pair a download-triggering click with Promise.all and waitForEvent('download')?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">To avoid the same race condition covered for new tabs — the download event could fire before a wait registered afterward starts listening.</div>
+</details>
+<details class="faq-item">
+<summary>What's a cheap sanity check for a downloaded binary file like a PDF?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Checking the file size is above a reasonable minimum, catching the common failure mode of an empty or broken export.</div>
+</details>
+</div>
+</article>
+</body></html>

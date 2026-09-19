@@ -1,0 +1,127 @@
+<!doctype html>
+<html><head>
+<title>Playwright dragTo(): Drag-and-Drop Testing Explained</title>
+<meta name="description" content="How Playwright&#x27;s dragTo() action works, drag-and-drop between two locators, manual drag sequences for custom drag libraries, and common pitfalls." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/drag-to.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1><code class="api-name">dragTo()</code></h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="actions.html">Actions overview</a>, <a href="click-and-dblclick.html">click() and dblclick()</a></p>
+<article class="content">
+<h2 id="what-is-dragto">What is <code>dragTo()</code>?</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>sourceLocator.dragTo(targetLocator: Locator, options?: {
+  sourcePosition?: { x: number, y: number },
+  targetPosition?: { x: number, y: number },
+  force?: boolean,
+})</code></pre>
+      <p><code>dragTo()</code> performs a full drag-and-drop gesture from one element to another: mouse down on the source, move to the target, mouse up — dispatching the same sequence of pointer/drag events a real drag would.</p>
+
+      <h2 id="why-it-s-important-and-why-it-s-one-of-the-trickier-actions">Why it's important, and why it's one of the trickier actions</h2>
+      <p>Drag-and-drop implementations vary a lot in the wild — native HTML5 drag-and-drop (<code>draggable</code> attribute, <code>dragstart</code>/<code>drop</code> events) behaves differently under the hood than a library-driven drag built purely on mouse events (common in kanban boards, sortable lists, file-upload dropzones). <code>dragTo()</code> handles the common cases well, but understanding which kind of drag implementation you're testing is often necessary to get a reliable result.</p>
+
+      <h2 id="basic-example">Basic Example</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>await page.getByTestId('task-1').dragTo(page.getByTestId('column-in-progress'));</code></pre>
+
+      <h2 id="detailed-example-kanban-board">Detailed Example — Kanban Board</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('dragging a task card moves it to the In Progress column', async ({ page }) =&gt; {
+  await page.goto('/board');
+
+  const task = page.getByTestId('task-card-fix-login-bug');
+  const targetColumn = page.getByTestId('column-in-progress');
+
+  await task.dragTo(targetColumn);
+
+  await expect(targetColumn.getByText('Fix login bug')).toBeVisible();
+  await expect(page.getByTestId('column-todo').getByText('Fix login bug')).toBeHidden();
+});</code></pre>
+
+      <h2 id="manual-drag-sequence-when-dragto-isn-t-enough">Manual Drag Sequence — When dragTo() Isn't Enough</h2>
+      <p>Some drag implementations (especially custom sliders, or libraries with strict intermediate-position requirements) need finer control than a single <code>dragTo()</code> call provides. Break it into explicit steps:</p>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const slider = page.getByRole('slider', { name: 'Price range max' });
+const box = await slider.boundingBox();
+
+await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+await page.mouse.down();
+await page.mouse.move(box.x + 150, box.y + box.height / 2, { steps: 10 }); // gradual movement
+await page.mouse.up();
+
+await expect(slider).toHaveAttribute('aria-valuenow', '750');</code></pre>
+      <p>The <code>steps</code> option on <code>mouse.move()</code> dispatches intermediate <code>mousemove</code> events along the path, which some drag implementations require to register the movement correctly — a single instantaneous jump (what a plain <code>dragTo()</code> effectively does) can be missed by drag logic that expects continuous movement.</p>
+
+      <h2 id="real-world-example-reordering-a-list">Real-World Example — Reordering a List</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('dragging a list item reorders the list', async ({ page }) =&gt; {
+  await page.goto('/playlist');
+
+  const items = page.getByRole('listitem');
+  await expect(items.nth(0)).toHaveText('Song A');
+
+  await page.getByText('Song C').dragTo(items.nth(0)); // drag Song C to the top
+
+  await expect(items.nth(0)).toHaveText('Song C');
+});</code></pre>
+
+      <h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Assuming dragTo() will work on every drag implementation without verifying
+await page.getByTestId('task-1').dragTo(page.getByTestId('column-done'));
+// (fails silently on some custom drag libraries with no clear error)
+
+// ✅ If dragTo() doesn't register, fall back to a manual mouse sequence with steps
+await page.mouse.move(...);
+await page.mouse.down();
+await page.mouse.move(..., { steps: 10 });
+await page.mouse.up();</code></pre>
+
+      <h2 id="common-mistakes">Common Mistakes</h2>
+      <ul>
+        <li><strong>Assuming <code>dragTo()</code> works identically across all drag implementations</strong> — it's reliable for standard cases but some heavily custom drag libraries need the manual mouse-sequence approach with intermediate steps.</li>
+        <li><strong>Not asserting on the actual resulting order/position</strong> — a drag action "succeeding" (no error thrown) doesn't confirm the drop actually landed in the intended place; always assert on the resulting DOM state.</li>
+        <li><strong>Dragging too fast for libraries with debounced or threshold-based drag detection</strong> — adding <code>steps</code> to intermediate mouse movement (as in the manual example) often resolves this.</li>
+      </ul>
+
+      <h2 id="edge-cases">Edge Cases</h2>
+      <ul>
+        <li><strong>Native HTML5 drag-and-drop</strong> (using the <code>draggable</code> attribute and <code>dataTransfer</code> API) can behave differently across browser engines; test drag-and-drop features across all your configured browser projects (Chapter 10), not just Chromium, since this is an area with real cross-browser variance.</li>
+        <li><strong>Auto-scrolling containers during a drag</strong> (dragging a card toward the edge of a scrollable list to trigger auto-scroll) — this typically requires the manual mouse sequence with a pause near the edge, since <code>dragTo()</code> alone doesn't simulate a sustained hover at a boundary.</li>
+      </ul>
+
+      <h2 id="debugging">Debugging</h2>
+      <p>Use Trace Viewer (Chapter 15) to visually confirm where the drag actually landed — a drag that appears to succeed in code but produces the wrong DOM order is easier to diagnose from the recorded DOM snapshots than from log output alone.</p>
+
+      <h2 id="best-practices">Best Practices</h2>
+      <ul>
+        <li>Start with <code>dragTo()</code> for simplicity; drop down to a manual mouse sequence with <code>steps</code> only if it doesn't register correctly.</li>
+        <li>Always assert on the resulting state (new order, new column, new value) — never just that the drag call didn't throw.</li>
+        <li>Test drag-and-drop across all relevant browser projects, given known cross-engine differences in native drag-and-drop behavior.</li>
+      </ul>
+
+      <h2 id="practice-exercise">Practice Exercise</h2>
+      <p>Given a kanban board with three columns, write a test that drags a card from "To Do" directly to "Done" (skipping "In Progress"), and asserts it appears in the correct column and no longer appears in the original one.</p>
+
+      <h2 id="summary">Summary</h2>
+      <p><code>dragTo()</code> automates the common drag-and-drop case in one call; more demanding drag implementations sometimes need a manual <code>mouse.down()</code>/<code>mouse.move()</code>/<code>mouse.up()</code> sequence with intermediate <code>steps</code> to register correctly. Always assert on the resulting state, not just that the action completed.</p>
+
+      <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A dragTo() call completes without error, but the item doesn't end up in the expected position. What would you investigate first?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">First, whether the app's drag implementation is a custom library that expects gradual mouse movement rather than an instantaneous jump — switching to a manual <code>mouse.down()</code>/<code>move()</code>/<code>up()</code> sequence with <code>steps</code> often resolves this. Second, whether the assertion is checking the right thing — a drag "succeeding" (no thrown error) only means the mouse events were dispatched, not that the app's drop-handling logic actually processed them as intended.</div>
+</details>
+<details class="faq-item">
+<summary>Why might dragTo() fail to register on some drag-and-drop libraries?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Some implementations require gradual, continuous mouse movement rather than an instantaneous jump, which is what dragTo() effectively performs.</div>
+</details>
+<details class="faq-item">
+<summary>What's the manual fallback when dragTo() doesn't work?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A mouse.down() / mouse.move(..., { steps }) / mouse.up() sequence, where steps dispatches intermediate mousemove events.</div>
+</details>
+<details class="faq-item">
+<summary>Why should you always assert on the resulting state after a drag, not just that the call didn't throw?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A drag action 'succeeding' only means the mouse events were dispatched — it doesn't confirm the drop actually landed where intended.</div>
+</details>
+<details class="faq-item">
+<summary>Should drag-and-drop be tested across all configured browser projects?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Yes — native HTML5 drag-and-drop has known cross-engine behavior differences, making it a real area of browser variance.</div>
+</details>
+</div>
+</article>
+</body></html>

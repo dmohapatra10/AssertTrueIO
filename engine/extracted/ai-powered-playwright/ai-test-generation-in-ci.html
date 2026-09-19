@@ -1,0 +1,96 @@
+<!doctype html>
+<html><head>
+<title>AI Test Generation in CI</title>
+<meta name="description" content="Running Chapter 4&#x27;s test case generation as a real CI job — triggered on new requirements, never auto-merged, always opened as a reviewable pull request." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/ai-test-generation-in-ci.html" />
+</head><body>
+<p class="difficulty">Advanced</p>
+<h1>AI Test Generation in CI</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="running-ai-powered-tests-in-ci.html">Running AI-Powered Tests in CI</a></p>
+<article class="content">
+<h2>What You'll Learn</h2>
+<ul>
+  <li>Triggering Chapter 4's test generation from a real CI event, not just a local script</li>
+  <li>Why generated tests belong in a pull request, never a direct commit</li>
+  <li>A real, working workflow that ties generation to a genuine, human-reviewed pull request</li>
+</ul>
+
+<h2>Introduction</h2>
+<p>Chapter 4 generated test cases from a requirement, run locally, with a human reviewing the output directly. This page moves that same, unchanged generation logic into CI — triggered automatically, but still landing in front of a human before it becomes part of the real test suite.</p>
+
+<h2>Step-by-Step Implementation — A Real, Triggered Generation Workflow</h2>
+<pre><code># .github/workflows/ai-generate-tests.yml
+name: AI Test Generation
+
+on:
+  workflow_dispatch:
+    inputs:
+      requirement:
+        description: 'Feature requirement to generate tests for'
+        required: true
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm ci
+
+      - name: Generate test cases
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: node scripts/generate-tests.js "${{ github.event.inputs.requirement }}"
+
+      - name: Open a pull request with generated tests
+        uses: peter-evans/create-pull-request@v6
+        with:
+          title: 'AI-generated tests: ${{ github.event.inputs.requirement }}'
+          branch: ai-generated-tests-${{ github.run_id }}
+          commit-message: 'Add AI-generated tests'
+          body: |
+            Tests generated from Chapter 4's pipeline for:
+            "${{ github.event.inputs.requirement }}"
+
+            **This PR requires human review before merging.**</code></pre>
+
+<h2>Code Explanation</h2>
+<p><code>scripts/generate-tests.js</code> is a thin wrapper calling Chapter 4's own <code>generateTestCases</code> and <code>convertToPlaywrightTests</code> functions — genuinely unchanged. The real new piece is <code>create-pull-request</code>, which deliberately opens a real, reviewable PR rather than committing generated tests directly to the main branch.</p>
+
+<h2>Why It Matters — This Follows Chapter 11's Own Rule</h2>
+<p>Generated test code is still AI output, and Chapter 11 was explicit: never silently modify a codebase and declare success. Opening a PR, rather than committing directly, means a human reviews every generated test before it becomes part of the real suite — the same discipline Chapter 11 applied to self-healing fixes, now applied to newly generated tests.</p>
+
+<h2>Example — Triggering This From a Real Requirement</h2>
+<pre><code># A developer triggers this manually, or another workflow
+# triggers it when a new requirements document is added:
+gh workflow run ai-generate-tests.yml \
+  -f requirement="Users can save an item to a wishlist for later"
+
+# RESULT: a REAL, open pull request appears, containing
+# Chapter 4'S generated test cases — ready for a HUMAN to
+# review, NOT already merged into the real suite</code></pre>
+
+<h2>Common Mistakes</h2>
+<ul>
+  <li><strong>Committing generated tests directly to the main branch.</strong> This is exactly the silent-modification pattern Chapter 11 warned against — generated code deserves the same review gate as any other AI-produced change.</li>
+  <li><strong>Running this workflow on every single commit automatically.</strong> Test generation is a deliberate, requirement-driven action — triggering it constantly produces redundant PRs a team will quickly learn to ignore.</li>
+</ul>
+
+<h2>Best Practices</h2>
+<ul>
+  <li>Trigger generation deliberately — on a new requirement, not on every routine commit — keeping each generation run meaningful and reviewable.</li>
+  <li>Always route generated tests through a real pull request, following Chapter 11's human-approval discipline.</li>
+</ul>
+
+<h2>Hands-On Exercise</h2>
+<p>Set up this page's workflow against a real or test repository. Trigger it with a genuine requirement description and review the resulting pull request as if you were the human approver — confirm the generated tests are something you'd actually feel comfortable merging.</p>
+
+<h2>Key Takeaways</h2>
+<ul>
+  <li>CI-triggered generation reuses Chapter 4's own functions unchanged — only the trigger mechanism and delivery method are new.</li>
+  <li>Generated tests belong in a real pull request, never a direct commit, following the same human-approval discipline Chapter 11 established for self-healing fixes.</li>
+  <li>Deliberate, requirement-driven triggers keep generation meaningful — automatic generation on every commit produces noise a team learns to ignore.</li>
+</ul>
+</article>
+</body></html>

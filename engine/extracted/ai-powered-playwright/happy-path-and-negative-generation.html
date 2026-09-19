@@ -1,0 +1,93 @@
+<!doctype html>
+<html><head>
+<title>Happy Path and Negative Test Generation</title>
+<meta name="description" content="Why asking for both categories in one prompt genuinely produces better coverage than asking for happy-path tests alone, with a real ShopSmart checkout example." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/happy-path-and-negative-generation.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Happy Path and Negative Test Generation</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="requirement-to-test-cases.html">Requirement to Test Cases</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>The genuine difference between happy-path and negative test cases</li>
+  <li>Why asking for both explicitly, in one request, produces better coverage than asking for either alone</li>
+  <li>Filtering the previous page's generic output by category</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>Happy path confirms a feature works when used correctly. Negative testing confirms it fails correctly when used incorrectly — the wrong password, an expired session, a network error mid-checkout. Both matter, and this page's real point is that requesting them together, explicitly, produces more balanced results than requesting either alone.</p>
+
+<h2 id="how-it-works-requesting-both-explicitly">How It Works — Requesting Both Explicitly</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Extending the previous page's generateTestCases with an
+// EXPLICIT category split, rather than trusting the model to
+// balance categories on its own
+export async function generateHappyAndNegative(
+  requirement: string,
+  featureContext: string
+): Promise&lt;{ happyPath: TestCase[]; negative: TestCase[] }&gt; {
+  const prompt = `Requirement: "${requirement}"
+Feature context: ${featureContext}
+
+Generate test cases in TWO explicit groups:
+1. HAPPY PATH — at least 2 cases where everything is used
+   correctly and the feature should work as intended
+2. NEGATIVE — at least 3 cases where something is used
+   incorrectly, and the feature should fail SAFELY and
+   CLEARLY, not crash or behave unpredictably
+
+Respond with ONLY valid JSON:
+{"happyPath": [...], "negative": [...]}
+Each test case: {"id": string, "category": string,
+"name": string, "steps": string[], "expected": string}`;
+
+  const raw = await askClaude(prompt);
+  const parsed = JSON.parse(raw);
+  if (!Array.isArray(parsed.happyPath) || !Array.isArray(parsed.negative)) {
+    throw new Error(`Expected both categories but got: ${raw.slice(0, 200)}`);
+  }
+  return { happyPath: parsed.happyPath, negative: parsed.negative };
+}</code></pre>
+
+<h2 id="why-it-matters-explicit-requests-beat-implicit-balance">Why It Matters — Explicit Requests Beat Implicit Balance</h2>
+<p>Asking simply "generate test cases for checkout" tends to produce mostly happy-path scenarios — the model, like a human tester relying on intuition, gravitates toward the expected flow first. Explicitly requesting a minimum count in each category, in the same prompt, is what actually produces balanced coverage — directly applying Chapter 2's specificity lesson to this exact, real problem.</p>
+
+<h2 id="example-shopsmart-s-checkout">Example — ShopSmart's Checkout</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const checkoutContext = `Checkout: cart review, shipping
+address, payment method, order confirmation. Requires a valid
+address and payment method to proceed. Session expires after
+30 minutes of inactivity.`;
+
+const { happyPath, negative } = await generateHappyAndNegative(
+  'Test ShopSmart\\'s checkout flow', checkoutContext
+);
+
+// happyPath includes: "Complete checkout with valid address
+//   and payment"
+// negative includes: "Attempt checkout with expired session",
+//   "Attempt checkout with invalid payment card number",
+//   "Attempt checkout with empty shipping address"</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Assuming a generic "generate test cases" request naturally balances both categories.</strong> This page's own point is that it usually doesn't — explicit requests genuinely change the result.</li>
+  <li><strong>Treating "negative" as synonymous with "the feature is broken."</strong> A negative case passes when the feature fails safely and clearly — an unhandled crash is the actual failure, not the rejection itself.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Request explicit minimum counts per category rather than trusting a general request to balance itself.</li>
+  <li>Write negative case expectations around safe, clear failure — a specific error message, not just "doesn't work."</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Run this page's function for ShopSmart's registration form (email, password, confirm password). Check whether the negative cases it generates cover genuinely different failure modes — mismatched passwords, a duplicate email, a weak password — rather than several variations of the same one.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Happy path confirms correct use works; negative testing confirms incorrect use fails safely and clearly — both are genuinely necessary categories.</li>
+  <li>Explicitly requesting both, with minimum counts, produces meaningfully more balanced coverage than an unstructured request.</li>
+  <li>A negative test's real success condition is safe, clear failure — not simply "the feature rejected it."</li>
+</ul>
+</article>
+</body></html>

@@ -1,0 +1,104 @@
+<!doctype html>
+<html><head>
+<title>Playwright check() and uncheck(): Complete Guide with Examples</title>
+<meta name="description" content="How Playwright&#x27;s check() and uncheck() actions work for checkboxes and radio buttons, idempotent behavior, and how to handle custom-styled toggle components." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/check-and-uncheck.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1><code class="api-name">check()</code> and <code class="api-name">uncheck()</code></h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="actions.html">Actions overview</a>, <a href="click-and-dblclick.html">click() and dblclick()</a></p>
+<article class="content">
+<h2 id="what-is-check">What is <code>check()</code>?</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>locator.check(options?: { force?: boolean, timeout?: number })
+locator.uncheck(options?: { force?: boolean, timeout?: number })</code></pre>
+      <p><code>check()</code> ensures a checkbox or radio button ends up in the checked state; <code>uncheck()</code> ensures it ends up unchecked. Both are <strong>idempotent</strong> — calling <code>check()</code> on an already-checked box does nothing (no extra click, no toggling off), unlike <code>click()</code>, which would toggle it.</p>
+
+      <h2 id="why-it-s-important">Why it's important</h2>
+      <p>Using <code>click()</code> on a checkbox works, but it toggles — the resulting state depends on whatever state the box happened to be in before, which is fragile if a previous step's behavior ever changes. <code>check()</code>/<code>uncheck()</code> express the actual intent ("this should end up checked") regardless of starting state, which is both clearer and more robust.</p>
+
+      <h2 id="basic-example">Basic Example</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>await page.getByLabel('I agree to the terms').check();
+await expect(page.getByLabel('I agree to the terms')).toBeChecked();</code></pre>
+
+      <h2 id="detailed-example-idempotence-in-practice">Detailed Example — Idempotence in Practice</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Regardless of the checkbox's current state going in, this test
+// guarantees it ends up unchecked — no need to check current state first
+await page.getByLabel('Email me promotional offers').uncheck();
+await expect(page.getByLabel('Email me promotional offers')).not.toBeChecked();
+
+// Calling check() twice is safe and has no unintended side effect
+await page.getByLabel('Remember me').check();
+await page.getByLabel('Remember me').check(); // no-op, still checked</code></pre>
+
+      <h2 id="real-world-example-radio-button-group">Real-World Example — Radio Button Group</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('user can select a shipping method via radio buttons', async ({ page }) =&gt; {
+  await page.goto('/checkout');
+
+  await page.getByLabel('Express shipping ($12.99)').check();
+  await expect(page.getByLabel('Express shipping ($12.99)')).toBeChecked();
+  await expect(page.getByLabel('Standard shipping (free)')).not.toBeChecked();
+
+  await expect(page.getByTestId('order-total')).toHaveText('$62.97');
+});</code></pre>
+      <p>Radio buttons in the same group are mutually exclusive by browser behavior — checking one automatically unchecks the others, which the second assertion confirms explicitly rather than assuming.</p>
+
+      <h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ click() toggles — correctness depends on unknown current state
+await page.getByLabel('Remember me').click();
+
+// ✅ check() guarantees the end state regardless of where it started
+await page.getByLabel('Remember me').check();</code></pre>
+
+      <h2 id="common-mistakes">Common Mistakes</h2>
+      <ul>
+        <li><strong>Using <code>click()</code> on checkboxes out of habit</strong> — works today, but silently produces the wrong result if the checkbox's default state ever changes, since <code>click()</code> just toggles whatever's there.</li>
+        <li><strong>Assuming <code>check()</code> works on any visually checkbox-shaped element</strong> — it requires the underlying element to genuinely be an <code>&lt;input type="checkbox"&gt;</code>/<code>radio</code> or something exposing the correct accessible role and checked state; custom-built toggles need care (see Edge Cases).</li>
+        <li><strong>Not asserting the resulting state</strong> — pairing every <code>check()</code>/<code>uncheck()</code> with <code>toBeChecked()</code>/<code>not.toBeChecked()</code> catches cases where the action silently had no effect due to a disabled or JS-blocked control.</li>
+      </ul>
+
+      <h2 id="edge-cases">Edge Cases</h2>
+      <ul>
+        <li><strong>Custom-styled toggle switches</strong> built from a hidden native checkbox plus a styled visual sibling — <code>check()</code> still works as long as the hidden native input remains the accessible target; if the "toggle" is actually a plain <code>&lt;div&gt;</code> with no real checkbox underneath, use <code>click()</code> with an <code>aria-checked</code> assertion instead, since <code>check()</code>/<code>toBeChecked()</code> require a genuine checkbox role.</li>
+        <li><strong>Checkboxes that trigger async side effects</strong> (e.g., an API call to save a preference) — pair the action with a <code>waitForResponse()</code> or a UI confirmation assertion, not just the checked state, if the test cares that the save actually happened.</li>
+      </ul>
+
+      <h2 id="debugging">Debugging</h2>
+      <p>If <code>check()</code> times out, check whether the element is genuinely a checkbox/radio input with the correct role — a common cause is a custom component library rendering something that looks like a checkbox visually but exposes a different underlying role to the accessibility tree.</p>
+
+      <h2 id="best-practices">Best Practices</h2>
+      <ul>
+        <li>Always use <code>check()</code>/<code>uncheck()</code> over <code>click()</code> for checkboxes and radios — the idempotence is a real correctness benefit, not just style preference.</li>
+        <li>Assert the resulting state with <code>toBeChecked()</code> after every <code>check()</code>/<code>uncheck()</code> call in tests where that state matters to the assertion that follows.</li>
+      </ul>
+
+      <h2 id="practice-exercise">Practice Exercise</h2>
+      <p>A settings page has three notification-preference checkboxes, two initially checked and one unchecked. Write a test that ends with exactly the opposite state for all three, using <code>check()</code>/<code>uncheck()</code> rather than <code>click()</code>.</p>
+
+      <h2 id="summary">Summary</h2>
+      <p><code>check()</code> and <code>uncheck()</code> guarantee a checkbox or radio button's end state regardless of its starting state, unlike the toggle behavior of <code>click()</code>. This idempotence makes tests more robust to unrelated changes in default state, and pairing the action with <code>toBeChecked()</code> confirms it actually took effect.</p>
+
+      <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why is check() generally preferred over click() for checkboxes, even though both can end up producing a checked checkbox?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer"><code>click()</code> toggles the current state, so its result depends on whatever state the checkbox happened to be in beforehand — correct today, but silently wrong if that starting state ever changes. <code>check()</code> is idempotent: it guarantees the end state is checked regardless of where it started, which better expresses the test's actual intent and is more robust to unrelated changes elsewhere in the flow.</div>
+</details>
+<details class="faq-item">
+<summary>Why is check() described as idempotent?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Calling it on an already-checked box does nothing extra — no toggling, no side effect — the end state is guaranteed regardless of the starting state.</div>
+</details>
+<details class="faq-item">
+<summary>What happens if you call check() on something that isn't a genuine checkbox role?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It throws, since check()/toBeChecked() require a real checkbox or radio role — a custom-styled non-native toggle needs click() with an aria-checked assertion instead.</div>
+</details>
+<details class="faq-item">
+<summary>Why should you assert toBeChecked() after calling check()?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">To catch cases where the action silently had no effect, such as a disabled or JS-blocked control.</div>
+</details>
+<details class="faq-item">
+<summary>How does checking a radio button affect its group?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Checking one radio in a group automatically unchecks the others, by native browser behavior — worth asserting explicitly rather than assuming.</div>
+</details>
+</div>
+</article>
+</body></html>

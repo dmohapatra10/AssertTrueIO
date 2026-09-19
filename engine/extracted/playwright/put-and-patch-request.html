@@ -1,0 +1,154 @@
+<!doctype html>
+<html><head>
+<title>Playwright PUT vs PATCH: Full Replacement vs Partial Update</title>
+<meta name="description" content="The difference between PUT and PATCH requests in Playwright API testing, why PUT is idempotent and PATCH usually isn&#x27;t, and how to test both correctly." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/put-and-patch-request.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>PUT & PATCH Requests</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="post-request.html">POST Requests</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>request.put(url: string, options?: { data?, headers? })
+request.patch(url: string, options?: { data?, headers? })</code></pre>
+  <p>Both update an existing resource, but with a different contract: <code>PUT</code> conventionally replaces the <em>entire</em> resource with what you send; <code>PATCH</code> applies a <em>partial</em> update, changing only the fields included. Which one a given endpoint actually expects is a property of that specific API, not something Playwright decides — this page is about testing that contract correctly once you know which one applies.</p>
+
+  <h2 id="why-it-s-important">Why it's important</h2>
+  <p>Using the wrong one against a strict API is one of the more common, confusing API test bugs: send a partial payload to a <code>PUT</code> endpoint that expects the full resource, and fields you didn't include can silently get reset to empty or default values — a bug that looks like "half my update didn't work" rather than "I used the wrong HTTP method."</p>
+
+  <h2 id="basic-example-patch-partial-update">Basic Example — PATCH (Partial Update)</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const response = await request.patch('/api/orders/ORD-10492', {
+  data: { quantity: 3 }, // ONLY quantity changes; every other field is untouched
+});
+
+expect(response.ok()).toBeTruthy();
+const order = await response.json();
+expect(order.quantity).toBe(3);
+expect(order.item).toBe('Wireless Mouse'); // unchanged, confirming this was a partial update</code></pre>
+  <p>That last assertion is doing real work — it's not enough to confirm the field you changed actually changed; confirming a field you <em>didn't</em> send is still correct is what proves the update was genuinely partial and didn't accidentally clobber anything else.</p>
+
+  <h2 id="basic-example-put-full-replacement">Basic Example — PUT (Full Replacement)</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const response = await request.put('/api/orders/ORD-10492', {
+  data: {
+    item: 'Wireless Mouse', // must include EVERY field, even ones that aren't changing
+    quantity: 3,
+    status: 'confirmed',
+  },
+});
+
+expect(response.ok()).toBeTruthy();</code></pre>
+
+  <h2 id="detailed-example-the-bug-put-vs-patch-confusion-causes">Detailed Example — The Bug PUT vs. PATCH Confusion Causes</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('demonstrates why PUT with a partial payload can silently lose data', async ({ request }) =&gt; {
+  const created = await request.post('/api/orders', {
+    data: { item: 'Keyboard', quantity: 1, giftNote: 'Happy Birthday!' },
+  });
+  const { id } = await created.json();
+
+  // ❌ Sending PUT with only the field being changed — on a strict PUT
+  // implementation, this can wipe out giftNote and other omitted fields
+  await request.put(`/api/orders/${id}`, { data: { quantity: 2 } });
+
+  const fetched = await request.get(`/api/orders/${id}`);
+  const order = await fetched.json();
+
+  // On a strict PUT implementation, this fails — giftNote got reset
+  console.log(order.giftNote); // may now be null/undefined, not 'Happy Birthday!'
+});</code></pre>
+  <p>This isn't a hypothetical — it's the single most common real bug this pair of methods produces, and it's exactly why testing the <em>omitted-field</em> behavior explicitly (not just the field you intentionally changed) matters for both methods, in opposite directions: PATCH should leave omitted fields alone; PUT conventionally should not.</p>
+
+  <h2 id="real-world-example-testing-both-contracts-on-the-same-resource">Real-World Example — Testing Both Contracts on the Same Resource</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test.describe('order update contract', () =&gt; {
+  let orderId: string;
+
+  test.beforeEach(async ({ request }) =&gt; {
+    const res = await request.post('/api/orders', {
+      data: { item: 'Wireless Mouse', quantity: 1, giftNote: 'For Alex' },
+    });
+    ({ id: orderId } = await res.json());
+  });
+
+  test('PATCH updates only the specified field', async ({ request }) =&gt; {
+    await request.patch(`/api/orders/${orderId}`, { data: { quantity: 5 } });
+
+    const fetched = await request.get(`/api/orders/${orderId}`);
+    const order = await fetched.json();
+
+    expect(order.quantity).toBe(5);
+    expect(order.giftNote).toBe('For Alex'); // untouched
+  });
+
+  test('PUT requires the full resource shape', async ({ request }) =&gt; {
+    const response = await request.put(`/api/orders/${orderId}`, {
+      data: { item: 'Wireless Mouse', quantity: 5, giftNote: 'For Alex' }, // full payload
+    });
+
+    expect(response.ok()).toBeTruthy();
+  });
+});</code></pre>
+
+  <h2 id="idempotence-put-vs-patch">Idempotence: PUT vs. PATCH</h2>
+  <p><code>PUT</code> is idempotent by HTTP convention — sending the exact same <code>PUT</code> request twice produces the same end state as sending it once, since you're always replacing with the same full payload. <code>PATCH</code> is often <em>not</em> idempotent in practice — a patch like <code>{ increment: 1 }</code> applied twice produces a different result than applying it once, even though most simple field-replacement PATCHes (like the quantity example above) happen to be idempotent too. Don't assume either property without checking what a specific PATCH endpoint actually does.</p>
+
+  <h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Using PUT with a partial payload, risking silent data loss on omitted fields
+await request.put(`/api/orders/${id}`, { data: { quantity: 3 } });
+
+// ✅ Use PATCH for partial updates; reserve PUT for sending the complete resource
+await request.patch(`/api/orders/${id}`, { data: { quantity: 3 } });</code></pre>
+
+  <h2 id="common-mistakes">Common Mistakes</h2>
+  <ul>
+    <li><strong>Using PUT with a partial payload</strong> against an API that implements strict full-replacement semantics — the most common bug this pair of methods produces.</li>
+    <li><strong>Only asserting the changed field, never the unchanged ones</strong> — this misses exactly the "did this silently reset other fields" bug that's the whole point of testing PUT/PATCH carefully.</li>
+    <li><strong>Assuming PATCH is always idempotent</strong> — true for simple field-replacement patches, not guaranteed for incrementing or relative-change style patches.</li>
+    <li><strong>Not checking the API's actual documented contract</strong> before choosing PUT vs. PATCH — some APIs don't follow the convention strictly, and the only way to know is to check.</li>
+  </ul>
+
+  <h2 id="edge-cases">Edge Cases</h2>
+  <ul>
+    <li><strong>APIs that treat PUT as upsert</strong> (create if the resource doesn't exist, replace if it does) — this is a real, documented pattern for some APIs; verify whether yours does this before assuming PUT only ever operates on existing resources.</li>
+    <li><strong>PATCH using JSON Patch or JSON Merge Patch formats</strong> (structured patch documents, rather than a simple partial object) — some APIs expect a specific patch format (an array of operations) rather than a plain partial object; check the API's documentation for which convention it follows.</li>
+  </ul>
+
+  <h2 id="debugging">Debugging</h2>
+  <p>If a field you didn't intend to change shows up as null/empty after an update, check whether you used PUT with a partial payload against a strict-replacement endpoint — this is the single most common root cause, and switching that specific call to PATCH (or including the full resource in the PUT) resolves it.</p>
+
+  <h2 id="best-practices">Best Practices</h2>
+  <ul>
+    <li>Confirm each endpoint's actual PUT/PATCH contract from its documentation rather than assuming HTTP convention is followed strictly.</li>
+    <li>For every update test, assert both the changed field(s) and at least one deliberately-omitted field, to catch silent data loss in either direction.</li>
+    <li>Default to PATCH for partial updates in test setup — it's less likely to accidentally clobber fields you didn't mean to touch.</li>
+  </ul>
+
+  <h2 id="practice-exercise">Practice Exercise</h2>
+  <p>Write two tests against the same order resource: one using PATCH to update only the quantity and asserting every other field is unchanged, and one using PUT with a full payload, asserting the update succeeds and all fields reflect the new values.</p>
+
+  <h2 id="summary">Summary</h2>
+  <p>PUT conventionally replaces a resource wholesale and is idempotent; PATCH applies a partial update and often isn't idempotent for non-trivial changes. The most common real bug is using PUT with a partial payload against a strict-replacement API, silently resetting omitted fields — testing both the changed and deliberately-unchanged fields on every update test is what catches this.</p>
+
+  <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A test sends a PUT request with only the fields being changed, and afterward a field that wasn't included comes back empty. What happened, and how would you fix the test?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The API's PUT endpoint implements full-replacement semantics — it treats the request body as the complete new state of the resource, so any field not included is reset to empty or default. The fix is either to switch that request to PATCH (which should only touch the specified fields), or, if PUT is genuinely required, to include the full current resource in the payload rather than just the changed fields.</div>
+</details>
+<details class="faq-item">
+<summary>What's the most common real bug caused by confusing PUT and PATCH?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Sending a partial payload to a strict PUT endpoint, which can silently reset any omitted fields to empty or default values.</div>
+</details>
+<details class="faq-item">
+<summary>Why should an update test assert on a field you didn't change, not just the one you did?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It proves the update behaved correctly in both directions — PATCH should leave omitted fields alone; PUT conventionally should not.</div>
+</details>
+<details class="faq-item">
+<summary>Is PATCH always idempotent?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Not necessarily — a relative change like {increment: 1} produces a different result each time it's applied, even though simple field-replacement PATCHes usually are idempotent.</div>
+</details>
+<details class="faq-item">
+<summary>How do you know whether an API's PUT endpoint expects a full or partial payload?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Check its documentation rather than assuming HTTP convention is followed strictly — not every API implements PUT/PATCH the same way.</div>
+</details>
+</div>
+</article>
+</body></html>

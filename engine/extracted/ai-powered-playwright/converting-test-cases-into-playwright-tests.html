@@ -1,0 +1,152 @@
+<!doctype html>
+<html><head>
+<title>Converting Test Cases into Playwright Tests</title>
+<meta name="description" content="Closing this chapter&#x27;s loop — turning every category&#x27;s TestCase objects into real, validated Playwright code, reusing Chapter 3&#x27;s generation and validation pipeline unchanged." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/converting-test-cases-into-playwright-tests.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Converting Test Cases into Playwright Tests</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="risk-based-test-generation-and-prioritization.html">Risk-Based Test Generation and Prioritization</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Turning any category's <code>TestCase</code> objects into real Playwright code, reusing Chapter 3's generator unchanged</li>
+  <li>Running this chapter's full pipeline — generate, prioritize, convert, validate — end to end</li>
+  <li>Chapter 4's closing interview questions</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>Every earlier page in this chapter produced structured <code>TestCase</code> data — genuinely useful, but not yet executable. This page closes that gap, the same way Chapter 3's final pages did, reusing that exact same generation-and-validation approach rather than building something new.</p>
+
+<h2 id="step-by-step-implementation">Step-by-Step Implementation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/testcase-to-playwright.ts
+import { askClaude } from './ai-client';
+import { TestCase } from './generate-test-cases';
+import { checkSyntax, checkLocatorsExist } from './validate-test';
+import { writeFileSync } from 'fs';
+
+export async function testCaseToPlaywrightCode(
+  testCase: TestCase, pageStructure: string
+): Promise&lt;string&gt; {
+  const prompt = `Generate a single Playwright test in
+TypeScript for this test case:
+${JSON.stringify(testCase)}
+
+Use ONLY these real, known locators — never invent a selector:
+${pageStructure}
+
+Respond with ONLY the TypeScript code, no explanation, no
+markdown fences. Import { test, expect } from '@playwright/test'.
+Use the test case's "steps" to determine the actions, and its
+"expected" to determine the assertion.`;
+
+  return askClaude(prompt);
+}
+
+export async function convertAndValidate(
+  testCase: TestCase, pageStructure: string,
+  filePath: string, pageUrl: string
+): Promise&lt;{ success: boolean; reason?: string }&gt; {
+  const code = await testCaseToPlaywrightCode(testCase, pageStructure);
+  writeFileSync(filePath, code, 'utf-8');
+
+  const syntax = checkSyntax(filePath);
+  if (!syntax.valid) {
+    return { success: false, reason: `Syntax: ${syntax.error}` };
+  }
+  const locators = await checkLocatorsExist(filePath, pageUrl);
+  if (locators.missing.length &gt; 0) {
+    return { success: false, reason: `Missing locators: ${locators.missing.join(', ')}` };
+  }
+  return { success: true };
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p>Notice this page adds no new validation logic at all — <code>checkSyntax</code> and <code>checkLocatorsExist</code> are the exact same functions Chapter 3 built. This is deliberate: validation shouldn't depend on which category of test case produced the code. A boundary case and a happy-path case get identically rigorous validation, because the risk of a hallucinated locator doesn't depend on which category generated it.</p>
+
+<h2 id="example-this-chapter-s-full-pipeline-end-to-end">Example — This Chapter's Full Pipeline, End to End</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>async function runFullPipeline() {
+  const cases = await generateTestCases(
+    'Test ShopSmart\\'s cart quantity field', cartContext
+  );
+  const boundaryCases = await generateBoundaryCases(
+    'quantity', '1 to 99', cartContext
+  );
+  const allCases = [...cases, ...boundaryCases];
+
+  const ranked = await prioritizeByRisk(allCases, cartBusinessContext);
+  const topFive = ranked.slice(0, 5);
+
+  for (const tc of topFive) {
+    const result = await convertAndValidate(
+      tc, cartPageStructure,
+      `tests/generated/${tc.id}.spec.ts`,
+      'https://shopsmart.example.com/cart'
+    );
+    console.log(`${tc.id}: ${result.success ? 'validated' : result.reason}`);
+  }
+}</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Writing separate validation logic per category.</strong> This page's whole point is that Chapter 3's validation applies identically, regardless of category — duplicating it adds risk of inconsistency for no real benefit.</li>
+  <li><strong>Converting every generated case to code before prioritizing.</strong> Running <code>prioritizeByRisk</code> first, then converting only the top-ranked subset, avoids real, wasted cost generating code for cases that won't be executed.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Convert and validate only after prioritizing — code generation has a real cost, covered fully in Chapter 18, and shouldn't be spent on cases you won't run.</li>
+  <li>Keep this chapter's pipeline in this order: generate broadly, prioritize, convert the top subset, validate every single one before execution.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Run this page's full pipeline for one ShopSmart feature of your choosing, using every generation function from this chapter's earlier pages. Confirm every generated test file passes both validation checks before considering the exercise complete.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Converting a <code>TestCase</code> to Playwright code reuses Chapter 3's exact validation functions — no category-specific logic needed.</li>
+  <li>Prioritizing before converting avoids wasted generation cost on cases that won't actually be executed.</li>
+  <li>This chapter's full pipeline — generate broadly across categories, prioritize by real risk, convert the top subset, validate every result — is the genuinely complete answer to "how do I get thorough coverage without generating and running everything, always."</li>
+</ul>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Beginner: What is the genuine difference between a negative test case and a boundary test case?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A negative test case uses clearly invalid input and expects the feature to fail safely — a wrong password, an empty required field. A boundary test case uses genuinely valid input, positioned at the exact edge of an allowed range — the minimum or maximum permitted value — and typically expects the feature to succeed, not fail. Confusing the two leads to writing the wrong expected result for a boundary case.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Beginner: Why does this chapter insist on requesting happy-path and negative cases together, explicitly, in one prompt?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A general, unstructured request like "generate test cases" tends to produce mostly happy-path scenarios — the model gravitates toward the expected flow first, the same way a human tester relying on intuition alone often does. Explicitly requesting both categories, with minimum counts for each, produces meaningfully more balanced coverage than trusting an unstructured request to balance itself.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Intermediate: Explain why security-oriented test generation in this chapter is framed around "confirming safe handling" rather than "trying to break" a field.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>The framing genuinely shapes what gets generated. A prompt asking the model to "find a way to break" a field steers generation toward crafting something designed to succeed at causing harm. A prompt asking it to "confirm the application handles this input safely" steers generation toward scenarios that verify correct escaping, storage, and display — exactly what a QA engineer needs, and squarely within ordinary, everyday testing practice rather than specialized attack tooling.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Intermediate: Why does prioritizeByRisk use a `?? 1` fallback for a test case's risk score, rather than assuming every case will always receive one?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>An AI-generated response can genuinely omit an entry for some input, even with a clear prompt — this is a real, ordinary failure mode, not a hypothetical edge case. Without a fallback, a missing score would either crash the function or silently make that test case vanish from the prioritized list. Defaulting to the lowest risk score means the case is still included, just deprioritized, which is a safer failure mode than losing it entirely — the same defensive validation discipline Chapter 3 established for any AI response the code depends on.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Advanced: Why does this chapter's full pipeline prioritize by risk BEFORE converting to Playwright code, rather than converting every generated test case first and prioritizing which ones to run afterward?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Converting a test case to Playwright code is itself a real, costly step — it's a separate AI call with its own latency and token cost, covered fully in Chapter 18. If conversion happened before prioritization, that cost would be paid for every single generated case, including the many low-priority ones that were never going to be executed anyway. Prioritizing first, then converting only the top-ranked subset, means that real cost is spent exclusively on test cases that will actually run — the same cost-awareness principle Chapter 2 introduced when discussing token cost, applied here to a concrete, multi-step pipeline decision rather than a single prompt.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Scenario-based: A teammate wants to add category-specific validation logic — a stricter check for security-oriented generated tests than for happy-path ones. How would you respond, using this chapter's own reasoning?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd point to this page's own reasoning directly: the risk of a hallucinated or incorrect locator doesn't depend on which category generated the code — a happy-path test and a security-oriented test are both real Playwright code that either references a genuine element on the page or doesn't. Chapter 3's syntax and locator-existence checks already apply identically and rigorously to every generated file, regardless of source. Adding category-specific validation logic would introduce inconsistency and additional maintenance burden without addressing a genuine difference in risk — if anything, it would be worth asking whether the EXISTING validation is already sufficient for every category, which this chapter's own design suggests it is.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

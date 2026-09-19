@@ -1,0 +1,96 @@
+<!doctype html>
+<html><head>
+<title>JSON, Serialization &amp; Deserialization in RestAssured</title>
+<meta name="description" content="How Java objects become JSON requests and JSON responses become Java objects — POJOs, serialization, deserialization, and JSON Schema validation with RestAssured." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/json-serialization-deserialization.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>JSON, Serialization & Deserialization</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="response-validation-assertions.html">Response Validation & Assertions</a></p>
+<article class="content">
+<h2 id="turning-java-objects-into-json-and-back">Turning Java Objects Into JSON, and Back</h2>
+<p>An earlier page briefly introduced POJOs as a request body option. Here's the full picture: designing POJOs properly, how they turn into JSON (serialization), how JSON responses turn back into POJOs (deserialization), and the configuration and edge cases that make this reliable in a real test suite — across six pages:</p>
+<ol>
+  <li><a href="pojo-design-for-api-testing.html">POJO Design for API Testing</a> — what makes a good test POJO</li>
+  <li><a href="serialization-with-jackson-gson.html">Serialization with Jackson & Gson</a> — Java object → JSON</li>
+  <li><a href="deserialization-response-to-pojo.html">Deserialization: Response to POJO</a> — JSON → Java object</li>
+  <li><a href="object-mapper-configuration.html">ObjectMapper Configuration</a> — controlling how serialization actually behaves</li>
+  <li><a href="nested-and-list-pojos.html">Nested Objects & List POJOs</a> — modeling real, non-flat API payloads</li>
+  <li><a href="json-schema-validation.html">JSON Schema Validation</a> — validating structure instead of every field individually</li>
+</ol>
+
+<h2 id="the-two-directions">The Two Directions</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Serialization:
+Java Object
+    ↓
+JSON
+    ↓
+API Request
+
+Deserialization:
+JSON
+    ↓
+Java Object
+    ↓
+Assertions / Business Logic</code></pre>
+<p>These are mirror images of each other, and RestAssured handles both automatically via whichever JSON library (Jackson or Gson) is on your classpath — you rarely call serialization code directly. What you <em>do</em> control is the POJO design itself, which is what the pages ahead are really about.</p>
+
+<h2 id="why-this-matters-more-than-it-first-appears-to">Why This Matters More Than It First Appears To</h2>
+<p>It's easy to treat POJOs as a nice-to-have convenience — raw strings and Maps work fine for a request body, after all. The real payoff shows up at scale: once a test suite has dozens or hundreds of tests sharing the same handful of request/response shapes, the difference between "a typo silently sends the wrong field" (raw Map) and "a typo doesn't even compile" (POJO) becomes the difference between a suite that's pleasant to maintain and one where a refactor means hunting down string literals across dozens of files.</p>
+
+<h2 id="when-raw-json-is-fine-vs-when-pojos-earn-their-keep">When Raw JSON Is Fine vs. When POJOs Earn Their Keep</h2>
+<p>A single throwaway test doesn't need a POJO — a raw string or a <code>Map</code> is faster to write and perfectly reasonable. POJOs earn their keep once a payload shape gets reused across more than a couple of tests: the compiler catches a typo'd field immediately, your IDE gives you autocomplete, and renaming a field updates every usage at once instead of requiring a manual find-and-replace across string literals.</p>
+
+<h2 id="a-preview-what-good-pojo-based-testing-looks-like">A Preview — What Good POJO-Based Testing Looks Like</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// A request POJO (Chapter 5, page 1) ...
+OrderRequest order = new OrderRequest("Wireless Mouse", 2);
+
+// ... serialized automatically on the way out (Chapter 5, page 2) ...
+Order created = given()
+    .contentType(ContentType.JSON)
+    .body(order)
+.when()
+    .post("/orders")
+.then()
+    .statusCode(201)
+    // ... and deserialized automatically on the way back (Chapter 5, page 3)
+    .extract().as(Order.class);
+
+assertThat(created.getStatus(), equalTo("pending"));</code></pre>
+<p>By the end of this chapter, this whole round trip — Java object out, Java object back — should feel completely natural, with the JSON itself never something you have to think about directly.</p>
+
+<h2 id="common-mistakes-to-watch-for">Common Mistakes to Watch For</h2>
+<ul>
+  <li><strong>Reusing production domain model classes</strong> as test POJOs instead of keeping test-owned classes focused purely on wire format.</li>
+  <li><strong>Forgetting the no-arg constructor</strong> required for deserialization, once a custom parameterized constructor has been added.</li>
+  <li><strong>Assuming Java field names always match an API's JSON naming convention</strong> without checking — snake_case APIs are common and need explicit handling.</li>
+</ul>
+
+<h2 id="what-you-ll-be-able-to-do">What You'll Be Able to Do</h2>
+<p>By the end of the six pages that follow, you should be able to design a clean, test-focused POJO for any JSON payload shape (flat or nested), control exactly how it serializes and deserializes when the API's naming convention doesn't match Java's, and know when to reach for JSON Schema validation instead of — or alongside — POJO-based checks. Start with POJO Design for API Testing below.</p>
+      
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>When does a POJO's compile-time safety actually start paying off over a raw Map?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Once a payload shape is reused across more than a couple of tests — a single throwaway test doesn't need that investment, a raw string or Map is faster and perfectly reasonable there.</div>
+</details>
+<details class="faq-item">
+<summary>What are the two directions serialization and deserialization each cover?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Serialization: Java object to JSON, for outgoing requests. Deserialization: JSON to Java object, for incoming responses — mirror images of each other, both handled automatically by Jackson or Gson.</div>
+</details>
+<details class="faq-item">
+<summary>Why would a test suite deliberately avoid reusing production domain model classes?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Production models often carry validation or database-mapping annotations that have nothing to do with what a test needs, and reusing them couples the test suite to production code that could break tests via an unrelated internal refactor.</div>
+</details>
+<details class="faq-item">
+<summary>What's the practical cost of NOT using POJOs for a payload shape used in fifty tests?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A typo'd field name in a Map compiles fine and silently sends wrong data with zero warning — with a POJO, the same typo simply wouldn't compile, catching the mistake immediately rather than in a confusing test failure.</div>
+</details>
+<details class="faq-item">
+<summary>Why does this chapter matter more at scale than it first appears to for a small project?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The real payoff shows up once a suite has dozens or hundreds of tests sharing request/response shapes — the difference between a typo silently sending wrong data (a raw Map) and a typo that doesn't compile (a POJO) becomes the difference between a maintainable suite and a fragile one.</div>
+</details>
+</div>
+</article>
+</body></html>

@@ -1,0 +1,160 @@
+<!doctype html>
+<html><head>
+<title>Data-Driven Testing in RestAssured with JSON, CSV, and Excel</title>
+<meta name="description" content="How to run the same RestAssured test logic against many data sets using JUnit 5&#x27;s parameterized tests — CSV files, JSON files, and Excel where appropriate." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/data-driven-testing-with-json-and-csv.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Data-Driven Testing with JSON &amp; CSV</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="test-data-builders.html">Test Data Builders</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Data-driven testing runs the same test logic repeatedly against different input data — instead of writing four nearly-identical test methods for four email formats, you write the logic once and supply four rows of data. JUnit 5's <code>@ParameterizedTest</code> is the mechanism this page builds on.</p>
+
+<h2 id="basic-example-inline-parameterized-data">Basic Example — Inline Parameterized Data</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@ParameterizedTest
+@ValueSource(strings = {"not-an-email", "missing-at-sign.com", "@no-local-part.com", ""})
+void invalidEmailFormatsAreRejected(String invalidEmail) {
+    given()
+        .body(Map.of("email", invalidEmail, "name", "Test"))
+    .when()
+        .post("/users")
+    .then()
+        .statusCode(400);
+}</code></pre>
+<p>Four invalid email formats, one test method — JUnit runs it once per value, reporting each as its own distinct result, so a failure clearly identifies exactly which input caused it, not just "the parameterized test failed" generically.</p>
+
+<h2 id="csv-based-test-data">CSV-Based Test Data</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># test-data/invalid-users.csv
+name,email,expectedStatus
+John,not-an-email,400
+,valid@example.com,400
+Jane,,400</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@ParameterizedTest
+@CsvFileSource(resources = "/test-data/invalid-users.csv", numLinesToSkip = 1)
+void invalidUserDataIsRejected(String name, String email, int expectedStatus) {
+    Map&lt;String, Object&gt; user = new HashMap&lt;&gt;();
+    user.put("name", name);
+    user.put("email", email);
+
+    given().body(user).when().post("/users").then().statusCode(expectedStatus);
+}</code></pre>
+<p>A CSV file is a natural fit when the data itself is genuinely tabular — several fields varying together across many rows. This also means non-developers (a QA lead, a business analyst) can meaningfully review or even contribute test data without touching Java code at all — a real, practical benefit CSV-based data-driven testing offers over inline code.</p>
+
+<h2 id="json-based-test-data">JSON-Based Test Data</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// test-data/users.json
+[
+  { "name": "John", "email": "john@example.com", "role": "admin" },
+  { "name": "Jane", "email": "jane@example.com", "role": "user" }
+]</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@ParameterizedTest
+@MethodSource("loadUsersFromJson")
+void eachUserCanBeCreatedSuccessfully(User user) {
+    given().body(user).when().post("/users").then().statusCode(201);
+}
+
+static Stream&lt;User&gt; loadUsersFromJson() throws IOException {
+    ObjectMapper mapper = new ObjectMapper();
+    User[] users = mapper.readValue(
+        new File("src/test/resources/test-data/users.json"), User[].class);
+    return Arrays.stream(users);
+}</code></pre>
+<p>JSON is the more natural fit when the test data itself has a nested, non-tabular shape — a user with an embedded address object, for instance, doesn't flatten cleanly into CSV columns the way it deserializes naturally from JSON into a POJO via the same Jackson mechanism from Chapter 5.</p>
+
+<h2 id="excel-where-it-s-actually-appropriate">Excel — Where It's Actually Appropriate</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Using Apache POI to read an Excel-based data set
+Workbook workbook = new XSSFWorkbook(new FileInputStream("test-data/users.xlsx"));
+Sheet sheet = workbook.getSheetAt(0);
+
+List&lt;User&gt; users = new ArrayList&lt;&gt;();
+for (Row row : sheet) {
+    if (row.getRowNum() == 0) continue; // skip header
+    users.add(new User(
+        row.getCell(0).getStringCellValue(),
+        row.getCell(1).getStringCellValue()
+    ));
+}</code></pre>
+<p>Excel-based test data is heavier tooling (requiring a library like Apache POI) than CSV or JSON, and is genuinely appropriate in a narrower set of cases — typically when non-technical stakeholders are already maintaining test data in Excel as part of an existing process, and converting that workflow to CSV/JSON would be more disruptive than just reading the Excel file directly. Don't reach for Excel by default; CSV or JSON cover the overwhelming majority of data-driven testing needs with far less tooling overhead.</p>
+
+<h2 id="real-world-example-combining-a-builder-with-parameterized-data">Real-World Example — Combining a Builder With Parameterized Data</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@ParameterizedTest
+@CsvSource({
+    "'', valid@example.com, 400",       // missing name
+    "John, '', 400",                     // missing email
+    "John, not-an-email, 400"           // invalid email format
+})
+void invalidUserFieldsAreRejected(String name, String email, int expectedStatus) {
+    User user = UserBuilder.aUser()
+        .withName(name.isEmpty() ? null : name)
+        .withEmail(email.isEmpty() ? null : email)
+        .build();
+
+    given().body(user).when().post("/users").then().statusCode(expectedStatus);
+}</code></pre>
+<p>This combines the previous page's builder (for sensible defaults on every field not explicitly being varied) with inline parameterized data (for the specific fields under test) — the two tools compose naturally rather than competing.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Four nearly-identical test methods, each hardcoding one variant
+@Test void invalidEmail1() { /* ...same body, different email... */ }
+@Test void invalidEmail2() { /* ...same body, different email... */ }
+@Test void invalidEmail3() { /* ...same body, different email... */ }
+
+// ✅ One parameterized test, four data points, one clear failure attribution per input
+@ParameterizedTest
+@ValueSource(strings = {"bad1", "bad2", "bad3"})
+void invalidEmailIsRejected(String email) { /* ... */ }</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Writing near-duplicate test methods</strong> instead of a single parameterized test — more code to maintain, and no structural guarantee the duplicated logic stays consistent across variants.</li>
+  <li><strong>Reaching for Excel by default</strong> when CSV or JSON would work with far less tooling overhead — reserve it specifically for cases where existing non-technical workflows already use Excel.</li>
+  <li><strong>Putting genuinely nested data into a flat CSV</strong>, forcing an awkward flattening — JSON is the better fit once the data itself isn't naturally tabular.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Very large data-driven test sets</strong> (hundreds of rows) — consider whether every row genuinely adds distinct coverage, or whether a smaller, deliberately chosen set of representative cases would be just as effective and much faster to run.</li>
+  <li><strong>Data files that need environment-specific values</strong> — covered in depth on the Environment-Specific Test Data page later in this chapter.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>When a parameterized test fails, JUnit's test report identifies exactly which specific input caused the failure — read that carefully rather than assuming the whole parameterized method is broken; usually only one or a few specific data points are actually the problem.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Prefer JUnit's <code>@ParameterizedTest</code> over hand-written near-duplicate test methods whenever the same logic needs to run against multiple inputs.</li>
+  <li>Choose CSV for tabular data, JSON for nested data, and reserve Excel for cases with a genuine existing non-technical workflow reason.</li>
+  <li>Keep data-driven test sets focused on genuinely distinct scenarios, not exhaustive combinations that don't add real coverage.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Convert four hand-written near-duplicate test methods (testing four different invalid email formats) into a single <code>@ParameterizedTest</code> using <code>@ValueSource</code>, then extend it to also read the same data from an external CSV file using <code>@CsvFileSource</code>.</p>
+
+<h2 id="summary">Summary</h2>
+<p>Data-driven testing via JUnit 5's <code>@ParameterizedTest</code> family — <code>@ValueSource</code> for simple inline values, <code>@CsvFileSource</code>/<code>@CsvSource</code> for tabular data, <code>@MethodSource</code> for JSON or other custom-loaded data — replaces near-duplicate hand-written test methods with one method and many data points, each reported and attributed individually on failure.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>When would you choose a CSV file over a JSON file for data-driven test data, and vice versa?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">CSV fits naturally when the data is genuinely tabular — several simple fields varying together across many rows — and has the added benefit that non-developers can review or edit it without touching code. JSON fits better when the data has a nested or non-flat shape — an object with an embedded sub-object, for instance — which doesn't flatten cleanly into CSV columns but deserializes naturally into a POJO via the same mechanism covered in the JSON & Serialization chapter. The deciding factor is the actual shape of the data, not a fixed preference for one format over the other.</div>
+</details>
+<details class="faq-item">
+<summary>Why is @ParameterizedTest preferable to four near-identical hand-written test methods?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">One method with multiple data points is less code to maintain and structurally guarantees the tested logic stays consistent across variants — each input is still reported and attributed individually on failure.</div>
+</details>
+<details class="faq-item">
+<summary>When would you choose CSV over JSON for external test data?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">When the data is genuinely tabular — several simple fields varying together across rows — and when non-developers benefit from being able to review or edit it without touching code.</div>
+</details>
+<details class="faq-item">
+<summary>When does JSON fit external test data better than CSV?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">When the data has a nested, non-flat shape that doesn't flatten cleanly into CSV columns but deserializes naturally into a POJO.</div>
+</details>
+<details class="faq-item">
+<summary>Why is Excel described as appropriate only in a narrower set of cases?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It requires heavier tooling (like Apache POI) than CSV or JSON; it's genuinely justified mainly when non-technical stakeholders already maintain data in Excel as part of an existing workflow, not as a default choice.</div>
+</details>
+</div>
+</article>
+</body></html>

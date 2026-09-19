@@ -1,0 +1,95 @@
+<!doctype html>
+<html><head>
+<title>What is a GitHub Environment? The Dev/Test/Staging/Production Progression</title>
+<meta name="description" content="What a GitHub Environment actually is, how it groups deployment-related configuration, and why most real projects use a dev/test/staging/production progression." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/what-is-a-github-environment-and-the-standard-progression.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>What is a GitHub Environment? Dev/Test/Staging/Production</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="environments-approvals-and-deployment.html">Environments, Approvals & Deployment overview</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>A GitHub Environment is a named target a job can deploy to — <code>staging</code>, <code>production</code>, whatever your project actually uses — that groups together environment-specific secrets, variables, and protection rules under one configured name.</p>
+
+<h2 id="why-do-we-need-it">Why do we need it?</h2>
+<p>Without environments, "which secret is for staging versus production" or "who needs to approve a production deploy" would need to be handled through ad-hoc naming conventions and manual discipline. Environments give this a real, first-class place to live, directly integrated with the deployment mechanism itself.</p>
+
+<h2 id="declaring-a-job-s-environment">Declaring a Job's Environment</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  deploy:
+    environment: staging
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Deploying to staging"</code></pre>
+<p>This single line connects the job to everything configured for the <code>staging</code> environment in the repository's settings — its secrets, its variables, and any protection rules covered later in this chapter.</p>
+
+<h2 id="the-standard-progression">The Standard Progression</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Development → Test → Staging → Production</code></pre>
+<ul>
+  <li><strong>Development</strong> — often a local or shared dev environment, changes constantly, lowest stakes.</li>
+  <li><strong>Test</strong> — a dedicated environment for automated test suites to run against, isolated from real users.</li>
+  <li><strong>Staging</strong> — as close to production as practical, used for final verification before a real release.</li>
+  <li><strong>Production</strong> — the real, live system actual users depend on — highest stakes, by far.</li>
+</ul>
+<p>Not every project needs all four — a small project might genuinely only need Test and Production. The real principle is having <em>enough</em> distinct stages that risk increases gradually, not jumping straight from "a developer's laptop" to "real users."</p>
+
+<h2 id="detailed-example-shopeasy-s-actual-environments">Detailed Example — ShopEasy's Actual Environments</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>ShopEasy's environments, each configured separately in GitHub:
+
+test        — automatically deployed after every successful build
+staging     — automatically deployed after test passes, used for
+              manual QA before a real release
+production  — deployed only after explicit human approval (covered
+              in depth two pages from now)</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might a team deliberately choose to have both a Test and a Staging environment, rather than just one "pre-production" environment doing both jobs? Test environments often exist specifically to be disposable and frequently reset — ideal for automated test suites that need a clean, predictable state each run. Staging is typically meant to stay more stable and genuinely production-like, for final human verification — mixing these two purposes into one environment can create friction between automated testing's need for disposability and staging's need for stability.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Skipping environments entirely and managing deployment targets through ad-hoc naming (a secret called <code>PROD_API_KEY</code>, another called <code>STAGING_API_KEY</code>, with no actual GitHub Environment grouping them). This works, technically, but loses the genuine, built-in benefits — environment-specific protection rules, a clear audit trail of what deployed where, and the structural clarity of environments as a first-class concept.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>Environments are configured in a repository's Settings → Environments — worth creating them there deliberately, with real names matching your project's actual deployment targets, before referencing them in a workflow's <code>environment:</code> key.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Use GitHub Environments deliberately for any real deployment target, rather than managing this through naming conventions alone.</li>
+  <li>Choose a progression (however many stages) that reflects genuine, gradually increasing risk — not a fixed number just because four is conventional.</li>
+  <li>Keep Test and Staging conceptually distinct if your project's testing needs genuinely benefit from disposability that staging shouldn't have.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>A GitHub Environment groups deployment-specific secrets, variables, and protection rules under one named configuration.</li>
+  <li>The standard progression (dev/test/staging/production) reflects gradually increasing real risk, not an arbitrary convention.</li>
+  <li>A job connects to an environment through the <code>environment:</code> key, gaining access to everything configured for it.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>For a hypothetical small project with limited resources, decide which of the four standard environments it could reasonably combine or skip, and justify your reasoning based on the project's actual, real risk profile rather than simply following the four-stage convention by default.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>What does declaring environment: staging on a job actually connect that job to?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It connects the job to everything configured for the staging environment in the repository's settings — its specific secrets, its specific variables, and any protection rules (like required approvals) configured for that environment. This single declaration is what ties a job's execution to a real, named deployment target's full configuration.</div>
+</details>
+<details class="faq-item">
+<summary>Why might a team maintain both a Test and a Staging environment rather than combining them into one?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A Test environment often needs to be disposable and frequently reset to give automated test suites a clean, predictable starting state each run. Staging typically needs to remain more stable and genuinely production-like for meaningful final human verification. Combining these two purposes can create friction between automated testing's need for disposability and staging's need for stability.</div>
+</details>
+<details class="faq-item">
+<summary>What's lost by managing deployment targets through naming conventions alone (like separate PROD_API_KEY and STAGING_API_KEY secrets) instead of using actual GitHub Environments?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Without actual environments, there's no built-in mechanism for environment-specific protection rules, no clear, structured audit trail of what deployed to which target, and no first-class grouping of a target's secrets and variables together. Naming conventions can technically work, but they depend entirely on manual discipline rather than a genuine, structural safeguard.</div>
+</details>
+<details class="faq-item">
+<summary>Why doesn't every project need all four standard environments (development, test, staging, production)?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The real principle behind the progression is having enough distinct stages that risk increases gradually, appropriate to a project's actual scale and needs — not hitting a specific, fixed number of stages. A smaller project might reasonably combine or skip stages if its genuine risk profile doesn't justify the full four-stage progression, while a larger, higher-stakes project might need more granularity.</div>
+</details>
+<details class="faq-item">
+<summary>Why is production considered meaningfully higher-stakes than the other environments in this progression?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Production is the actual, live system real users genuinely depend on — a mistake here has real, immediate consequences for actual people using the application. Development, test, and staging environments exist specifically to catch problems before they ever reach that real, live system, which is exactly why the progression treats each successive stage with increasing seriousness.</div>
+</details>
+</div>
+</article>
+</body></html>

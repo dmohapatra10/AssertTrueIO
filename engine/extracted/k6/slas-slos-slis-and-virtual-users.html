@@ -1,0 +1,121 @@
+<!doctype html>
+<html><head>
+<title>SLAs, SLOs, SLIs &amp; Virtual Users: Turning a Requirement Into a Real Test</title>
+<meta name="description" content="How SLI, SLO, and SLA relate to each other, what a virtual user actually simulates, what a bottleneck is, and how to translate a real business requirement into a testable k6 workload." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/slas-slos-slis-and-virtual-users.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>SLAs, SLOs, SLIs &amp; Virtual Users</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="percentiles-and-reading-performance-data.html">Percentiles & Reading Performance Data</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>This page closes out the fundamentals chapter by connecting everything covered so far — test types, baselines, metrics, percentiles — into the actual mechanism for turning a business requirement into a concrete, testable target, plus the last two pieces of vocabulary (virtual users and bottlenecks) needed before touching k6 itself.</p>
+
+<h2 id="sli-service-level-indicator">SLI — Service Level Indicator</h2>
+<p>An SLI is the actual measured metric — something like "p95 response time" or "error rate." It's a number you can genuinely observe, not a target or a promise.</p>
+
+<h2 id="slo-service-level-objective">SLO — Service Level Objective</h2>
+<p>An SLO is the internal target set for an SLI — something like "p95 response time under 500ms." This is a goal the engineering team holds itself to, typically not something shared externally as a formal commitment.</p>
+
+<h2 id="sla-service-level-agreement">SLA — Service Level Agreement</h2>
+<p>An SLA is a formal, often externally-facing commitment to a customer, typically built on top of one or more SLOs — sometimes with real, contractual consequences (financial penalties, service credits) for missing it.</p>
+
+<h2 id="how-the-three-relate">How the Three Relate</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>SLI (measured):  p95 response time = 420ms
+       ↓
+SLO (internal target): "p95 should stay under 500ms"
+       ↓
+SLA (external promise): "We guarantee 99.9% uptime and sub-second response times,
+                          or you receive a service credit."</code></pre>
+<p>The relationship flows in one direction only: you measure an SLI, set an SLO as your internal target for it, and an SLA is the external promise built on reliably meeting that SLO. An SLA without a corresponding SLO (and the SLI it's based on) is just a promise with nothing behind it — no way to know in advance whether it's actually being kept.</p>
+
+<h2 id="virtual-users-vus">Virtual Users (VUs)</h2>
+<p>A virtual user is a simulated user your load-testing tool runs — not a real human, but a script executing the same sequence of requests a real user's browser or app would make, repeated many times in parallel to simulate real traffic. When k6 reports "50 VUs," it means 50 of these simulated users are actively running their scripted behavior at that moment — this is the fundamental unit of load in nearly every performance test you'll write.</p>
+
+<h2 id="bottlenecks">Bottlenecks</h2>
+<p>A bottleneck is whatever component is actually limiting the system's overall performance — a slow database query, an undersized connection pool, a single-threaded piece of processing logic, a downstream API with its own rate limit. Finding the actual bottleneck — not just observing that things are generally slow — is the real goal of most performance testing; "it's slow" is an observation, "the database connection pool is exhausted at 200 concurrent users" is a diagnosis you can actually act on.</p>
+
+<h2 id="detailed-example-translating-a-business-requirement-into-a-testable-target">Detailed Example — Translating a Business Requirement Into a Testable Target</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Business requirement:
+"The application should support 5,000 users during peak traffic, with 95% of
+ checkout requests completing within 2 seconds."
+
+Broken down into testable pieces:
+- Target concurrency:     5,000 virtual users
+- Specific workflow:      checkout (not just any endpoint)
+- Percentile threshold:   p95 (not average)
+- Response-time target:   2,000ms
+- Implied test type:      load test (this is EXPECTED peak traffic, not a stress ceiling)</code></pre>
+<p>This single sentence actually specifies five distinct, concrete pieces of a real test — and reading a requirement this way, rather than vaguely, is exactly the skill Chapter 4 (Workload Modeling) and Chapter 7 (Thresholds) turn into actual k6 configuration.</p>
+
+<h2 id="real-world-example-deriving-an-slo-from-a-baseline-not-guessing">Real-World Example — Deriving an SLO From a Baseline, Not Guessing</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Established baseline: p95 = 380ms under normal traffic
+
+❌ Guessed SLO: "p95 should be under 100ms" — unrealistic, not based on anything real
+✅ Derived SLO: "p95 should stay under 450ms" — a reasonable buffer above the
+                real, measured baseline, not an arbitrary aspiration</code></pre>
+<p>A good SLO is derived from real historical performance data (the baseline from earlier in this chapter) or genuine business need — not picked out of thin air as an aspirational number that has no connection to what the system has actually ever achieved.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Making an external SLA promise with no SLO or SLI behind it
+"We guarantee blazing-fast performance." — unmeasurable, unverifiable, meaningless
+
+// ✅ An SLA built on a real, measurable chain
+SLI: p95 response time (measured continuously)
+SLO: p95 under 500ms (internal target)
+SLA: "95% of requests complete within 500ms, or you receive a credit" (external promise)</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Setting an SLO with no connection to a real baseline or measured SLI</strong> — an aspirational number that was never actually achievable produces constant, uninformative "failures."</li>
+  <li><strong>Making an SLA promise with no underlying SLO or SLI to back it</strong> — a commitment with nothing behind it to verify whether it's actually being met.</li>
+  <li><strong>Reading a business requirement too literally, missing the implied test type or percentile</strong> — "support 5,000 users" easily gets tested as a stress test when it actually describes expected load.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>A business requirement that doesn't specify a percentile at all</strong> — "the system should be fast" needs to be translated into a specific, testable target (which percentile, what threshold) before it can become a real test; this translation itself is a skill, not just a mechanical step.</li>
+  <li><strong>An SLA inherited from a contract signed before any real SLI was ever measured</strong> — sometimes the external promise exists before the internal capability to verify it does; in that case, establishing the SLI and SLO retroactively is urgent, not optional.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If an SLA is being missed in production, work backward through the chain: check the SLO first (was the internal target itself unrealistic), then the SLI (is it even being measured correctly) — an SLA failure is rarely actually about the external promise itself, it's almost always a problem with what's underneath it.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Derive SLOs from real baseline data or genuine business need, never as an arbitrary aspirational guess.</li>
+  <li>Never make an external SLA promise without a real, measured SLI and a corresponding internal SLO behind it.</li>
+  <li>When translating a business requirement into a test, explicitly identify the concurrency level, the specific workflow, the percentile, and the response-time target — don't leave any of the four implicit.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Translate this requirement into its testable components: "During our biggest sale of the year, the site should handle 8,000 concurrent shoppers, with 99% of add-to-cart actions completing within 1.5 seconds." Identify the concurrency target, the workflow, the percentile, the response-time threshold, and which test type (from the first page in this chapter) this scenario actually calls for.</p>
+
+<h2 id="summary">Summary</h2>
+<p>SLI, SLO, and SLA form a chain — a measured indicator, an internal target for it, and an external promise built on that target — and skipping any link in that chain (an SLA with no real SLO, an SLO with no real baseline) produces a commitment that can't actually be verified. Virtual users are the simulated load your tests generate, and bottlenecks are the real, specific components limiting performance — finding the bottleneck, not just observing slowness, is the actual goal. Together with everything else in this chapter, this is what lets you read a business requirement and translate it into a real, testable target — which is exactly where the next chapter, Getting Started with k6, picks up.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>How do SLI, SLO, and SLA actually relate to each other?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">An SLI is the raw measured metric itself, like p95 response time. An SLO is the internal target set for that metric, like "p95 under 500ms." An SLA is a formal, often externally-facing commitment built on top of one or more SLOs, sometimes with real consequences for missing it. The flow is always measurement (SLI) to internal target (SLO) to external promise (SLA), never the reverse — an SLA without an underlying SLO and SLI is an unverifiable promise.</div>
+</details>
+<details class="faq-item">
+<summary>Why is it risky to set an SLO without referencing a real baseline?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">An SLO with no connection to actual measured performance is just a guess — it might be unrealistically strict (producing constant, uninformative failures against a target the system was never actually capable of meeting) or too lenient (allowing genuine regressions to pass unnoticed). Deriving the SLO from a real baseline keeps the target grounded in what the system has actually demonstrated it can do.</div>
+</details>
+<details class="faq-item">
+<summary>What is a virtual user, and what does it actually simulate?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A virtual user is a simulated user run by a load-testing tool — a script that repeats the same sequence of requests a real user's browser or app would make, executed many times in parallel to represent real concurrent traffic. It's the fundamental unit of load in performance testing; when a report says "50 VUs," it means 50 of these simulated users were actively executing their scripted behavior at that moment.</div>
+</details>
+<details class="faq-item">
+<summary>Why is finding the actual bottleneck considered the real goal of performance testing, rather than just confirming something is slow?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">"The system is slow" is an observation you can't act on directly — it doesn't tell you what to actually fix. A bottleneck is the specific component genuinely limiting performance (a particular slow query, an undersized connection pool, a rate-limited dependency), and identifying it turns a vague complaint into an actionable diagnosis. Performance testing that stops at "it's slow" without identifying why hasn't actually accomplished its real purpose.</div>
+</details>
+<details class="faq-item">
+<summary>A business requirement says "the app should support 5,000 users at peak." Why is it important to determine whether this calls for a load test or a stress test?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">If 5,000 users represents genuinely expected peak traffic, this calls for a load test — confirming the system meets a known, realistic requirement. If it's being used to find an unknown ceiling instead, that's a stress test — a fundamentally different goal. Testing the wrong type here means either under-testing an assumption (treating expected traffic as if it were an extreme edge case) or over-testing conservatively (never actually confirming the system meets its real expected load), neither of which answers the question the requirement is actually asking.</div>
+</details>
+</div>
+</article>
+</body></html>

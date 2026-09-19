@@ -1,0 +1,131 @@
+<!doctype html>
+<html><head>
+<title>RestAssured Serialization with Jackson &amp; Gson: Java Objects to JSON</title>
+<meta name="description" content="How RestAssured serializes Java objects into JSON request bodies using Jackson or Gson, and what happens automatically vs. what you control." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/serialization-with-jackson-gson.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Serialization with Jackson & Gson</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="pojo-design-for-api-testing.html">POJO Design for API Testing</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>User user = new User("John", "john@example.com");
+
+given()
+    .contentType(ContentType.JSON)
+    .body(user)     // ← serialization happens here, automatically
+.when()
+    .post("/users");</code></pre>
+<p><strong>Serialization</strong> is the process of converting a Java object into its JSON text representation. When you pass a POJO to <code>.body()</code>, RestAssured hands it to whichever JSON library is on your classpath — Jackson or Gson — which walks the object's fields (via getters, by default) and produces the equivalent JSON string, entirely automatically. You never call a serialization method directly in typical usage.</p>
+
+<h2 id="why-it-s-important">Why it's important</h2>
+<p>Understanding that this conversion is automatic — and what it actually does under the hood — is what lets you predict and control the exact JSON your request will contain, rather than treating it as an opaque black box you only discover through trial and error.</p>
+
+<h2 id="jackson-vs-gson">Jackson vs. Gson</h2>
+<p>Both are JSON libraries capable of the same fundamental job; RestAssured detects whichever is present on your classpath and uses it. <strong>Jackson</strong> is the more common default in most Java projects (and Spring-based projects almost always already have it as a transitive dependency), with more configuration options and annotations. <strong>Gson</strong>, from Google, is simpler and has a smaller footprint, sometimes preferred for that reason. If both are on the classpath, RestAssured picks one (Jackson takes priority in recent versions) — worth confirming explicitly if your project has both and you're seeing unexpected serialization behavior.</p>
+
+<h2 id="basic-example">Basic Example</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>public class User {
+    private String name;
+    private String email;
+    // getters/setters
+}
+
+User user = new User("John", "john@example.com");
+given().contentType(ContentType.JSON).body(user).when().post("/users");
+
+// Produces this JSON body:
+// { "name": "John", "email": "john@example.com" }</code></pre>
+<p>By default, the JSON field names match the Java field names exactly (or more precisely, the getter names with "get" stripped and the first letter lowercased) — <code>getName()</code> becomes <code>"name"</code> in the output JSON.</p>
+
+<h2 id="controlling-the-output-with-annotations">Controlling the Output with Annotations</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>public class User {
+    @JsonProperty("full_name")
+    private String name;
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private String middleName; // omitted from JSON entirely if null
+
+    @JsonIgnore
+    private String internalNotes; // never serialized, regardless of value
+}</code></pre>
+<p><code>@JsonProperty</code> maps a Java field to a differently-named JSON key — essential when the API uses <code>snake_case</code> (<code>full_name</code>) but your Java code follows <code>camelCase</code> convention (<code>name</code>), or when a JSON field name is a reserved Java keyword. <code>@JsonInclude(NON_NULL)</code> omits a field from the output entirely when it's null, rather than serializing it as <code>"middleName": null</code> — useful for APIs that treat an omitted field differently from an explicitly-null one. <code>@JsonIgnore</code> excludes a field from serialization entirely, useful for fields that exist on the Java side for test-only bookkeeping but shouldn't appear in the actual request.</p>
+
+<h2 id="detailed-example-testing-an-api-that-expects-snake-case">Detailed Example — Testing an API That Expects snake_case</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>public class OrderRequest {
+    @JsonProperty("item_name")
+    private String itemName;
+
+    @JsonProperty("quantity_ordered")
+    private int quantityOrdered;
+}
+
+OrderRequest order = new OrderRequest("Wireless Mouse", 2);
+given().contentType(ContentType.JSON).body(order).when().post("/orders");
+
+// Produces: { "item_name": "Wireless Mouse", "quantity_ordered": 2 }
+// NOT: { "itemName": "Wireless Mouse", "quantityOrdered": 2 }</code></pre>
+<p>Without the <code>@JsonProperty</code> annotations, this request would serialize using the Java field names directly — <code>itemName</code>, not <code>item_name</code> — and a snake_case API would likely reject it or silently ignore fields it doesn't recognize. This exact mismatch is covered more systematically in the ObjectMapper Configuration page, which shows a project-wide alternative to annotating every single field.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Manually building JSON strings to work around naming mismatches
+String body = "{\\"item_name\\": \\"" + itemName + "\\", \\"quantity_ordered\\": " + qty + "}";
+
+// ✅ Let annotated POJO serialization handle the mapping correctly and safely
+OrderRequest order = new OrderRequest(itemName, qty);
+given().body(order).when().post("/orders");</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Assuming Java field names always match JSON field names</strong> without checking — snake_case APIs are common and will silently produce a mismatched request without <code>@JsonProperty</code>.</li>
+  <li><strong>Serializing null fields the API doesn't expect to see</strong> at all, instead of using <code>@JsonInclude(NON_NULL)</code> when the distinction between "omitted" and "explicitly null" matters to that specific API.</li>
+  <li><strong>Not knowing which JSON library is actually active</strong> when both Jackson and Gson are on the classpath, leading to confusing "why doesn't this annotation work" moments (Gson doesn't recognize Jackson's annotations, and vice versa).</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Enums</strong> — serialize to their name by default (<code>ACTIVE</code>, not a custom string) unless you add a custom serializer or <code>@JsonValue</code> annotation to control the output.</li>
+  <li><strong>Date/time fields</strong> — Jackson's default date handling has historically been a common source of confusion (numeric timestamps vs. ISO strings); the <code>jackson-datatype-jsr310</code> module and explicit <code>@JsonFormat</code> annotations give you control over this.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If you're unsure exactly what JSON a POJO will produce, serialize it manually and print the result before sending it: <code>new ObjectMapper().writeValueAsString(user)</code>. This isolates whether a problem is in your POJO's serialization or somewhere else in the request.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Use <code>@JsonProperty</code> explicitly whenever Java naming convention and the API's actual JSON naming convention diverge.</li>
+  <li>Be deliberate about <code>@JsonInclude(NON_NULL)</code> — only apply it where the API genuinely distinguishes "omitted" from "null."</li>
+  <li>Know which JSON library is active in your project, and don't mix annotations from both.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Design a POJO for an API that expects <code>snake_case</code> field names, using <code>@JsonProperty</code> to map from camelCase Java fields. Serialize an instance manually with an <code>ObjectMapper</code> and print the result to confirm the field names match what the API expects.</p>
+
+<h2 id="summary">Summary</h2>
+<p>Serialization converts a Java POJO into JSON automatically the moment you pass it to <code>.body()</code> — driven by Jackson or Gson, whichever is on your classpath. By default, field names map directly, but <code>@JsonProperty</code>, <code>@JsonInclude</code>, and <code>@JsonIgnore</code> give you precise control over the output whenever an API's naming convention or null-handling contract differs from your POJO's natural Java shape.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Your POJO has a field named itemName, but the API expects item_name in the JSON body. What happens if you don't address this, and how do you fix it?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Without any adjustment, Jackson serializes the field using its Java name directly, producing <code>"itemName"</code> in the JSON — not the <code>"item_name"</code> the API expects. Depending on how strict the API is, this either gets silently ignored (the field the API actually looks for is missing) or rejected outright. The fix is annotating the field with <code>@JsonProperty("item_name")</code>, which tells Jackson to use that specific JSON key regardless of the Java field's own name.</div>
+</details>
+<details class="faq-item">
+<summary>What does @JsonProperty actually solve?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Mapping a Java field to a differently-named JSON key — essential when an API uses snake_case but your Java code follows camelCase convention, or when a JSON field name is a reserved Java keyword.</div>
+</details>
+<details class="faq-item">
+<summary>What's the difference between @JsonInclude(NON_NULL) and just leaving a field null?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Without it, a null field serializes as "field": null in the output; with it, the field is omitted from the JSON entirely — useful for APIs that treat 'omitted' differently from 'explicitly null'.</div>
+</details>
+<details class="faq-item">
+<summary>Why might RestAssured behave unexpectedly if both Jackson and Gson are on the classpath?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">RestAssured picks one automatically (Jackson takes priority in recent versions) — worth confirming explicitly if a project has both and is seeing unexpected serialization behavior, since annotations from one library aren't recognized by the other.</div>
+</details>
+<details class="faq-item">
+<summary>How would you confirm exactly what JSON a POJO produces before sending it?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Serialize it manually first with new ObjectMapper().writeValueAsString(obj) and print the result — isolates whether a problem is in the POJO's serialization or somewhere else in the request.</div>
+</details>
+</div>
+</article>
+</body></html>

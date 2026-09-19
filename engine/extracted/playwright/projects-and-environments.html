@@ -1,0 +1,178 @@
+<!doctype html>
+<html><head>
+<title>Playwright Projects and Environments: Multi-Browser and Multi-Env Config</title>
+<meta name="description" content="How Playwright&#x27;s projects feature runs the same suite across browsers, devices, and test categories, and how to structure config across dev, QA, staging, and production environments." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/projects-and-environments.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Projects & Environments</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="playwright-config-options.html">Configuration Options</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+  <p>A <strong>project</strong> is a named configuration variant within a single <code>playwright.config.ts</code> — a different browser, device, or even a different subset of tests, each with its own settings. An <strong>environment</strong> is the actual deployed target a project points at — local, QA, staging, production. These are related but distinct axes of configuration.</p>
+
+  <h2 id="why-it-s-important">Why it's important</h2>
+  <p>Real suites need to run the same tests against multiple browsers, and sometimes need entirely different test subsets (a fast smoke suite vs. a full regression suite, or an API-only project vs. a UI project) — projects are how Playwright expresses all of this without duplicating config or test files.</p>
+
+  <h2 id="basic-example-multi-browser-projects">Basic Example — Multi-Browser Projects</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export default defineConfig({
+  projects: [
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
+    { name: 'webkit', use: { ...devices['Desktop Safari'] } },
+    { name: 'Mobile Chrome', use: { ...devices['Pixel 7'] } },
+    { name: 'Mobile Safari', use: { ...devices['iPhone 14'] } },
+  ],
+});</code></pre>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># Run every project
+npx playwright test
+
+# Run just one
+npx playwright test --project=webkit</code></pre>
+  <p>The same test files run unchanged across every project — Playwright substitutes each project's <code>use</code> options (browser engine, viewport, device emulation) without any per-browser test code.</p>
+
+  <h2 id="detailed-example-splitting-smoke-vs-full-regression">Detailed Example — Splitting Smoke vs. Full Regression</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export default defineConfig({
+  projects: [
+    {
+      name: 'smoke',
+      testMatch: /.*\\.smoke\\.spec\\.ts/,
+    },
+    {
+      name: 'regression',
+      testMatch: /.*\\.spec\\.ts/,
+      testIgnore: /.*\\.smoke\\.spec\\.ts/,
+    },
+  ],
+});</code></pre>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># Fast subset for every commit
+npx playwright test --project=smoke
+
+# Full suite, less frequently (nightly, pre-release)
+npx playwright test --project=regression</code></pre>
+  <p>This is a common, practical use of projects beyond just browsers — different test <em>categories</em> that need to run on different cadences, expressed entirely through config rather than separate scripts or CI pipelines.</p>
+
+  <h2 id="an-api-only-project">An API-Only Project</h2>
+  <p>Projects aren't limited to browser variants — a project can skip browser configuration entirely and just point at a subset of tests, which is exactly what a pure-API test suite needs: no <code>devices</code> spread, no viewport, nothing browser-specific at all.</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>projects: [
+  {
+    name: 'api',
+    testDir: './tests/api', // only the API test files, no browser needed
+  },
+  { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+],</code></pre>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># Run only the fast, browser-free API suite — useful as an early CI stage
+# that fails fast before paying the cost of spinning up real browsers
+npx playwright test --project=api</code></pre>
+  <p>Since the API Testing chapter's <code>request</code> fixture doesn't need a browser at all, an API project genuinely runs without launching Chromium/Firefox/WebKit — meaningfully faster, and a natural first stage in a CI pipeline that only proceeds to the slower browser projects once the API layer's own tests pass.</p>
+
+  <h2 id="dependencies-between-projects">Dependencies Between Projects</h2>
+  <p>Referenced in the Authentication chapter — a project can depend on another, which is how the setup-project authentication pattern works:</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>projects: [
+  { name: 'setup', testMatch: /global\\.setup\\.ts/ },
+  {
+    name: 'chromium',
+    use: { ...devices['Desktop Chrome'], storageState: 'playwright/.auth/user.json' },
+    dependencies: ['setup'],
+  },
+],</code></pre>
+
+  <h2 id="environments-development-qa-staging-production">Environments — Development, QA, Staging, Production</h2>
+  <p>Environments aren't a Playwright-specific config concept the way projects are — they're typically expressed through environment variables read into the <code>use.baseURL</code> option:</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export default defineConfig({
+  use: {
+    baseURL: process.env.BASE_URL || 'http://localhost:3000',
+  },
+});</code></pre>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># .env.development — usually just localhost, often the defineConfig default itself
+BASE_URL=http://localhost:3000
+
+# .env.qa
+BASE_URL=https://qa.example.com
+
+# .env.staging
+BASE_URL=https://staging.example.com
+
+# .env.production — run sparingly and carefully; see the note below
+BASE_URL=https://www.example.com</code></pre>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># Run against a specific environment
+BASE_URL=https://staging.example.com npx playwright test
+# or, with a package like dotenv-cli:
+dotenv -e .env.qa -- npx playwright test</code></pre>
+  <p>The same test suite runs unchanged against any environment — the only thing that varies is which value <code>baseURL</code> resolves to, which is exactly the payoff of never hardcoding URLs, referenced throughout this course. Development is usually the implicit default (<code>localhost</code>, often not even needing its own <code>.env</code> file); QA and staging are where the bulk of full-suite runs happen; production deserves special caution — most teams either skip full automated suites there entirely, or run only a small, deliberately non-destructive smoke subset (using the project-based smoke/regression split from earlier on this page) rather than the full suite with its state-mutating tests.</p>
+
+  <h2 id="real-world-example-environment-specific-credentials">Real-World Example — Environment-Specific Credentials</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// global.setup.ts — credentials also come from environment variables,
+// never hardcoded, so the same setup script works across environments
+setup('authenticate', async ({ page }) =&gt; {
+  await page.goto('/login');
+  await page.getByLabel('Email').fill(process.env.TEST_USER_EMAIL!);
+  await page.getByLabel('Password').fill(process.env.TEST_USER_PASSWORD!);
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await page.context().storageState({ path: 'playwright/.auth/user.json' });
+});</code></pre>
+  <p>Secrets belong in environment variables (injected by CI, or a local <code>.env</code> file excluded from version control) — never committed directly into config or test files, regardless of which environment they're for.</p>
+
+  <h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Separate, duplicated playwright.config.ts files per environment
+// playwright.staging.config.ts, playwright.prod.config.ts — drift over time
+
+// ✅ One config, environment-driven via variables
+// use: { baseURL: process.env.BASE_URL }</code></pre>
+
+  <h2 id="common-mistakes">Common Mistakes</h2>
+  <ul>
+    <li><strong>Maintaining separate full config files per environment</strong> instead of one config driven by environment variables — these inevitably drift apart over time.</li>
+    <li><strong>Committing real credentials or environment-specific secrets</strong> into config or <code>.env</code> files that get checked into version control.</li>
+    <li><strong>Running the full regression suite on every commit</strong> instead of splitting a fast smoke subset for frequent runs and reserving the full suite for less frequent, scheduled runs.</li>
+    <li><strong>Forgetting <code>testIgnore</code> when splitting projects by test category</strong>, causing smoke tests to also run (redundantly) as part of the "regression" project.</li>
+  </ul>
+
+  <h2 id="edge-cases">Edge Cases</h2>
+  <ul>
+    <li><strong>A test that should only run against one specific project</strong> (e.g., a mobile-only gesture test) — use <code>test.skip(condition, reason)</code> based on <code>testInfo.project.name</code> rather than maintaining a separate file just for that one test.</li>
+    <li><strong>Environments with different feature flags enabled</strong> — some tests may need to be conditionally skipped per environment if a feature isn't yet available there; keep this logic explicit and visible in the test, not hidden in shared config.</li>
+  </ul>
+
+  <h2 id="debugging">Debugging</h2>
+  <p>If a test behaves differently than expected in CI versus locally, check which project and which <code>BASE_URL</code> actually ran — <code>testInfo.project.name</code> and the resolved <code>baseURL</code> are both visible in the HTML report and worth confirming before assuming the application itself behaved differently.</p>
+
+  <h2 id="best-practices">Best Practices</h2>
+  <ul>
+    <li>Use one <code>playwright.config.ts</code> driven by environment variables, not multiple near-duplicate config files.</li>
+    <li>Split smoke vs. full regression via projects and <code>testMatch</code>/<code>testIgnore</code>, not separate scripts.</li>
+    <li>Keep all secrets and environment-specific values in environment variables, injected by CI or a git-ignored local file.</li>
+    <li>Use project <code>dependencies</code> for setup steps (like authentication) that other projects rely on.</li>
+  </ul>
+
+  <h2 id="practice-exercise">Practice Exercise</h2>
+  <p>Configure a project setup with a fast <code>@smoke</code>-tagged subset and a full regression project, both reading <code>baseURL</code> from an environment variable, and verify both can be run independently via <code>--project</code>.</p>
+
+  <h2 id="summary">Summary</h2>
+  <p>Projects express configuration variants (browsers, devices, test categories, dependencies) within one config file; environments express which real deployed target a run points at, typically via environment variables feeding <code>baseURL</code> and credentials. Together, they let one test suite and one config file serve every browser, device, test category, and deployment target without duplication.</p>
+
+  <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>What's the difference between a Playwright "project" and an "environment," and how do they typically work together?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A project is a named configuration variant defined in <code>playwright.config.ts</code> — different browsers, devices, or test subsets, each potentially with different <code>use</code> options. An environment is the actual deployed target (local, staging, production) a test run points at, usually controlled via an environment variable feeding <code>baseURL</code>. They're independent axes: the same project (say, "chromium") can run against any environment depending on what <code>BASE_URL</code> is set to when the suite runs.</div>
+</details>
+<details class="faq-item">
+<summary>What's the practical difference between a Playwright 'project' and an 'environment'?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A project is a config variant (browser, device, test subset) inside playwright.config.ts; an environment is the actual deployed target a run points at, usually via a BASE_URL variable.</div>
+</details>
+<details class="faq-item">
+<summary>Why maintain one config file driven by environment variables instead of separate config files per environment?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Separate files inevitably drift apart over time; one config with conditional values stays consistent by construction.</div>
+</details>
+<details class="faq-item">
+<summary>What's the benefit of an API-only project with no browser configuration?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It runs genuinely faster since no browser launches at all — a good early, fail-fast stage in a CI pipeline before slower browser projects run.</div>
+</details>
+<details class="faq-item">
+<summary>Why is running a full destructive test suite against production risky?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Most teams either skip full automated runs there entirely or limit it to a small, deliberately non-destructive smoke subset instead.</div>
+</details>
+</div>
+</article>
+</body></html>

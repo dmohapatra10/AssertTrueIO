@@ -1,0 +1,201 @@
+<!doctype html>
+<html><head>
+<title>AI-Powered Retry Logic: A Classification-Driven Decision, Not a Mask</title>
+<meta name="description" content="Chapter 9 was explicit that blind retries mask flakiness. This page builds a retry decision that only retries what Chapter 8&#x27;s classification suggests is genuinely transient." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/ai-powered-retry-logic.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>AI-Powered Retry Logic</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="failure-triage-in-cicd.html">Failure Triage in CI/CD</a></p>
+<article class="content">
+<h2 id="a-direct-confrontation-with-chapter-9-s-warning">A Direct Confrontation With Chapter 9's Warning</h2>
+<p>Chapter 9's Recommended Fixes page was explicit: "just add a retry" masks the symptom, keeps the cause. This page has to earn its place against that warning directly — the retry logic here only retries a failure when a genuine classification suggests it's actually warranted, not as a default response to any red test.</p>
+
+<h2 id="the-genuine-decision-classify-first-then-decide">The Genuine Decision — Classify First, Then Decide</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def should_retry(failure, client):
+    # Reuses Chapter 8's OWN classification — this is the
+    # ENTIRE point: retry ONLY when the CLASSIFICATION itself
+    # suggests genuine transience, not by DEFAULT
+    classification = classify_failure(failure)  # Chapter 8's
+        # six categories: application defect, test defect,
+        # locator problem, environment problem, network
+        # problem, flaky behavior
+
+    RETRY_WORTHY = {"environment problem", "network problem"}
+    NEVER_RETRY = {"application defect", "test defect", "locator problem"}
+
+    if classification in RETRY_WORTHY:
+        return {"retry": True, "reason": (
+            f"Classified as '{classification}' — genuinely "
+            f"consistent with a transient issue, worth one retry.")}
+    if classification in NEVER_RETRY:
+        return {"retry": False, "reason": (
+            f"Classified as '{classification}' — a retry would "
+            f"NOT resolve this; it needs an actual fix, not "
+            f"another attempt.")}
+    # "flaky behavior" specifically — Chapter 9's own territory
+    return {"retry": False, "reason": (
+        "Classified as flaky behavior — per Chapter 9, this "
+        "needs genuine root-cause investigation, not a retry "
+        "that would mask the underlying race condition.")}</code></pre>
+
+<h2 id="why-flaky-behavior-specifically-never-gets-auto-retried-here">Why "Flaky Behavior" Specifically Never Gets Auto-Retried Here</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>This is the DIRECT, DELIBERATE answer to Chapter 9's warning.
+A NAIVE retry system would see "INCONSISTENT failure" and
+think "retry until it PASSES." THIS system does the OPPOSITE
+for EXACTLY that classification — flaky BEHAVIOR is FLAGGED
+for Chapter 9's OWN diagnostic PROCESS, NOT auto-retried,
+BECAUSE auto-retrying a GENUINE race condition is PRECISELY
+the mask CHAPTER 9 warned AGAINST.</code></pre>
+
+<h2 id="a-genuine-case-where-retry-is-actually-warranted">A Genuine Case Where Retry Is Actually Warranted</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># A failure classified as "environment problem" — per Chapter
+# 8's OWN example, staging was mid-migration when a test ran,
+# and the SAME test passes cleanly against production.
+
+should_retry(this_failure, client)
+# → {"retry": True, "reason": "Classified as 'environment
+#    problem' — genuinely consistent with a transient issue,
+#    worth one retry."}
+
+This is GENUINELY different from Chapter 9's warned-against
+pattern — the RETRY here is a DIRECT CONSEQUENCE of a REAL
+classification (staging was UNHEALTHY, confirmed by EVIDENCE),
+not a REFLEXIVE response to ANY red test.</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why does this page's function require running Chapter 8's full classification BEFORE deciding whether to retry, rather than retrying first and only classifying if the retry also fails? Retrying first would mean paying the retry's real time cost even for failures that genuinely never should have been retried at all — like a test defect, which will fail identically every time regardless of how many attempts are made. Classifying first means the retry cost is only paid when there's genuine evidence it might actually help, directly matching Chapter 8's own cost-ordering principle of checking cheaper, more diagnostic evidence before committing to a more expensive action.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Implementing "AI-powered retry logic" as simply an LLM deciding, without a real classification step, whether a failure "seems retry-worthy." This page's entire design is that the retry decision is a direct, mechanical consequence of Chapter 8's classification — not a separate, independent judgment call that could drift from that classification's own conclusions.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>Logging the classification alongside every retry decision (this page's <code>reason</code> field) makes the system's behavior auditable — a team can later verify that retries genuinely tracked classifications correctly, rather than trusting the retry logic blindly.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Base every retry decision directly on Chapter 8's genuine classification, never on a failure simply looking retry-worthy in isolation.</li>
+  <li>Never auto-retry a failure classified as flaky behavior — that classification specifically calls for Chapter 9's diagnostic process, not a mask.</li>
+  <li>Log the classification behind every retry decision, making the system's behavior auditable against Chapter 8's own conclusions.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Genuine retry logic decides based on Chapter 8's classification, retrying only categories consistent with real transience — environment and network problems, specifically.</li>
+  <li>Flaky behavior is deliberately excluded from auto-retry, directly honoring Chapter 9's warning that retries mask exactly this failure mode.</li>
+  <li>Classifying before retrying, not after, avoids paying a real retry cost for failures that were never going to benefit from one.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Trace through this page's <code>should_retry</code> function for a failure Chapter 8's classification labels "test defect" (a stale test password, per that chapter's own example) — confirm the function correctly declines to retry, and explain in your own words why a retry genuinely wouldn't help this specific case.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A teammate reads this page's title and says "wait, didn't Chapter 9 say retries are basically always a bad idea?" How would you reconcile this page with that warning?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>CHAPTER 9's WARNING was SPECIFICALLY about BLIND, UNCONDITIONAL retries MASKING a REAL cause — THIS page's SYSTEM never RETRIES blindly; it ONLY retries AFTER Chapter 8's CLASSIFICATION provides GENUINE evidence the FAILURE is CONSISTENT with real, TRANSIENT causes.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What Chapter 9 ACTUALLY warned against:
+"Just ADD a retry" as a DEFAULT response to ANY flaky-LOOKING
+  test, WITHOUT investigating WHY it's FAILING — THIS masks
+  the GENUINE underlying cause (LIKE a race CONDITION) rather
+  than ADDRESSING it.
+
+What THIS page's system ACTUALLY does, DIFFERENTLY:
+Retries ONLY happen AFTER Chapter 8's classification CONFIRMS
+  a GENUINE, evidence-BASED reason to EXPECT transience
+  (environment or NETWORK problems SPECIFICALLY) — and
+  EXPLICITLY, DELIBERATELY excludes "FLAKY behavior"
+  (Chapter 9's OWN territory) from EVER being auto-RETRIED.</code></pre>
+<p>These AREN'T contradictory — THIS page's SYSTEM is the DIRECT, RESPONSIBLE answer to Chapter 9's WARNING, not a REVERSAL of it. "RETRIES are GENERALLY bad WITHOUT genuine JUSTIFICATION" and "a SPECIFIC, evidence-BASED retry CAN be WARRANTED" are BOTH true SIMULTANEOUSLY, and THIS page's DESIGN reflects EXACTLY that DISTINCTION.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page's function EXPLICITLY exclude "flaky behavior" from the retry-WORTHY set, GIVEN that a race CONDITION genuinely IS transient in SOME sense?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A RACE condition being "TRANSIENT" in the SENSE that it doesn't FAIL every TIME is GENUINELY different from it BEING something a RETRY should MASK — Chapter 9's OWN diagnosis PROCESS (isolation EXPERIMENTS, trace ANALYSIS) exists SPECIFICALLY because the UNDERLYING mechanism NEEDS fixing, not JUST tolerating.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why "TRANSIENT" and "SHOULD be retried" AREN'T the SAME
+thing:
+A GENUINE race condition (LIKE Chapter 9's OWN cart-TOTAL
+  example) DOES fail INCONSISTENTLY — in THAT narrow SENSE,
+  it's "TRANSIENT." But RETRYING it REPEATEDLY doesn't FIX
+  the UNDERLYING timing ISSUE — it just HIDES it, LETTING it
+  CONTINUE to occasionally FAIL in PRODUCTION or FUTURE runs,
+  EXACTLY Chapter 9's OWN "retries MASK the SYMPTOM" argument.
+
+Why environment/NETWORK problems are GENUINELY different:
+An ENVIRONMENT problem (STAGING mid-MIGRATION) or a NETWORK
+  problem (a ONE-off connection RESET) GENUINELY has NOTHING
+  to do with the TEST'S or APPLICATION'S own LOGIC — a retry
+  HERE isn't MASKING anything, since THERE'S no UNDERLYING
+  code-LEVEL issue to MASK in the FIRST place.</code></pre>
+<p>This is EXACTLY why this PAGE'S classification-driven APPROACH matters — it DISTINGUISHES "TRANSIENT because of an EXTERNAL, unrelated FACTOR" (genuinely RETRY-worthy) FROM "TRANSIENT because of an UNFIXED, internal RACE condition" (Chapter 9's OWN territory, NEEDING diagnosis, NOT a retry).</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why this page insists on classifying BEFORE retrying, rather than RETRYING first and CLASSIFYING only if the RETRY also fails.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>RETRYING first would MEAN paying the RETRY'S real TIME cost EVEN for FAILURES that GENUINELY never SHOULD have been RETRIED at ALL — CLASSIFYING first ENSURES that COST is ONLY paid WHEN there's GENUINE evidence it MIGHT actually HELP.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What "RETRY first, CLASSIFY later" would GENUINELY waste:
+For a TEST DEFECT (like Chapter 8's OWN stale-PASSWORD
+  example), a RETRY would FAIL IDENTICALLY, EVERY single TIME
+  — the UNDERLYING cause (a STALE credential) doesn't CHANGE
+  BETWEEN attempts. RETRYING FIRST means PAYING the FULL retry
+  TIME cost BEFORE eventually DISCOVERING (via CLASSIFICATION)
+  that the retry WAS never GOING to help AT ALL.
+
+Why CLASSIFYING first (THIS page's ACTUAL approach) AVOIDS
+this waste:
+CLASSIFICATION HAPPENS BEFORE any RETRY is ATTEMPTED — for a
+  TEST defect, should_retry IMMEDIATELY returns retry: False,
+  SAVING the ENTIRE retry TIME cost for a CASE where it WAS
+  genuinely NEVER going to HELP.</code></pre>
+<p>This DIRECTLY mirrors Chapter 8's OWN cost-ORDERING principle — CHECK cheaper, more DIAGNOSTIC evidence (CLASSIFICATION) BEFORE committing to a MORE expensive ACTION (a retry AND its associated TIME cost), EXACTLY the SAME "cheap EVIDENCE first" LOGIC this COURSE has applied CONSISTENTLY since Chapter 8's OWN Failure Classification page.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might logging the classification alongside EVERY retry decision (this page's "Quick Tip") matter MORE for retry LOGIC specifically than for SOME other kinds of automated DECISIONS?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>RETRY logic SPECIFICALLY operates in a SPACE where Chapter 9 ALREADY established GENUINE, real-world HARM from getting it WRONG (masking FLAKINESS) — LOGGING the REASONING makes it POSSIBLE to VERIFY, after the FACT, that the SYSTEM is GENUINELY honoring THAT warning, not QUIETLY drifting AWAY from it.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why RETRY logic CARRIES higher STAKES for AUDITABILITY than
+SOME other automated decisions:
+Chapter 9 ESTABLISHED a REAL, documented RISK (retries MASKING
+  genuine PROBLEMS) — GIVEN this KNOWN risk, a TEAM has a
+  GENUINE reason to want ONGOING confidence that THEIR retry
+  system is ACTUALLY behaving as INTENDED, not JUST trusting
+  it BLINDLY once and FORGETTING about it.
+
+What LOGGING the classification SPECIFICALLY enables:
+A team can PERIODICALLY audit: "ARE we EVER auto-retrying
+  something CLASSIFIED as flaky BEHAVIOR?" (WHICH should be
+  IMPOSSIBLE per THIS page's DESIGN) — IF this EVER happens,
+  the LOGGED reason IMMEDIATELY reveals a GENUINE bug in the
+  RETRY logic ITSELF, rather than THIS drift going UNNOTICED
+  until it CAUSES a REAL, visible PROBLEM.</code></pre>
+<p>This is a GENUINELY practical, IMPORTANT safeguard — GIVEN Chapter 9's OWN documented, REAL concern about RETRIES specifically, MAINTAINING an AUDITABLE record of EVERY retry DECISION'S reasoning is a REASONABLE, EXTRA precaution BEYOND what MIGHT be NECESSARY for a LOWER-stakes automated DECISION.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you extend this page's should_retry function to LIMIT retries to a MAXIMUM of ONE attempt, rather than RETRYING indefinitely UNTIL a test PASSES?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A GENUINELY important safeguard TRACKS how MANY times a SPECIFIC failure has ALREADY been RETRIED, REFUSING further RETRIES beyond a REASONABLE limit — connecting DIRECTLY to Chapter 2's OWN loop-guardrail PRINCIPLE, now APPLIED to retry ATTEMPTS specifically.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def should_retry_with_limit(failure, retry_history, client, max_retries=1):
+    prior_retries_for_this_failure = sum(
+        1 for r in retry_history
+        if r["test_name"] == failure["test_name"]
+        and r["commit_hash"] == failure["commit_hash"]
+    )
+    if prior_retries_for_this_failure &gt;= max_retries:
+        return {"retry": False, "reason": (
+            f"Already retried {prior_retries_for_this_failure} "
+            f"time(s) for this exact failure — further retries "
+            f"would risk masking a genuine, unresolved issue "
+            f"rather than confirming a transient one.")}
+    return should_retry(failure, client)  # THIS page's ORIGINAL
+        # classification-based LOGIC, now GUARDED by a HARD limit</code></pre>
+<p>This DIRECTLY extends THIS page's approach with a HARD, MECHANICAL SAFEGUARD — EVEN a GENUINELY well-classified "environment PROBLEM" retry SHOULDN'T repeat INDEFINITELY; if the FIRST retry STILL fails, that's ITSELF evidence WORTH escalating to a HUMAN RATHER than CONTINUING to retry, EXACTLY the SAME "BOUND the loop, DON'T let it run FOREVER" principle Chapter 2 ESTABLISHED for agent EXECUTION loops, now APPLIED to THIS chapter's OWN retry DECISION specifically.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

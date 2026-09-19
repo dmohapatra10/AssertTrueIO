@@ -1,0 +1,101 @@
+<!doctype html>
+<html><head>
+<title>Locator Candidate Generation</title>
+<meta name="description" content="Turning one risky suggestion into several genuine candidates — the real fix for trusting a single AI guess, built directly on the previous page&#x27;s grounding." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/locator-candidate-generation.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Locator Candidate Generation</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="ai-locator-suggestions.html">AI Locator Suggestions</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Requesting several genuine candidates instead of trusting one suggestion</li>
+  <li>Why different candidates should use genuinely different strategies, not minor variations</li>
+  <li>Building the real "Candidate Locators" step from this chapter's architecture</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>The previous page's single suggestion carries real risk on its own. This page's fix isn't asking more carefully — it's asking for several, genuinely different candidates, so a later ranking and validation step has real options to choose between, rather than one guess to simply accept or reject.</p>
+
+<h2 id="step-by-step-implementation">Step-by-Step Implementation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/generate-locator-candidates.ts
+import { Page } from '@playwright/test';
+import { askClaude } from './ai-client';
+import { capturePageStructure } from './suggest-locator';
+
+export interface LocatorCandidate {
+  strategy: string;
+  locatorCode: string;
+}
+
+export async function generateLocatorCandidates(
+  brokenLocatorDescription: string, page: Page
+): Promise&lt;LocatorCandidate[]&gt; {
+  const structure = await capturePageStructure(page);
+
+  const prompt = `A Playwright locator broke:
+"${brokenLocatorDescription}"
+
+Real, current page structure: ${structure}
+
+Generate THREE genuinely different candidate replacement
+locators, each using a DIFFERENT strategy (role-based,
+testId-based, text-based) where the real page structure
+supports it. Use ONLY elements that actually appear above.
+
+Respond with ONLY valid JSON:
+{"candidates": [{"strategy": string, "locatorCode": string}]}`;
+
+  const raw = await askClaude(prompt);
+  const parsed = JSON.parse(raw);
+  if (!Array.isArray(parsed.candidates)) {
+    throw new Error(`Expected {"candidates": [...]} but got: ${raw.slice(0, 200)}`);
+  }
+  return parsed.candidates;
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p>Notice the prompt explicitly asks for different strategies — role-based, testId-based, text-based — not just three variations of the same idea. This matters because different strategies fail independently: if ShopSmart's accessible name changes again later, a testId-based candidate from this same batch would still work, while a role-based one might not.</p>
+
+<h2 id="example-three-genuine-candidates-for-the-add-to-cart-button">Example — Three Genuine Candidates for the Add-to-Cart Button</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const candidates = await generateLocatorCandidates(
+  "getByRole('button', { name: 'Add to Cart' })", page
+);
+
+// REAL, genuinely different candidates:
+// [
+//   { strategy: "role-based",
+//     locatorCode: "page.getByRole('button', { name: 'Add ProBook 15 to cart' })" },
+//   { strategy: "testId-based",
+//     locatorCode: "page.getByTestId('add-to-cart-btn')" },
+//   { strategy: "text-based",
+//     locatorCode: "page.getByText('Add to Cart')" }
+// ]</code></pre>
+
+<h2 id="why-it-matters">Why It Matters</h2>
+<p>If the page structure genuinely includes a <code>data-testid</code> attribute on this button, that candidate is very likely the most stable of the three — following Chapter 6's own opening page's stability ranking. Having multiple, genuinely different candidates is what makes the next page's ranking step meaningful — ranking one option against nothing is not a real choice.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Generating three candidates that are all minor variations of the same strategy.</strong> Three role-based locators with slightly different name matching don't provide genuine, independent alternatives if the accessible name changes again.</li>
+  <li><strong>Requesting candidates without the real page structure.</strong> The same grounding requirement from the previous page still applies — every candidate needs to reference real, current elements.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Request genuinely different strategies explicitly, not just "more suggestions" — the prompt's specificity is what produces real diversity.</li>
+  <li>Keep every candidate traceable to real, captured page structure — none of them should be accepted on faith alone.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Run this page's function for a different ShopSmart element — the cart quantity field, for example. Check whether all three returned candidates genuinely reference real, different elements from your captured structure, or whether any subtly duplicate the same underlying strategy.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Multiple, genuinely different candidates are meaningfully safer than one suggestion, since different strategies fail independently.</li>
+  <li>Requesting different strategies explicitly — not just "more options" — is what produces real, useful diversity rather than near-duplicates.</li>
+  <li>This page's output is exactly the "Candidate Locators" step from this chapter's architecture, ready for the next page's ranking.</li>
+</ul>
+</article>
+</body></html>

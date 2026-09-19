@@ -1,0 +1,115 @@
+<!doctype html>
+<html><head>
+<title>Regression Validation</title>
+<meta name="description" content="The real, separate question the previous page&#x27;s validation didn&#x27;t answer — does this fix break anything else in the suite? Running the affected tests to find out." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/regression-validation.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Regression Validation</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="validating-the-candidate-fix.html">Validating the Candidate Fix</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Why a fix that passes its own test can still break other, related tests</li>
+  <li>Identifying which other tests are genuinely at risk from a given change</li>
+  <li>Running exactly those tests against the patched file</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>The previous page proved the originally-failing test now passes. This page asks the real, separate question that still matters: could this same change break something else in the suite that was working fine before?</p>
+
+<h2 id="why-it-matters-a-concrete-risk">Why It Matters — A Concrete Risk</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>ShopSmart's "Add to Cart" LOCATOR gets healed from a ROLE-based
+selector to a testId-based ONE. The originally-FAILING test now
+PASSES. But THREE other tests in the suite ALSO reference this
+SAME button, using the SAME original locator STRING — changing
+IT in one place, without checking the OTHERS, could leave THEM
+now pointing at something SUBTLY different, or break them if
+they RELIED on some detail SPECIFIC to the old selector.</code></pre>
+
+<h2 id="step-by-step-implementation-finding-affected-tests">Step-by-Step Implementation — Finding Affected Tests</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/find-affected-tests.ts
+import { readFileSync, readdirSync } from 'fs';
+import { CandidatePatch } from './build-candidate-diff';
+
+export function findAffectedTests(
+  patch: CandidatePatch, testsDir: string
+): string[] {
+  const affected: string[] = [];
+  const testFiles = readdirSync(testsDir).filter((f) =&gt; f.endsWith('.spec.ts'));
+
+  for (const file of testFiles) {
+    const content = readFileSync(`${testsDir}/${file}`, 'utf-8');
+    const referencesChangedCode = patch.changes.some(
+      (change) =&gt; content.includes(change.before.trim())
+    );
+    if (referencesChangedCode) affected.push(`${testsDir}/${file}`);
+  }
+
+  return affected;
+}</code></pre>
+
+<h2 id="step-by-step-implementation-running-just-those-tests">Step-by-Step Implementation — Running Just Those Tests</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/run-regression-check.ts
+import { execSync } from 'child_process';
+
+export interface RegressionResult {
+  testFile: string;
+  passed: boolean;
+}
+
+export function runRegressionCheck(affectedTests: string[]): RegressionResult[] {
+  return affectedTests.map((testFile) =&gt; {
+    try {
+      execSync(`npx playwright test ${testFile}`, { encoding: 'utf-8' });
+      return { testFile, passed: true };
+    } catch {
+      return { testFile, passed: false };
+    }
+  });
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p><code>findAffectedTests</code> deliberately searches for the exact, original locator string across every test file — not just the one that originally failed. This is a real, if imperfect, way to identify genuine risk: any test referencing the same broken code is a test worth re-checking before trusting this fix, even if it wasn't the one that surfaced the original failure.</p>
+
+<h2 id="example-a-real-regression-check">Example — A Real Regression Check</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const affected = findAffectedTests(patch, 'tests/');
+// ["tests/cart.spec.ts", "tests/checkout.spec.ts", "tests/wishlist.spec.ts"]
+
+const results = runRegressionCheck(affected);
+// [
+//   { testFile: "tests/cart.spec.ts", passed: true },
+//   { testFile: "tests/checkout.spec.ts", passed: true },
+//   { testFile: "tests/wishlist.spec.ts", passed: false }
+// ]
+
+// A REAL, genuine finding: this "safe-looking" locator fix
+// would BREAK wishlist.spec.ts — caught HERE, before it EVER
+// reaches a human REVIEWER, let alone a merged FILE</code></pre>
+
+<h2 id="why-it-matters">Why It Matters</h2>
+<p>Without this page, a fix that looks completely safe — the originally-failing test passes, the diff looks reasonable — could still silently break another test the moment it's merged. This is exactly the kind of real, structural risk a human reviewer glancing at a diff alone might miss, since they'd need to independently know every other place the changed code is referenced.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Only running the originally-failing test and calling the fix validated.</strong> The previous page's validation and this page's regression check answer genuinely different questions — both are necessary.</li>
+  <li><strong>Searching for affected tests only in the immediate test file, not the whole suite.</strong> The same broken locator string can appear anywhere across the codebase — this page's search deliberately covers the entire tests directory.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Always run a full regression check across every affected test before considering a fix ready for human review.</li>
+  <li>Treat a regression failure as a genuine signal the fix needs rework — never as something to route around or exclude from the check.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Run <code>findAffectedTests</code> against a candidate patch from this chapter's earlier exercises, across your own project's full test directory. If any affected tests are found, run <code>runRegressionCheck</code> and review the results honestly before considering the fix ready to move forward.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>A fix that passes its own originally-failing test can still break other, unrelated-seeming tests that share the same underlying code.</li>
+  <li>Searching the whole suite for references to the changed code, not just the immediate file, is what surfaces genuine regression risk.</li>
+  <li>This regression check and the previous page's validation are two separate, both-necessary questions — neither one substitutes for the other.</li>
+</ul>
+</article>
+</body></html>

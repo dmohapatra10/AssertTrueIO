@@ -1,0 +1,100 @@
+<!doctype html>
+<html><head>
+<title>Playwright getByAltText(): Complete Guide with Real-World Examples</title>
+<meta name="description" content="How Playwright&#x27;s getByAltText() locator finds images by their alt attribute, and why it doubles as an accessibility check for your app&#x27;s images." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/get-by-alt-text.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1><code class="api-name">getByAltText()</code></h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="locators.html">Locators overview</a></p>
+<article class="content">
+<h2 id="what-is-getbyalttext">What is <code>getByAltText()</code>?</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>page.getByAltText(text: string | RegExp, options?: { exact?: boolean })</code></pre>
+      <p><code>getByAltText()</code> finds an image (or any element supporting an <code>alt</code> attribute, like <code>&lt;area&gt;</code> or <code>&lt;input type="image"&gt;</code>) by its alt text — the description shown when an image fails to load, and read aloud by screen readers.</p>
+
+      <h2 id="why-it-s-important">Why it's important</h2>
+      <p>Images are common interactive targets in e-commerce and media-heavy apps (product thumbnails, avatar pickers, icon buttons implemented as <code>&lt;img&gt;</code>), and <code>alt</code> text is the only accessible way to identify them. As with the other semantic locators, a missing or unmatched <code>getByAltText()</code> call is often flagging a real accessibility gap — an image with no meaningful <code>alt</code> attribute.</p>
+
+      <h2 id="basic-example">Basic Example</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>await page.getByAltText('Wireless Mouse product photo').click();</code></pre>
+
+      <h2 id="detailed-example-product-gallery">Detailed Example — Product Gallery</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('clicking a thumbnail updates the main product image', async ({ page }) =&gt; {
+  await page.goto('/products/wireless-mouse');
+
+  await page.getByAltText('Wireless Mouse — side view').click();
+  await expect(page.getByAltText('Wireless Mouse — main image')).toHaveAttribute(
+    'src', /side-view/
+  );
+});</code></pre>
+
+      <h2 id="real-world-example-avatar-selection">Real-World Example — Avatar Selection</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('user can pick a new profile avatar', async ({ page }) =&gt; {
+  await page.goto('/settings/profile');
+  await page.getByAltText('Astronaut avatar option').click();
+  await page.getByRole('button', { name: 'Save changes' }).click();
+
+  await expect(page.getByAltText('Current profile avatar')).toHaveAttribute(
+    'src', /astronaut/
+  );
+});</code></pre>
+
+      <h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Coupled to a generated filename that changes on every image re-upload
+await page.locator('img[src*="img_48291.jpg"]').click();
+
+// ✅ Coupled to meaning, not the file
+await page.getByAltText('Wireless Mouse product photo').click();</code></pre>
+
+      <h2 id="common-mistakes">Common Mistakes</h2>
+      <ul>
+        <li><strong>Assuming every <code>&lt;img&gt;</code> has usable alt text</strong> — decorative images often intentionally have <code>alt=""</code>, which is correct practice but means <code>getByAltText()</code> can't target them; that's expected, not a bug.</li>
+        <li><strong>Using generic alt text like "image" or "photo"</strong> across multiple images, causing strict-mode collisions — this is usually worth raising as a content issue in the app, not just worked around in the test.</li>
+      </ul>
+
+      <h2 id="edge-cases">Edge Cases</h2>
+      <ul>
+        <li><strong>Background images set via CSS</strong> have no <code>alt</code> attribute at all — they're not real DOM images and <code>getByAltText()</code> cannot target them; look for a wrapping element with a role or test ID instead.</li>
+        <li><strong>SVG icons used as images</strong> — an inline <code>&lt;svg&gt;</code> doesn't have <code>alt</code>; use <code>&lt;title&gt;</code> inside the SVG with <code>getByTitle()</code>, or <code>role="img"</code> with <code>getByRole()</code>, instead.</li>
+      </ul>
+
+      <h2 id="debugging">Debugging</h2>
+      <p>If a locator can't find an obviously visible image, check the DOM for the <code>alt</code> attribute directly — a common cause is the alt text being set dynamically by JavaScript after an initial render, in which case Playwright's auto-waiting still applies but the exact text used in the locator must match the final rendered value.</p>
+
+      <h2 id="best-practices">Best Practices</h2>
+      <ul>
+        <li>Use specific, descriptive alt text for any image the test needs to target — this benefits both accessibility and test stability at once.</li>
+        <li>Don't try to force <code>getByAltText()</code> onto decorative images that correctly have empty alt text — target a nearby element with a role or test ID instead.</li>
+      </ul>
+
+      <h2 id="practice-exercise">Practice Exercise</h2>
+      <p>A product page shows four color-swatch thumbnails, all with alt text "Color swatch." Rewrite the locator strategy (in the app or the test) so each swatch can be targeted individually.</p>
+
+      <h2 id="summary">Summary</h2>
+      <p><code>getByAltText()</code> locates images and image-like elements via their <code>alt</code> attribute, doubling as a check that images are genuinely accessible. A missing match is often better fixed in the app's markup than worked around in the test.</p>
+
+      <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why can't getByAltText() find a decorative background image applied via CSS?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A CSS background image is not a DOM <code>&lt;img&gt;</code> element and has no <code>alt</code> attribute at all — it's a styling detail, not accessible content — so there's nothing for <code>getByAltText()</code> to read; a different locator targeting the containing element is needed instead.</div>
+</details>
+<details class="faq-item">
+<summary>Why might getByAltText() fail to find an obviously visible image?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The image may correctly have alt="" as a decorative image, or it might be a CSS background image, which has no alt attribute at all.</div>
+</details>
+<details class="faq-item">
+<summary>What does a getByAltText() failure often actually indicate?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A real accessibility gap — the image lacks meaningful alt text, which affects screen reader users too.</div>
+</details>
+<details class="faq-item">
+<summary>Can getByAltText() target an SVG icon?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Only if the SVG has an alt-equivalent like a nested &lt;title&gt; or role="img"; a plain inline SVG icon has no alt attribute to match against.</div>
+</details>
+<details class="faq-item">
+<summary>Why is generic alt text like 'photo' a problem for testing?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It causes strict-mode collisions when multiple images share the same generic text, and it's also a weak accessibility label for real users.</div>
+</details>
+</div>
+</article>
+</body></html>

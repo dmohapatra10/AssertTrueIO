@@ -1,0 +1,139 @@
+<!doctype html>
+<html><head>
+<title>Testing Forms in Playwright: Text Fields, Dropdowns, Checkboxes, Date Pickers</title>
+<meta name="description" content="A practical guide to testing real-world web forms with Playwright — text fields, dropdowns, checkboxes, radio groups, date pickers, and dynamic conditional fields." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/forms.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Forms</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="locators.html">Locators</a>, <a href="actions.html">Actions</a>, <a href="assertions.html">Assertions</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+  <p>Forms are the single most common piece of real-world UI a test automation engineer interacts with — login, checkout, signup, settings. This chapter isn't about new APIs; it's about combining everything from the Locators, Actions, and Assertions chapters into reliable patterns for the specific form widgets you'll actually run into.</p>
+
+  <h2 id="why-it-s-important">Why it's important</h2>
+  <p>Individually, filling a text field or checking a box is simple. What actually causes flaky or unreliable form tests is the combination — conditional fields that appear based on another field's value, validation that fires on blur, dropdowns that populate asynchronously. This chapter works through those realistic combinations.</p>
+
+  <h2 id="text-fields-and-textareas">Text Fields and Textareas</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>await page.getByLabel('Full name').fill('Jordan Lee');
+await page.getByLabel('Bio').fill('Automation engineer based in Bengaluru.');</code></pre>
+  <p>Nothing new here beyond <a href="fill-and-press-sequentially.html">fill()</a> — the main judgment call in a real form is whether any field needs <code>pressSequentially()</code> instead, because something (a character counter, an autocomplete) reacts to individual keystrokes.</p>
+
+  <h2 id="dropdowns-native-vs-custom">Dropdowns — Native vs. Custom</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Native &lt;select&gt;
+await page.getByLabel('Country').selectOption({ label: 'India' });
+
+// Custom-built dropdown (a styled &lt;div&gt;, not a real &lt;select&gt;)
+await page.getByRole('combobox', { name: 'Country' }).click();
+await page.getByRole('option', { name: 'India' }).click();</code></pre>
+  <p>Telling these apart matters — <code>selectOption()</code> only works on genuine <code>&lt;select&gt;</code> elements (full detail on the <a href="select-option.html">selectOption()</a> page). Most modern component libraries (Material UI, Ant Design, custom design systems) build their own dropdown from a button and a list, which needs the click-then-click pattern instead.</p>
+
+  <h2 id="checkboxes-and-radio-groups">Checkboxes and Radio Groups</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>await page.getByLabel('I agree to the terms').check();
+await page.getByLabel('Express shipping').check(); // radio group — selects this option</code></pre>
+  <p>See <a href="check-and-uncheck.html">check() and uncheck()</a> for the full treatment, including why these are preferred over <code>click()</code> for idempotence.</p>
+
+  <h2 id="date-pickers">Date Pickers</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Many date pickers accept direct typed input in a masked field
+await page.getByLabel('Check-in date').fill('12/25/2026');
+
+// Calendar-widget pickers need to be driven like any other custom component —
+// open it, then click the specific day
+await page.getByLabel('Check-in date').click();
+await page.getByRole('button', { name: 'December 25, 2026' }).click();</code></pre>
+  <p>There's no single "date picker API" — every library implements this differently. Inspect the actual markup before assuming either pattern works; some pickers support both typed input and calendar clicks, others only one.</p>
+
+  <h2 id="detailed-example-conditional-dynamic-fields">Detailed Example — Conditional/Dynamic Fields</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('shows a company name field only for business accounts', async ({ page }) =&gt; {
+  await page.goto('/signup');
+
+  await expect(page.getByLabel('Company name')).toBeHidden();
+
+  await page.getByLabel('Account type').selectOption('business');
+  await expect(page.getByLabel('Company name')).toBeVisible();
+
+  await page.getByLabel('Company name').fill('Acme Corp');
+  await page.getByRole('button', { name: 'Create account' }).click();
+});</code></pre>
+  <p>This pattern — assert the field's absent, trigger the condition, assert it appears — is worth testing explicitly rather than assuming conditional logic works; conditional form fields are a common source of real bugs (a field that should hide but doesn't, or vice versa).</p>
+
+  <h2 id="real-world-example-full-registration-form">Real-World Example — Full Registration Form</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import { test, expect } from '@playwright/test';
+
+test('completes registration with all field types', async ({ page }) =&gt; {
+  await page.goto('/register');
+
+  await page.getByLabel('Full name').fill('Priya Sharma');
+  await page.getByLabel('Email').fill('priya@example.com');
+  await page.getByLabel('Password', { exact: true }).fill('correct-horse-battery-staple');
+  await page.getByLabel('Country').selectOption({ label: 'India' });
+  await page.getByLabel('Date of birth').fill('01/15/1995');
+  await page.getByLabel('I agree to the Terms of Service').check();
+
+  await page.getByRole('button', { name: 'Create account' }).click();
+
+  await expect(page.getByText('Welcome, Priya!')).toBeVisible();
+});</code></pre>
+
+  <h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Assuming every dropdown is a native &lt;select&gt;
+await page.getByLabel('Country').selectOption('India'); // throws if it's a custom combobox
+
+// ✅ Check the actual markup first, then use the matching pattern
+await page.getByRole('combobox', { name: 'Country' }).click();
+await page.getByRole('option', { name: 'India' }).click();</code></pre>
+
+  <h2 id="common-mistakes">Common Mistakes</h2>
+  <ul>
+    <li><strong>Assuming a visually dropdown-like element is a native <code>&lt;select&gt;</code></strong> without checking — <code>selectOption()</code> throws a clear error on the wrong element type, which is the fastest way to find out you assumed wrong.</li>
+    <li><strong>Not testing conditional field visibility explicitly</strong>, only testing the end-to-end happy path where the condition happens to already be met.</li>
+    <li><strong>Filling fields in an order that doesn't match how validation actually fires</strong> — some forms validate on blur, so filling field B before field A's validation has resolved can produce unexpected state.</li>
+  </ul>
+
+  <h2 id="edge-cases">Edge Cases</h2>
+  <ul>
+    <li><strong>Auto-formatting inputs</strong> (phone numbers, credit cards) — as covered on the <a href="fill-and-press-sequentially.html">fill()/pressSequentially()</a> page, these often need real keystroke events to trigger the formatting logic.</li>
+    <li><strong>Multi-step (wizard) forms</strong> — treat each step as its own mini-flow with its own assertions before proceeding, rather than filling everything up front and hoping later steps render correctly.</li>
+  </ul>
+
+  <h2 id="debugging">Debugging</h2>
+  <p>If a field "isn't found" despite being visible, check the Elements panel for whether it's a real form control or a JavaScript-driven custom component — the fix is usually a different interaction pattern, not a different locator strategy.</p>
+
+  <h2 id="best-practices">Best Practices</h2>
+  <ul>
+    <li>Inspect a form's actual markup before writing its test — don't assume dropdown/date-picker implementation from visual appearance alone.</li>
+    <li>Test conditional field behavior explicitly, not just as a side effect of a happy-path flow.</li>
+    <li>Group related field-filling into a <code>test.step()</code> (Test Runner chapter) for a long form, so a failure points at the specific section, not the whole test.</li>
+  </ul>
+
+  <h2 id="practice-exercise">Practice Exercise</h2>
+  <p>Write a test for a shipping form where selecting "International" as the shipping type reveals a "Customs declaration" textarea that isn't present for "Domestic" — verify both the hidden and visible states explicitly.</p>
+
+  <h2 id="summary">Summary</h2>
+  <p>Form testing combines locators, actions, and assertions you already know — the real skill is correctly identifying each widget's actual implementation (native vs. custom dropdown, typed vs. calendar date picker) and testing conditional logic explicitly rather than only through a happy path.</p>
+
+  <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A dropdown looks identical to a native HTML select, but selectOption() throws an error. What's the likely cause and fix?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It's almost certainly a custom-built dropdown component (a styled <code>&lt;div&gt;</code>/<code>&lt;button&gt;</code> with a JavaScript-driven option list), not a genuine <code>&lt;select&gt;</code> element — <code>selectOption()</code> only works on real select elements. The fix is to interact with it like any other custom widget: click to open it, then click the desired option using its accessible role and name.</div>
+</details>
+<details class="faq-item">
+<summary>How do you tell whether a dropdown is a native &lt;select&gt; or a custom component?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Inspect the actual markup — selectOption() only works on genuine &lt;select&gt; elements and throws a clear error on the wrong type.</div>
+</details>
+<details class="faq-item">
+<summary>Why is testing a form's conditional field visibility explicitly important?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A happy-path test where the condition happens to already be true never verifies the show/hide logic actually works both ways.</div>
+</details>
+<details class="faq-item">
+<summary>What's a common date picker pitfall?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Assuming one universal API — some pickers accept typed masked input, others only respond to calendar clicks, and it varies by library.</div>
+</details>
+<details class="faq-item">
+<summary>Why might filling fields out of order cause unexpected form state?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Some forms validate on blur, so filling a later field before an earlier one's validation resolves can produce state that doesn't match a real user's flow.</div>
+</details>
+</div>
+</article>
+</body></html>

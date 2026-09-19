@@ -1,0 +1,126 @@
+<!doctype html>
+<html><head>
+<title>AI Flaky Test Classification and Scoring</title>
+<meta name="description" content="Diffing an actual passing trace against a failing one from the same flaky test — reusing Chapter 10&#x27;s extraction directly to find what genuinely differs between them." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/ai-flaky-test-classification-and-scoring.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>AI Flaky Test Classification and Scoring</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="detecting-failure-patterns.html">Detecting Failure Patterns</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Classifying a confirmed flaky test into one of Chapter 12's five recurring causes</li>
+  <li>Diffing an actual passing trace against a failing one, reusing Chapter 10's extraction directly</li>
+  <li>Scoring severity so genuinely urgent flakiness gets attention first</li>
+</ul>
+
+<h2 id="introduction-where-ai-genuinely-earns-its-place">Introduction — Where AI Genuinely Earns Its Place</h2>
+<p>The previous page confirmed a test is genuinely flaky, deterministically. This page tackles the harder question that deterministic code can't answer alone: why. This is where AI reasoning belongs in this chapter, and this page's real technique goes further than a text-based guess — it compares actual trace data from a real passing run against a real failing run of the same test.</p>
+
+<h2 id="step-by-step-implementation-reusing-chapter-10-s-extraction">Step-by-Step Implementation — Reusing Chapter 10's Extraction</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/diff-flaky-traces.ts
+import { extractTraceActions, TraceAction } from './extract-trace-data';
+import { askClaude } from './ai-client';
+
+export interface TraceDiff {
+  actionsOnlyInFailing: TraceAction[];
+  durationDifferences: { actionType: string; passingMs: number; failingMs: number }[];
+}
+
+export function diffTraces(
+  passingTracePath: string, failingTracePath: string
+): TraceDiff {
+  const passing = extractTraceActions(passingTracePath);
+  const failing = extractTraceActions(failingTracePath);
+
+  const actionsOnlyInFailing = failing.filter((f) =&gt;
+    !!f.error &amp;&amp; !passing.some((p) =&gt; p.type === f.type &amp;&amp; p.selector === f.selector)
+  );
+
+  const durationDifferences = passing
+    .map((p, i) =&gt; {
+      const matching = failing[i];
+      if (!matching || matching.type !== p.type) return null;
+      return { actionType: p.type, passingMs: p.durationMs, failingMs: matching.durationMs };
+    })
+    .filter((d): d is NonNullable&lt;typeof d&gt; =&gt; d !== null &amp;&amp; Math.abs(d.passingMs - d.failingMs) &gt; 500);
+
+  return { actionsOnlyInFailing, durationDifferences };
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p>This directly reuses <code>extractTraceActions</code> from Chapter 10 — nothing new for reading trace files, only new logic for comparing two of them. <code>durationDifferences</code> specifically looks for actions that took meaningfully longer in the failing run, a genuine, concrete signal for network variance or animation timing, two of Chapter 12's own recurring causes.</p>
+
+<h2 id="step-by-step-implementation-classification-using-the-real-diff">Step-by-Step Implementation — Classification Using the Real Diff</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export type FlakyCause =
+  | 'race-condition' | 'animation-timing' | 'network-variance'
+  | 'test-order-dependence' | 'shared-state';
+
+export interface FlakyClassification {
+  cause: FlakyCause;
+  severityScore: number;
+  reasoning: string;
+}
+
+export async function classifyFlakyTest(
+  diff: TraceDiff, testName: string
+): Promise&lt;FlakyClassification&gt; {
+  const prompt = `Flaky test: "${testName}"
+
+Trace comparison between a passing and failing run of the
+SAME test:
+Actions with errors only in the failing run: ${JSON.stringify(diff.actionsOnlyInFailing)}
+Actions with meaningfully different durations: ${JSON.stringify(diff.durationDifferences)}
+
+Classify the likely cause as ONE of: race-condition,
+animation-timing, network-variance, test-order-dependence,
+shared-state. Score severity 1-5 based on how often this
+appears to occur and how central the affected action is.
+
+Respond with ONLY valid JSON:
+{"cause": string, "severityScore": number, "reasoning": string}`;
+
+  const raw = await askClaude(prompt);
+  return JSON.parse(raw);
+}</code></pre>
+
+<h2 id="example-a-real-trace-grounded-classification">Example — A Real, Trace-Grounded Classification</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const diff = diffTraces('traces/checkout-pass.zip', 'traces/checkout-fail.zip');
+const classification = await classifyFlakyTest(diff, 'completes checkout with valid payment');
+
+// {
+//   cause: "network-variance",
+//   severityScore: 4,
+//   reasoning: "The discount-validation API call took 2100ms in
+//     the failing run versus 340ms in the passing run — a real,
+//     meaningful duration difference at exactly the step that
+//     subsequently timed out."
+// }</code></pre>
+
+<h2 id="why-it-matters">Why It Matters</h2>
+<p>This classification isn't a guess from a text description of the problem — it's grounded in an actual, measured difference between two real runs of the same test. This is genuinely more trustworthy than analysis based on a single failure's error message alone, and it's a technique unique to this track, made possible by Chapter 10's trace extraction work.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Classifying a flaky test from a single failing trace alone.</strong> Without a passing trace for comparison, there's no genuine baseline — this page's whole technique depends on having both.</li>
+  <li><strong>Ignoring duration differences under the threshold.</strong> This page's 500ms threshold is a reasonable default, but a suite with tighter timing margins might need a smaller one to catch genuinely meaningful variance.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Save at least one passing trace for every test that ends up flagged as flaky — without it, this page's real diffing technique isn't possible.</li>
+  <li>Adjust the duration-difference threshold to your own suite's actual timing characteristics, rather than trusting this page's default blindly.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>For a real or simulated flaky test in your own project, capture both a passing and a failing trace. Run this page's <code>diffTraces</code> function and review the results by eye before running the AI classification — confirm the classification's reasoning genuinely matches what you see in the diff yourself.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Diagnosing why a test is flaky is where AI reasoning genuinely earns its place, after deterministic code already confirmed the test is flaky at all.</li>
+  <li>Comparing actual passing and failing traces, reusing Chapter 10's extraction, grounds this diagnosis in real, measured evidence rather than a guess.</li>
+  <li>Severity scoring lets a team prioritize which flaky tests to investigate first, based on how central and how frequent the underlying issue appears to be.</li>
+</ul>
+</article>
+</body></html>

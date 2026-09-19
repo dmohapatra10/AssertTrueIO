@@ -1,0 +1,140 @@
+<!doctype html>
+<html><head>
+<title>Cookies in k6 Performance Tests</title>
+<meta name="description" content="How k6 handles cookies automatically within a VU, when session cookies matter for a realistic performance test, and how to inspect and control them explicitly." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/cookies-in-performance-tests.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Cookies in Performance Tests</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="building-a-realistic-end-to-end-workflow.html">Building a Realistic End-to-End Workflow</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Many real APIs, especially ones backing a traditional web application, use session cookies rather than (or alongside) bearer tokens to track a logged-in user. This page covers how k6 handles cookies, and when they genuinely matter for a realistic performance test.</p>
+
+<h2 id="k6-handles-cookies-automatically-per-vu">k6 Handles Cookies Automatically, Per VU</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import http from 'k6/http';
+
+export default function () {
+  // A login response that sets a session cookie
+  http.post('https://api.example.com/login', loginPayload);
+
+  // k6 automatically includes that cookie on subsequent requests
+  // within the SAME virtual user's cookie jar
+  http.get('https://api.example.com/dashboard');
+}</code></pre>
+<p>Each virtual user in k6 has its own independent cookie jar — a cookie set by one response is automatically sent on that same VU's later requests to the same domain, without any manual work required. Crucially, this happens per VU, not globally — VU #1's cookies never leak into VU #2's requests, which correctly models independent, separate real users.</p>
+
+<h2 id="inspecting-cookies-explicitly">Inspecting Cookies Explicitly</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import http from 'k6/http';
+import { check } from 'k6';
+
+export default function () {
+  const response = http.post('https://api.example.com/login', loginPayload);
+
+  check(response, {
+    'session cookie was set': (r) => r.cookies['session_id'] !== undefined,
+  });
+}</code></pre>
+<p><code>response.cookies</code> gives direct access to cookies set by that specific response, useful for verifying that a login actually set the session cookie your later requests are implicitly depending on — rather than assuming it worked just because the status code was 200.</p>
+
+<h2 id="detailed-example-a-cookie-based-session-alongside-a-bearer-token">Detailed Example — A Cookie-Based Session Alongside a Bearer Token</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export default function () {
+  // Some APIs use BOTH — a bearer token for API calls, and a session
+  // cookie for anything served through the traditional web layer
+  const loginResponse = http.post('https://api.example.com/login', loginPayload);
+  const token = loginResponse.json('token');
+
+  // The API call uses the bearer token explicitly
+  http.get('https://api.example.com/api/profile', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  // A traditional page load relies on the session cookie automatically,
+  // no explicit header needed — k6's cookie jar handles it
+  http.get('https://api.example.com/account/settings');
+}</code></pre>
+<p>This is a genuinely common real-world pattern — a modern API layer using bearer tokens explicitly, alongside older or web-facing routes still relying on traditional session cookies, both active in the same authenticated session.</p>
+
+<h2 id="real-world-example-why-ignoring-cookies-can-silently-break-a-workflow">Real-World Example — Why Ignoring Cookies Can Silently Break a Workflow</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Scenario: An e-commerce site's shopping cart is tracked via a session cookie,
+          not a request parameter.
+
+❌ A workflow test that doesn't realize this: each "add to cart" request appears
+   to succeed (200 OK), but the cart is never actually accumulating items,
+   because the session cookie isn't being carried correctly between requests —
+   perhaps because requests were manually reconstructed without k6's automatic
+   cookie handling, or a token was hardcoded across VUs in a way that broke it.
+
+✅ Trusting k6's per-VU cookie jar, and explicitly checking that a cart total
+   reflects the actual expected state after multiple additions — catching the
+   disconnect immediately instead of a false-positive "everything returned 200."</code></pre>
+<p>This is exactly the kind of problem the functional checks from the previous page are designed to catch — a status-code-only check would see 200 OK on every "add to cart" call and report success, completely missing that the cart itself was never actually accumulating anything real.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Assuming cookies "just work" without ever verifying the session state
+export default function () {
+  http.post(loginUrl, credentials);
+  http.post(addToCartUrl, item); // trusting this worked, with no check
+}
+
+// ✅ Verifying the actual state the cookie-based session should reflect
+export default function () {
+  http.post(loginUrl, credentials);
+  const response = http.post(addToCartUrl, item);
+  check(response, { 'cart reflects the addition': (r) => r.json('itemCount') === 1 });
+}</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Assuming a status code of 200 means a cookie-dependent action actually succeeded</strong> — a broken session can still return 200 while silently failing to persist any real state.</li>
+  <li><strong>Manually reconstructing requests in a way that bypasses k6's automatic cookie handling</strong> — usually unnecessary, and a common source of subtle, hard-to-diagnose session bugs.</li>
+  <li><strong>Not realizing cookies are scoped per-VU</strong> — expecting a cookie set by one virtual user's requests to somehow be visible to another VU, which never happens by design.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Cookie expiration during a long-running soak test</strong> — a session cookie with a short expiration might expire mid-test, causing later iterations to silently fail in a way earlier iterations didn't; worth checking whether this is happening if a soak test shows increasing failures over time specifically (versus a genuine performance degradation).</li>
+  <li><strong>Cookies with domain or path restrictions</strong> — a cookie scoped to a specific path or subdomain won't automatically apply to requests outside that scope, which can look like "cookies aren't working" when it's actually correct, intended cookie scoping behavior.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a workflow that should depend on session state behaves as though every request is unauthenticated or starting fresh, check <code>response.cookies</code> right after the step that should have set a session cookie — confirming it was actually set is the fastest way to rule out (or confirm) a cookie-related root cause.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Trust k6's automatic per-VU cookie handling rather than manually reconstructing cookie logic, unless there's a genuine specific reason not to.</li>
+  <li>Verify actual application state (like a cart's item count), not just status codes, for any workflow that depends on cookie-based session state.</li>
+  <li>Watch for cookie expiration specifically in long-running soak tests, where a short-lived session cookie can silently invalidate later iterations.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Write a script that logs in (setting a session cookie), adds two different items to a cart across two separate requests, then verifies via a functional check that the cart's item count reflects both additions — not just that each individual request returned 200.</p>
+
+<h2 id="summary">Summary</h2>
+<p>k6 automatically manages cookies per virtual user, carrying them across that VU's requests the same way a real browser session would, without leaking between different VUs. The real risk isn't the mechanics (which k6 handles correctly by default) — it's trusting a 200 status code as proof that cookie-dependent state was actually persisted, when only a genuine functional check of the resulting state can confirm that.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Does k6 share cookies between different virtual users in the same test?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">No — each virtual user has its own independent cookie jar, and cookies set by one VU's requests are never visible to another VU's requests. This correctly models real, independent users each having their own separate session, rather than incorrectly sharing session state across simulated users the way a bug in a manually-implemented cookie system might.</div>
+</details>
+<details class="faq-item">
+<summary>Why might a cookie-dependent action return a 200 status code while actually failing?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A 200 status code only confirms the server processed the request and returned a response — it doesn't guarantee the request's underlying intent (like adding an item to a cart tracked via session cookie) actually succeeded. If the session itself is broken or the cookie isn't being carried correctly, the server might still respond with 200 while never actually persisting the expected state, which only a functional check of that state (not just the status code) would catch.</div>
+</details>
+<details class="faq-item">
+<summary>Why might a long-running soak test show increasing failures over time that trace back to cookies rather than genuine performance degradation?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A session cookie with a limited expiration time can expire partway through a long soak test — once that happens, subsequent requests from that VU may start failing not because the system's performance degraded, but because the session itself is no longer valid. Distinguishing this from genuine performance degradation matters, since the fix (refreshing the session periodically) is completely different from a fix for an actual system-level slowdown.</div>
+</details>
+<details class="faq-item">
+<summary>When might an API use both a bearer token and a session cookie in the same authenticated session?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">This is common when a system has both a modern API layer (often using bearer tokens explicitly in headers) and older or web-facing routes that still rely on traditional session cookies — both can be active simultaneously for the same logged-in user, with different parts of the system relying on whichever mechanism they were originally built around.</div>
+</details>
+<details class="faq-item">
+<summary>Why would you check response.cookies after a login step specifically, rather than just trusting the login succeeded?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Checking response.cookies directly confirms the session cookie was actually set by that specific response — this is the concrete mechanism every subsequent cookie-dependent request in the workflow will rely on. Without this check, a workflow could appear to progress normally (each individual request still returning a response) while silently never actually being in an authenticated session at all, since nothing confirmed the cookie the whole chain depends on was genuinely set.</div>
+</details>
+</div>
+</article>
+</body></html>

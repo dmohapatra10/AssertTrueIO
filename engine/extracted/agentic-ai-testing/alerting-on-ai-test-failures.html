@@ -1,0 +1,192 @@
+<!doctype html>
+<html><head>
+<title>Alerting on AI Test Failures: Avoiding Chapter 8&#x27;s Own Alert-Fatigue Trap</title>
+<meta name="description" content="Deciding what genuinely deserves an alert across two new signal sources this chapter introduced — system health and traced reasoning — without drowning a team in noise." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/alerting-on-ai-test-failures.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Alerting on AI Test Failures</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="monitoring-ai-test-systems.html">Monitoring AI Test Systems</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Chapter 8's own Understanding Test Failures page already named the risk: treating every failure with maximum urgency trains a team to tune out alerts entirely, eventually missing genuine ones. This chapter has introduced TWO new signal sources — system health (previous page) and traced reasoning (two pages back) — and this page is about applying that same discipline to them, not doubling the noise.</p>
+
+<h2 id="a-genuine-alert-rule-set-calibrated-deliberately">A Genuine Alert Rule Set, Calibrated Deliberately</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def evaluate_alert_worthiness(signal_type, signal_data):
+    if signal_type == "system_health":
+        # Chapter 8's OWN cheap-check-first principle: a SINGLE
+        # slow reading is likely NORMAL variance; a SUSTAINED
+        # pattern is what GENUINELY warrants a human's attention
+        if signal_data["consecutive_degraded_readings"] &gt;= 3:
+            return {"alert": True, "urgency": "high",
+                    "reason": "System health degraded across 3+ consecutive checks."}
+        return {"alert": False, "reason": "Single reading, within normal variance."}
+
+    if signal_type == "traced_reasoning_anomaly":
+        # Reusing Chapter 12's OWN unusual-step-count technique —
+        # a STATISTICAL outlier, not just "this run took extra steps"
+        if signal_data["step_count_zscore"] &gt; 2:
+            return {"alert": True, "urgency": "medium",
+                    "reason": "Step count is a statistical outlier vs. baseline."}
+        return {"alert": False, "reason": "Step count within normal range."}</code></pre>
+
+<h2 id="why-these-specific-thresholds-not-alert-on-anything-unusual">Why These Specific Thresholds — Not "Alert on Anything Unusual"</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>NOTICE neither RULE fires on a SINGLE data POINT alone.
+System health REQUIRES three CONSECUTIVE degraded readings —
+Chapter 8's OWN "a SINGLE fluke among many RUNS produces a
+similar-looking RATE to what real, LOW-grade flakiness would
+SHOW" reasoning, applied HERE to system-HEALTH signals
+INSTEAD of test PASS rates. The REASONING-anomaly rule REUSES
+Chapter 12's OWN statistical OUTLIER approach, NOT a raw
+STEP-count threshold that would FIRE on ordinary, EXPECTED
+variation.</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why does this page apply Chapter 8's alert-fatigue reasoning to system health and traced reasoning specifically, rather than treating those as fundamentally different from the traditional test failures Chapter 8 originally discussed? The underlying mechanism Chapter 8 identified — indiscriminate urgency training a team to eventually discount even genuine alerts — has nothing to do with WHAT is being alerted on. It applies equally to a system-health degradation alert as to a test-failure alert. Introducing two new signal sources without applying this same discipline would simply recreate the exact problem Chapter 8 already diagnosed, in a new domain.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Alerting on every single degraded reading or every run with an above-average step count, treating the new observability data this chapter introduced as inherently more alert-worthy than ordinary test failures. The same discipline Chapter 8 established applies here — a single data point rarely justifies interrupting a human.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>When adding a new observability signal to an alerting system, explicitly ask "would this fire on ordinary, expected variation?" before deploying it — exactly the question this page's <code>consecutive_degraded_readings &gt;= 3</code> and statistical z-score thresholds are designed to answer correctly.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Apply Chapter 8's alert-fatigue discipline to every new observability signal this chapter introduces, not just traditional test failures.</li>
+  <li>Require sustained or statistically significant patterns before alerting, never a single data point in isolation.</li>
+  <li>Explicitly test whether a new alert rule would fire on ordinary, expected variation before deploying it.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Chapter 8's alert-fatigue warning applies equally to this chapter's new signal sources — system health and traced reasoning anomalies — not just traditional test failures.</li>
+  <li>Genuine alert rules require sustained patterns or statistical significance, never firing on a single, potentially-normal data point.</li>
+  <li>Introducing new observability signals without this same discipline would simply recreate the alert-fatigue problem Chapter 8 already diagnosed, in a new form.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Add a third alert rule to this page's function for a <code>traced_reasoning_anomaly</code> subtype specifically checking for unexplained repeated actions (connecting to Chapter 12's own duplicate-click concern and the <code>is_repeat_of_previous_step</code> field from this chapter's Structured Logging page), and decide what threshold would avoid firing on a single, legitimately-explained repeat.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A team adds observability from this chapter's earlier pages, then configures alerts to fire on ANY degraded system-health reading or ANY above-average step count. What real problem is this likely to cause?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This EXACTLY recreates Chapter 8's OWN alert-fatigue MECHANISM in a NEW domain — MOST individual READINGS that are SLIGHTLY degraded or SLIGHTLY above AVERAGE are LIKELY ordinary, NORMAL variance, and FIRING on EVERY one TRAINS the TEAM to eventually DISCOUNT these ALERTS entirely.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What "alert on ANY degraded READING" GENUINELY produces:
+GIVEN that api_latency_ms and STEP counts NATURALLY vary RUN
+  to run, a TEAM using THIS overly-sensitive RULE would
+  receive FREQUENT alerts, MOST of which REFLECT ordinary,
+  HARMLESS fluctuation RATHER than a GENUINE, real
+  PROBLEM.
+
+Why this LEADS to the SAME alert-fatigue OUTCOME Chapter 8
+warned ABOUT:
+Per Chapter 8's OWN mechanism, a TEAM receiving MOSTLY
+  false-POSITIVE alerts LEARNS (even UNCONSCIOUSLY) to
+  DISCOUNT them — meaning the RARE, GENUINELY significant
+  degradation (THIS page's THREE-consecutive-readings
+  example) risks being TREATED with the SAME reduced
+  ATTENTION as the ROUTINE noise SURROUNDING it.</code></pre>
+<p>This is EXACTLY why THIS page insists on REQUIRING sustained PATTERNS or STATISTICAL significance — the TEAM'S proposed RULE would REPRODUCE Chapter 8's ALREADY-diagnosed problem, JUST in a NEW, observability-SPECIFIC form.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does THIS page's system-health RULE specifically require THREE consecutive DEGRADED readings, RATHER than a SINGLE bad READING or an INFINITE number?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>THREE consecutive READINGS strikes a GENUINE, practical BALANCE — ENOUGH to RULE OUT a SINGLE, random FLUCTUATION (Chapter 8's OWN "a SINGLE fluke" concern), while NOT requiring SO many CONSECUTIVE bad READINGS that a GENUINE, real problem GOES unnoticed for TOO long.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why a SINGLE bad READING is INSUFFICIENT, per Chapter 8's OWN
+reasoning:
+ONE degraded api_latency_ms READING could EASILY be ORDINARY,
+  RANDOM network JITTER — ALERTING on THIS alone would
+  PRODUCE exactly the KIND of low-VALUE, frequent ALERT
+  Chapter 8 WARNED against.
+
+Why WAITING for an UNBOUNDED number would be GENUINELY too
+SLOW:
+Requiring, SAY, TEN consecutive DEGRADED readings BEFORE
+  alerting WOULD mean a GENUINE, real DEGRADATION could
+  PERSIST unnoticed for a LONG time BEFORE anyone is
+  INFORMED — GENUINELY delaying a RESPONSE to a REAL
+  problem.
+
+Why THREE is a REASONABLE, practical MIDDLE ground:
+ENOUGH consecutive READINGS to GENUINELY rule OUT a SINGLE
+  random FLUKE, while STILL catching a REAL degradation
+  WITHIN a REASONABLE, PROMPT timeframe — a PRACTICAL, if not
+  MATHEMATICALLY precise, BALANCE between THESE two
+  competing CONCERNS.</code></pre>
+<p>This MIRRORS the SAME kind of PRACTICAL threshold-SETTING reasoning Chapter 9's OWN minimum-SAMPLE-size discussion APPLIED to flaky-TEST detection — the EXACT number ISN'T mathematically DERIVED, but REFLECTS a REASONABLE, PRACTICAL balance BETWEEN avoiding FALSE positives and CATCHING genuine PROBLEMS promptly.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why THIS page reuses Chapter 12's STATISTICAL z-SCORE approach for the reasoning-ANOMALY rule, rather than a SIMPLE "MORE steps than USUAL" check.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A SIMPLE "MORE than usual" CHECK would FIRE on ORDINARY, EXPECTED variation in STEP count — the STATISTICAL z-SCORE approach SPECIFICALLY distinguishes a GENUINE, meaningful OUTLIER from NORMAL, everyday FLUCTUATION, EXACTLY the SAME reasoning Chapter 12's OWN function ALREADY established.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why "MORE steps than USUAL" ALONE is TOO sensitive:
+STEP counts NATURALLY vary SOMEWHAT between RUNS, even for
+  the SAME, healthy AGENT — a SIMPLE "MORE than AVERAGE"
+  check would FIRE constantly, SINCE roughly HALF of all RUNS
+  are, BY definition, ABOVE their OWN historical AVERAGE.
+
+Why the STATISTICAL z-score APPROACH (reused FROM Chapter
+12) is GENUINELY better:
+A z-score ABOVE 2 SPECIFICALLY identifies a run that's a
+  GENUINE, meaningful STATISTICAL outlier — MEANINGFULLY
+  different from NORMAL variation, NOT just SLIGHTLY above a
+  RAW average — EXACTLY the KIND of distinction THIS page
+  needs to AVOID the alert-FATIGUE trap.</code></pre>
+<p>This is a GENUINELY sound design CHOICE — REUSING Chapter 12's ALREADY-established, STATISTICALLY sound TECHNIQUE (rather than INVENTING a CRUDER, new ONE) ensures THIS page's alerting LOGIC benefits from the SAME rigor ALREADY applied ELSEWHERE in this COURSE.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might it be a MISTAKE to assume THIS page's alert THRESHOLDS (three CONSECUTIVE readings, z-SCORE above 2) are UNIVERSALLY correct for EVERY team's SYSTEM?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>These SPECIFIC numbers REFLECT a REASONABLE, PRACTICAL balance for a SYSTEM roughly LIKE ShopEasy's — a DIFFERENT team's SYSTEM, with DIFFERENT normal VARIANCE, DIFFERENT run FREQUENCY, or DIFFERENT tolerance for RISK, might GENUINELY need DIFFERENT, RECALIBRATED thresholds.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why THESE specific NUMBERS aren't UNIVERSALLY correct:
+A TEAM running THEIR pipeline ONLY a FEW times a DAY might
+  GENUINELY want a LOWER threshold (say, TWO consecutive
+  readings) SINCE waiting for THREE could take a WHOLE day —
+  WHILE a team RUNNING hundreds of TIMES daily might
+  REASONABLY use a HIGHER threshold, SINCE three
+  CONSECUTIVE readings HAPPEN much FASTER for THEM.
+
+Why RECALIBRATION is a GENUINE, ongoing NEED:
+JUST as Chapter 9's OWN minimum-SAMPLE-size threshold was
+  DESCRIBED as "a REASONABLE, practical CHOICE" rather than a
+  MATHEMATICALLY precise ONE, THIS page's THRESHOLDS should
+  be UNDERSTOOD the SAME way — a REASONABLE STARTING point,
+  worth TUNING based on a SPECIFIC team's OWN, real
+  OPERATING characteristics.</code></pre>
+<p>This is a GENUINELY important, HONEST caveat WORTH naming EXPLICITLY — SPECIFIC numeric THRESHOLDS throughout THIS course have CONSISTENTLY been PRESENTED as REASONABLE starting POINTS, not UNIVERSAL constants, and THIS page's ALERT thresholds are NO exception to THAT pattern.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you design a WAY to VERIFY, empirically, WHETHER this page's alert THRESHOLDS are GENUINELY well-CALIBRATED for a SPECIFIC team, rather than JUST trusting them ON faith?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A GENUINELY useful VERIFICATION tracks the RATIO of alerts that TURNED OUT to be GENUINE problems VERSUS alerts that TURNED OUT to be FALSE positives OVER time — DIRECTLY measuring WHETHER the CURRENT thresholds are PRODUCING a REASONABLE signal-to-NOISE ratio in PRACTICE.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def audit_alert_calibration(alert_history):
+    """Tracks whether recent alerts genuinely corresponded to
+    real, actionable problems, or were false positives —
+    providing empirical evidence about threshold calibration."""
+    total_alerts = len(alert_history)
+    if total_alerts == 0:
+        return "No alerts yet to evaluate."
+
+    genuine_problems = sum(
+        1 for a in alert_history if a["confirmed_genuine_issue"])
+    false_positive_rate = 1 - (genuine_problems / total_alerts)
+
+    if false_positive_rate &gt; 0.5:
+        return (f"WARNING: {false_positive_rate:.0%} of recent "
+                f"alerts were false positives — thresholds may "
+                f"be miscalibrated, risking the exact "
+                f"alert-fatigue pattern Chapter 8 warned about.")
+    return (f"Alert calibration appears reasonable: "
+            f"{false_positive_rate:.0%} false positive rate.")</code></pre>
+<p>This TURNS this page's ABSTRACT concern about CALIBRATION into a CONCRETE, MEASURABLE audit — RATHER than ASSUMING the THRESHOLDS are CORRECT indefinitely, THIS check PROVIDES ongoing, EMPIRICAL evidence about WHETHER the SYSTEM is GENUINELY achieving a REASONABLE balance, DIRECTLY connecting to Chapter 8's OWN alert-FATIGUE mechanism by MEASURING the SPECIFIC false-positive RATE that DRIVES it.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

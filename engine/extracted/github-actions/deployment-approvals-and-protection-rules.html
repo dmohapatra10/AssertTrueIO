@@ -1,0 +1,97 @@
+<!doctype html>
+<html><head>
+<title>Deployment Approvals &amp; Protection Rules in GitHub Actions</title>
+<meta name="description" content="Required reviewers, wait timers, and branch restrictions as environment protection rules — genuine human checkpoints before a risky deployment proceeds." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/deployment-approvals-and-protection-rules.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Deployment Approvals &amp; Protection Rules</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="environment-scoped-variables.html">Environment-Scoped Variables</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Protection rules are configured directly on a GitHub Environment, and they can genuinely pause a workflow — not just restrict what it can access, but stop it from proceeding at all until a real condition is met. Required reviewers are the most common example, but not the only one.</p>
+
+<h2 id="required-reviewers">Required Reviewers</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Settings → Environments → production → Required reviewers → Add</code></pre>
+<p>Once configured, any job with <code>environment: production</code> genuinely pauses before running — visible in the Actions tab as "Waiting for review" — until one of the designated reviewers explicitly approves it.</p>
+
+<h2 id="what-this-actually-looks-like-in-a-workflow">What This Actually Looks Like in a Workflow</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  deploy:
+    environment: production   # this line alone triggers the approval gate,
+    runs-on: ubuntu-latest      # because of what's configured on this environment
+    steps:
+      - run: echo "Deploying to production"</code></pre>
+<p>Nothing in the workflow file itself mentions "approval" — the gate comes entirely from the environment's own configuration, not from anything written in the YAML. This is a deliberate design choice: the same workflow file behaves differently depending on which environment's protection rules apply.</p>
+
+<h2 id="wait-timer">Wait Timer</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Settings → Environments → production → Wait timer → 15 minutes</code></pre>
+<p>Delays a deployment by a fixed amount of time before it proceeds — genuinely useful as a mandatory pause for reconsideration, or to allow time for something else (an announcement, a final check) to happen before the deployment actually executes.</p>
+
+<h2 id="branch-restrictions">Branch Restrictions</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Settings → Environments → production → Deployment branches → Selected branches → main</code></pre>
+<p>Restricts which branches can even trigger a deployment to this environment — genuinely useful for ensuring production deployments only ever originate from <code>main</code>, never accidentally from an experimental feature branch.</p>
+
+<h2 id="detailed-example-shopeasy-s-production-environment-fully-configured">Detailed Example — ShopEasy's Production Environment, Fully Configured</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Production environment protection rules:
+- Required reviewers: 2 senior engineers (either one can approve)
+- Wait timer: 10 minutes
+- Deployment branches: main only
+
+Result: a deployment to production genuinely cannot happen unless:
+1. The workflow run originated from the main branch
+2. At least one of the two designated reviewers explicitly approved it
+3. At least 10 minutes have passed since the approval</code></pre>
+<p>All three protection rules combine — deployment only proceeds once every configured condition is genuinely satisfied, not just one of them.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might requiring 2 possible reviewers (either one sufficient), rather than exactly 1 specific person, be a deliberate, sensible choice? Requiring one specific individual creates a genuine bottleneck — if that person is unavailable, legitimate deployments simply can't happen. Allowing either of two qualified people to approve keeps the human-judgment safeguard intact while avoiding a single point of failure in the approval process itself.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Assuming a protection rule lives in the workflow file and can be seen just by reading the YAML. Protection rules are configured entirely in the repository's Environments settings, invisible to someone only reading the workflow file — worth remembering when trying to understand why a job with seemingly ordinary YAML is actually pausing for approval.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>A reviewer approving a deployment can typically see the actual diff of what's about to be deployed directly from GitHub's approval interface — genuinely useful for making an informed decision, not just a rubber-stamp click.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Configure required reviewers for any environment where a deployment mistake would have genuinely serious consequences.</li>
+  <li>Allow more than one qualified reviewer where possible, avoiding a single point of failure in the approval process.</li>
+  <li>Combine branch restrictions with approvals for production — ensuring both "the right code" and "a genuine human decision" before deployment.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Protection rules — required reviewers, wait timers, branch restrictions — are configured on the environment itself, not in the workflow YAML.</li>
+  <li>A job connected to a protected environment genuinely pauses until every configured condition is satisfied.</li>
+  <li>Requiring one of several possible reviewers avoids a single point of failure while still enforcing genuine human judgment.</li>
+</ul>
+
+<h2 id="challenge">🏆 Challenge</h2>
+<p>For a hypothetical staging environment where mistakes are low-risk and quickly reversible, and a production environment where mistakes are genuinely costly, decide which protection rules (if any) each environment should have, and justify the deliberate asymmetry between them.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Where does a protection rule like required reviewers actually get configured — in the workflow file or elsewhere?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Protection rules are configured entirely within the repository's Environments settings, not in the workflow YAML file itself. A job's workflow file simply declares environment: production, and whatever protection rules are configured for that specific environment automatically apply — nothing in the YAML itself describes the approval requirement.</div>
+</details>
+<details class="faq-item">
+<summary>Why might a team configure two possible required reviewers rather than one specific individual?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Requiring exactly one specific person creates a genuine bottleneck — if that person is unavailable, a legitimate, necessary deployment simply can't proceed. Allowing either of two (or more) qualified reviewers to approve preserves the actual human-judgment safeguard while avoiding a single point of failure in the approval process itself.</div>
+</details>
+<details class="faq-item">
+<summary>What's the practical purpose of a wait timer on a protected environment?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A wait timer delays a deployment by a fixed amount of time, even after any required approval, providing a mandatory pause for reconsideration or allowing time for something else — a coordinated announcement, a final manual check — to happen before the deployment actually executes. It's a genuinely different kind of safeguard from an approval, based on elapsed time rather than a human decision.</div>
+</details>
+<details class="faq-item">
+<summary>Why might a production environment specifically restrict deployment branches to only main?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">This ensures a production deployment can only ever originate from the branch a team has designated as the genuine, reviewed, merged source of truth, preventing an accidental deployment directly from an experimental or in-progress feature branch. It's a structural safeguard against deploying code that hasn't gone through the team's actual normal review and merge process.</div>
+</details>
+<details class="faq-item">
+<summary>Can multiple protection rules (required reviewers, a wait timer, and branch restrictions) apply to the same environment simultaneously?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Yes — protection rules combine, and a deployment only proceeds once every configured condition is genuinely satisfied, not just one of them. A production environment could reasonably require deployment from main only, require a specific reviewer's approval, and then wait an additional fixed period before the deployment actually executes, all at once.</div>
+</details>
+</div>
+</article>
+</body></html>

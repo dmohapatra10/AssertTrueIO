@@ -1,0 +1,149 @@
+<!doctype html>
+<html><head>
+<title>Handling Dynamic &amp; Polymorphic JSON in RestAssured</title>
+<meta name="description" content="How to validate RestAssured responses whose shape genuinely varies — optional fields, null values, and polymorphic structures where different elements have different shapes." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/handling-dynamic-and-polymorphic-json.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Dynamic &amp; Polymorphic JSON</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="advanced-jsonpath-navigation.html">Advanced JsonPath Navigation</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>So far, every example has assumed a uniform, predictable shape — every order has the same fields, every user looks the same. Real APIs frequently don't work that way: fields that are sometimes present and sometimes not, values that are sometimes a string and sometimes null, or — the most complex case — a collection where different elements genuinely have different shapes depending on their type.</p>
+
+<h2 id="optional-fields-testing-presence-explicitly">Optional Fields — Testing Presence Explicitly</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>{ "id": 1, "name": "John", "middleName": null, "nickname": "Johnny" }
+{ "id": 2, "name": "Jane" }</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Don't assume every response has every field — test presence explicitly where it matters
+.then().body("$", hasKey("nickname")); // does this response include this key at all?
+
+// Distinguish "key present but null" from "key absent entirely"
+JsonPath json = response.jsonPath();
+boolean hasMiddleNameKey = json.getMap("$").containsKey("middleName");
+Object middleNameValue = json.get("middleName"); // null either way — this alone can't distinguish the two cases</code></pre>
+<p>This is a genuinely important distinction some APIs care about: a field explicitly set to <code>null</code> versus a field omitted from the response entirely can mean different things (an intentional "no value" versus "this field doesn't apply here at all"). <code>hasKey()</code> / <code>containsKey()</code> checks presence directly; a plain value read can't tell the two apart, since both produce <code>null</code> in Java.</p>
+
+<h2 id="null-values-asserting-correctly">Null Values — Asserting Correctly</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>.then().body("middleName", nullValue());       // explicitly checking it's null
+.then().body("nickname", notNullValue());        // explicitly checking it's present and non-null</code></pre>
+<p>Both are legitimate, deliberate assertions — the mistake isn't using either one, it's not being deliberate about which fields in a response are allowed to be null and testing that contract explicitly, rather than only ever testing the "happy" fully-populated case.</p>
+
+<h2 id="polymorphic-responses-different-shapes-in-one-collection">Polymorphic Responses — Different Shapes in One Collection</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>{
+  "events": [
+    { "type": "order_created", "orderId": 500, "total": 120.00 },
+    { "type": "user_registered", "userId": 42, "email": "john@example.com" },
+    { "type": "payment_failed", "orderId": 500, "reason": "insufficient_funds" }
+  ]
+}</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Each event type has genuinely different fields — validate by type
+.then().body("events.findAll { it.type == 'order_created' }.orderId", hasItem(500));
+.then().body("events.findAll { it.type == 'payment_failed' }.reason", hasItem("insufficient_funds"));
+
+// Confirm every element at least has the common field every type shares
+.then().body("events.type", everyItem(notNullValue()));</code></pre>
+<p>This is a real pattern in event-driven or activity-feed APIs — one array containing meaningfully different object shapes, distinguished by a type discriminator field. The strategy is always the same: filter by the discriminator first (using the advanced JsonPath filtering from the previous page), then assert on the fields specific to that filtered subset.</p>
+
+<h2 id="detailed-example-deserializing-polymorphic-json-into-java-jackson-polymorphism">Detailed Example — Deserializing Polymorphic JSON into Java (Jackson Polymorphism)</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
+@JsonSubTypes({
+    @JsonSubTypes.Type(value = OrderCreatedEvent.class, name = "order_created"),
+    @JsonSubTypes.Type(value = UserRegisteredEvent.class, name = "user_registered")
+})
+public abstract class Event {
+    public String type;
+}
+
+public class OrderCreatedEvent extends Event {
+    public int orderId;
+    public double total;
+}
+
+public class UserRegisteredEvent extends Event {
+    public int userId;
+    public String email;
+}</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Event[] events = given().when().get("/events").as(Event[].class);
+for (Event event : events) {
+    if (event instanceof OrderCreatedEvent oce) {
+        assertThat(oce.total, greaterThan(0.0));
+    }
+}</code></pre>
+<p>For polymorphic responses you need to work with extensively in Java (not just validate a field or two), Jackson's <code>@JsonTypeInfo</code>/<code>@JsonSubTypes</code> annotations let deserialization automatically produce the correct concrete subclass based on a discriminator field — building on the POJO deserialization fundamentals from the JSON & Serialization chapter, extended to handle genuinely varying shapes.</p>
+
+<h2 id="real-world-example-a-response-where-a-field-s-type-itself-varies">Real-World Example — A Response Where a Field's Type Itself Varies</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Some APIs (inconsistently) return a single object OR an array
+// depending on how many results matched
+{ "results": { "id": 1, "name": "Single Match" } }
+// vs.
+{ "results": [{ "id": 1 }, { "id": 2 }] }</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Object results = response.jsonPath().get("results");
+if (results instanceof List) {
+    // handle as a collection
+} else {
+    // handle as a single object
+}</code></pre>
+<p>This specific inconsistency (a field that's sometimes a single object, sometimes an array of the same shape) is a genuine, if unfortunate, API design pattern you'll occasionally encounter — worth recognizing rather than assuming your test is broken when a JsonPath expression that worked for the array case suddenly fails against the single-object case, or vice versa.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Assuming every element in a collection has the same shape,
+// then being surprised when a NullPointerException or ClassCastException occurs
+.then().body("events[1].orderId", equalTo(500)); // events[1] is actually a user_registered event — no orderId field
+
+// ✅ Filter by the discriminator first, THEN assert on type-specific fields
+.then().body("events.findAll { it.type == 'order_created' }.orderId", hasItem(500));</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Assuming every element in a collection shares the same shape</strong> without checking for a type discriminator field first.</li>
+  <li><strong>Not distinguishing "null value" from "absent field"</strong> when the API's contract actually treats them differently.</li>
+  <li><strong>Only testing the fully-populated, no-nulls-anywhere version of a response</strong>, never a response with legitimately optional fields actually omitted.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>A field whose type varies inconsistently</strong> (single object vs. array) — handle this explicitly with a type check in Java rather than assuming one shape; this is an API design smell worth flagging if you control the API.</li>
+  <li><strong>Deeply polymorphic structures</strong> (events containing other polymorphic sub-events) — apply the same filter-by-discriminator strategy recursively at each level.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a test fails with a null-related or type-related error on what looked like straightforward field access, suspect a polymorphic or optional-field structure before assuming a bug — print the raw response and check whether every element in a collection genuinely shares the field you assumed was universal.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Filter by a type discriminator before asserting on type-specific fields in a polymorphic collection.</li>
+  <li>Test optional/nullable fields in both their present and absent states explicitly, not just the fully-populated case.</li>
+  <li>Use Jackson's polymorphic deserialization annotations when working extensively with varying-shape data in Java, rather than manual type-checking scattered throughout test code.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Design a hypothetical "activity feed" response with at least three different event types sharing a common <code>type</code> field but different additional fields each. Write assertions that correctly validate each event type's specific fields using filter-by-discriminator, and one assertion confirming every event (regardless of type) has a non-null timestamp.</p>
+
+<h2 id="summary">Summary</h2>
+<p>Real API responses often aren't uniformly shaped — fields can be optional or null, and collections can contain genuinely different object shapes distinguished by a type discriminator. The consistent strategy across all these cases: check presence and type explicitly rather than assuming uniformity, and filter by a discriminator field before asserting on shape-specific fields in a polymorphic collection.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A response has an array of "events" where some elements have an orderId field and others don't. Asserting events[2].orderId sometimes throws a null-related error. What's actually happening, and how should the test be restructured?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The array is polymorphic — different event types carry different fields, and event at index 2 happens to be a type that doesn't include <code>orderId</code> at all. Asserting by fixed position assumes every element shares the same shape, which isn't true here. The fix is to filter the collection by its type discriminator field first (<code>events.findAll { it.type == 'order_created' }</code>), then assert on the type-specific field within that filtered, shape-consistent subset — rather than assuming any arbitrary position in the array has a predictable shape.</div>
+</details>
+<details class="faq-item">
+<summary>What's the fix when asserting events[2].orderId sometimes throws a null-related error?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The array is polymorphic — different event types carry different fields; filter by the type discriminator first (events.findAll { it.type == 'order_created' }), then assert on the type-specific field within that shape-consistent subset.</div>
+</details>
+<details class="faq-item">
+<summary>Why can't a plain value read distinguish 'field is null' from 'field is absent entirely'?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Both produce null in Java regardless — hasKey()/containsKey() checks presence directly, which is the only way to actually distinguish the two cases some APIs treat differently.</div>
+</details>
+<details class="faq-item">
+<summary>What does Jackson's @JsonTypeInfo/@JsonSubTypes combination actually solve?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Automatic deserialization into the correct concrete subclass based on a discriminator field — useful when you need to work extensively with polymorphic data in Java, not just validate a field or two via JsonPath.</div>
+</details>
+<details class="faq-item">
+<summary>Why is a field that's sometimes a single object and sometimes an array considered an API design smell?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It's a genuine inconsistency some real APIs have — worth recognizing rather than assuming your test is broken; handling it requires an explicit type check in Java (instanceof List) rather than assuming one consistent shape.</div>
+</details>
+</div>
+</article>
+</body></html>

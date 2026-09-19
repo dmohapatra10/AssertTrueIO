@@ -1,0 +1,101 @@
+<!doctype html>
+<html><head>
+<title>Recovery and Termination Conditions</title>
+<meta name="description" content="Wiring Chapter 6&#x27;s locator healing into the agent as a real, conditional fallback, and defining the three genuinely different ways a run can end." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/recovery-and-termination-conditions.html" />
+</head><body>
+<p class="difficulty">Advanced</p>
+<h1>Recovery and Termination Conditions</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="observation-and-evaluation.html">Observation and Evaluation</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Wiring Chapter 6's locator healing into the agent as a real, conditional fallback</li>
+  <li>Defining three genuinely different ways an agent's run can end</li>
+  <li>Why distinguishing these three outcomes matters for what happens next</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>This page covers the Recovery box from Chapter 14's architecture, and formalizes something every earlier chapter implicitly needed but never named directly: the specific, distinguishable ways a run genuinely ends.</p>
+
+<h2 id="step-by-step-implementation-recovery-reusing-chapter-6-directly">Step-by-Step Implementation — Recovery, Reusing Chapter 6 Directly</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/agent-recovery.ts
+import { Page } from '@playwright/test';
+import { healLocator } from './heal-locator';
+
+export async function attemptRecovery(
+  failedAction: string, page: Page
+): Promise&lt;{ recovered: boolean; newApproach?: string }&gt; {
+  const healResult = await healLocator(failedAction, page);
+
+  if (healResult.healed) {
+    return {
+      recovered: true,
+      newApproach: `Use ${healResult.workingLocatorCode} instead`,
+    };
+  }
+  return { recovered: false };
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p>This function calls Chapter 6's <code>healLocator</code> directly — no new healing logic exists in this chapter at all. When recovery succeeds, the agent's next planning step gets told about the working alternative directly in its conversation history, letting the model's own reasoning decide how to proceed with this new information, rather than the code silently substituting it without the model ever knowing something went wrong.</p>
+
+<h2 id="how-it-works-three-genuinely-different-termination-conditions">How It Works — Three Genuinely Different Termination Conditions</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>SUCCESS: the EVALUATOR (previous page) reports
+  objectiveLikelyMet: true, with GENUINE, honest confidence
+
+LIMIT REACHED: Chapter 13'S OWN shouldStopExploring returns
+  true — steps, DEPTH, or time BUDGET exhausted, with the
+  objective STILL not confidently achieved
+
+UNRECOVERABLE FAILURE: an action FAILS, Chapter 6'S healing
+  ALSO fails to find a WORKING alternative, and NO further
+  progress is genuinely POSSIBLE</code></pre>
+
+<h2 id="example-handling-all-three-in-the-main-loop">Example — Handling All Three in the Main Loop</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const evaluation = await evaluateProgress(state);
+if (evaluation.objectiveLikelyMet &amp;&amp; evaluation.confidence !== 'low') {
+  return { outcome: 'success', evaluation };
+}
+
+const limitCheck = shouldStopExploring(
+  { stepCount: state.stepCount, currentDepth: 0, startTime: state.startTime },
+  { maxSteps: 30, maxDepthFromStart: 4, maxDurationMs: 5 * 60 * 1000 }
+);
+if (limitCheck.stop) {
+  return { outcome: 'limit-reached', reason: limitCheck.reason };
+}
+
+if (lastActionFailed) {
+  const recovery = await attemptRecovery(lastFailedAction, page);
+  if (!recovery.recovered) {
+    return { outcome: 'unrecoverable-failure', action: lastFailedAction };
+  }
+}</code></pre>
+
+<h2 id="why-it-matters-these-three-outcomes-deserve-different-responses">Why It Matters — These Three Outcomes Deserve Different Responses</h2>
+<p>A run that ends in genuine success needs no further human attention. A run that hits a limit without confident success is worth a human glancing at — the objective might genuinely be unreachable, or the limits might simply be too tight. A run ending in unrecoverable failure deserves the most attention, since it likely represents a real, reportable problem. Collapsing all three into a single "run finished" status would lose this genuinely useful distinction.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Writing new healing logic specific to the agent, rather than reusing Chapter 6's function.</strong> Nothing about locator healing changes just because it's now called from within an agent loop.</li>
+  <li><strong>Treating "limit reached" and "unrecoverable failure" as the same outcome.</strong> The first means the agent simply ran out of budget; the second means something genuinely broke — worth investigating differently.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Reuse Chapter 6's healing exactly as written — recovery within an agent context is the same problem, not a new one.</li>
+  <li>Always report which of the three termination conditions actually occurred, never just "the run ended."</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Simulate all three termination conditions against this page's example loop logic — a genuine success, a limit exhaustion, and an unrecoverable failure. Confirm each produces a distinctly labeled outcome, not a generic "finished" status.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Recovery reuses Chapter 6's healing function directly, informing the model's own next reasoning step rather than silently substituting a fix.</li>
+  <li>A run can end in three genuinely different ways — success, limit reached, or unrecoverable failure — each deserving a different real response.</li>
+  <li>Distinguishing these outcomes explicitly, rather than collapsing them into "finished," is what makes the agent's results genuinely actionable.</li>
+</ul>
+</article>
+</body></html>

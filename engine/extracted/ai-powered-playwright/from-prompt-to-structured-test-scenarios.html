@@ -1,0 +1,99 @@
+<!doctype html>
+<html><head>
+<title>From Prompt to Structured Test Scenarios</title>
+<meta name="description" content="Sending a real requirement to AI and getting back structured, validated test scenarios — the first genuine link in this chapter&#x27;s requirement-to-browser pipeline." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/from-prompt-to-structured-test-scenarios.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>From Prompt to Structured Test Scenarios</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="creating-the-ai-client.html">Creating the AI Client</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Sending a real testing requirement to the AI client you just built</li>
+  <li>Requesting structured JSON output, following Chapter 2's structured-response principle</li>
+  <li>Validating that what comes back is genuinely usable before trusting it</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>This page turns Chapter 2's abstract "structured responses" concept into real, working code — sending the requirement "Test the login functionality of ShopSmart," and getting back scenarios your code can genuinely loop over, not prose you'd need to parse by hand.</p>
+
+<h2 id="step-by-step-implementation">Step-by-Step Implementation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/generate-scenarios.ts
+import { askClaude } from './ai-client';
+
+export interface TestScenario {
+  name: string;
+  email: string;
+  password: string;
+  expected: string;
+}
+
+export async function generateScenarios(
+  requirement: string
+): Promise&lt;TestScenario[]&gt; {
+  const prompt = `Given this requirement: "${requirement}"
+
+Generate test scenarios for ShopSmart's login form. Respond
+with ONLY valid JSON, no other text, in exactly this shape:
+
+{"scenarios": [{"name": string, "email": string,
+"password": string, "expected": string}]}
+
+Include at least one valid-login scenario, one invalid-password
+scenario, and one empty-field scenario.`;
+
+  const raw = await askClaude(prompt);
+  const parsed = JSON.parse(raw);
+
+  if (!Array.isArray(parsed.scenarios)) {
+    throw new Error(
+      `Expected {"scenarios": [...]} but got: ${raw.slice(0, 200)}`
+    );
+  }
+  return parsed.scenarios;
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p>Two things here matter beyond the happy path. The prompt explicitly says "respond with ONLY valid JSON, no other text" — without this, models often add a friendly sentence before or after the JSON, which breaks <code>JSON.parse</code>. And the response is checked for the expected shape (<code>scenarios</code> must genuinely be an array) before returning it — exactly Chapter 2's warning about missing context applied concretely: if the model didn't get clear enough instructions, this check catches it immediately, with a useful error, rather than failing confusingly three steps later.</p>
+
+<h2 id="expected-result">Expected Result</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/try-generate.ts
+import { generateScenarios } from './generate-scenarios';
+
+generateScenarios('Test the login functionality of ShopSmart')
+  .then((scenarios) => console.log(JSON.stringify(scenarios, null, 2)));
+
+// $ npx ts-node src/try-generate.ts
+// [
+//   { "name": "valid login", "email": "test@shopsmart.example.com",
+//     "password": "correct-password", "expected": "redirected to dashboard" },
+//   { "name": "invalid password", "email": "test@shopsmart.example.com",
+//     "password": "wrong-password", "expected": "error message shown" },
+//   { "name": "empty email field", "email": "",
+//     "password": "correct-password", "expected": "validation error shown" }
+// ]</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Calling <code>JSON.parse</code> without a try/catch or shape validation.</strong> If the model adds any stray text, <code>JSON.parse</code> throws — and even when it parses successfully, the shape still needs checking, since valid JSON in the wrong shape is just as unusable.</li>
+  <li><strong>Not asking explicitly for "ONLY valid JSON, no other text."</strong> This single instruction meaningfully reduces the chance of a response you can't parse at all.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Always validate a parsed response's actual shape, not just that <code>JSON.parse</code> succeeded without throwing.</li>
+  <li>Include a real slice of the raw response in any error message — it's often the fastest way to see what actually went wrong.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Run this page's code yourself. Then deliberately remove the "respond with ONLY valid JSON" instruction from the prompt and run it again — see whether <code>JSON.parse</code> now fails, and notice how much that one instruction was actually doing.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Explicit formatting instructions in the prompt meaningfully reduce parsing failures — this isn't a minor nicety.</li>
+  <li>Shape validation after parsing catches malformed responses with a useful, specific error, rather than a confusing failure downstream.</li>
+  <li>This page's output — real, structured <code>TestScenario</code> objects — is exactly what the next page loops over to generate actual Playwright code.</li>
+</ul>
+</article>
+</body></html>

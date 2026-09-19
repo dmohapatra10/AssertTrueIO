@@ -1,0 +1,105 @@
+<!doctype html>
+<html><head>
+<title>Generating a Candidate Fix</title>
+<meta name="description" content="Assembling every earlier page&#x27;s fix type into one unified, real diff — a genuine patch a human could read and apply, not scattered pieces." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/generating-a-candidate-fix.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Generating a Candidate Fix</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="handling-ui-changes.html">Handling UI Changes</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Assembling locator, assertion, and grouped fixes into one unified diff</li>
+  <li>Producing a real, readable patch format — not scattered pieces</li>
+  <li>Attaching the reasoning behind every change directly to the diff itself</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>This chapter's earlier pages each produced one kind of fix — a locator change, an assertion change, a grouped set of related changes. This page assembles them into one real, coherent artifact: a genuine diff a human can actually read and evaluate.</p>
+
+<h2 id="step-by-step-implementation">Step-by-Step Implementation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/build-candidate-diff.ts
+import { CodeFix } from './generate-locator-fix';
+import { AssertionFixCandidate } from './generate-assertion-fix';
+import { FailureGroup } from './detect-related-failures';
+
+export interface CandidatePatch {
+  filePath: string;
+  changes: { lineNumber: number; before: string; after: string; reasoning: string }[];
+  groupContext?: string;
+}
+
+export function buildCandidatePatch(
+  locatorFixes: CodeFix[], assertionFixes: { fix: AssertionFixCandidate; lineNumber: number }[],
+  filePath: string, groupContext?: string
+): CandidatePatch {
+  const changes = [
+    ...locatorFixes.map((f) =&gt; ({
+      lineNumber: f.lineNumber, before: f.originalLine,
+      after: f.proposedLine, reasoning: 'Locator healed via Chapter 6/11 pipeline',
+    })),
+    ...assertionFixes.map(({ fix, lineNumber }) =&gt; ({
+      lineNumber, before: fix.originalAssertion,
+      after: fix.proposedAssertion, reasoning: fix.reasoning,
+    })),
+  ].sort((a, b) =&gt; a.lineNumber - b.lineNumber);
+
+  return { filePath, changes, groupContext };
+}
+
+export function formatAsDiff(patch: CandidatePatch): string {
+  const header = patch.groupContext
+    ? `# ${patch.filePath}\n# Context: ${patch.groupContext}\n\n`
+    : `# ${patch.filePath}\n\n`;
+  const body = patch.changes.map((c) =&gt;
+    `Line ${c.lineNumber}:\n- ${c.before}\n+ ${c.after}\n  Reason: ${c.reasoning}\n`
+  ).join('\n');
+  return header + body;
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p>Every change carries its own <code>reasoning</code> field through to the final diff — nothing gets flattened into an anonymous list of line changes. This directly continues Chapter 9's own lesson about surfacing reasoning, not just a bare result: a reviewer reading this diff sees not just what changed, but why, for every single line.</p>
+
+<h2 id="example-a-real-complete-candidate-patch">Example — A Real, Complete Candidate Patch</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># tests/checkout.spec.ts
+# Context: these three changes all stem from the new gift-wrap
+# step added between shipping and payment
+
+Line 14:
+- await page.getByRole('button', { name: 'Add to Cart' }).click();
++ await page.getByTestId('add-to-cart-btn').click();
+  Reason: Locator healed via Chapter 6/11 pipeline
+
+Line 28:
+- await expect(page.getByTestId('step-count')).toHaveText('3 steps');
++ await expect(page.getByTestId('step-count')).toHaveText('4 steps');
+  Reason: New gift-wrap step increases the total step count from
+  3 to 4 — confirmed against the documented checkout redesign</code></pre>
+
+<h2 id="why-it-matters">Why It Matters</h2>
+<p>This is exactly the artifact this chapter's remaining pages need — something concrete enough to validate (does it produce a passing test?), check for regressions (does it break anything else?), and present to a human for genuine, informed review. Every earlier page's work culminates in this one, readable object.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Presenting locator and assertion fixes as separate, disconnected outputs.</strong> A human reviewing a real UI change wants one coherent picture, not several fragments to mentally reassemble.</li>
+  <li><strong>Dropping the reasoning field when formatting the final diff.</strong> This is exactly the information that makes the diff reviewable rather than just a list of mysterious changes.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Assemble every fix type into one unified patch structure before presenting anything to a human — never in disconnected pieces.</li>
+  <li>Carry reasoning through to the final, formatted output — it should never be lost between generation and review.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Using outputs from this chapter's earlier exercises — a locator fix, an assertion fix, and a failure group — assemble them into one <code>CandidatePatch</code> using this page's functions, and generate the final, formatted diff text.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>A unified candidate patch, assembled from every earlier fix type, is genuinely more useful than several disconnected proposals.</li>
+  <li>Carrying reasoning through to the final diff format is what makes it reviewable, not just a list of changes.</li>
+  <li>This page's output is the concrete artifact the rest of this chapter's validation and approval stages actually operate on.</li>
+</ul>
+</article>
+</body></html>

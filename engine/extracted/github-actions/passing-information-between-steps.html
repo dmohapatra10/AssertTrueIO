@@ -1,0 +1,95 @@
+<!doctype html>
+<html><head>
+<title>Passing Information Between Steps in GitHub Actions: The GITHUB_OUTPUT Mechanism</title>
+<meta name="description" content="How to actually produce and read a step output using $GITHUB_OUTPUT, and why this is genuinely different from a plain shell variable." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/passing-information-between-steps.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Passing Information Between Steps</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="job-dependencies-with-needs-in-depth.html">Job Dependencies: needs: In Depth</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Chapter 6 previewed reading a step's output via <code>steps.&lt;id&gt;.outputs.&lt;name&gt;</code>, without showing how that output actually gets produced in the first place. This page covers the real mechanism: <code>$GITHUB_OUTPUT</code>.</p>
+
+<h2 id="why-do-we-need-it">Why do we need it?</h2>
+<p>Chapter 5 established that a plain shell variable set in one step doesn't survive into a later, separate step — each step is its own shell invocation. <code>$GITHUB_OUTPUT</code> is GitHub Actions' own dedicated mechanism specifically for genuinely passing a value across that step boundary.</p>
+
+<h2 id="producing-a-step-output">Producing a Step Output</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>- id: get_version
+  run: echo "version=1.2.3" >> $GITHUB_OUTPUT</code></pre>
+<p><code>id: get_version</code> names this step so it can be referenced later. The <code>run</code> command writes <code>name=value</code> into the special <code>$GITHUB_OUTPUT</code> file — this isn't printing to the log; it's writing to a file GitHub Actions itself reads afterward.</p>
+
+<h2 id="reading-a-step-output-elsewhere">Reading a Step Output Elsewhere</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>- run: echo "The version is ${{ steps.get_version.outputs.version }}"</code></pre>
+<p>This works in any later step within the same job — the <code>id</code> from the producing step, plus <code>.outputs.&lt;name&gt;</code>, retrieves exactly the value that was written.</p>
+
+<h2 id="producing-multiple-outputs-from-one-step">Producing Multiple Outputs From One Step</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>- id: build_info
+  run: |
+    echo "version=1.2.3" >> $GITHUB_OUTPUT
+    echo "commit=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT</code></pre>
+<p>A single step can write as many separate outputs as needed, each read later as <code>steps.build_info.outputs.version</code> and <code>steps.build_info.outputs.commit</code> respectively.</p>
+
+<h2 id="detailed-example-a-real-practical-use">Detailed Example — A Real, Practical Use</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>steps:
+  - id: get_version
+    run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
+  - name: Tag the release
+    run: echo "Tagging release v${{ steps.get_version.outputs.version }}"
+
+  - name: Notify
+    run: echo "Deployed version ${{ steps.get_version.outputs.version }} to production"</code></pre>
+<p>The version is read once, directly from the project's own <code>package.json</code>, then reused consistently across two later steps — genuinely more reliable than hardcoding the version separately in multiple places, or trying to pass it through a plain shell variable that wouldn't actually survive between these steps.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why does <code>$GITHUB_OUTPUT</code> use a special file rather than something simpler, like just printing the value to standard output? A file-based mechanism keeps a step's actual output cleanly separated from its ordinary log output (which might contain many other lines of genuinely unrelated text) — GitHub Actions can reliably parse exactly the <code>name=value</code> pairs written to this specific file, without needing to guess which line of a step's potentially large log output was actually meant to be a genuine output value.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Forgetting the <code>id:</code> on the producing step. Without it, there's no name to reference — <code>steps.&lt;nothing&gt;.outputs.&lt;name&gt;</code> doesn't work, since <code>id</code> is specifically what makes a step's outputs addressable at all.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>A step output's value is always a string, even if it looks numeric — the same type consideration that applies to <code>__ENV</code> values and environment variables generally. If a later step genuinely needs a number, it may need explicit conversion depending on context.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Always give a step a clear, descriptive <code>id</code> when it produces something later steps will reference.</li>
+  <li>Use <code>$GITHUB_OUTPUT</code> specifically for genuinely small, simple values — a version number, a computed flag — not for large content, which belongs in an artifact instead.</li>
+  <li>Prefer computing a value once and reading it via output in later steps, rather than recomputing the same thing redundantly in each step that needs it.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li><code>$GITHUB_OUTPUT</code> is the dedicated mechanism for passing a value from one step to a later step within the same job.</li>
+  <li>A step needs an <code>id</code> to be addressable; outputs are read via <code>steps.&lt;id&gt;.outputs.&lt;name&gt;</code>.</li>
+  <li>A single step can produce multiple named outputs by writing multiple lines to <code>$GITHUB_OUTPUT</code>.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Write a step that reads the current date and writes it as an output named <code>build_date</code>, and a later step that uses that output in an echo statement — confirming for yourself that this genuinely works across the step boundary, unlike a plain shell variable would.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why can't a plain shell variable be used to pass a value from one step to a later step, the way $GITHUB_OUTPUT can?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Each step is its own separate shell invocation, and a plain shell variable only exists within the process that step's shell runs in — it doesn't persist once that step completes. $GITHUB_OUTPUT is GitHub Actions' own dedicated mechanism specifically designed to survive across that step boundary, which an ordinary shell variable was never designed to do.</div>
+</details>
+<details class="faq-item">
+<summary>Why is the id: field on a step required for its outputs to be readable later?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The steps.&lt;id&gt;.outputs.&lt;name&gt; syntax needs an actual name to reference which step's outputs are being retrieved — without an explicit id, there's no way to address that specific step's outputs from elsewhere in the workflow. The id is what makes a step's outputs genuinely retrievable at all.</div>
+</details>
+<details class="faq-item">
+<summary>Why does GitHub Actions use a dedicated file mechanism ($GITHUB_OUTPUT) rather than parsing a step's regular log output for values?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A step's ordinary log output can contain many lines of genuinely unrelated text, making it unreliable to guess which line was actually meant to be a real output value. Writing explicitly to a dedicated file keeps the actual output data cleanly separated from general log noise, letting GitHub Actions reliably parse exactly the intended name=value pairs.</div>
+</details>
+<details class="faq-item">
+<summary>Can a single step produce more than one named output?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Yes — a step can write multiple separate name=value lines to $GITHUB_OUTPUT, each becoming its own independently retrievable output. Later steps can reference each one individually using steps.&lt;id&gt;.outputs.&lt;name&gt; with the specific name that corresponds to the value they need.</div>
+</details>
+<details class="faq-item">
+<summary>Why might reading a version number once via a step output be more reliable than hardcoding it separately in multiple steps?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Hardcoding the same value in multiple places creates a real risk of the values drifting out of sync if one instance is updated but another is missed. Computing it once and reading it consistently via a step output from a single source of truth (like the project's own package.json) ensures every step referencing it always sees the same, currently-correct value.</div>
+</details>
+</div>
+</article>
+</body></html>

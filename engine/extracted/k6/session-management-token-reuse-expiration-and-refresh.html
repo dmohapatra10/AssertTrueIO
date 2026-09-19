@@ -1,0 +1,165 @@
+<!doctype html>
+<html><head>
+<title>k6 Session Management: Token Reuse, Expiration, Refresh, and Per-VU Auth Done Correctly</title>
+<meta name="description" content="Why setup()-based login accidentally simulates one shared user instead of many, the correct per-VU authentication pattern, and handling token expiration and refresh in a long-running test." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/session-management-token-reuse-expiration-and-refresh.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Session Management: Token Reuse, Expiration &amp; Refresh</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="authentication-mechanisms-basic-bearer-apikey-jwt-oauth.html">Authentication Mechanisms: Basic, Bearer, API Key, JWT, OAuth</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>This page addresses the nuance flagged at the start of this chapter head-on: how to authenticate correctly when the goal is simulating many genuinely distinct users, not one shared session — plus what happens when a token expires partway through a longer test.</p>
+
+<h2 id="the-setup-pattern-correct-for-one-shared-session">The setup() Pattern — Correct for One Shared Session</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export function setup() {
+  const response = http.post(loginUrl, serviceCredentials);
+  return { token: response.json('token') };
+}
+
+export default function (data) {
+  http.get(apiUrl, { headers: { Authorization: `Bearer ${data.token}` } });
+}</code></pre>
+<p>This is genuinely correct when the test is meant to represent one shared service-level identity — a background job, an internal service, anything where "many different real users" isn't actually the scenario being modeled. <code>setup()</code> runs exactly once, and every VU shares its result.</p>
+
+<h2 id="the-problem-when-many-users-was-actually-the-intent">The Problem — When "Many Users" Was Actually the Intent</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// If the REAL goal was "simulate 200 distinct real users browsing the site,"
+// the setup() pattern above secretly gives all 200 VUs the SAME session.
+// A user-isolation bug in the target system would be completely invisible —
+// there's only ever one real user in this test, no matter how many VUs it uses.</code></pre>
+
+<h2 id="the-correct-pattern-per-vu-authentication">The Correct Pattern — Per-VU Authentication</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import { SharedArray } from 'k6/data';
+
+const users = new SharedArray('users', function () {
+  return JSON.parse(open('./users.json')); // real, distinct credentials
+});
+
+let vuToken = null; // persists across iterations for THIS VU (init-scoped)
+
+export default function () {
+  if (!vuToken) {
+    const user = users[__VU % users.length];
+    const response = http.post(loginUrl,
+      JSON.stringify({ username: user.username, password: user.password }),
+      { headers: { 'Content-Type': 'application/json' } });
+    vuToken = response.json('token');
+  }
+
+  http.get(apiUrl, { headers: { Authorization: `Bearer ${vuToken}` } });
+}</code></pre>
+<p>Each VU logs in for itself, exactly once (on its first iteration — the <code>if (!vuToken)</code> check prevents re-logging-in on every subsequent iteration, avoiding the "auth happening on every iteration" mistake from Chapter 2), using genuinely distinct credentials from the previous chapter's <code>SharedArray</code> pattern. This is what actually produces 200 distinct real sessions for 200 VUs.</p>
+
+<h2 id="token-expiration-detecting-it-proactively">Token Expiration — Detecting It Proactively</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>function decodeJwtPayload(token) {
+  return JSON.parse(atob(token.split('.')[1]));
+}
+
+function isTokenExpiringSoon(token) {
+  const decoded = decodeJwtPayload(token);
+  const expiresAt = decoded.exp * 1000; // JWT exp is in seconds, JS uses milliseconds
+  return (expiresAt - Date.now()) < 60000; // less than 60 seconds remaining
+}
+
+export default function () {
+  if (!vuToken || isTokenExpiringSoon(vuToken)) {
+    vuToken = login(); // re-authenticate before the token actually expires
+  }
+  http.get(apiUrl, { headers: { Authorization: `Bearer ${vuToken}` } });
+}</code></pre>
+<p>For a longer-running test (a soak test, especially), proactively checking token expiration and refreshing before it actually happens avoids a wave of authentication failures partway through — failures that would otherwise look like a system problem but are actually just the test's own session management falling behind.</p>
+
+<h2 id="detailed-example-using-a-refresh-token-instead-of-re-logging-in">Detailed Example — Using a Refresh Token Instead of Re-Logging In</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>function refreshAccessToken(refreshToken) {
+  const response = http.post(refreshUrl,
+    JSON.stringify({ refresh_token: refreshToken }),
+    { headers: { 'Content-Type': 'application/json' } });
+  return response.json('access_token');
+}
+
+export default function () {
+  if (!vuToken || isTokenExpiringSoon(vuToken)) {
+    vuToken = refreshAccessToken(vuRefreshToken); // lighter than a full re-login
+  }
+  http.get(apiUrl, { headers: { Authorization: `Bearer ${vuToken}` } });
+}</code></pre>
+<p>Many real systems provide a dedicated refresh-token flow specifically to avoid a full re-login (username/password again) every time an access token expires. Using it, when available, is both more realistic (matching how a real client application actually behaves) and lighter load against the login endpoint itself, which usually isn't what the test is meant to be measuring.</p>
+
+<h2 id="real-world-example-a-user-isolation-bug-only-per-vu-auth-would-catch">Real-World Example — A User-Isolation Bug Only Per-VU Auth Would Catch</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Scenario: a bug where the API accidentally returns User A's data when
+          User B makes a request, under specific concurrent conditions.
+
+❌ With shared setup()-based auth (all VUs = one session):
+   There's only ever one real user — this bug is structurally invisible,
+   since there's no "other user" whose data could leak into this one.
+
+✅ With per-VU authentication (each VU = a distinct real user):
+   A functional check comparing returned data against the expected user's
+   OWN data would catch this immediately under real concurrent load.</code></pre>
+<p>This is exactly why the distinction covered on this page matters beyond pedantic correctness — a real class of serious bug is completely unreachable by a test that accidentally collapses every virtual user into one shared identity.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ setup()-based auth, when the actual goal is many distinct users
+export function setup() { return { token: login() }; } // ONE shared session
+
+// ✅ Per-VU auth, genuinely representing many distinct users
+let vuToken = null;
+export default function () {
+  if (!vuToken) vuToken = loginAsDistinctUser();
+}</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Defaulting to <code>setup()</code>-based auth without asking whether "many distinct users" was actually the test's real intent</strong> — the single biggest mistake this page addresses.</li>
+  <li><strong>Re-authenticating on every single iteration</strong> instead of once per VU — the exact Chapter 2 mistake, still worth avoiding even with correct per-VU logic.</li>
+  <li><strong>Never handling token expiration</strong> in a test long enough for it to actually happen, producing a wave of confusing authentication failures partway through.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>A refresh token that itself eventually expires</strong> — for a genuinely long soak test, even refresh-token-based renewal may eventually need a full re-login; worth knowing the actual expiration policy of both token types for the system under test.</li>
+  <li><strong>Concurrent requests from the same VU during the brief window a token is being refreshed</strong> — worth considering whether your specific script's structure could ever have two requests from the same VU racing against a mid-refresh token state.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If authentication failures cluster specifically around a certain point in a longer test's timeline (not randomly throughout), check whether token expiration is being handled at all — a token issued at test start with, say, a 30-minute lifetime will predictably start failing around the 30-minute mark if nothing refreshes it proactively.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Choose <code>setup()</code>-based shared auth or per-VU distinct auth deliberately, based on what the test is actually meant to simulate — never by default.</li>
+  <li>Cache a VU's token across its iterations (don't re-login every iteration), whichever auth pattern is chosen.</li>
+  <li>Proactively check and refresh tokens before they expire in any test long enough for expiration to realistically occur.</li>
+  <li>Prefer a refresh-token flow over full re-login when the target system supports one — lighter load, and more realistic.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Convert a script currently using Chapter 2's shared <code>setup()</code>-based login into one using genuine per-VU authentication with distinct credentials from a <code>SharedArray</code>, and add proactive token-expiration handling using a refresh token.</p>
+
+<h2 id="summary">Summary</h2>
+<p>Whether to use <code>setup()</code>-based shared authentication or per-VU distinct authentication depends entirely on what the test is actually meant to simulate — a single shared identity, or many genuinely distinct real users — and defaulting to the former when the latter was the real intent secretly makes an entire class of user-isolation bug unreachable. For any test long enough to encounter token expiration, proactive expiration checking and refresh-token usage (rather than a full re-login) keeps the test's own session management from becoming a source of misleading, unrelated failures.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why does Chapter 2's setup()-based login pattern secretly simulate only one user, no matter how many VUs the test runs?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">setup() runs exactly once, before any virtual user begins its own execution, and every VU receives the same returned data — including the same authentication token. If the actual goal is simulating many distinct real users, this pattern is quietly wrong, since every VU ends up representing the identical shared session rather than its own genuinely separate identity.</div>
+</details>
+<details class="faq-item">
+<summary>Why does the corrected per-VU authentication pattern check if (!vuToken) before logging in?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Without that check, a VU would re-authenticate on every single iteration — the exact mistake covered when Chapter 2 first introduced the lifecycle model, where authentication was mistakenly placed inside the repeatedly-executed default function instead of happening once. The check ensures each VU logs in exactly once (on its first iteration), then reuses that same token for all subsequent iterations.</div>
+</details>
+<details class="faq-item">
+<summary>What kind of real bug could a shared setup()-based session make structurally impossible to catch?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A user-isolation bug — where the system incorrectly returns one user's data to a different user under certain conditions — requires there to genuinely be multiple distinct users interacting with the system to even be triggerable. If every virtual user secretly shares one identical session, there's effectively only one real user in the test, making this entire category of bug unreachable regardless of how much load is generated.</div>
+</details>
+<details class="faq-item">
+<summary>Why might a k6 test prefer using a refresh token over performing a full re-login when a token expires?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A refresh-token flow is typically lighter weight than a full re-login (which requires sending a username and password again), and it more realistically mirrors how a real client application actually behaves when a token expires. Using it also avoids generating unnecessary additional load against the login endpoint itself, which usually isn't the part of the system the test is actually trying to measure.</div>
+</details>
+<details class="faq-item">
+<summary>Why would authentication failures in a long-running test that cluster around a specific point in the timeline suggest a token expiration issue rather than a genuine system problem?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A token issued at test start typically has a fixed lifetime — if nothing in the script proactively refreshes it, failures would predictably begin appearing once that lifetime elapses, clustering around that specific point rather than being randomly distributed throughout the test. This pattern is a strong signal to check the test's own session-management logic before assuming the target system itself has degraded or failed.</div>
+</details>
+</div>
+</article>
+</body></html>

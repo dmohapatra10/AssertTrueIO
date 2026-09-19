@@ -1,0 +1,206 @@
+<!doctype html>
+<html><head>
+<title>Connecting an AI Agent with Playwright: A Fuller Browser Toolkit</title>
+<meta name="description" content="Extending Chapter 3&#x27;s minimal three tools into a genuinely capable browser toolkit — search, filtering, scrolling, and reading structured page state, with real Playwright code." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/connecting-an-ai-agent-with-playwright.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Connecting an AI Agent with Playwright</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="ai-and-playwright.html">AI + Playwright overview</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Chapter 3's agent had exactly three tools — enough for a simple login check. Exploring ShopEasy's search and product pages genuinely needs more: searching, reading structured results, scrolling, and filtering. This page extends that same toolkit, not replaces it.</p>
+
+<h2 id="a-genuinely-fuller-toolkit">A Genuinely Fuller Toolkit</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># tools.py — extending Chapter 3's original three
+
+def search(page, query):
+    page.get_by_placeholder("Search products...").fill(query)
+    page.keyboard.press("Enter")
+    return f"Searched for '{query}'"
+
+def get_search_results(page):
+    # returns STRUCTURED data, not just raw page text — a
+    # genuinely important upgrade covered later on this page
+    results = page.locator("[data-testid='product-card']").all()
+    return [
+        {
+            "name": r.locator("[data-testid='product-name']").inner_text(),
+            "price": r.locator("[data-testid='product-price']").inner_text(),
+            "in_stock": "Out of stock" not in r.inner_text(),
+        }
+        for r in results
+    ]
+
+def apply_filter(page, filter_name, value):
+    page.get_by_role("button", name=filter_name).click()
+    page.get_by_role("option", name=value).click()
+    return f"Applied filter: {filter_name} = {value}"
+
+def scroll_to_bottom(page):
+    page.mouse.wheel(0, 10000)
+    return "Scrolled to bottom of the page"</code></pre>
+
+<h2 id="why-structured-results-beat-raw-page-text">Why Structured Results Beat Raw Page Text</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>❌ get_page_text() (Chapter 3's original, general-purpose tool):
+  Returns EVERYTHING as one long string — product names, prices,
+  navigation menu text, footer links, all mixed together. The
+  reasoner has to PARSE this itself from unstructured text,
+  genuinely error-prone for anything beyond a quick glance.
+
+✅ get_search_results() (this page's new, structured tool):
+  Returns a genuine LIST of objects, each with clearly labeled
+  name, price, and stock status. The reasoner can work with
+  this directly — "are any of these out of stock" is now a
+  simple, reliable check instead of a text-parsing exercise.</code></pre>
+<p>This connects directly to Chapter 2's Reasoning page — reducing irrelevant detail and structuring what the reasoner actually receives genuinely improves decision quality, not just convenience.</p>
+
+<h2 id="registering-the-new-tools">Registering the New Tools</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>TOOL_DEFINITIONS = [
+    # ...Chapter 3's original three, unchanged...
+    {"name": "search",
+     "description": "Searches for products using the search box.",
+     "input_schema": {"type": "object",
+        "properties": {"query": {"type": "string"}},
+        "required": ["query"]}},
+    {"name": "get_search_results",
+     "description": "Returns structured data (name, price, stock status) for all currently visible search results.",
+     "input_schema": {"type": "object", "properties": {}}},
+    {"name": "apply_filter",
+     "description": "Applies a filter (e.g. price range, category) to search results.",
+     "input_schema": {"type": "object",
+        "properties": {"filter_name": {"type": "string"}, "value": {"type": "string"}},
+        "required": ["filter_name", "value"]}},
+]</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might adding <code>get_search_results()</code> as a genuinely new, structured tool be better than simply asking the reasoner to "parse the results out of the page text yourself" using the existing <code>get_page_text</code> tool? Every additional parsing responsibility placed on the reasoner is one more place a genuine reasoning error could occur — misreading a price, missing a product buried in unrelated text. A dedicated, structured tool moves that parsing into reliable, deterministic code (exactly Chapter 2's tools-should-be-deterministic principle), leaving the reasoner to work with clean, already-correct data instead.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Adding browser tools reactively, one at a time, only once the agent gets visibly stuck without one. This page's tools were chosen deliberately, based on what the search-and-filter flow genuinely needs — a more thoughtful upfront design tends to produce a cleaner, more reliable toolkit than patching gaps discovered through repeated trial and error.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>When a tool returns structured data (like <code>get_search_results</code>'s list of dictionaries), it still needs to become TEXT before it can go into the LLM prompt — a simple, readable format (like one line per result) is usually more effective than raw, dense JSON for the reasoner to work with directly.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Design a task's toolkit deliberately upfront, based on the genuine needs of the actual flow, rather than reactively patching gaps as they appear.</li>
+  <li>Prefer structured tool outputs over raw text whenever a tool's result has genuine internal structure worth preserving.</li>
+  <li>Keep new tools narrow and specific, exactly matching Chapter 2's safety reasoning — <code>apply_filter</code> does one thing, not "any possible page interaction."</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>A richer task genuinely needs a richer toolkit — this page extends Chapter 3's foundation rather than replacing it.</li>
+  <li>Structured tool outputs reduce the reasoner's parsing burden and reduce a real category of reasoning error.</li>
+  <li>New tools should be designed deliberately for a task's actual needs, staying narrow and specific rather than reactively patched together.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Write a new tool, <code>sort_results(page, sort_by)</code>, following this page's same pattern — including both the Playwright implementation and its corresponding tool definition — for sorting ShopEasy's search results by price or newest.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A teammate suggests just using get_page_text() for everything, arguing "the LLM is smart enough to parse results out of raw text." What would you say, using this page's own reasoning?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd point out this isn't really about whether the LLM is "smart enough" — it's about where parsing responsibility should genuinely live, and Chapter 2 already established that deterministic code is more reliable than LLM reasoning for exactly this kind of mechanical extraction task.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What relying on raw text parsing genuinely risks:
+The LLM might correctly parse 9 out of 10 product prices from
+  a long, messy page-text string, but misread the 10th — not
+  because it's "not smart enough," but because text parsing
+  from unstructured content is inherently more error-prone
+  than reading pre-structured data, regardless of capability.
+
+What the structured tool guarantees:
+get_search_results() ALWAYS correctly separates name, price,
+  and stock status — this is ORDINARY, deterministic Playwright
+  code doing exactly what it's told, with no room for the kind
+  of subtle misreading raw-text parsing could introduce.</code></pre>
+<p>The argument isn't "the LLM can't do this" — it's "why make the LLM do unreliable work that deterministic code can do reliably instead," directly following Chapter 2's Anatomy page distinction between what belongs in reasoning versus what belongs in tools.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does apply_filter take both a filter_name and a value parameter, rather than being several separate tools like filter_by_price and filter_by_category?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This is a genuine, reasonable design trade-off — a single, parameterized tool versus several narrow ones — and the right choice depends on whether the underlying ACTION is genuinely the same mechanism, just with different inputs, or genuinely different mechanisms.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why ONE parameterized tool is reasonable here:
+Applying a price filter and applying a category filter likely
+  use the SAME underlying UI pattern on ShopEasy (click a
+  filter button, select an option) — the ACTION is genuinely
+  the same shape, just with different button/option TEXT.
+  One tool with two parameters cleanly captures this.
+
+When SEPARATE tools would make more sense instead:
+If price filtering and category filtering used GENUINELY
+  different UI patterns (a slider for price, a checkbox list
+  for category), separate tools would better reflect that
+  real difference, rather than forcing genuinely different
+  mechanisms into one artificially generic interface.</code></pre>
+<p>The general principle, consistent with Chapter 2's tool-design guidance: tool boundaries should reflect genuine differences in the underlying mechanism, not just differences in what's being filtered — same mechanism, different inputs, reasonably becomes one parameterized tool.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why this page's get_search_results specifically checks for the text "Out of stock" to determine in_stock status, and what risk this specific implementation choice carries.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This is a genuinely pragmatic implementation — checking for specific text is simple and often reliable — but it carries a real, concrete risk worth naming explicitly: it depends entirely on that exact text staying stable in the real application.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>The real risk, concretely:
+If ShopEasy's actual wording changes from "Out of stock" to
+  "Currently unavailable" (a genuinely plausible copy change
+  a content team might make), this tool would SILENTLY start
+  reporting EVERY product as in_stock: true — a real, serious
+  bug that wouldn't throw an error, just quietly produce
+  wrong data from that point forward.
+
+A more ROBUST alternative worth considering:
+Checking for a dedicated data attribute or ARIA state
+  specifically meant for this purpose (like a
+  data-testid="out-of-stock-badge" or aria-disabled attribute
+  on the Add to Cart button) — genuinely more resilient to
+  wording changes than matching specific display text.</code></pre>
+<p>This is a real, honest trade-off worth naming rather than glossing over — text-matching is simple to implement but fragile to exactly the kind of copy change that happens routinely in a real, actively-maintained application.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might scroll_to_bottom be a genuinely useful tool specifically for a search-results page, beyond just "sometimes you need to scroll"?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Many real search-results pages use lazy loading or infinite scroll, where additional results only load once a user scrolls near the bottom — without this tool, an agent's <code>get_search_results()</code> call might only see the first, initially-visible batch, silently missing later results.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A genuinely realistic scenario this tool addresses:
+ShopEasy's search returns 40 matching products, but only the
+  FIRST 12 are rendered until the user scrolls down, at which
+  point more load dynamically. An agent that calls
+  get_search_results() WITHOUT first scrolling would only see
+  12 of the 40 genuinely matching products — not because
+  anything is broken, but because it never triggered the
+  lazy-loading behavior real users experience naturally.
+
+With scroll_to_bottom available as an explicit tool:
+The agent can deliberately trigger this loading behavior
+  before reading results, getting a genuinely complete picture
+  rather than an artificially incomplete one.</code></pre>
+<p>This is a good example of a tool that exists specifically because of how the REAL application actually behaves, not because of some general, abstract browser-automation principle — good tool design genuinely depends on understanding the real target application's actual behavior.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you decide whether a new browser interaction genuinely needs its own new tool, versus being achievable with this page's existing toolkit?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>The genuinely useful test: can an EXISTING tool, used as designed, actually accomplish the new interaction, or does it require a fundamentally different UI interaction pattern the current tools don't cover at all?</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Example that DOESN'T need a new tool:
+"Search for a specific product" — the EXISTING search() tool
+  already covers this exactly, regardless of what specific
+  query string is passed in — no new tool needed, just a call
+  to the existing one with different input.
+
+Example that GENUINELY needs a new tool:
+"Add a product to the wishlist" — this is a FUNDAMENTALLY
+  different interaction (likely a distinct button, a different
+  part of the page, different resulting state) that none of
+  this page's existing tools (search, filter, scroll, read
+  results) can accomplish — a genuinely new capability,
+  needing its own new, narrow tool definition.</code></pre>
+<p>The test isn't "does this feel like a new feature" — it's specifically "can an existing tool's actual mechanism accomplish this," which keeps the toolkit growing deliberately around genuine new capabilities, rather than either needlessly duplicating existing tools or trying to force a fundamentally different interaction into an ill-fitting existing one.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

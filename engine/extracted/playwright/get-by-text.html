@@ -1,0 +1,106 @@
+<!doctype html>
+<html><head>
+<title>Playwright getByText(): Complete Guide with Real-World Examples</title>
+<meta name="description" content="How Playwright&#x27;s getByText() locator matches visible text, substring vs exact vs regex matching, and why it&#x27;s best reserved for non-interactive content." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/get-by-text.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1><code class="api-name">getByText()</code></h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="locators.html">Locators overview</a></p>
+<article class="content">
+<h2 id="what-is-getbytext">What is <code>getByText()</code>?</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>page.getByText(text: string | RegExp, options?: { exact?: boolean })</code></pre>
+      <p><code>getByText()</code> finds an element by its visible text content — matching against the rendered text a user actually sees, not the raw HTML source.</p>
+
+      <h2 id="why-it-s-important-and-where-it-fits">Why it's important, and where it fits</h2>
+      <p>Most page content isn't interactive — status messages, table cells, paragraph text, toast notifications. For that content, there's no meaningful "role" to match on, so <code>getByText()</code> is the natural tool. It sits below <code>getByRole()</code>/<code>getByLabel()</code>/<code>getByPlaceholder()</code> in Playwright's priority precisely because interactive elements usually have a better, more semantic locator available — reach for <code>getByText()</code> once you've confirmed the element isn't interactive, or as a way to scope into a specific area of the page.</p>
+
+      <h2 id="matching-modes">Matching modes</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Substring match, case-insensitive (default)
+page.getByText('Order confirmed');
+
+// Exact match, case-sensitive
+page.getByText('Order confirmed', { exact: true });
+
+// Regex match — most control
+page.getByText(/order #\d+ confirmed/i);</code></pre>
+      <p>Default substring matching is convenient but can over-match: <code>getByText('Order')</code> matches "Order confirmed," "Order #1042," and "Reorder" alike. Prefer the most specific string that still describes intent, and reach for <code>exact</code> or a regex when the page has similar text in multiple places.</p>
+
+      <h2 id="basic-example">Basic Example</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>await expect(page.getByText('Order confirmed')).toBeVisible();</code></pre>
+
+      <h2 id="detailed-example-scoping-with-getbytext">Detailed Example — Scoping with getByText</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Find a specific table row by its visible content, then act inside it
+const row = page.getByText('Wireless Mouse').locator('..').locator('xpath=ancestor::tr');
+await row.getByRole('button', { name: 'Remove' }).click();</code></pre>
+      <p>This pattern — locating a row by unique visible text, then scoping further actions to that row — is one of <code>getByText()</code>'s most common real uses. Chapter 6's table-handling content covers a cleaner version of this using <code>filter()</code>.</p>
+
+      <h2 id="real-world-example-toast-and-status-messages">Real-World Example — Toast and Status Messages</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('adding an item shows a confirmation toast', async ({ page }) =&gt; {
+  await page.goto('/inventory');
+  await page.getByRole('button', { name: 'Add to cart' }).first().click();
+
+  await expect(page.getByText('Added to cart')).toBeVisible();
+  await expect(page.getByText('Added to cart')).toBeHidden({ timeout: 5000 }); // toast auto-dismisses
+});</code></pre>
+
+      <h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Over-broad substring match that could match unrelated text elsewhere on the page
+await expect(page.getByText('Order')).toBeVisible();
+
+// ✅ Specific enough to mean exactly one thing
+await expect(page.getByText('Order #ORD-10492 confirmed')).toBeVisible();</code></pre>
+
+      <h2 id="common-mistakes">Common Mistakes</h2>
+      <ul>
+        <li><strong>Using <code>getByText()</code> on buttons or links out of habit</strong> instead of <code>getByRole()</code> — text-based matching on interactive elements throws away the accessibility benefit and is more fragile to copy changes.</li>
+        <li><strong>Under-specifying the string</strong>, causing strict-mode violations when the same or similar text appears more than once on the page.</li>
+        <li><strong>Matching against whitespace-sensitive text</strong> — Playwright normalizes whitespace when matching, but copy-pasted text with unusual line breaks from the DOM can still cause confusion when debugging a mismatch.</li>
+      </ul>
+
+      <h2 id="edge-cases">Edge Cases</h2>
+      <ul>
+        <li><strong>Text split across multiple nested elements</strong> — e.g., "Total: <strong>$49.99</strong>" — <code>getByText()</code> matches the full concatenated text of the nearest common element, so <code>getByText('Total: $49.99')</code> works even though the amount is in a nested <code>&lt;strong&gt;</code>.</li>
+        <li><strong>Internationalized text</strong> — hardcoded English strings break the moment the app is localized; consider matching on a stable <code>data-testid</code> alongside or instead of text for content that will be translated.</li>
+      </ul>
+
+      <h2 id="debugging">Debugging</h2>
+      <p>A "no matches found" error is often a whitespace or casing mismatch invisible to the eye — copy the exact string from a DOM inspector rather than retyping it, or switch to a regex with the case-insensitive flag while diagnosing.</p>
+
+      <h2 id="best-practices">Best Practices</h2>
+      <ul>
+        <li>Prefer role-based locators for anything interactive; reserve <code>getByText()</code> for genuinely non-interactive content or as a scoping anchor.</li>
+        <li>Use the shortest string that's still unambiguous, and add <code>exact</code> or a regex only when the default substring match is genuinely too loose.</li>
+      </ul>
+
+      <h2 id="practice-exercise">Practice Exercise</h2>
+      <p>A page shows "3 items in cart" that updates as items are added. Write a <code>getByText()</code> locator using a regex that matches any item count, not just 3.</p>
+
+      <h2 id="summary">Summary</h2>
+      <p><code>getByText()</code> matches visible, rendered text and is the right tool for non-interactive content and for scoping into a specific section of the page — but interactive elements should almost always use <code>getByRole()</code> instead.</p>
+
+      <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why is getByRole() generally preferred over getByText() for buttons and links, even though both could technically find the same element?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer"><code>getByRole()</code> matches on what the element semantically is, which is stable across copy changes, styling changes, and localization, and validates that the element is genuinely accessible. <code>getByText()</code> matches raw visible text, which breaks the moment the copy changes for reasons unrelated to functionality, and can accidentally match unrelated non-interactive text elsewhere on the page.</div>
+</details>
+<details class="faq-item">
+<summary>Why is getByText() generally the wrong choice for buttons and links?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It matches raw visible text, which is fragile to copy changes and doesn't validate accessibility the way getByRole() does.</div>
+</details>
+<details class="faq-item">
+<summary>How does getByText() handle text split across nested child elements?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It matches against the full concatenated text of the nearest common element, so text inside a nested &lt;strong&gt; or &lt;span&gt; is still included.</div>
+</details>
+<details class="faq-item">
+<summary>What's a legitimate, common use for getByText()?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Non-interactive content like status messages or toasts, or as a scoping anchor to find a unique row/section before acting within it.</div>
+</details>
+<details class="faq-item">
+<summary>Why can hardcoded English text in getByText() become a liability over time?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">If the app is later localized, the hardcoded string breaks; matching on a stable test ID or role is more resilient to translation.</div>
+</details>
+</div>
+</article>
+</body></html>

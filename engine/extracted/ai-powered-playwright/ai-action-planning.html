@@ -1,0 +1,106 @@
+<!doctype html>
+<html><head>
+<title>AI Action Planning</title>
+<meta name="description" content="Turning each atomic step into a concrete, structured action — real enough to reason about and validate, before it ever becomes Playwright code." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/ai-action-planning.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>AI Action Planning</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="breaking-instructions-into-steps.html">Breaking Instructions into Steps</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Turning an atomic step into a concrete, structured action — the "Action Plan" box in this chapter's architecture</li>
+  <li>Why an action is a genuinely different, more concrete thing than a step</li>
+  <li>Planning only steps that don't need a real observation first</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>The previous page's steps are still just descriptions — "log in to ShopSmart" isn't yet something Playwright can execute. This page turns a step into an action: a specific, structured intent, concrete enough to validate and eventually map to a real Playwright call.</p>
+
+<h2 id="step-by-step-implementation">Step-by-Step Implementation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/plan-action.ts
+import { askClaude } from './ai-client';
+import { InstructionStep } from './break-into-steps';
+
+export interface PlannedAction {
+  stepOrder: number;
+  actionType: 'navigate' | 'fill' | 'click' | 'assert';
+  target: string;
+  value?: string;
+}
+
+export async function planAction(
+  step: InstructionStep, pageContext: string
+): Promise&lt;PlannedAction&gt; {
+  const prompt = `Step: "${step.description}"
+Real, known page structure: ${pageContext}
+
+Plan ONE concrete action for this step. actionType must be
+exactly one of: navigate, fill, click, assert. target should
+describe WHAT element, using the real page structure given —
+never invent an element that isn't listed.
+
+Respond with ONLY valid JSON:
+{"actionType": string, "target": string, "value": string_or_null}`;
+
+  const raw = await askClaude(prompt);
+  const parsed = JSON.parse(raw);
+  const validTypes = ['navigate', 'fill', 'click', 'assert'];
+  if (!validTypes.includes(parsed.actionType)) {
+    throw new Error(`Invalid actionType: ${parsed.actionType}`);
+  }
+
+  return {
+    stepOrder: step.order,
+    actionType: parsed.actionType,
+    target: parsed.target,
+    value: parsed.value ?? undefined,
+  };
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p><code>PlannedAction</code> is deliberately narrower than free-form text — <code>actionType</code> is constrained to exactly four values, checked explicitly against <code>validTypes</code> before the function trusts it. This is the same discipline Chapter 2 introduced as structured output, applied here to something small and specific enough to validate completely, rather than just checking a general JSON shape.</p>
+
+<h2 id="example-planning-shopsmart-s-login-step">Example — Planning ShopSmart's Login Step</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const loginPageContext = `Login page: Email field
+(getByLabel('Email')), Password field (getByLabel('Password')),
+Submit button (getByRole('button', { name: 'Log In' })).`;
+
+const action = await planAction(
+  { order: 1, description: 'Log in to ShopSmart', dependsOnPreviousResult: false },
+  loginPageContext
+);
+
+// A REAL, single planned action — genuinely just ONE piece of
+// the login step, since "log in" actually needs THREE actions
+// (fill email, fill password, click submit)
+// { stepOrder: 1, actionType: "fill", target: "Email field",
+//   value: "test@shopsmart.example.com" }</code></pre>
+
+<h2 id="why-it-matters-only-plan-what-doesn-t-need-observation-yet">Why It Matters — Only Plan What Doesn't Need Observation Yet</h2>
+<p>Notice this page only plans actions for steps where <code>dependsOnPreviousResult</code> is <code>false</code>. Trying to plan "select a product" here — before search results genuinely exist — would force the model to guess at a real product name, exactly the fragile guessing Chapter 5's opening page warned about. This chapter's next pages handle dependent steps differently, planning them only once a real observation is available.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Planning every step from this chapter's earlier page in one batch, regardless of dependency.</strong> A dependent step planned without a real observation is exactly the guessing problem this entire chapter exists to avoid.</li>
+  <li><strong>Skipping the <code>validTypes</code> check because "the prompt already constrains it."</strong> A prompt shapes behavior; it doesn't guarantee it — the same lesson Chapter 3 established for locators applies here to action types.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Plan only independent steps ahead of time; handle dependent steps as the plan actually unfolds, covered in this chapter's remaining pages.</li>
+  <li>Keep <code>actionType</code> constrained to a small, known set — a free-form action type would be much harder to validate or map to Playwright reliably.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Using the previous page's steps for your own instruction, plan actions for every step marked <code>dependsOnPreviousResult: false</code>. For the ones marked <code>true</code>, write down, honestly, what real information would be missing if you tried to plan them right now.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>A planned action is genuinely more concrete than a step — a specific, constrained, structured intent, not just a description.</li>
+  <li>Only independent steps should be planned ahead of time — dependent steps need a real observation first, covered starting on this chapter's next page.</li>
+  <li>Explicit validation of a constrained field like <code>actionType</code> is cheap and catches real, possible mistakes a prompt alone doesn't guarantee against.</li>
+</ul>
+</article>
+</body></html>

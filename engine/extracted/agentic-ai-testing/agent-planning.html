@@ -1,0 +1,183 @@
+<!doctype html>
+<html><head>
+<title>Agent Planning: Breaking a Goal Into Steps</title>
+<meta name="description" content="How an AI agent turns a broad goal into a rough, actionable sequence of steps, why plans should stay rough rather than rigid, and how re-planning works when reality diverges." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/agent-planning.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Agent Planning</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="llms-and-ai-agents.html">LLMs and AI Agents</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Planning is the step where an agent takes a broad, often vague goal and breaks it into a rough sequence of steps — done largely up front, before any real action happens, giving the agent a general direction rather than leaving it to decide everything moment-to-moment with no plan at all.</p>
+
+<h2 id="a-real-planning-example">A Real Planning Example</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>GOAL given to the agent:
+  "Verify a user can complete checkout on ShopEasy."
+
+PLAN the agent produces (before touching the actual app):
+  1. Navigate to the login page
+  2. Authenticate with valid test credentials
+  3. Navigate to a product page
+  4. Add the product to the cart
+  5. Proceed to checkout
+  6. Complete the order
+  7. Confirm the order was successful</code></pre>
+<p>Notice this plan is genuinely rough — it doesn't specify exact locators, exact button text, or account for anything unexpected. That's deliberate: a plan this early can't know exactly what the real page will look like, so committing to overly specific details now would just mean more re-planning later.</p>
+
+<h2 id="why-plans-should-stay-rough-not-rigid">Why Plans Should Stay Rough, Not Rigid</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>❌ An overly RIGID plan, committing to specifics too early:
+  1. Click the element with id="login-email-field"
+  2. Type "user@example.com" into it
+  3. Click the element with id="login-password-field"
+  ...
+
+  Problem: if the actual page structure differs even slightly
+  from this assumption, the ENTIRE plan needs redoing, not
+  just one step.
+
+✅ A genuinely useful, appropriately rough plan:
+  1. Navigate to the login page
+  2. Authenticate with valid test credentials
+  ...
+
+  The REASONER (next page) figures out the specific "how" for
+  each step, at the moment it's actually needed, based on what
+  it genuinely observes.</code></pre>
+
+<h2 id="re-planning-when-reality-diverges-from-the-plan">Re-Planning — When Reality Diverges From the Plan</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Original plan step 5: "Proceed to checkout"
+
+What the agent actually observes: a "Sign up for our newsletter"
+interstitial modal appears, blocking the checkout button entirely.
+
+This ISN'T on the original plan at all. A genuinely capable
+agent doesn't just fail here — it RE-PLANS:
+
+  Updated plan:
+  5a. Dismiss the newsletter modal
+  5b. Proceed to checkout (original step 5, now unblocked)</code></pre>
+<p>This is a real, meaningful capability worth naming explicitly: a good agent's plan isn't fixed once and executed blindly — it's revisited whenever what's actually observed doesn't match what the plan assumed, which happens constantly in real applications.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might a plan with 20 highly specific, detailed steps actually be worse for a real agent than a plan with 7 rough ones, even though the detailed plan looks more thorough on paper? Every specific detail in a plan is an assumption about the real application that could turn out to be wrong. More detail means more assumptions, which means more chances the plan needs revision before it's even useful — a rough plan that leaves room for the reasoner to handle specifics as they're actually encountered is genuinely more robust to a real, imperfectly-predictable application.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Building a planner that tries to account for every possible thing that could go wrong upfront, before any real observation happens. This is both genuinely impossible (you can't anticipate everything) and counterproductive — it's exactly the reasoner's job, working with real, current observations, to handle the unexpected; the planner's job is the rough, high-level shape of the task.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>A genuinely useful test for whether a plan is appropriately rough: each step should be describable in a short, goal-oriented phrase ("log in," "add to cart") rather than a specific technical instruction ("click element X"). If your plan reads like actual code, it's probably too rigid for this stage.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Keep initial plans deliberately high-level — goal-oriented steps, not specific technical instructions.</li>
+  <li>Build genuine re-planning capability rather than treating the first plan as fixed and final.</li>
+  <li>Let the reasoner (next page) handle step-specific details at the moment they're actually needed, not the planner in advance.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Planning breaks a broad goal into a rough, high-level sequence of steps, produced largely before real action begins.</li>
+  <li>Plans should stay appropriately rough — specific execution details belong to the reasoner, at the moment they're actually needed.</li>
+  <li>A genuinely capable agent re-plans when real observations diverge from what the original plan assumed, rather than rigidly failing.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Write a rough, 5-to-7-step plan for the goal "verify a user can update their shipping address in their ShopEasy profile" — deliberately keeping each step goal-oriented rather than technically specific, matching the style of this page's checkout example.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A junior engineer writes a planner that produces extremely detailed, locator-specific plans before the agent ever looks at the real page. What would you tell them, and why?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd point out that every specific detail committed to before observing the real page is an assumption that could be wrong, and being wrong about even one detail in an overly specific plan tends to invalidate much more of it than necessary.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Overly specific (risky):
+Plan step: "Click button with id='checkout-submit-btn'"
+If the actual id is different (a common, minor real-world
+  case), this ENTIRE step fails outright, even though the
+  actual button — findable by its visible text or role — was
+  right there the whole time.
+
+Appropriately rough (robust):
+Plan step: "Proceed to checkout"
+The REASONER, looking at the real page, can find the checkout
+  button by its visible text, role, or position — genuinely
+  more resilient to minor implementation details the planner
+  couldn't have known in advance.</code></pre>
+<p>The fix: move locator-level specificity out of the planner entirely — that's the reasoner's job, done with real, current information, not the planner's job, done with none.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Walk through a concrete scenario where an agent's original plan needs to be revised mid-task, and explain what triggers that revision.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A concrete, realistic scenario: the agent's plan includes "proceed to checkout," but upon reaching that step, it observes the cart is actually empty — perhaps a previous "add to cart" step silently failed.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Original plan:
+  4. Add product to cart
+  5. Proceed to checkout
+
+What actually happens: step 4 appeared to succeed (no visible
+error), but step 5's observation reveals "Your cart is empty"
+— the add-to-cart action didn't actually work.
+
+Trigger for re-planning: the OBSERVATION at step 5 directly
+contradicts what the plan assumed would be true by that point
+(a non-empty cart). This mismatch between assumption and
+reality is specifically what should trigger a revision:
+
+Revised plan:
+  4b. Retry adding the product to cart, then verify success
+      BEFORE proceeding, rather than assuming it worked</code></pre>
+<p>The general trigger, worth internalizing: re-planning happens when a real observation contradicts something the current plan was implicitly relying on — not on a fixed schedule, and not only when something visibly "errors."</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might a plan that's "too rough" also cause real problems, even though this page argues against being overly specific?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Roughness is a spectrum, and there's a genuine lower bound — a plan needs enough structure to actually guide the agent toward the goal, not just enough vagueness to avoid premature assumptions.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>TOO rough (unhelpful):
+  Plan: "1. Complete checkout somehow."
+  This gives the reasoner almost no useful structure — no
+  sense of the genuine sub-goals (authenticate, select a
+  product, pay) that actually make up "checkout."
+
+Appropriately rough (this page's actual example):
+  1. Navigate to login   2. Authenticate   3. Select a product
+  4. Add to cart   5. Checkout   6. Complete order   7. Confirm
+  Specific enough to genuinely guide the task's real shape,
+  rough enough to leave HOW each step happens to the reasoner.</code></pre>
+<p>The right level of detail is "the genuine sub-goals of the task, without committing to HOW each one gets accomplished" — too specific commits to assumptions that might be wrong; too vague provides no real guidance for the reasoner to build on.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why is re-planning described as a genuine capability an agent needs, rather than something that indicates the original planning was done poorly?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because a plan is necessarily made with incomplete information — it's produced before the agent has actually observed the real, current state of the application in detail. Needing to revise it isn't a planning failure; it's the expected, normal consequence of planning under genuine uncertainty.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A human tester planning a manual test session faces the exact
+same situation: you sketch a rough plan beforehand ("test
+checkout, then test the profile page"), then genuinely adapt
+once you actually see the real, current state of the app — an
+unexpected modal, a feature that's different than you
+remembered, a genuinely new field. Nobody considers this a
+sign of BAD initial planning — it's just how working with a
+real, only-partially-known system genuinely works.</code></pre>
+<p>Treating re-planning as a first-class, expected capability — rather than a fallback for when planning "failed" — leads to building agents that handle real applications' genuine unpredictability gracefully, instead of treating every divergence from the original plan as an error state.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you explain the relationship between planning and the agent loop (covered later in this chapter) to someone new to agentic systems?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Planning genuinely happens both before the loop starts (an initial rough plan) and can happen again during the loop (re-planning, triggered by an observation that contradicts the current plan) — it's not a one-time, separate phase that finishes before "the real agent work" begins.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Common misconception: "Plan, THEN loop" — as if planning is
+  a distinct phase that completes before the act-observe-decide
+  cycle starts.
+
+More accurate: an initial rough plan gets the loop started,
+  but the loop itself can trigger NEW planning at any point,
+  whenever an observation genuinely warrants it — planning and
+  the loop are interleaved, not sequential phases.</code></pre>
+<p>This matters practically: an agent architecture that only supports planning once, upfront, with no mechanism to revise mid-task, is genuinely more brittle than one where planning is treated as something that can happen again, triggered naturally by what the loop actually observes.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

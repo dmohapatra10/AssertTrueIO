@@ -1,0 +1,195 @@
+<!doctype html>
+<html><head>
+<title>Structured Logging for AI Agents: What to Capture, and in What Shape</title>
+<meta name="description" content="Why a plain text log of an agent&#x27;s reasoning is nearly as unhelpful as no log at all, and what a genuinely structured, queryable record looks like instead." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/structured-logging-for-ai-agents.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Structured Logging for AI Agents</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="why-observability-matters.html">Why Observability Matters</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>The previous page argued you need STANDING data to catch unanticipated drift. This page is about what that data actually needs to look like — and unstructured text logs, it turns out, are nearly as unhelpful as no logs at all for genuinely answering questions later.</p>
+
+<h2 id="why-unstructured-logs-genuinely-fall-short">Why Unstructured Logs Genuinely Fall Short</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>❌ A PLAIN TEXT log, technically CAPTURING everything:
+  "Step 3: clicked Log In button. Step 4: clicked Log In
+  button again. Task completed successfully in 4 steps."
+
+This CONTAINS the SAME duplicate-click INFORMATION Chapter
+12's OWN opening example FLAGGED as concerning — but TRY to
+ANSWER "how OFTEN does THIS specific pattern (a REPEATED
+click on the SAME element) happen ACROSS all PRODUCTION runs
+this WEEK?" from a THOUSAND lines of TEXT like THIS. GENUINELY
+possible, but SLOW, MANUAL, and EASY to MISS.</code></pre>
+
+<h2 id="a-genuinely-structured-log-entry">A Genuinely Structured Log Entry</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>{
+  "timestamp": "2026-09-10T14:22:03Z",
+  "run_id": "run-88213",
+  "step": 3,
+  "action_type": "click_element",
+  "action_params": {"role": "button", "name": "Log In"},
+  "result": "success",
+  "duration_ms": 340,
+  "is_repeat_of_previous_step": false
+},
+{
+  "timestamp": "2026-09-10T14:22:04Z",
+  "run_id": "run-88213",
+  "step": 4,
+  "action_type": "click_element",
+  "action_params": {"role": "button", "name": "Log In"},
+  "result": "success",
+  "duration_ms": 210,
+  "is_repeat_of_previous_step": true
+}</code></pre>
+<p>Now "how often does a repeated click happen this week" is a genuine, cheap database query — <code>WHERE is_repeat_of_previous_step = true</code> — not a manual text search across thousands of log lines.</p>
+
+<h2 id="the-deliberate-is-repeat-of-previous-step-field">The Deliberate <code>is_repeat_of_previous_step</code> Field</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Notice this field is COMPUTED and STORED explicitly, not left
+for someone READING the log to NOTICE later. This is a
+DELIBERATE choice — Chapter 12's own OPENING example showed a
+HUMAN reviewer needed to NOTICE the duplicate click by READING
+the full HISTORY carefully. STRUCTURING this SPECIFIC pattern
+as its OWN queryable FIELD means the OBSERVABILITY system
+itself can SURFACE it, ACROSS thousands of runs, WITHOUT
+requiring a HUMAN to manually NOTICE it in ANY single one.</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might it be worth deliberately computing and storing a field like <code>is_repeat_of_previous_step</code>, rather than just logging the raw action and letting analysis happen later? This connects directly to Chapter 8's distinction between raw evidence and diagnosis — computing the field at logging time means every future query benefits from that computation once, rather than every analysis having to re-derive "was this a repeat" from raw action sequences. It's the same principle as pre-computing an index: the cost is paid once, at write time, so it doesn't need to be paid repeatedly at every future read.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Logging agent actions as free-form text strings, assuming they can always be parsed or searched later if needed. This page's own comparison shows the real cost of this choice — a question that's a single, fast database query against structured data becomes a slow, manual, error-prone text search against unstructured logs.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>A genuinely useful test for whether a log field is structured well enough: could you write a one-line query to answer a specific, real question about agent behavior using it? If the answer requires manually reading through entries, the structure isn't yet doing its job.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Structure agent logs as queryable fields, not free-form text, even when the underlying information could technically be captured either way.</li>
+  <li>Compute and store derived signals — like whether a step repeats the previous one — at logging time, not left for later manual analysis.</li>
+  <li>Test log structure against the "could I write a one-line query for this" standard before considering it genuinely useful.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Unstructured text logs technically capture information but make genuinely useful analysis slow and manual, nearly as unhelpful as no logs for answering real questions at scale.</li>
+  <li>Structured fields turn questions about agent behavior into fast, queryable database operations rather than manual text searches.</li>
+  <li>Computing derived signals at logging time, rather than leaving them for later analysis, pays a one-time cost that benefits every future query.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Design a structured log field (following this page's JSON format) that would let a team answer "which specific tool calls take longer than 2 seconds on average" as a single, fast query, rather than requiring manual inspection of individual log entries.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A teammate argues "we already log everything as text, so we technically have all the data — structuring it is just extra work." How would you respond, using this page's own comparison?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd point out that "HAVING the data" and "being ABLE to genuinely USE the data" are DIFFERENT claims — THIS page's OWN "how OFTEN does THIS pattern happen ACROSS a WEEK'S runs" question shows a TEXT log technically CONTAINS the answer while being GENUINELY impractical to ACTUALLY extract it FROM.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What "we have ALL the data" GENUINELY means, for TEXT logs:
+The INFORMATION is TECHNICALLY present SOMEWHERE in the TEXT
+  — but ANSWERING a REAL question REQUIRES either MANUALLY
+  reading THROUGH potentially THOUSANDS of entries, or WRITING
+  a FRAGILE, custom TEXT-parsing script for EVERY new
+  question that COMES up.
+
+What STRUCTURED logging GENUINELY changes:
+The SAME information becomes a SINGLE, FAST, reliable QUERY
+  — "WHERE is_repeat_of_previous_step = TRUE" ANSWERS the
+  question IMMEDIATELY, WITHOUT custom PARSING or MANUAL
+  review, EVERY time it's ASKED.</code></pre>
+<p>The TEAMMATE'S "extra WORK" framing UNDERSTATES the REAL, ongoing COST of the ALTERNATIVE — STRUCTURING costs SOME upfront EFFORT, but UNSTRUCTURED logs cost REPEATED, ONGOING effort EVERY single TIME a NEW question comes UP, EXACTLY this page's CENTRAL argument.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page argue computing is_repeat_of_previous_step AT logging time is GENUINELY better than computing it LATER, during analysis?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>COMPUTING it ONCE, at LOGGING time, means the COST is PAID a SINGLE time — computing it REPEATEDLY, during EVERY future ANALYSIS, means PAYING that SAME computational COST over and OVER, for EVERY query that NEEDS it.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why computing it LATER, DURING analysis, is GENUINELY more
+expensive OVER time:
+EVERY future QUESTION about REPEATED actions ("how OFTEN,"
+  "WHICH tests show this PATTERN most") would need to
+  RE-DERIVE "was THIS a repeat" from the RAW action SEQUENCE,
+  EVERY single TIME — REPEATING the SAME computation
+  REPEATEDLY across MANY different ANALYSES.
+
+Why computing it ONCE, at LOGGING time, is GENUINELY more
+efficient:
+The COMPUTATION happens A SINGLE time, WHEN the log ENTRY is
+  CREATED — EVERY future QUERY simply READS the ALREADY-
+  computed FIELD, NEVER needing to RE-DERIVE it FROM scratch,
+  EXACTLY like a DATABASE index PAYING its COST once at
+  WRITE time to SAVE repeated COST at READ time.</code></pre>
+<p>This is a GENUINELY useful, PRACTICAL software ENGINEERING principle — PRE-COMPUTING a DERIVED value ONCE, RATHER than RECOMPUTING it REPEATEDLY, is a STANDARD, WELL-understood OPTIMIZATION, HERE applied SPECIFICALLY to OBSERVABILITY data for AI agents.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why this page's "one-line query" test is a GENUINELY useful standard for evaluating log STRUCTURE, rather than just a CONVENIENT heuristic.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>The TEST directly OPERATIONALIZES this page's UNDERLYING goal — LOGS exist to ANSWER real QUESTIONS about agent BEHAVIOR, and a STRUCTURE that REQUIRES manual READING to answer a QUESTION has FAILED at that CORE purpose, REGARDLESS of how COMPLETE the underlying DATA technically IS.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why this TEST directly MEASURES what GENUINELY matters:
+The WHOLE POINT of structured LOGGING (per this PAGE'S own
+  argument) is making REAL questions ANSWERABLE quickly and
+  RELIABLY — "COULD I write a ONE-line query" is a DIRECT,
+  CONCRETE test of EXACTLY that GOAL, not an ABSTRACT
+  proxy for it.
+
+What FAILING this test GENUINELY reveals:
+IF answering a REAL question REQUIRES manual READING or
+  CUSTOM parsing SCRIPTS, the LOG structure HASN'T actually
+  ACHIEVED its PURPOSE, EVEN if EVERY piece of RELEVANT
+  information is TECHNICALLY present SOMEWHERE in the
+  DATA.</code></pre>
+<p>This is a GENUINELY practical, ACTIONABLE standard — RATHER than DEBATING abstractly WHETHER a LOG format is "GOOD enough," THIS test gives a CONCRETE, checkable WAY to VERIFY it AGAINST the SPECIFIC, real GOAL this page's ENTIRE argument is BUILT around.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might it be a mistake to structure EVERY conceivable field an agent's LOGS could capture, rather than being SELECTIVE about what GETS structured?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This CONNECTS to a CONSISTENT theme ACROSS this COURSE — MORE data ISN'T automatically BETTER, and STRUCTURING every CONCEIVABLE field adds REAL storage and MAINTENANCE cost for INFORMATION that MIGHT rarely, if EVER, actually be QUERIED.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why STRUCTURING everything CONCEIVABLE would be GENUINELY
+excessive:
+CAPTURING every possible DERIVED signal (WAS this the third
+  CONSECUTIVE click? DID the mouse CURSOR position CHANGE
+  between steps? WHAT was the exact BROWSER memory USAGE at
+  this MOMENT?) for EVERY single LOG entry adds REAL,
+  ONGOING storage and COMPUTATION cost for INFORMATION that
+  MIGHT never actually GET queried.
+
+What Chapter 9's HISTORICAL DATA page's OWN principle ALREADY
+established:
+"RECORD what MAPS directly to a REAL, specific diagnostic
+  QUESTION you NEED to answer" — NOT everything CONCEIVABLE.
+  THIS page's is_repeat_of_previous_step FIELD earns its
+  PLACE because it DIRECTLY answers a REAL question (Chapter
+  12's OWN concerning PATTERN); a FIELD with NO clear,
+  ANTICIPATED use DOESN'T EARN that SAME justification.</code></pre>
+<p>This is a GENUINELY important BALANCE worth RECOGNIZING — STRUCTURED logging should be PURPOSEFUL and SELECTIVE, MAPPED to REAL, anticipated QUESTIONS (like Chapter 9's OWN historical-DATA design), NOT an EXHAUSTIVE capture of EVERY conceivable SIGNAL regardless of WHETHER it's EVER likely to be USED.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you extend this page's log FORMAT to also CAPTURE the specific REASONING (not just the ACTION) behind EACH step, connecting to Chapter 12's OWN concern about UNSOUND reasoning?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A GENUINELY useful EXTENSION would ADD a structured FIELD SPECIFICALLY capturing the REASONING TEXT the model PRODUCED before EACH action, LETTING future ANALYSIS check WHETHER an agent's STATED reasoning GENUINELY justifies the ACTION it TOOK.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>{
+  "timestamp": "2026-09-10T14:22:04Z",
+  "run_id": "run-88213",
+  "step": 4,
+  "action_type": "click_element",
+  "action_params": {"role": "button", "name": "Log In"},
+  "result": "success",
+  "is_repeat_of_previous_step": true,
+  "reasoning_text": "The previous click may not have registered; attempting again.",
+  "reasoning_explicitly_justifies_repeat": true  // COMPUTED by
+      // checking whether reasoning_text GENUINELY addresses
+      // WHY this is a repeat, connecting DIRECTLY to Chapter
+      // 12's OWN "unexplained duplicate click" concern
+}</code></pre>
+<p>This DIRECTLY extends this page's OWN structured-LOGGING philosophy to ADDRESS Chapter 12's SPECIFIC, real concern — RATHER than just KNOWING a repeat HAPPENED (this page's ORIGINAL field), a TEAM can NOW query SPECIFICALLY for REPEATS where the reasoning_text FAILS to GENUINELY explain WHY, SURFACING exactly the KIND of "UNEXPLAINED duplicate CLICK" pattern Chapter 12's OPENING page FLAGGED as GENUINELY concerning, now DETECTABLE automatically ACROSS thousands of PRODUCTION runs RATHER than requiring a HUMAN to NOTICE it in ANY single ONE.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

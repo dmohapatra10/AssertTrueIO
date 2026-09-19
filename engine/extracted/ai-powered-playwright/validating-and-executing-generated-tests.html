@@ -1,0 +1,173 @@
+<!doctype html>
+<html><head>
+<title>Validating and Executing Generated Tests</title>
+<meta name="description" content="Closing the pipeline&#x27;s final arrow — never trusting generated code blindly, validating it first, then genuinely running it against a real browser." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/validating-and-executing-generated-tests.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Validating and Executing Generated Tests</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="generating-playwright-code-from-scenarios.html">Generating Playwright Code from Scenarios</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Why generated code needs real validation before it ever runs</li>
+  <li>A working validation step — syntax check and a real locator check against a live page</li>
+  <li>Actually executing validated tests against a real browser — closing this chapter's full pipeline</li>
+  <li>Chapter 3's closing interview questions</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>The previous page generated real code using real, provided locators — genuinely more reliable than letting the model guess, but not a guarantee. This page adds the validation step this chapter has been promising since its own hub page, then finally runs the result against a real browser.</p>
+
+<h2 id="step-by-step-implementation-validation">Step-by-Step Implementation — Validation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/validate-test.ts
+import { readFileSync } from 'fs';
+import * as ts from 'typescript';
+import { chromium } from '@playwright/test';
+
+export interface ValidationResult {
+  syntaxValid: boolean;
+  syntaxError?: string;
+  locatorsFound: string[];
+  locatorsMissing: string[];
+}
+
+export function checkSyntax(filePath: string): {
+  valid: boolean; error?: string
+} {
+  const code = readFileSync(filePath, 'utf-8');
+  const result = ts.transpileModule(code, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS },
+    reportDiagnostics: true,
+  });
+  const errors = result.diagnostics?.filter(
+    (d) => d.category === ts.DiagnosticCategory.Error
+  );
+  if (errors && errors.length &gt; 0) {
+    return { valid: false, error: ts.flattenDiagnosticMessageText(
+      errors[0].messageText, '\n'
+    ) };
+  }
+  return { valid: true };
+}
+
+export async function checkLocatorsExist(
+  filePath: string, pageUrl: string
+): Promise&lt;{ found: string[]; missing: string[] }&gt; {
+  const code = readFileSync(filePath, 'utf-8');
+  const roleMatches = [...code.matchAll(
+    /getByRole\('(\w+)', \{ name: '([^']+)' \}\)/g
+  )];
+
+  const browser = await chromium.launch();
+  const page = await browser.newPage();
+  await page.goto(pageUrl);
+
+  const found: string[] = [];
+  const missing: string[] = [];
+  for (const [, role, name] of roleMatches) {
+    const count = await page.getByRole(
+      role as any, { name }
+    ).count();
+    (count &gt; 0 ? found : missing).push(`${role}: ${name}`);
+  }
+  await browser.close();
+  return { found, missing };
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p>Two genuinely independent checks happen here, matching Chapter 2's own distinction between exact checks and judgment calls — both are exact, deterministic checks, deliberately. <code>checkSyntax</code> confirms the generated code is even valid TypeScript before anything else happens. <code>checkLocatorsExist</code> goes further, extracting every <code>getByRole</code> call the AI generated and confirming each one genuinely matches something on the real, live ShopSmart page — not trusting the earlier "never invent a selector" instruction blindly, but actually verifying it held.</p>
+
+<h2 id="step-by-step-implementation-execution">Step-by-Step Implementation — Execution</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/validate-and-run.ts
+import { checkSyntax, checkLocatorsExist } from './validate-test';
+import { execSync } from 'child_process';
+
+async function validateAndRun(filePath: string, pageUrl: string) {
+  const syntax = checkSyntax(filePath);
+  if (!syntax.valid) {
+    console.error(`Syntax check FAILED: ${syntax.error}`);
+    return;
+  }
+
+  const locators = await checkLocatorsExist(filePath, pageUrl);
+  if (locators.missing.length &gt; 0) {
+    console.error(`Missing locators, NOT running: ${locators.missing.join(', ')}`);
+    return;
+  }
+
+  console.log('Validation passed — executing against a real browser.');
+  execSync(`npx playwright test ${filePath}`, { stdio: 'inherit' });
+}
+
+validateAndRun(
+  'tests/generated/login-valid.spec.ts',
+  'https://shopsmart.example.com/login'
+);</code></pre>
+
+<h2 id="expected-result">Expected Result</h2>
+<p>Running <code>validateAndRun</code> against a genuinely well-generated test prints "Validation passed" and then Playwright's own real, familiar test output — a browser genuinely launches, the login flow genuinely executes, and you see a real pass or fail. This is the full pipeline from Chapter 1's diagram, working end to end: Requirement → AI → Playwright Test → Browser.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Running generated code directly, skipping validation "just this once."</strong> The whole point of this page is that "just this once" is exactly when a hallucinated locator or a syntax error slips through.</li>
+  <li><strong>Treating a passing syntax check as sufficient on its own.</strong> Code can be perfectly valid TypeScript and still reference a locator that doesn't exist on the real page — <code>checkLocatorsExist</code> exists specifically because syntax validity and correctness are genuinely different things.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Run both checks — syntax and locator existence — before ever executing generated code, never just one.</li>
+  <li>Keep validation and execution as separate, sequential steps, exactly as this page does, so a validation failure never silently proceeds to execution.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Run this chapter's complete pipeline yourself, end to end: send a requirement, generate scenarios, generate code for each, validate, and execute. Then deliberately corrupt one generated file's locator (change <code>'Log In'</code> to <code>'Sign In'</code>) and confirm <code>checkLocatorsExist</code> genuinely catches it before execution.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Validation is two genuinely separate, exact checks — syntax validity and real locator existence — neither one substituting for the other.</li>
+  <li>This chapter's full pipeline is now real and working: a requirement genuinely becomes a validated, executed Playwright test against a real browser.</li>
+  <li>Every later chapter in this tutorial extends this same working foundation — nothing here gets thrown away.</li>
+</ul>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Beginner: Why does this chapter's AI client store the system prompt once, rather than including it in every individual request?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A system prompt sets standing behavior for the entire session — instructions like "never invent a selector" that should apply to every single response. Setting it once, in the client module, guarantees this behavior applies consistently everywhere the client is used, without relying on every individual call site to remember to repeat it.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Beginner: What real problem does explicitly asking for "ONLY valid JSON, no other text" solve?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Without this instruction, models often add a friendly introductory or closing sentence around the JSON — which breaks <code>JSON.parse</code>, since it expects the entire string to be valid JSON. This single, explicit instruction meaningfully reduces how often a response fails to parse at all.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Intermediate: Why does checkLocatorsExist actually launch a real browser and check the live page, rather than just trusting that the system prompt's "never invent a selector" instruction worked?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>An instruction in a prompt shapes the model's behavior — it doesn't guarantee it. This is the same reasoning Chapter 1 established about hallucination: a confidently-generated locator can still be wrong, regardless of how clearly it was instructed not to be. Actually launching a browser and checking whether each generated locator matches something real on the live page is genuine, empirical verification — not just trusting that an instruction was followed.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Intermediate: Why are syntax checking and locator-existence checking implemented as two separate functions, rather than one combined validation step?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>They check genuinely different things and can fail independently. Code can be syntactically perfect TypeScript while still referencing a locator that doesn't exist on the real page — and, less commonly, malformed code could theoretically still contain locator strings a naive check might extract. Keeping them separate means a syntax failure is reported clearly as a syntax failure, and a locator failure is reported clearly as a locator failure, rather than one vague "validation failed" message that doesn't say which problem actually occurred.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Advanced: Why does validateAndRun check syntax first and return early on failure, rather than running both checks and reporting all problems at once?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>checkLocatorsExist needs to parse the generated code with a regular expression to extract getByRole calls — if the code isn't even syntactically valid TypeScript, this extraction could behave unpredictably or simply be meaningless, since there's no guarantee malformed code's structure matches what the regex expects. Checking syntax first, and stopping immediately on failure, avoids running a second check against code that's already known to be broken — the same "cheap check before more expensive, less certain investigation" ordering principle worth applying generally, not just here.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Scenario-based: A teammate proposes skipping locator validation for "simple" generated tests to save time, reasoning "the AI already has the real locators in its prompt." How would you respond, using this chapter's own reasoning?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd point to this chapter's own distinction between an instruction shaping behavior and a guarantee. Providing real locators in the prompt genuinely reduces the chance of a hallucinated selector — it doesn't eliminate it, the same way Chapter 1's system prompt telling the model to "never invent a selector" doesn't guarantee it never will. The actual cost of skipping validation is a test that fails at execution time with a confusing "element not found" error, or worse, silently matches the wrong element — genuinely harder to debug than a validation failure with a clear, specific message would have been. The validation step is cheap, fast, and exists specifically to catch the cases where the prompt's instructions, however well-written, didn't fully hold.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

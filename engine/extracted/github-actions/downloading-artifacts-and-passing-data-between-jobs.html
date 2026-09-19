@@ -1,0 +1,115 @@
+<!doctype html>
+<html><head>
+<title>Downloading GitHub Actions Artifacts: Passing Data Between Jobs</title>
+<meta name="description" content="How a different job downloads a previously uploaded artifact, using actions/download-artifact, and why this specifically requires a job dependency to work correctly." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/downloading-artifacts-and-passing-data-between-jobs.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Downloading Artifacts &amp; Passing Data Between Jobs</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="what-is-an-artifact-and-uploading-artifacts.html">What is an Artifact? & Uploading Artifacts</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Uploading an artifact is only half the story — this page covers actually retrieving it in a different job, which is exactly how the "job isolation" limitation from Chapter 4 gets deliberately bridged when genuinely needed.</p>
+
+<h2 id="downloading-in-a-different-job">Downloading in a Different Job</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build-output
+          path: dist/
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: build-output
+          path: dist/
+      - run: echo "Now dist/ exists in THIS job too, thanks to the artifact"</code></pre>
+<p>The <code>name</code> in the download step must exactly match the <code>name</code> used when uploading — this is how GitHub knows which specific artifact to retrieve.</p>
+
+<h2 id="why-needs-is-required-here">Why needs: Is Required Here</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  deploy:
+    needs: build   # ← without this, deploy might start BEFORE build even finishes
+    ...</code></pre>
+<p>Without an explicit <code>needs:</code> dependency (covered fully in Chapter 9), jobs run in parallel by default — <code>deploy</code> could start trying to download an artifact that <code>build</code> hasn't uploaded yet, because it hasn't even finished running. <code>needs:</code> ensures <code>build</code> genuinely completes (and uploads its artifact) before <code>deploy</code> even starts.</p>
+
+<h2 id="detailed-example-the-complete-shopeasy-scenario-now-finished">Detailed Example — The Complete ShopEasy Scenario, Now Finished</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with: { name: shopeasy-build, path: dist/ }
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { name: shopeasy-build, path: dist/ }
+      - run: echo "Deploying the build from dist/"</code></pre>
+<p>This is genuinely the complete picture — <code>build</code> produces something, uploads it deliberately, <code>deploy</code> waits for that to finish (via <code>needs:</code>), then downloads exactly what it needs. No shared filesystem, no implicit magic — just an explicit, deliberate hand-off.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why does this pattern — upload in one job, <code>needs:</code>, download in another — represent a deliberate design choice rather than an inconvenient workaround? Requiring an explicit hand-off means exactly what's shared between jobs is visible directly in the workflow file itself — anyone reading it can see precisely what data flows from <code>build</code> to <code>deploy</code>, rather than having to guess at implicit, invisible shared state.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Adding a download step without the corresponding <code>needs:</code> dependency, then encountering an intermittent failure — sometimes it works (if <code>build</code> happens to finish first anyway), sometimes it doesn't. <code>needs:</code> isn't optional here; without it, correct behavior is a matter of timing luck, not a genuine guarantee.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>If a workflow needs to download <em>every</em> artifact from previous jobs rather than one specific one, omitting the <code>name</code> parameter entirely downloads all of them, each into its own subfolder named after the artifact — useful for a final "publish everything" job that doesn't need to know each artifact's name individually in advance.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Always pair a cross-job artifact download with an explicit <code>needs:</code> dependency on the uploading job.</li>
+  <li>Use matching, consistent artifact names between the upload and download steps — a typo here fails silently in confusing ways.</li>
+  <li>Prefer this explicit upload/download pattern over trying to work around job isolation in less obvious ways.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li><code>actions/download-artifact</code> retrieves an artifact by the exact name it was uploaded under, in a different job.</li>
+  <li>A job downloading another job's artifact must declare a <code>needs:</code> dependency on it — otherwise, correct timing isn't guaranteed.</li>
+  <li>This explicit upload-then-download pattern makes cross-job data flow visible directly in the workflow file, rather than relying on invisible shared state.</li>
+</ul>
+
+<h2 id="challenge">🏆 Challenge</h2>
+<p>Extend the ShopEasy example with a third job, <code>smoke-test</code>, that also needs the build output — download it there too, correctly declaring its own <code>needs:</code> dependency on <code>build</code>, independent of whatever <code>deploy</code> does.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why does a job downloading another job's artifact specifically need a needs: dependency to work correctly?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Jobs run in parallel by default — without an explicit needs: dependency, the downloading job could start executing before the uploading job has even finished (and therefore before the artifact even exists yet). needs: ensures the uploading job genuinely completes first, guaranteeing the artifact is actually available by the time the download step runs.</div>
+</details>
+<details class="faq-item">
+<summary>What happens if the name used in a download-artifact step doesn't exactly match the name used when uploading?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The download would fail to find the intended artifact, since GitHub matches artifacts by their exact name. A typo or inconsistency between the upload and download names is a common, easy-to-miss mistake that produces a failure seemingly unrelated to the actual content being transferred.</div>
+</details>
+<details class="faq-item">
+<summary>Why is the explicit upload-then-download artifact pattern considered a deliberate design choice rather than an inconvenient extra step?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Requiring an explicit hand-off means exactly what data flows between jobs is directly visible in the workflow file itself — anyone reading it can see precisely what's shared and how, rather than having to reason about invisible, implicit shared state between jobs. This explicitness makes a workflow's actual data dependencies easier to understand and maintain.</div>
+</details>
+<details class="faq-item">
+<summary>What happens if you omit the name parameter when downloading an artifact?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Omitting name downloads every artifact produced by the jobs this one depends on, each placed into its own subfolder named after that specific artifact. This is useful for a job that needs to gather multiple different artifacts without needing to know each one's specific name individually in advance.</div>
+</details>
+<details class="faq-item">
+<summary>Why might relying on job timing alone, without needs:, produce an intermittent rather than a consistent failure?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Without needs:, whether the download succeeds depends purely on whichever job happens to finish first when run in parallel — sometimes the uploading job might coincidentally finish before the downloading job tries to retrieve the artifact, and sometimes it won't. This kind of timing-dependent behavior is exactly why needs: is necessary for a genuine guarantee rather than an unreliable coincidence.</div>
+</details>
+</div>
+</article>
+</body></html>

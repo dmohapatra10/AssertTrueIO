@@ -1,0 +1,124 @@
+<!doctype html>
+<html><head>
+<title>Unique Test Data in k6: Avoiding Collisions Under Concurrent Load</title>
+<meta name="description" content="Why identical hardcoded test data breaks under real concurrency, and how to generate genuinely unique data per VU and iteration using k6&#x27;s execution context." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/unique-test-data-and-avoiding-collisions.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Unique Test Data &amp; Avoiding Collisions</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="test-data-correlation-and-dynamic-workflows.html">Test Data, Correlation & Dynamic Workflows overview</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Any data meant to be unique — an email, a username, an order reference — needs to actually be unique across every virtual user and every iteration in a real performance test, not just look plausible in a single example run. This page covers how to make that genuinely true.</p>
+
+<h2 id="the-problem-concretely">The Problem, Concretely</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const payload = JSON.stringify({ email: 'testuser@example.com' });
+// Every VU, every iteration, sends the exact same email.
+// A real system correctly rejects duplicates — so most of these fail,
+// and the test stops measuring what it was meant to measure.</code></pre>
+
+<h2 id="k6-s-execution-context-vu-and-iter">k6's Execution Context — __VU and __ITER</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export default function () {
+  const uniqueEmail = `user-${__VU}-${__ITER}@example.com`;
+  // VU 3, iteration 12 → user-3-12@example.com
+  // Genuinely unique as long as no two VUs share the same __VU number
+  // (which k6 guarantees) and no VU repeats an __ITER value (which it also guarantees)
+}</code></pre>
+<p>k6 exposes <code>__VU</code> (the current virtual user's ID) and <code>__ITER</code> (the current iteration number for that VU) as built-in variables — combining them produces a value that's guaranteed unique across the entire test, since no two VUs share a <code>__VU</code> number and no VU repeats an <code>__ITER</code> value.</p>
+
+<h2 id="adding-a-timestamp-for-cross-run-uniqueness">Adding a Timestamp for Cross-Run Uniqueness</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const runId = Date.now(); // captured once, outside the default function (init code)
+
+export default function () {
+  const uniqueEmail = `user-${runId}-${__VU}-${__ITER}@example.com`;
+  // Unique within THIS run, and unlikely to collide with a PREVIOUS run's
+  // leftover data, if cleanup didn't fully succeed last time
+}</code></pre>
+<p>Adding a timestamp captured once at script load time (init code, from Chapter 2's lifecycle model) protects against collisions with data left over from a previous test run — genuinely useful if a system doesn't guarantee full cleanup between runs.</p>
+
+<h2 id="detailed-example-randomization-for-non-sequential-uniqueness">Detailed Example — Randomization for Non-Sequential Uniqueness</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>function randomString(length) {
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
+export default function () {
+  const uniqueEmail = `user-${randomString(8)}@example.com`;
+}</code></pre>
+<p><code>__VU</code>/<code>__ITER</code>-based uniqueness is predictable and sequential — fine for most cases, but sometimes a test specifically needs data that doesn't reveal an obvious pattern (testing a system that might behave differently for sequential vs. genuinely random-looking input). Randomization achieves that, at the cost of needing a large enough random space that collisions remain vanishingly unlikely rather than guaranteed impossible.</p>
+
+<h2 id="real-world-example-why-random-isn-t-automatically-collision-free">Real-World Example — Why "Random" Isn't Automatically Collision-Free</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>❌ const id = Date.now(); // milliseconds since epoch
+// Two VUs executing in the SAME millisecond generate the IDENTICAL "unique" ID
+// — genuinely possible at high VU counts with fast-executing iterations
+
+✅ const id = `${Date.now()}-${__VU}-${__ITER}`;
+// Combining timestamp with guaranteed-unique VU/iteration context
+// eliminates the collision risk entirely</code></pre>
+<p>This is a genuinely common mistake — a timestamp alone feels unique, but at real concurrency, two virtual users can execute the same line of code within the same millisecond, especially for fast, lightweight requests. Combining a timestamp with k6's guaranteed-unique <code>__VU</code>/<code>__ITER</code> context removes this risk entirely, rather than merely making it unlikely.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ A single hardcoded value shared across every VU and iteration
+const email = 'testuser@example.com';
+
+// ✅ Genuinely unique per VU and iteration, using k6's execution context
+const email = `user-${__VU}-${__ITER}-${Date.now()}@example.com`;</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Reusing a single hardcoded value</strong> for anything the system treats as unique, across every VU and iteration.</li>
+  <li><strong>Relying on a timestamp alone for uniqueness</strong> — genuinely possible to collide when multiple VUs execute within the same millisecond.</li>
+  <li><strong>Using a random string that's too short</strong> for the actual scale of the test — a real, if small, collision probability at very high iteration counts with an insufficiently large random space.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>A test that needs to reuse the same identity across iterations for one VU</strong> but not across different VUs — capture the unique value once, outside the default function (relying on Chapter 2's per-VU init code behavior), rather than regenerating it every iteration.</li>
+  <li><strong>A system with its own strict uniqueness rules beyond a simple string match</strong> (like a checksum-validated ID format) — uniqueness generation needs to also produce data that satisfies whatever format rules the target system actually enforces, not just be different from other generated values.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a test shows a high failure rate specifically on "create" operations (accounts, orders) under load but not at low concurrency, check whether the data being sent is actually unique per iteration — a collision-based failure often only appears once concurrency is high enough for the collision probability to become likely.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Combine <code>__VU</code> and <code>__ITER</code> as the foundation for guaranteed uniqueness within a single test run.</li>
+  <li>Add a run-level timestamp when protection against leftover data from previous runs matters.</li>
+  <li>Use genuine randomization only when sequential, predictable data specifically isn't appropriate for what's being tested — it adds real collision-probability math that <code>__VU</code>/<code>__ITER</code> combinations don't require.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Write a function that generates a unique username guaranteed not to collide across any combination of VUs, iterations, or separate test runs — and explain in one sentence why each component of the generated value is necessary.</p>
+
+<h2 id="summary">Summary</h2>
+<p>Data meant to be unique in a performance test needs genuine, guaranteed uniqueness — not just data that looks different in a single example run. Combining k6's built-in <code>__VU</code> and <code>__ITER</code> values, optionally with a run-level timestamp, produces data that's mathematically guaranteed unique across an entire test, which a timestamp alone or an insufficiently large random value cannot promise.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why does a single hardcoded test value that works fine in a functional test break under performance testing?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A functional test typically runs a script once, sequentially — a hardcoded value never has to compete with itself. A performance test runs the same script hundreds or thousands of times, often simultaneously, so every virtual user attempting to use the identical value for something the system treats as unique (an email, a username) causes most of those attempts to fail with a duplicate error, changing what the test actually measures.</div>
+</details>
+<details class="faq-item">
+<summary>Why isn't Date.now() alone sufficient to guarantee unique data across virtual users?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Date.now() has millisecond resolution, and at real concurrency, multiple virtual users can execute the same line of code within the same millisecond — especially for fast, lightweight requests. This means two VUs can genuinely generate the identical "unique" timestamp-based value, causing exactly the collision the uniqueness was meant to prevent.</div>
+</details>
+<details class="faq-item">
+<summary>How do __VU and __ITER combine to guarantee uniqueness within a single test run?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">__VU is k6's built-in identifier for the current virtual user, and no two VUs ever share the same value. __ITER is the current iteration number for that specific VU, and a single VU never repeats an __ITER value. Combining the two produces a value that's mathematically guaranteed unique across the entire test, since the combination of (VU number, iteration number) can never repeat.</div>
+</details>
+<details class="faq-item">
+<summary>Why might a test add a run-level timestamp on top of __VU and __ITER, even though those two already guarantee uniqueness within one run?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">__VU and __ITER only guarantee uniqueness within a single test execution — if a previous run's test data wasn't fully cleaned up, a new run using the exact same __VU/__ITER combinations could collide with leftover data from before. A run-level timestamp, captured once at script load, protects against exactly this cross-run collision risk.</div>
+</details>
+<details class="faq-item">
+<summary>When might __VU/__ITER-based uniqueness actually be insufficient, requiring genuine randomization instead?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">__VU/__ITER-based values are predictable and sequential in pattern — if a test specifically needs to verify system behavior against genuinely unpredictable, non-sequential input (testing whether a system behaves differently for obviously patterned versus organic-looking data, for instance), true randomization is more appropriate, accepting the tradeoff that it requires a sufficiently large random space to keep collision probability acceptably low rather than mathematically impossible.</div>
+</details>
+</div>
+</article>
+</body></html>

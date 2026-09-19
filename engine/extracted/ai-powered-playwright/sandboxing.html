@@ -1,0 +1,86 @@
+<!doctype html>
+<html><head>
+<title>Sandboxing</title>
+<meta name="description" content="Extending Chapter 11&#x27;s isolated validation copy from one file to an entire agent run — real network and filesystem isolation for anything genuinely autonomous." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/sandboxing.html" />
+</head><body>
+<p class="difficulty">Advanced</p>
+<h1>Sandboxing</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="browser-and-tool-permissions.html">Browser and Tool Permissions</a></p>
+<article class="content">
+<h2>What You'll Learn</h2>
+<ul>
+  <li>Extending Chapter 11's isolated validation copy from a single file to a whole agent run</li>
+  <li>Real, concrete network and filesystem isolation for autonomous execution</li>
+  <li>Why isolation matters more, not less, for Chapter 13's genuinely open-ended exploration</li>
+</ul>
+
+<h2>Introduction — The Same Principle, a Bigger Scope</h2>
+<p>Chapter 11's <code>validatePatchInIsolation</code> copied a single file to a temporary directory before testing a candidate fix — a small, real act of isolation. This page applies the same principle to something bigger: the entire environment an autonomous agent runs in.</p>
+
+<h2>How It Works — What Genuinely Needs Isolating</h2>
+<pre><code>NETWORK isolation — an EXPLORING agent should reach ONLY
+  ShopSmart'S OWN staging environment, NEVER the real, open
+  internet OR production systems it has NO genuine reason to
+  touch
+
+FILESYSTEM isolation — an agent'S container or SANDBOX should
+  have NO access to the REAL, host machine'S filesystem beyond
+  what its ACTUAL task genuinely requires
+
+PROCESS isolation — running the agent in a REAL, separate
+  container or VM means a GENUINE failure or compromise stays
+  CONTAINED, rather than affecting the HOST system directly</code></pre>
+
+<h2>Step-by-Step Implementation — A Real, Containerized Agent Run</h2>
+<pre><code># Dockerfile.agent-sandbox
+FROM mcr.microsoft.com/playwright:v1.48.0-jammy
+
+WORKDIR /agent
+COPY package.json package-lock.json ./
+RUN npm ci
+
+COPY src/ ./src/
+
+# NO access to the host filesystem beyond this COPIED code —
+# the container'S OWN isolated filesystem is ALL this agent
+# can genuinely SEE or MODIFY
+ENTRYPOINT ["node", "dist/run-agent.js"]</code></pre>
+
+<pre><code># docker run, with EXPLICIT, real network restriction:
+docker run \
+  --network shopsmart-staging-only \
+  --read-only \
+  --tmpfs /tmp \
+  -e ANTHROPIC_API_KEY \
+  agent-sandbox</code></pre>
+
+<h2>Code Explanation</h2>
+<p><code>--network shopsmart-staging-only</code> is the real, concrete network isolation from this page's list — a custom Docker network that can only reach the staging environment, genuinely unable to reach production or the open internet regardless of what the agent's own reasoning decides to attempt. <code>--read-only</code> combined with a <code>tmpfs</code> mount for temporary files means the container's own filesystem can't be permanently modified, even by a compromised or malfunctioning process.</p>
+
+<h2>Why It Matters — This Matters More for Open-Ended Exploration</h2>
+<p>Chapter 5's fixed-sequence agent has a genuinely bounded, predictable set of actions. Chapter 13's exploratory agent, by design, generates novel hypotheses and explores paths nobody explicitly planned — exactly the kind of genuine unpredictability that makes real, structural isolation more valuable, not less. Sandboxing doesn't replace Chapter 13's own safety controls; it's a real, independent layer beneath them.</p>
+
+<h2>Common Mistakes</h2>
+<ul>
+  <li><strong>Running an autonomous agent directly on a developer's own machine, with full network and filesystem access.</strong> This page's whole point is that genuine isolation is worth the real setup cost, especially for anything with Chapter 13's open-ended behavior.</li>
+  <li><strong>Assuming Chapter 13's action allowlist alone makes sandboxing unnecessary.</strong> They're independent, both-necessary layers — an allowlist governs what the agent intends to do; sandboxing limits what's genuinely possible even if something slips through.</li>
+</ul>
+
+<h2>Best Practices</h2>
+<ul>
+  <li>Run any autonomous agent — especially Chapter 13's exploratory kind — in a genuinely isolated container or VM, never directly on a trusted, unrestricted machine.</li>
+  <li>Restrict network access explicitly to only the specific environment an agent's real task requires.</li>
+</ul>
+
+<h2>Hands-On Exercise</h2>
+<p>Containerize a real agent from an earlier chapter in this track, following this page's Dockerfile pattern. Confirm it genuinely cannot reach anything outside its intended network, and that its filesystem changes don't persist beyond the container's own lifetime.</p>
+
+<h2>Key Takeaways</h2>
+<ul>
+  <li>Sandboxing extends Chapter 11's single-file isolation principle to an entire agent's real runtime environment — network, filesystem, and process.</li>
+  <li>Genuine isolation matters more for Chapter 13's open-ended exploration than for a bounded, fixed-sequence agent, precisely because its actions are less predictable by design.</li>
+  <li>Sandboxing and action-level safety controls are independent, both-necessary layers — neither one substitutes for the other.</li>
+</ul>
+</article>
+</body></html>

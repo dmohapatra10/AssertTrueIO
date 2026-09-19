@@ -1,0 +1,152 @@
+<!doctype html>
+<html><head>
+<title>RestAssured RequestSpecification Deep Dive</title>
+<meta name="description" content="How to build and apply a reusable RequestSpecification in RestAssured — base URI, common headers, authentication, and overriding parts of a shared spec per test." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/request-specification-deep-dive.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>RequestSpecification Deep Dive</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="request-response-specifications.html">Request & Response Specifications overview</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>RequestSpecification requestSpec =
+    new RequestSpecBuilder()
+        .setBaseUri("https://api.example.com")
+        .setContentType(ContentType.JSON)
+        .build();
+
+given()
+    .spec(requestSpec)
+.when()
+    .get("/users");</code></pre>
+<p>A <code>RequestSpecification</code> is a reusable bundle of request setup — base URI, headers, content type, and more — built once and applied via <code>.spec()</code> to any number of individual requests. Recall from Chapter 2 that <code>given()</code> itself already returns a <code>RequestSpecification</code>; building one explicitly with <code>RequestSpecBuilder</code> just lets you construct and name that object ahead of time, separately from any individual test.</p>
+
+<h2 id="why-it-exists">Why It Exists</h2>
+<p>Without it, every test repeats the same base URI, headers, and content type — the exact duplication problem the chapter overview showed. A shared <code>RequestSpecification</code> means that setup is defined in exactly one place; changing it once (a new base URI for a new environment, an additional required header) automatically applies everywhere the spec is used.</p>
+
+<h2 id="what-typically-goes-in-a-shared-spec">What Typically Goes in a Shared Spec</h2>
+<ul>
+  <li><strong>Base URI</strong> — the API's root URL, read from an environment variable for the multi-environment strategy covered in the next chapter.</li>
+  <li><strong>Content-Type</strong> — almost always the same across an entire API (typically JSON).</li>
+  <li><strong>Common headers</strong> — anything sent on nearly every request, like a client identifier or API version header.</li>
+</ul>
+<p>Authentication is a more nuanced case, worth its own discussion below.</p>
+
+<h2 id="basic-example-a-shared-spec-with-common-headers">Basic Example — A Shared Spec With Common Headers</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>RequestSpecification requestSpec =
+    new RequestSpecBuilder()
+        .setBaseUri(System.getenv("API_BASE_URL"))
+        .setContentType(ContentType.JSON)
+        .addHeader("X-Client-Version", "2.4.1")
+        .addHeader("Accept", "application/json")
+        .build();
+
+given().spec(requestSpec).when().get("/users").then().statusCode(200);
+given().spec(requestSpec).when().get("/orders").then().statusCode(200);</code></pre>
+<p>Reading the base URI from an environment variable, rather than hardcoding it, is what lets this exact spec run correctly against local, QA, or staging without any code changes — tying directly back to the environment strategy from earlier in this course.</p>
+
+<h2 id="detailed-example-including-authentication-in-a-shared-spec">Detailed Example — Including Authentication in a Shared Spec</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>RequestSpecification authenticatedSpec =
+    new RequestSpecBuilder()
+        .setBaseUri(System.getenv("API_BASE_URL"))
+        .setContentType(ContentType.JSON)
+        .addHeader("Authorization", "Bearer " + TokenManager.getToken())
+        .build();
+
+given().spec(authenticatedSpec).when().get("/profile").then().statusCode(200);</code></pre>
+<p>Building the spec after obtaining a token (via the Token Management pattern from Chapter 6) means the auth header is baked into the spec itself, and every test using it is automatically authenticated with no per-test header repetition. Be mindful of when this spec is built, though — if it's constructed once at class load time with a token that later expires, every subsequent test using it will start failing; specs built per-class in a <code>@BeforeAll</code>, refreshed appropriately, avoid this.</p>
+
+<h2 id="overriding-part-of-a-shared-spec-per-test">Overriding Part of a Shared Spec Per Test</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// The shared spec includes a default Authorization header —
+// this ONE test needs to run as a different role
+given()
+    .spec(authenticatedSpec)
+    .header("Authorization", "Bearer " + TokenManager.getTokenForRole("admin")) // overrides the spec's value
+.when()
+    .get("/admin/dashboard");</code></pre>
+<p>This is the same override behavior covered in Chapter 8's Headers page — a value set after <code>.spec(...)</code> in the same chain takes precedence over what the spec itself defined. This is genuinely useful for the occasional test that needs to deviate from the shared default without needing a second, nearly-identical spec just for that one case.</p>
+
+<h2 id="real-world-example-a-base-test-class-building-the-spec-once">Real-World Example — A Base Test Class Building the Spec Once</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>public abstract class BaseApiTest {
+    protected static RequestSpecification requestSpec;
+
+    @BeforeAll
+    static void setupSpec() {
+        requestSpec = new RequestSpecBuilder()
+            .setBaseUri(System.getenv("API_BASE_URL"))
+            .setContentType(ContentType.JSON)
+            .addHeader("Authorization", "Bearer " + TokenManager.getToken())
+            .build();
+    }
+}
+
+public class OrderApiTest extends BaseApiTest {
+    @Test
+    void getOrders() {
+        given().spec(requestSpec).when().get("/orders").then().statusCode(200);
+    }
+}</code></pre>
+<p>This is the natural home for a shared spec in a real project — built once, in a base class every test class extends, exactly mirroring the base URI configuration pattern from Chapter 2, just consolidated into one richer object instead of several separate <code>RestAssured.baseURI</code>-style static fields.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Repeating base URI, content type, and auth header setup in every test file
+given().baseUri(url).contentType(JSON).header("Authorization", "Bearer " + t).when().get("/orders");
+// ...identical setup repeated across dozens of files
+
+// ✅ One shared spec, referenced everywhere
+given().spec(requestSpec).when().get("/orders");</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Building a spec with a token that later expires</strong>, without any refresh mechanism — every test using the stale spec starts failing with 401s, all traceable to one root cause.</li>
+  <li><strong>Not overriding a spec's value when a specific test genuinely needs to</strong> — instead duplicating an entire near-identical spec just to change one header.</li>
+  <li><strong>Putting environment-specific values directly in the spec definition</strong> instead of reading them from environment variables — defeats the purpose of a spec that's meant to work across environments.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>A spec needed before authentication has happened yet</strong> (the login request itself) — this request can't use an authenticated spec, since there's no token yet; it either uses no spec, or a separate unauthenticated one (covered further on the Multiple Specifications page).</li>
+  <li><strong>Specs built per-test instead of per-class</strong> — usually unnecessary overhead; building once and reusing across every test in a class is almost always the right scope.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a test using a shared spec fails with an unexpected header or URL, use <code>.log().all()</code> (Chapter 8) — the fully resolved request shows exactly what the spec actually contributed, which is useful for confirming a spec was built or applied correctly.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Build a shared spec once, typically in a base test class's <code>@BeforeAll</code>, not per individual test.</li>
+  <li>Read environment-specific values (base URI, credentials) from environment variables within the spec, not hardcoded.</li>
+  <li>Override specific values per test when needed, rather than duplicating an entire spec for a one-off difference.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Build a shared <code>RequestSpecification</code> with a base URI (from an environment variable), a Content-Type, and an Authorization header from a token manager. Use it across three different test methods, then write a fourth test that overrides the Authorization header to use a different role's token.</p>
+
+<h2 id="summary">Summary</h2>
+<p><code>RequestSpecification</code>, built via <code>RequestSpecBuilder</code>, bundles reusable request setup — base URI, headers, content type, authentication — into one object applied via <code>.spec()</code>. Building it once (typically in a shared base class) and referencing it everywhere eliminates the setup duplication that plagues a suite where every test repeats the same handful of configuration lines.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>If a shared RequestSpecification includes an Authorization header, and one specific test needs to run as a different user role, do you need a separate spec for that test?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">No — a value set directly in a test's own <code>given()</code> chain, after <code>.spec(...)</code>, overrides the same value defined in the shared spec, since it's applied later in the chain. This means one test can use the shared spec for everything else (base URI, content type, common headers) while overriding just the Authorization header for its specific role, without needing to duplicate an entire near-identical spec just for that one difference.</div>
+</details>
+<details class="faq-item">
+<summary>Why does a value set after .spec(requestSpec) in the same chain override the spec's own value?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It's applied later in the chain than the spec — RestAssured resolves the request in order, so anything set afterward takes precedence, letting one test deviate from a shared default without needing an entirely separate spec.</div>
+</details>
+<details class="faq-item">
+<summary>What's the risk of building an authenticated spec once at class load time with a token that later expires?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Every subsequent test using that spec starts failing with 401s once the token expires — specs refreshed appropriately (via a proper token manager) avoid this.</div>
+</details>
+<details class="faq-item">
+<summary>Why can't the login request itself use the authenticated RequestSpecification?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The authenticated spec includes an Authorization header built from a token — but login is exactly what produces that token; there's no token yet, so login needs a separate, minimal unauthenticated spec.</div>
+</details>
+<details class="faq-item">
+<summary>Where is the natural home for building a shared RequestSpecification in a real project?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A shared base test class's @BeforeAll — built once, alongside base URI configuration, so every subclassing test inherits consistent setup automatically.</div>
+</details>
+</div>
+</article>
+</body></html>

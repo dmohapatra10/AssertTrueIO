@@ -1,0 +1,129 @@
+<!doctype html>
+<html><head>
+<title>Ramping &amp; Stages in k6: Modeling Gradual Load Changes</title>
+<meta name="description" content="How to model gradually increasing or decreasing load in k6 using the stages option — ramp-up, sustained peak, and ramp-down — instead of an unrealistic flat load pattern." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/ramping-and-stages.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Ramping &amp; Stages</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="virtual-users-and-iterations.html">Virtual Users & Iterations</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Real traffic almost never jumps instantly from zero to peak and stays perfectly flat — it ramps up gradually as more people arrive, holds around a peak, then tapers off. <code>stages</code> is k6's mechanism for modeling exactly that shape, instead of an artificial flat load that appears and disappears instantly.</p>
+
+<h2 id="why-a-flat-load-is-often-unrealistic">Why a Flat Load Is Often Unrealistic</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// A flat load — 100 VUs instantly, for 5 minutes, then instantly gone
+export const options = { vus: 100, duration: '5m' };</code></pre>
+<p>This configuration hits the system with 100 concurrent users in the very first instant of the test — real traffic essentially never behaves this way. A sudden, instantaneous jump like this can also produce misleading results, since some systems handle a gradual increase in load fine but struggle specifically with an abrupt, simultaneous arrival (the same principle behind spike testing from Chapter 1, but here appearing as an accidental artifact of test configuration rather than a deliberate choice).</p>
+
+<h2 id="stages-modeling-a-realistic-ramp">stages — Modeling a Realistic Ramp</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export const options = {
+  stages: [
+    { duration: '2m', target: 100 },  // ramp up to 100 VUs over 2 minutes
+    { duration: '5m', target: 100 },  // hold steady at 100 VUs for 5 minutes
+    { duration: '2m', target: 0 },    // ramp down to 0 over 2 minutes
+  ],
+};</code></pre>
+<p>Each stage specifies a duration and a target VU count to reach by the end of that duration — k6 smoothly interpolates the VU count between stages, rather than jumping instantly. This three-stage shape (ramp up, hold, ramp down) is extremely common because it mirrors how real traffic actually behaves around a peak period.</p>
+
+<h2 id="detailed-example-a-more-realistic-multi-peak-traffic-pattern">Detailed Example — A More Realistic, Multi-Peak Traffic Pattern</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export const options = {
+  stages: [
+    { duration: '3m', target: 50 },   // morning ramp-up
+    { duration: '10m', target: 50 },  // morning steady traffic
+    { duration: '2m', target: 200 },  // lunchtime spike
+    { duration: '15m', target: 200 }, // lunchtime peak sustained
+    { duration: '3m', target: 50 },   // afternoon settling back down
+    { duration: '10m', target: 50 },  // afternoon steady traffic
+    { duration: '5m', target: 0 },    // end-of-day ramp-down
+  ],
+};</code></pre>
+<p>Stages can model genuinely complex, multi-peak traffic shapes — not just a single ramp-up-hold-ramp-down cycle. This is exactly the kind of configuration that comes from actually modeling real, observed traffic data (from Chapter 1's baseline concept) rather than an arbitrary guess at what load "sounds about right."</p>
+
+<h2 id="real-world-example-why-ramp-down-matters-not-just-ramp-up">Real-World Example — Why Ramp-Down Matters, Not Just Ramp-Up</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ No ramp-down — VUs stop abruptly at the end
+export const options = {
+  stages: [
+    { duration: '2m', target: 100 },
+    { duration: '5m', target: 100 },
+    // test just... stops
+  ],
+};
+
+// ✅ A deliberate ramp-down, allowing in-flight iterations to complete naturally
+export const options = {
+  stages: [
+    { duration: '2m', target: 100 },
+    { duration: '5m', target: 100 },
+    { duration: '2m', target: 0 },
+  ],
+};</code></pre>
+<p>An abrupt stop can leave iterations mid-flight, potentially producing artificially inflated error counts right at the end of a test run purely as an artifact of the test stopping, not a genuine system problem. A deliberate ramp-down avoids conflating "the test ended" with "something actually went wrong."</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ A flat, instantly-appearing load that doesn't represent real traffic
+export const options = { vus: 200, duration: '10m' };
+
+// ✅ A gradual ramp modeling how real users actually arrive
+export const options = {
+  stages: [
+    { duration: '3m', target: 200 },
+    { duration: '7m', target: 200 },
+    { duration: '2m', target: 0 },
+  ],
+};</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Defaulting to a flat <code>vus</code>+<code>duration</code> configuration</strong> when the real traffic pattern being modeled genuinely ramps up and down.</li>
+  <li><strong>Omitting a ramp-down stage</strong> — an abrupt stop can produce misleading error counts as an artifact of the test ending, not a real system issue.</li>
+  <li><strong>Making ramp durations too short relative to the peak duration</strong> — a 10-second ramp into a 5-minute peak barely differs from an instant jump; the ramp itself needs to be a meaningful portion of the test to actually model gradual arrival.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>A target of 0 mid-test, not just at the end</strong> — stages can model traffic dropping to zero and then rising again, useful for modeling a genuine lull between two separate traffic peaks in the same test.</li>
+  <li><strong>Very many short stages</strong> — while technically valid, an excessive number of tiny stages can make a configuration hard to read and reason about; a smoother ramp is often better modeled with fewer, longer stages unless the real traffic pattern genuinely has many distinct segments.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If error rates spike specifically at the very end of a test, check whether the configuration includes a ramp-down stage — an abrupt stop with in-flight iterations is a common, easily-fixed cause of end-of-test error artifacts that aren't actually a system problem.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Model stages after real, observed traffic patterns where possible, not arbitrary guesses.</li>
+  <li>Always include a deliberate ramp-down stage, not just a ramp-up.</li>
+  <li>Make ramp durations meaningful relative to the peak duration, not so short they're effectively an instant jump.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Design a <code>stages</code> configuration modeling a retail site's traffic through a single day: low overnight traffic, a morning ramp-up, a sustained daytime peak, and an evening ramp-down — assigning reasonable VU targets and durations to each stage.</p>
+
+<h2 id="summary">Summary</h2>
+<p><code>stages</code> models gradual, realistic changes in load over time — ramping up, holding at a peak, and ramping down — rather than an artificial flat load that appears and disappears instantly. A deliberate ramp-down is just as important as a ramp-up, since an abrupt stop can produce misleading error artifacts unrelated to genuine system behavior.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why might a flat vus+duration configuration produce misleading test results compared to a staged ramp?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A flat configuration hits the system with the full VU count in the very first instant, which some systems handle differently than a gradual arrival — auto-scaling, connection pools, or caches may need time to adjust, and a sudden simultaneous arrival can trigger problems that wouldn't occur if the same load arrived gradually, as real traffic typically does. This can make a test's findings reflect an artifact of the configuration rather than genuine system behavior under realistic conditions.</div>
+</details>
+<details class="faq-item">
+<summary>Why is a deliberate ramp-down stage important, not just a ramp-up?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Without a ramp-down, virtual users stop abruptly at the end of the test, which can leave iterations mid-flight and produce artificially inflated error counts purely as an artifact of the test ending — not because anything actually went wrong with the system. A gradual ramp-down lets in-flight work complete naturally, keeping end-of-test metrics genuinely representative rather than skewed by the test's own stopping mechanism.</div>
+</details>
+<details class="faq-item">
+<summary>How does k6 handle the VU count between two defined stages?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">k6 smoothly interpolates the virtual user count between a stage's starting point and its target, reaching that target gradually over the stage's specified duration — rather than jumping instantly to the new value. This is exactly what produces the realistic ramping behavior stages are designed for, as opposed to a series of abrupt, stepped jumps.</div>
+</details>
+<details class="faq-item">
+<summary>Why would making a ramp-up stage's duration too short relative to the peak stage undermine its purpose?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">If the ramp-up duration is very short compared to the overall test, it barely differs in practice from an instantaneous jump to peak load — the whole point of a ramp is to model gradual arrival over a meaningful period, and a ramp that's too brief doesn't actually achieve that, even though it's technically configured as a "ramp" rather than a flat load.</div>
+</details>
+<details class="faq-item">
+<summary>Can stages model a traffic pattern with more than one peak, like a morning rush and a separate lunchtime spike?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Yes — stages can include any number of segments, each with its own duration and target, allowing a single test configuration to model genuinely complex, multi-peak traffic patterns rather than being limited to one simple ramp-up-hold-ramp-down cycle. This is exactly the kind of configuration derived from real, observed traffic data rather than a simplified guess at overall load.</div>
+</details>
+</div>
+</article>
+</body></html>

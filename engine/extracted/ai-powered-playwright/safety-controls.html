@@ -1,0 +1,145 @@
+<!doctype html>
+<html><head>
+<title>Safety Controls</title>
+<meta name="description" content="Real, working safeguards against an exploring agent doing something destructive — a real order, a real deletion — closing this chapter with genuine, non-optional protection." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/safety-controls.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Safety Controls</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="bug-discovery.html">Bug Discovery</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Why open-ended exploration carries a real, distinct risk beyond cost — genuine consequence</li>
+  <li>Building an explicit allowlist and blocklist for exploratory actions</li>
+  <li>Chapter 13's closing interview questions</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>Every earlier page in this chapter built genuine capability — strategy, observation, limits, prioritization, hypothesis testing. This final page addresses something distinct from all of them: an agent freely generating its own hypotheses could, in principle, generate one that does something genuinely destructive.</p>
+
+<h2 id="why-it-matters-a-concrete-real-risk">Why It Matters — A Concrete, Real Risk</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>An EXPLORING agent, testing "what happens if I click SUBMIT
+ORDER with an EXPIRED session," could — WITHOUT explicit
+safety controls — ACTUALLY place a REAL order against a REAL
+payment method, if the exploration environment ISN'T properly
+ISOLATED, or if a GUARDRAIL doesn't explicitly PREVENT this
+SPECIFIC class of action.</code></pre>
+
+<h2 id="step-by-step-implementation-an-explicit-action-allowlist">Step-by-Step Implementation — An Explicit Action Allowlist</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/exploration-safety-controls.ts
+
+const NEVER_ALLOWED_ACTIONS = [
+  'submit payment', 'place order', 'delete account',
+  'send email', 'delete', 'purchase', 'confirm payment',
+];
+
+export function isActionSafe(actionDescription: string): {
+  safe: boolean; reason?: string
+} {
+  const lower = actionDescription.toLowerCase();
+  for (const forbidden of NEVER_ALLOWED_ACTIONS) {
+    if (lower.includes(forbidden)) {
+      return { safe: false, reason: `Action matches forbidden pattern: "${forbidden}"` };
+    }
+  }
+  return { safe: true };
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p>This is deliberately conservative and pattern-based — it will occasionally flag a genuinely safe action as forbidden, and that's an acceptable, correct tradeoff. Missing a genuinely dangerous action would be a real, serious failure; over-blocking a safe one just means a human reviews an unnecessarily-flagged step, a genuinely low real cost by comparison.</p>
+
+<h2 id="step-by-step-implementation-requiring-an-isolated-environment">Step-by-Step Implementation — Requiring an Isolated Environment</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export function verifyExplorationEnvironment(baseUrl: string): {
+  safe: boolean; reason?: string
+} {
+  const PRODUCTION_INDICATORS = ['shopsmart.com', 'shopsmart.io'];
+  const isProduction = PRODUCTION_INDICATORS.some((domain) =&gt;
+    baseUrl.includes(domain) &amp;&amp; !baseUrl.includes('staging') &amp;&amp; !baseUrl.includes('test')
+  );
+
+  if (isProduction) {
+    return { safe: false, reason: 'Exploration target appears to be a production environment' };
+  }
+  return { safe: true };
+}</code></pre>
+
+<h2 id="why-it-matters-two-genuinely-independent-layers">Why It Matters — Two Genuinely Independent Layers</h2>
+<p>Notice these are two separate checks, not one combined safeguard. <code>isActionSafe</code> prevents specific, dangerous action types regardless of environment. <code>verifyExplorationEnvironment</code> prevents exploration from running against a real, live environment at all, regardless of which specific actions get attempted. Either check alone leaves a real gap; together, they cover genuinely different failure modes.</p>
+
+<h2 id="example-both-checks-in-the-exploration-loop">Example — Both Checks in the Exploration Loop</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const envCheck = verifyExplorationEnvironment(baseUrl);
+if (!envCheck.safe) {
+  throw new Error(`Refusing to explore: ${envCheck.reason}`);
+}
+
+// Inside the loop, BEFORE executing EACH chosen action:
+const actionCheck = isActionSafe(nextChoice.action + ' ' + nextChoice.target);
+if (!actionCheck.safe) {
+  console.log(`Skipping unsafe action: ${actionCheck.reason}`);
+  continue; // choose a DIFFERENT action instead
+}</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Relying on environment isolation alone, without an action-level check.</strong> Even in a staging environment, some actions (like sending a real email through a real, connected email service) can have genuine, real consequences.</li>
+  <li><strong>Making the forbidden-actions list too narrow, trying to avoid false positives.</strong> This page's own reasoning is explicit: over-blocking is a low, acceptable cost; missing a genuinely dangerous action is not.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Always run exploration against an isolated, non-production environment — verify this explicitly in code, never just by convention or assumption.</li>
+  <li>Keep the forbidden-actions list deliberately broad and conservative — a false positive costs far less than a genuine, unintended consequence.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Write a forbidden-actions list appropriate for your own application, considering what genuinely irreversible or consequential actions exist. Run this page's <code>isActionSafe</code> function against several real and hypothetical exploration actions to confirm it correctly flags the dangerous ones.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Open-ended exploration carries a genuine, distinct risk beyond cost — an agent could generate a hypothesis involving a real, consequential action.</li>
+  <li>Environment isolation and action-level blocking are two independent, both-necessary safety layers, each covering a different real failure mode.</li>
+  <li>A conservative, broad forbidden-actions list is the correct tradeoff — occasional false positives cost far less than a genuine, unintended real-world consequence.</li>
+</ul>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Beginner: What is the genuine, real difference between Chapter 5's approach and this chapter's exploratory testing?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Chapter 5's instruction had a known, finite sequence of steps decided in advance — the observation loop existed to handle dependent steps within that otherwise-predetermined path. This chapter's objective has no predetermined sequence at all — the agent must generate its own next action every time, based on what it discovers, with genuine open-endedness about where exploration leads.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Beginner: Why does this chapter's exploration strategy need to track "already explored" areas explicitly?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Without this memory, an agent has no way to recognize when it's repeating itself — it could click the same button or try minor variations of the same action indefinitely, never genuinely progressing. Tracking what's already been tried is what lets each new choice be genuinely informed, spreading exploration across a feature rather than circling the same narrow area.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Intermediate: Explain why exploration limits (max steps, depth, and time) weren't needed in Chapter 5 but are essential here.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Chapter 5's sequence had a natural end — the loop finished once its five known steps were complete. This chapter's objective, "explore checkout and find unexpected behavior," has no such natural end; it could, in principle, continue indefinitely, generating new hypotheses forever. Explicit limits are what make open-ended exploration bounded and practical, replacing the natural termination a fixed sequence provided for free.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Intermediate: Why does generateHypothesis require an explicit expectedIfHealthy field, rather than just generating a test action and observing what happens?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Without a stated expectation for the healthy case, there's no clear, principled way to determine whether an observed outcome is actually a problem or simply what normal, correct behavior looks like. Stating the healthy expectation upfront — like "the second discount application should be rejected" — gives the evaluation something concrete to compare the actual outcome against, turning "does this reveal an issue" into a genuine, checkable judgment rather than an unanchored guess.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Advanced: Why does this chapter use two separate safety checks — environment verification and action-level blocking — rather than relying on either one alone?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>They protect against genuinely different failure modes. Environment verification prevents exploration from running against production at all, regardless of which specific actions get attempted — but even in a properly isolated staging environment, some actions can still have real, unwanted consequences, like triggering a genuine email through a connected but non-isolated service. Action-level blocking catches specific, dangerous action types regardless of environment, but wouldn't help at all if exploration were accidentally pointed at a live, production system in the first place. Each check alone leaves a real, distinct gap the other doesn't cover — together they address two independent points of failure.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Scenario-based: A teammate wants to narrow the forbidden-actions list because it's occasionally blocking legitimate exploration steps, like a hypothesis involving a "delete saved address" button. How would you respond?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd point to this chapter's own reasoning about the asymmetric cost of these two error types. A false positive here means a human reviews why "delete" was flagged and, if it's genuinely a safe, synthetic saved address in an isolated test environment, allows that specific case through deliberately — a small, one-time cost. Narrowing the list to avoid this friction risks the much more serious failure mode: a future hypothesis involving an actually dangerous "delete" action — a real account, a real order — slipping through unblocked. Rather than narrowing the general list, I'd suggest handling the specific "delete saved address" case through an explicit, reviewed exception for that one action, keeping the broad, conservative default intact for everything else.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

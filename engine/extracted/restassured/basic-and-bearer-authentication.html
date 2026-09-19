@@ -1,0 +1,141 @@
+<!doctype html>
+<html><head>
+<title>RestAssured Basic &amp; Bearer Authentication</title>
+<meta name="description" content="How to test APIs secured with Basic Authentication and Bearer tokens in RestAssured, including the built-in .auth().basic() helper and manual header approaches." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/basic-and-bearer-authentication.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Basic &amp; Bearer Authentication</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="authentication-authorization.html">Authentication & Authorization overview</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>These are the two simplest authentication mechanisms you'll encounter — Basic Auth sends a username/password pair on every request; Bearer tokens send a single opaque credential obtained once, typically via a login step, and reused across subsequent requests.</p>
+
+<h2 id="basic-authentication">Basic Authentication</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>given()
+    .auth()
+    .basic("username", "password")
+.when()
+    .get("/profile")
+.then()
+    .statusCode(200);</code></pre>
+<p>Under the hood, this base64-encodes <code>"username:password"</code> and sends it in an <code>Authorization: Basic ...</code> header — RestAssured's <code>.auth().basic()</code> helper handles that encoding for you, so you never need to do it manually. Basic Auth is less common in modern public APIs (it sends credentials on literally every request, which is less flexible than token-based approaches), but you'll still encounter it in internal tools, legacy systems, and some infrastructure APIs.</p>
+
+<h2 id="bearer-token-authentication">Bearer Token Authentication</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>given()
+    .header("Authorization", "Bearer " + token)
+.when()
+    .get("/profile")
+.then()
+    .statusCode(200);</code></pre>
+<p>This is by far the most common authentication style for modern REST APIs. Unlike Basic Auth, there's no dedicated <code>.auth().bearer()</code> shorthand in older RestAssured versions (newer versions do provide one) — most real codebases set it as a plain header, which also makes the pattern trivially reusable across any future token type (JWT, OAuth access token) since they're all just "a Bearer token" from the request's perspective.</p>
+
+<h2 id="basic-example-obtaining-a-bearer-token-first">Basic Example — Obtaining a Bearer Token First</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void bearerTokenObtainedViaLoginThenReused() {
+    String token =
+        given()
+            .contentType(ContentType.JSON)
+            .body(Map.of("email", "user@example.com", "password", "secret"))
+        .when()
+            .post("/login")
+        .then()
+            .statusCode(200)
+        .extract()
+            .path("token");
+
+    given()
+        .header("Authorization", "Bearer " + token)
+    .when()
+        .get("/profile")
+    .then()
+        .statusCode(200);
+}</code></pre>
+<p>This is the fundamental shape of Bearer token testing: a login request extracts the token (the validate-then-extract pattern from Chapter 4), and every subsequent request attaches it as a header. Doing this in every single test is wasteful, though — the Authentication Reuse page later in this chapter shows how to avoid repeating the login step per test.</p>
+
+<h2 id="detailed-example-testing-an-invalid-basic-auth-credential">Detailed Example — Testing an Invalid Basic Auth Credential</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void wrongPasswordReturns401() {
+    given()
+        .auth()
+        .basic("username", "definitely-wrong-password")
+    .when()
+        .get("/profile")
+    .then()
+        .statusCode(401);
+}</code></pre>
+<p>Testing the failure path is just as important here as for any other authentication mechanism — confirming the API correctly rejects bad credentials, rather than only ever testing the successful login case.</p>
+
+<h2 id="real-world-example-testing-a-missing-authorization-header-entirely">Real-World Example — Testing a Missing Authorization Header Entirely</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void noAuthorizationHeaderReturns401() {
+    given()
+    .when()
+        .get("/profile") // no Authorization header at all
+    .then()
+        .statusCode(401);
+}</code></pre>
+<p>This is a distinct scenario from an invalid token — a completely missing header — and both are worth testing separately, since some APIs handle them with subtly different code paths (and occasionally, subtly different bugs).</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Hardcoding real (or even test) credentials directly in test code
+given().auth().basic("admin", "SuperSecret123!").when().get("/profile");
+
+// ✅ Reading credentials from environment variables
+given().auth().basic(System.getenv("TEST_USERNAME"), System.getenv("TEST_PASSWORD"))
+    .when().get("/profile");</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Hardcoding credentials directly in test source code</strong>, even for a test-only account — read them from environment variables or a secrets manager instead, consistent with the environment strategy from Chapter 10.</li>
+  <li><strong>Only testing successful authentication</strong>, never a wrong password, a missing header, or an expired/invalid token.</li>
+  <li><strong>Manually base64-encoding credentials</strong> instead of using RestAssured's <code>.auth().basic()</code> helper — unnecessary and more error-prone.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Basic Auth with special characters in the password</strong> — RestAssured's helper handles encoding correctly; a manually-constructed header risks getting this wrong.</li>
+  <li><strong>A Bearer token that's technically well-formed but for the wrong environment</strong> (a QA token used against staging) — worth testing that the API correctly rejects tokens issued elsewhere, if that's a real security boundary your API is supposed to enforce.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If an authenticated request unexpectedly returns 401, log the request headers with <code>.log().headers()</code> to confirm the Authorization header is actually present and correctly formatted (the right scheme — <code>Basic</code> vs. <code>Bearer</code> — with no accidental leading/trailing whitespace in the token).</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Never hardcode credentials — always read them from environment variables or a secrets manager.</li>
+  <li>Test both the missing-header and invalid-credential failure paths, not just successful authentication.</li>
+  <li>Use RestAssured's built-in <code>.auth()</code> helpers where they exist rather than manually constructing headers.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Write three tests against a Bearer-token-protected endpoint: one with a valid token (200), one with no Authorization header at all (401), and one with a syntactically plausible but invalid token (401) — confirming the API handles all three distinctly and correctly.</p>
+
+<h2 id="summary">Summary</h2>
+<p>Basic Auth sends a username/password pair on every request via RestAssured's <code>.auth().basic()</code> helper; Bearer tokens are obtained once (typically via login) and attached as a plain <code>Authorization</code> header on every subsequent request. Both need their failure paths tested explicitly, not just the successful case, and credentials should never be hardcoded in test source.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why is Bearer token authentication generally preferred over Basic Auth for modern APIs?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Basic Auth sends the actual username and password on every single request, which means the raw credential is repeatedly exposed and there's no way to limit its scope or revoke it independently without changing the password itself. A Bearer token is obtained once through a separate authentication step and can be scoped, time-limited, and revoked independently of the user's actual password — meaning a compromised token doesn't compromise the underlying credential, and access can be granted or revoked without the user needing to change anything.</div>
+</details>
+<details class="faq-item">
+<summary>Why is Bearer token authentication generally preferred over Basic Auth?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Basic Auth sends the raw username and password on every request with no way to scope or revoke access independently; a Bearer token can be scoped, time-limited, and revoked without changing the underlying password.</div>
+</details>
+<details class="faq-item">
+<summary>What does RestAssured's .auth().basic() helper actually do under the hood?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Base64-encodes 'username:password' and sends it in an Authorization: Basic header — the helper exists specifically so you never need to do that encoding manually.</div>
+</details>
+<details class="faq-item">
+<summary>Why test a missing Authorization header as a separate scenario from an invalid token?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">They can be genuinely different code paths on the server — a completely absent header and a present-but-garbage token might be handled by different logic, each independently capable of containing a bug.</div>
+</details>
+<details class="faq-item">
+<summary>Is there a dedicated .auth().bearer() shorthand in RestAssured?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Newer versions provide one, but most real codebases historically set it as a plain header — which also makes the pattern trivially reusable across any future token type, since they're all just 'a Bearer token' from the request's perspective.</div>
+</details>
+</div>
+</article>
+</body></html>

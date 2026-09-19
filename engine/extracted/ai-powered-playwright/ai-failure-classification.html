@@ -1,0 +1,123 @@
+<!doctype html>
+<html><head>
+<title>AI Failure Classification</title>
+<meta name="description" content="Real, working classification into seven genuinely distinct failure categories, each pointing to a different next step — not a vague pass or fail." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/ai-failure-classification.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>AI Failure Classification</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="sending-failure-information-to-ai.html">Sending Failure Information to AI</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Classifying a failure into seven genuinely distinct, actionable categories</li>
+  <li>Why each category implies a different real next step</li>
+  <li>Running real classification against a real ShopSmart failure</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>The previous page's selected evidence is genuinely useful for a human — this page turns it into something a whole team, or a CI pipeline, can act on automatically: a specific, structured classification.</p>
+
+<h2 id="how-it-works-seven-genuinely-distinct-categories">How It Works — Seven Genuinely Distinct Categories</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Application Defect  — ShopSmart itself is genuinely broken
+Test Defect         — the TEST'S logic is wrong, not the app
+Locator Failure      — a SELECTOR no longer matches (Chapter 6)
+Timeout               — something took LONGER than expected
+Network Failure         — a REAL request genuinely failed
+Environment Failure      — the TEST environment itself has an
+                            issue, unrelated to the APPLICATION
+Flaky Test                 — inconsistent, NON-deterministic
+                              behavior (Chapter 12 covers this
+                              category in real depth)</code></pre>
+
+<h2 id="step-by-step-implementation">Step-by-Step Implementation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/classify-failure.ts
+import { askClaude } from './ai-client';
+import { AnalysisPayload } from './select-evidence-for-analysis';
+
+export type FailureCategory =
+  | 'Application Defect' | 'Test Defect' | 'Locator Failure'
+  | 'Timeout' | 'Network Failure' | 'Environment Failure' | 'Flaky Test';
+
+export interface Classification {
+  category: FailureCategory;
+  reasoning: string;
+}
+
+const VALID_CATEGORIES: FailureCategory[] = [
+  'Application Defect', 'Test Defect', 'Locator Failure',
+  'Timeout', 'Network Failure', 'Environment Failure', 'Flaky Test',
+];
+
+export async function classifyFailure(
+  payload: AnalysisPayload
+): Promise&lt;Classification&gt; {
+  const prompt = `A Playwright test failed:
+Error: ${payload.errorMessage}
+Stack: ${payload.relevantStackFrames}
+Console errors: ${JSON.stringify(payload.recentConsoleErrors)}
+Network failures: ${JSON.stringify(payload.recentNetworkFailures)}
+
+Classify into EXACTLY one category: Application Defect, Test
+Defect, Locator Failure, Timeout, Network Failure, Environment
+Failure, or Flaky Test. Explain your reasoning in one sentence.
+
+Respond with ONLY valid JSON:
+{"category": string, "reasoning": string}`;
+
+  const raw = await askClaude(prompt);
+  const parsed = JSON.parse(raw);
+  if (!VALID_CATEGORIES.includes(parsed.category)) {
+    throw new Error(`Invalid category returned: ${parsed.category}`);
+  }
+  return parsed;
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p><code>VALID_CATEGORIES</code> is checked explicitly before trusting the result — the same discipline this tutorial has applied to every constrained AI output since Chapter 5's <code>actionType</code> validation. A model occasionally drifting toward a plausible-sounding but non-standard category ("UI Bug" instead of "Application Defect") would otherwise silently break anything downstream expecting one of the seven real values.</p>
+
+<h2 id="example-classifying-shopsmart-s-order-confirmation-failure">Example — Classifying ShopSmart's Order Confirmation Failure</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const classification = await classifyFailure(payload);
+
+// A REAL, useful classification:
+// {
+//   category: "Locator Failure",
+//   reasoning: "The error shows the heading locator found no
+//     matching element, with no related console or network
+//     errors — consistent with a changed page structure rather
+//     than an application or environment problem."
+// }</code></pre>
+
+<h2 id="why-it-matters-each-category-implies-a-different-next-step">Why It Matters — Each Category Implies a Different Next Step</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Application Defect  → file a REAL bug report, notify DEV team
+Test Defect          → fix the TEST'S own logic
+Locator Failure        → run Chapter 6's HEALING pipeline
+Timeout                 → investigate PERFORMANCE, not correctness
+Network Failure           → check REAL, external service health
+Environment Failure         → check CI infrastructure, not code
+Flaky Test                    → route to Chapter 12's FLAKY-test
+                                 detection, NOT a one-off retry</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Treating classification as the end goal rather than a routing decision.</strong> The real value is in what happens next, based on the category — this page's table above is the actual point.</li>
+  <li><strong>Skipping the <code>VALID_CATEGORIES</code> check because "the prompt already lists them."</strong> A prompt shapes behavior; it doesn't guarantee it — the same lesson this tutorial has repeated since Chapter 3.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Always validate the returned category against a known, fixed list before routing on it downstream.</li>
+  <li>Treat each category as pointing to a specific, different next action — not just a label for a dashboard.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Run this page's function against three different real failures from your own test suite — ideally one that's genuinely a locator issue, one that's a real application bug, and one that's flaky. Confirm the classifications and reasoning match your own independent assessment.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Seven genuinely distinct categories, each implying a different real next step, is what makes classification actionable rather than just descriptive.</li>
+  <li>Validating the returned category against a known list is non-negotiable — the same discipline this tutorial has applied to every constrained AI output.</li>
+  <li>Classification is a routing decision — the next page goes deeper, into why a failure happened within its category.</li>
+</ul>
+</article>
+</body></html>

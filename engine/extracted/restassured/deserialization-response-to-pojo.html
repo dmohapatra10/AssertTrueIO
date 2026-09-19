@@ -1,0 +1,148 @@
+<!doctype html>
+<html><head>
+<title>RestAssured Deserialization: Converting Responses to POJOs</title>
+<meta name="description" content="How to deserialize a RestAssured JSON response directly into a Java POJO with .as(), and why this makes assertions and downstream logic cleaner than raw JsonPath reads." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/deserialization-response-to-pojo.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Deserialization: Response to POJO</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="serialization-with-jackson-gson.html">Serialization with Jackson & Gson</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>User user =
+    given()
+    .when()
+        .get("/users/2")
+    .then()
+        .statusCode(200)
+    .extract()
+        .as(User.class);
+
+System.out.println(user.getName());</code></pre>
+<p><strong>Deserialization</strong> converts a JSON response body directly into a Java object — the mirror image of serialization. <code>.as(User.class)</code> tells RestAssured "parse this response body as JSON, and map it into a <code>User</code> instance," using the same Jackson/Gson machinery as serialization, just running in reverse.</p>
+
+<h2 id="why-it-s-important">Why it's important</h2>
+<p>Compare this to reading individual fields via JsonPath one at a time — <code>getString("name")</code>, <code>getString("email")</code>, <code>getInt("age")</code>. Deserializing into a POJO once, then working with a typed Java object, is both less repetitive and safer: you get compile-time checking on every subsequent field access, and your IDE's autocomplete tells you exactly what's available.</p>
+
+<h2 id="basic-example-deserializing-a-single-object">Basic Example — Deserializing a Single Object</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>public class User {
+    private int id;
+    private String name;
+    private String email;
+    // no-arg constructor + getters/setters, per the POJO Design page
+}
+
+User user = given().when().get("/users/2").then().extract().as(User.class);
+assertThat(user.getId(), equalTo(2));
+assertThat(user.getEmail(), containsString("@"));</code></pre>
+
+<h2 id="deserializing-a-list">Deserializing a List</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>List&lt;User&gt; users =
+    given()
+    .when()
+        .get("/users")
+    .then()
+    .extract()
+        .jsonPath()
+        .getList("data", User.class);
+
+assertThat(users, hasSize(greaterThan(0)));
+assertThat(users.stream().map(User::getEmail).collect(Collectors.toList()),
+    everyItem(containsString("@")));</code></pre>
+<p>Once deserialized into a typed <code>List&lt;User&gt;</code>, ordinary Java stream operations become available — filtering, mapping, collecting — which is often far more expressive than trying to squeeze equivalent logic into a single JsonPath expression, especially for anything beyond simple filtering.</p>
+
+<h2 id="real-world-example-deserializing-then-using-the-object-for-a-follow-up-request">Real-World Example — Deserializing, Then Using the Object for a Follow-Up Request</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>User createdUser =
+    given()
+        .body(new User("John", "john@example.com"))
+    .when()
+        .post("/users")
+    .then()
+        .statusCode(201)
+    .extract()
+        .as(User.class);
+
+given()
+    .pathParam("id", createdUser.getId())
+.when()
+    .get("/users/{id}")
+.then()
+    .statusCode(200)
+    .body("name", equalTo(createdUser.getName()));</code></pre>
+<p>This is a variation on the extraction pattern from Chapter 4, but extracting a full typed object instead of one raw field — useful when you need several related fields from the same response, not just one.</p>
+
+<h2 id="when-to-deserialize-vs-when-plain-jsonpath-is-enough">When to Deserialize vs. When Plain JsonPath Is Enough</h2>
+<table>
+  <thead><tr><th>Situation</th><th>Approach</th></tr></thead>
+  <tbody>
+    <tr><td>Checking one or two specific fields</td><td>Plain JsonPath extraction — simpler, no POJO needed</td></tr>
+    <tr><td>Working with several related fields together, possibly reused later</td><td>Deserialize to a POJO</td></tr>
+    <tr><td>Applying Java collection logic (filtering, mapping) across a list</td><td>Deserialize to <code>List&lt;POJO&gt;</code></td></tr>
+    <tr><td>A one-off test that will never touch this shape again</td><td>Plain JsonPath — a POJO here is unnecessary ceremony</td></tr>
+  </tbody>
+</table>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Reading five separate fields with five separate JsonPath calls
+String name = response.jsonPath().getString("name");
+String email = response.jsonPath().getString("email");
+String role = response.jsonPath().getString("role");
+// ...repeated, error-prone, no compile-time safety on field names
+
+// ✅ Deserialize once, work with a typed object
+User user = response.as(User.class);</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Deserializing before validating the response actually succeeded</strong> — deserializing an error response into a success-shaped POJO produces a mostly-empty or partially-null object with no clear signal that something went wrong.</li>
+  <li><strong>Forgetting the no-arg constructor</strong> (from the POJO Design page) — deserialization fails immediately without it.</li>
+  <li><strong>Deserializing for a one-off single-field check</strong> where plain JsonPath would have been simpler and required no class definition at all.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>A response containing fields your POJO doesn't define</strong> — by default this doesn't fail deserialization (covered fully in ObjectMapper Configuration); the extra fields are simply ignored.</li>
+  <li><strong>A response missing a field your POJO expects</strong> — that field deserializes to its type's default (null for objects, 0 for primitives wrapped as their boxed type) rather than throwing, unless you've configured stricter behavior.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a deserialized object has unexpected nulls, print the raw response body first — the field might be named differently than your POJO expects (see the Serialization page's <code>@JsonProperty</code> coverage), or genuinely absent from that particular response.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Validate a response's status code (at minimum) before deserializing it — an error response deserialized into a success POJO produces a confusing, mostly-empty object rather than a clear signal something failed.</li>
+  <li>Reach for deserialization once you need more than one or two fields, or plan to reuse the resulting object; don't add POJO ceremony for a genuine one-off single-field check.</li>
+  <li>Use typed <code>List&lt;POJO&gt;</code> deserialization when you need real Java collection operations over response data.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Write a test that creates a resource, deserializes the creation response into a POJO, then deserializes a follow-up GET response into a second instance of the same POJO, and asserts the two objects have equal field values using the POJO's fields directly (not raw JsonPath).</p>
+
+<h2 id="summary">Summary</h2>
+<p>Deserialization converts a JSON response into a typed Java object via <code>.as(SomeClass.class)</code>, the reverse of serialization. It's the right tool once you need several related fields together, want real Java collection operations over a list, or plan to reuse the resulting object — for a genuine one-off single-field check, plain JsonPath extraction remains simpler and doesn't require a POJO at all.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>What happens if a JSON response contains a field your POJO doesn't have a corresponding property for?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">By default, most JSON library configurations (including RestAssured's typical setup) simply ignore unknown fields during deserialization rather than throwing an error — the POJO ends up with only the fields it actually defines, and the extra JSON data is silently dropped. This default behavior can be changed to strict mode (failing on unknown fields) via ObjectMapper configuration, covered in the next page, which is sometimes desirable specifically to catch unexpected API contract changes.</div>
+</details>
+<details class="faq-item">
+<summary>Why deserialize a response into a POJO instead of reading several fields via separate JsonPath calls?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Once you need more than one or two related fields, a single .as(SomeClass.class) call gives you a typed object with compile-time safety on every field access, rather than repeated string-keyed reads with no such protection.</div>
+</details>
+<details class="faq-item">
+<summary>What happens by default if a response contains a field your POJO doesn't define?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It's silently ignored during deserialization rather than causing a failure — the POJO ends up with only the fields it actually declares; this default can be made strict via ObjectMapper configuration when desired.</div>
+</details>
+<details class="faq-item">
+<summary>Why validate a response's status code before deserializing it into a POJO?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Deserializing an error response into a success-shaped POJO produces a mostly-null or partially-empty object with no clear signal something went wrong — validating first avoids that confusing downstream state.</div>
+</details>
+<details class="faq-item">
+<summary>When is deserializing to List&lt;POJO&gt; more valuable than plain JsonPath extraction?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">When you need genuine Java collection operations — filtering, mapping, streaming — over the data, which is far more expressive than squeezing equivalent logic into a single JsonPath expression.</div>
+</details>
+</div>
+</article>
+</body></html>

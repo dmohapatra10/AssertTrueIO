@@ -1,0 +1,102 @@
+<!doctype html>
+<html><head>
+<title>What is CI/CD? Continuous Integration and Continuous Delivery Explained Simply</title>
+<meta name="description" content="Why manual deployments are risky, what Continuous Integration and Continuous Delivery/Deployment actually mean, and the real-world problems CI/CD solves — explained without jargon." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/what-is-cicd.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>What is CI/CD?</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="cicd-and-github-actions-fundamentals.html">CI/CD & GitHub Actions Fundamentals overview</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>CI/CD stands for Continuous Integration and Continuous Delivery (or Deployment) — a set of practices for getting code changes from a developer's machine into a real, running application safely and repeatedly, without a human manually performing every step by hand each time.</p>
+
+<h2 id="why-do-we-need-it-the-problem-before-ci-cd">Why do we need it? — The Problem Before CI/CD</h2>
+<p>Picture ShopEasy before any of this exists: a developer finishes a feature, manually runs the tests on their own laptop (if they remember to), manually builds the application, manually copies files to a server, and manually restarts the service. Every single step depends on a human doing it correctly, in the right order, every single time. Miss one step, and something breaks — often not on this deploy, but the next one, in a way nobody can quite explain.</p>
+
+<h2 id="real-world-analogy">Real-World Analogy</h2>
+<p>Think of a restaurant kitchen with no standard recipe or process — every dish depends entirely on whichever chef happens to be cooking that night remembering every ingredient and every step from memory. It might work most nights. Then one night, someone forgets the salt, or cooks the chicken for the wrong amount of time, and a customer gets a bad meal — not because anyone was careless, but because nothing was actually standardized or checked. CI/CD is the standardized recipe, followed by a machine, every single time, exactly the same way.</p>
+
+<h2 id="continuous-integration-ci">Continuous Integration (CI)</h2>
+<p><strong>Continuous Integration</strong> means automatically building and testing code every time it changes — typically on every push or pull request. The goal is catching a problem the moment it's introduced, while it's small and easy to fix, rather than discovering it days or weeks later when it's tangled up with a dozen other changes.</p>
+
+<h2 id="continuous-delivery-vs-continuous-deployment">Continuous Delivery vs. Continuous Deployment</h2>
+<p>These two terms get conflated constantly, and the distinction matters:</p>
+<ul>
+  <li><strong>Continuous Delivery</strong> — every change that passes the pipeline is automatically prepared and ready to release, but an actual human still clicks the button to deploy it.</li>
+  <li><strong>Continuous Deployment</strong> — every change that passes the pipeline is automatically released to real users, with no human approval step at all.</li>
+</ul>
+<p>The "CD" in "CI/CD" is genuinely ambiguous in casual conversation — when someone says their team "does CI/CD," it's worth asking specifically which one they mean, since the difference (a human gate vs. none) is a real, significant design decision, not a minor detail.</p>
+
+<h2 id="visual-mental-model">Visual Mental Model</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Developer → Commit → Build → Test → Deploy</code></pre>
+<p>This is the simplest possible shape of a CI/CD pipeline — every stage before "Deploy" is what makes the deploy itself trustworthy. Skip the "Test" stage, and "Deploy" just means "ship whatever we have and hope."</p>
+
+<h2 id="detailed-example-shopeasy-before-and-after">Detailed Example — ShopEasy Before and After</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>❌ Before CI/CD (manual, error-prone):
+Developer finishes feature
+  → runs tests locally (maybe, if remembered)
+  → manually builds the app
+  → manually copies files to the server
+  → manually restarts the service
+  → discovers something broke, three days later, in production
+
+✅ After CI/CD (automatic, repeatable):
+Developer pushes code
+  → pipeline automatically builds
+  → pipeline automatically runs every test
+  → pipeline automatically deploys (or prepares for deployment)
+  → a broken change is caught in minutes, not days</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>ShopEasy's team currently deploys by having one specific engineer manually SSH into the server and run a deploy script. What happens the day that engineer is on vacation and a critical bug needs to ship immediately? This is exactly the kind of single-point-of-failure risk CI/CD is designed to eliminate — the process shouldn't depend on one person's availability or memory.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Treating "we have a CI pipeline" as equivalent to "we're safe from bad deploys." A pipeline that builds and runs tests but has weak or missing tests will happily and automatically ship broken code, just very quickly and consistently. CI/CD makes your existing process faster and more repeatable — it doesn't automatically make a weak testing practice into a strong one.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>If your team is just getting started, Continuous Delivery (automated up to a human approval) is usually the more comfortable first step before Continuous Deployment (fully automatic, no human gate) — it builds trust in the pipeline gradually rather than requiring total confidence on day one.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Be precise about which "CD" you mean — Delivery (human approves) or Deployment (fully automatic) — when discussing your own pipeline with a team.</li>
+  <li>Don't treat CI/CD as a substitute for good tests — it's an amplifier of whatever testing discipline already exists, for better or worse.</li>
+  <li>Start with CI (automated build and test) before adding automated deployment — get the foundation trustworthy first.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>CI/CD replaces error-prone manual steps with an automatic, repeatable process.</li>
+  <li>Continuous Integration catches problems early, while a change is still small.</li>
+  <li>Continuous Delivery keeps a human approval gate before release; Continuous Deployment removes it entirely.</li>
+  <li>A pipeline is only as trustworthy as the tests running inside it.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Write down, step by step, exactly how your own project (or a hypothetical one) currently gets from "code changed" to "running in production." Circle every step that depends on a specific human remembering to do something correctly — those are exactly the steps CI/CD exists to replace.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>What's the actual difference between Continuous Delivery and Continuous Deployment?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Continuous Delivery means every change that passes the pipeline is automatically prepared and ready to release, but a human still has to manually trigger the actual release. Continuous Deployment goes one step further — the change is automatically released to real users with no human approval step at all. The distinction is specifically whether a human gate exists before production.</div>
+</details>
+<details class="faq-item">
+<summary>Why doesn't having a CI pipeline automatically mean a team is protected from shipping broken code?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A CI pipeline automates whatever build and test process already exists — if the tests themselves are weak, missing, or don't cover the actual failure modes that matter, the pipeline will run them quickly and consistently, but still let broken code through. CI/CD amplifies the existing testing discipline; it doesn't create testing discipline on its own.</div>
+</details>
+<details class="faq-item">
+<summary>Why is manual deployment considered risky even if it's worked fine for months?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Manual deployment depends on a specific person correctly remembering and executing every step, every time, with no automated check that nothing was skipped or done differently. It working fine for months doesn't mean it's safe — it means no one has yet made the mistake, been unavailable at a critical moment, or hit an edge case the manual process wasn't designed to handle.</div>
+</details>
+<details class="faq-item">
+<summary>Why might a team choose Continuous Delivery over Continuous Deployment, even though Deployment is "more automated"?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">More automation isn't automatically better if the team doesn't yet have enough confidence in their pipeline's tests to trust every passing change with zero human review. Continuous Delivery keeps a deliberate human checkpoint before production, which is often the right, more cautious choice while a team is still building trust in their automated testing — moving to full Continuous Deployment can come later, once that trust is genuinely earned.</div>
+</details>
+<details class="faq-item">
+<summary>In the phrase "Developer → Commit → Build → Test → Deploy," what happens if the Test stage is skipped or extremely weak?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The pipeline still runs quickly and "successfully," but the Deploy stage becomes a much riskier bet — you're now automatically shipping code that's only been confirmed to build, not confirmed to actually work correctly. This is exactly the mistake of confusing "we have a pipeline" with "we're safe" — the test stage is what makes everything after it trustworthy.</div>
+</details>
+</div>
+</article>
+</body></html>

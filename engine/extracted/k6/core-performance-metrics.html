@@ -1,0 +1,110 @@
+<!doctype html>
+<html><head>
+<title>Response Time, Throughput, Latency &amp; Concurrency Explained</title>
+<meta name="description" content="The four core performance measurements everything else builds on — response time, throughput, latency, and concurrency — and why none of them alone tells the whole story." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/core-performance-metrics.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Response Time, Throughput, Latency &amp; Concurrency</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="baseline-capacity-and-scalability-testing.html">Baseline, Capacity & Scalability Testing</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>These four measurements are the raw material every performance conversation is built from. Getting their definitions genuinely precise — not just a rough intuition — matters, because mixing them up leads to misdiagnosing exactly where a real problem lives.</p>
+
+<h2 id="response-time">Response Time</h2>
+<p>Response time is the total time from sending a request to receiving the complete response — the full round trip, from the user's (or the test's) point of view. This is usually the number people mean when they say a system "feels slow."</p>
+
+<h2 id="throughput">Throughput</h2>
+<p>Throughput is how much work the system completes over time, typically measured in requests per second (RPS). A system can have a perfectly reasonable response time per request while still having disappointing throughput overall, if it can only process a small number of those requests in parallel before queuing the rest.</p>
+
+<h2 id="concurrency">Concurrency</h2>
+<p>Concurrency is how many requests or users are being handled by the system at the same literal instant — not over a period of time (that's throughput's job), but the count active right now. High concurrency with low throughput is a warning sign: lots of requests are in flight simultaneously, but the system isn't actually completing them quickly.</p>
+
+<h2 id="latency">Latency</h2>
+<p>Latency is specifically the delay before a response begins — often used more narrowly than "response time" to mean just the network and initial-processing delay, not the full round trip including how long the server took to compute the answer.</p>
+
+<h2 id="latency-vs-processing-time-why-the-distinction-matters">Latency vs. Processing Time — Why the Distinction Matters</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Total response time = Network latency (there) + Server processing time + Network latency (back)</code></pre>
+<p>This breakdown matters for diagnosis: a slow response caused by network latency (the request took a long time to even reach the server, perhaps due to geographic distance or a congested network) needs a completely different fix than one caused by slow server-side processing (the server took a long time to actually compute the response once it arrived). Confusing the two sends you investigating the wrong layer of the system entirely — optimizing application code won't help a network latency problem, and adding a CDN won't help a slow database query.</p>
+
+<h2 id="response-time-vs-throughput-not-the-same-axis">Response Time vs. Throughput — Not the Same Axis</h2>
+<p>A system can have excellent response times while having poor throughput — each individual request is fast, but the system can only handle a few at once before queuing up, so overall capacity is limited. Or the reverse: each request is a bit slower, but the system handles enormous volume in parallel, so overall throughput is actually strong. Neither metric alone tells the whole story; real performance analysis looks at both together, not just whichever one happens to look good.</p>
+
+<h2 id="detailed-example-diagnosing-with-all-four-metrics-together">Detailed Example — Diagnosing With All Four Metrics Together</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Observation: Response time is fine (250ms average), but users report the site
+             "feels sluggish" during peak hours.
+
+Check throughput:   RPS is capped at 40, even though more requests are arriving.
+Check concurrency:  200 requests are in flight simultaneously.
+Diagnosis:          Requests are QUEUING — each one that runs is fast (250ms),
+                     but the system can't run enough of them in parallel, so users
+                     are waiting in an invisible queue before their request even starts.</code></pre>
+<p>Response time alone completely missed this problem — every request that actually got processed was genuinely fast. It's the combination of throughput and concurrency that reveals what's actually happening: a capacity/parallelism problem, not a per-request speed problem, which is a completely different fix (increasing worker threads or connection pool size, not optimizing the request handler's code).</p>
+
+<h2 id="real-world-example-separating-network-latency-from-server-processing">Real-World Example — Separating Network Latency from Server Processing</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Test from a data center near the server:  response time = 220ms
+Test from a user's location, far away:    response time = 890ms</code></pre>
+<p>If server processing time is genuinely the same in both cases (confirmed via server-side logging), the entire 670ms difference is network latency — geography, not application performance. This is exactly the kind of finding that should redirect an investigation toward a CDN or edge deployment, rather than toward optimizing server-side code that was never actually the problem.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Reporting only response time, missing a throughput/concurrency problem entirely
+"Average response time: 250ms" — looks healthy, hides a queuing bottleneck
+
+// ✅ Reporting response time alongside throughput and concurrency together
+"Response time: 250ms, but throughput capped at 40 RPS with 200 concurrent
+ requests in flight — requests are queuing, not slow individually."</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Treating response time as the only metric that matters</strong> — a queuing/capacity problem can hide completely behind a healthy-looking response time, as shown above.</li>
+  <li><strong>Confusing latency with total response time</strong> — assuming a "latency" number already includes server processing time when it may only reflect network delay.</li>
+  <li><strong>Optimizing the wrong layer</strong> — investing in application code optimization when the actual problem is network latency, or vice versa, because the two weren't separated during diagnosis.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>High concurrency with high throughput but still degrading response times</strong> — the system is actually processing a lot of work, but each individual request is getting proportionally slower as load increases; this often signals a resource nearing saturation (CPU, database connections) rather than an outright capacity ceiling.</li>
+  <li><strong>Geographically distributed users</strong> — the same server-side performance can look completely different depending on where a request originates, purely due to latency; testing from only one location can miss this entirely.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If response time looks fine but users report a slow experience, check throughput and concurrency next — a queuing problem (requests waiting for their turn, not being processed slowly once they start) is invisible to a response-time-only view but shows up immediately once you look at how many requests are actually in flight versus how many are completing per second.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Always look at response time, throughput, and concurrency together — never rely on just one.</li>
+  <li>Separate network latency from server processing time when diagnosing a slow response, since the fix for each is completely different.</li>
+  <li>Test from multiple geographic locations if your real users are geographically distributed, since latency alone can vary dramatically by location.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Given a system reporting a healthy 200ms average response time but users complaining of slowness during peak hours, list the additional metrics you'd check next, and explain what pattern in those numbers would confirm a queuing/capacity problem rather than a genuinely slow individual request.</p>
+
+<h2 id="summary">Summary</h2>
+<p>Response time, throughput, latency, and concurrency each measure something genuinely different, and a healthy-looking value in one can completely hide a real problem visible only in another — most commonly, a fine response time hiding a queuing problem only throughput and concurrency reveal. Separating network latency from server processing time is equally important, since the fix for each lives in a completely different part of the system.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why can a system have a healthy average response time while users still report the experience feels slow?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Response time only measures how long a request takes once it's actually being processed — it says nothing about how long a request might have waited in a queue before processing even started. A system with limited throughput or parallelism can queue requests during high concurrency, so users experience a real delay that never shows up in the response-time metric for requests that did eventually get processed quickly.</div>
+</details>
+<details class="faq-item">
+<summary>Why is it important to separate network latency from server processing time when diagnosing a slow response?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The two live in completely different parts of the system and need completely different fixes — network latency is about the physical/network path a request travels, addressed with things like a CDN or edge deployment; server processing time is about the application's own logic and infrastructure, addressed with code optimization or scaling. Treating a network latency problem as if it were slow application code (or vice versa) means investing effort in the wrong place entirely.</div>
+</details>
+<details class="faq-item">
+<summary>What does high concurrency combined with low throughput usually indicate?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It suggests a capacity or parallelism bottleneck — a large number of requests are active at the same moment, but the system isn't completing them quickly enough to convert that activity into meaningful throughput. This pattern often points toward exhausted worker threads, a saturated connection pool, or a resource limit being hit, rather than any individual request being inherently slow to compute.</div>
+</details>
+<details class="faq-item">
+<summary>Why might response time differ dramatically for the same request depending on where it originates geographically?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">If server-side processing time is genuinely identical in both cases, the difference is purely network latency — the physical distance and network path between the user and the server. This is why testing from only one geographic location can give a misleading picture of real-world performance for a geographically distributed user base, and why the fix for this kind of gap (a CDN, edge servers) is entirely different from any server-side optimization.</div>
+</details>
+<details class="faq-item">
+<summary>Why isn't throughput alone a sufficient measure of whether a system is performing well?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A system could technically process a high volume of requests per second while each individual request takes an unacceptably long time — high throughput doesn't guarantee good per-request experience. Throughput needs to be considered alongside response time and concurrency together; a strong number in one metric can mask a real problem visible only in another.</div>
+</details>
+</div>
+</article>
+</body></html>

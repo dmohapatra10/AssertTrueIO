@@ -1,0 +1,102 @@
+<!doctype html>
+<html><head>
+<title>What is an Artifact in GitHub Actions? Uploading Artifacts Explained</title>
+<meta name="description" content="What a GitHub Actions artifact actually is, why job output otherwise disappears, and how to upload files as artifacts using actions/upload-artifact." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/what-is-an-artifact-and-uploading-artifacts.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>What is an Artifact? &amp; Uploading Artifacts</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="artifacts-caching-and-build-outputs.html">Artifacts, Caching & Build Outputs overview</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>An artifact is a file or folder produced during a job that GitHub Actions saves and makes available after the job finishes — downloadable from the Actions tab, or retrievable by a different job in the same workflow.</p>
+
+<h2 id="why-do-we-need-it">Why do we need it?</h2>
+<p>Once a job's runner is destroyed (immediately after the job finishes), everything on it is genuinely gone — a built application, a test report, a log file, all of it. Artifacts exist specifically to save something worth keeping before that happens.</p>
+
+<h2 id="real-world-analogy">Real-World Analogy</h2>
+<p>Think of a job's runner like a hotel room you're checking out of — anything left behind when you leave is gone for good. An artifact is the specific act of packing something into your suitcase before checkout — a deliberate choice about what's actually worth keeping.</p>
+
+<h2 id="uploading-an-artifact">Uploading an Artifact</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>- uses: actions/upload-artifact@v4
+  with:
+    name: build-output
+    path: dist/</code></pre>
+<p><code>name</code> is what this artifact will be called (used later when downloading it); <code>path</code> is the file or folder to actually save — here, an entire <code>dist/</code> folder, likely a build's output.</p>
+
+<h2 id="uploading-multiple-paths">Uploading Multiple Paths</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>- uses: actions/upload-artifact@v4
+  with:
+    name: build-and-logs
+    path: |
+      dist/
+      logs/build.log</code></pre>
+<p>Multiple paths, one per line, all get bundled into the same named artifact.</p>
+
+<h2 id="detailed-example-uploading-shopeasy-s-build-output">Detailed Example — Uploading ShopEasy's Build Output</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shopeasy-build
+          path: dist/</code></pre>
+<p>Without this final step, the build's output would exist only briefly, on a runner that's about to be destroyed — completely inaccessible to anything else, including a later job that might genuinely need to deploy it.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might a team deliberately choose to upload only <code>dist/</code> (the actual build output) rather than the entire repository, including source code, node_modules, and everything else? Artifacts have real storage costs and size limits, and most of a repository's full contents (source code already in version control, installed dependencies that can be reinstalled) aren't genuinely worth preserving this way — uploading exactly what's actually needed keeps artifacts small, fast, and meaningful.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Forgetting the upload step entirely, then being confused when a later job or a person downloading from the Actions tab can't find anything from an earlier job's work. If it wasn't explicitly uploaded as an artifact, it simply doesn't exist anywhere once that job's runner is destroyed.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>Artifacts have a retention period (configurable, with a default that varies) after which GitHub automatically deletes them — worth knowing if you're relying on an artifact still being available weeks or months after a specific run, rather than assuming it persists indefinitely.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Upload exactly what's genuinely needed later — a build's actual output, not everything that happened to exist on the runner.</li>
+  <li>Use clear, descriptive artifact names, especially in a workflow that uploads more than one artifact across different jobs.</li>
+  <li>Be aware of retention periods if a workflow or process depends on an artifact remaining available for an extended time.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>An artifact is a deliberately saved file or folder from a job, since everything else on that job's runner is destroyed once it finishes.</li>
+  <li><code>actions/upload-artifact</code> takes a <code>name</code> (for later retrieval) and a <code>path</code> (what to actually save).</li>
+  <li>Artifacts have a retention period and aren't kept indefinitely by default.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>For a hypothetical Python project that produces a compiled report as <code>report.pdf</code> and a set of log files in a <code>logs/</code> folder, write the <code>actions/upload-artifact</code> step that would save both under one artifact named <code>build-report</code>.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why does a file produced during a job need to be explicitly uploaded as an artifact to survive beyond that job?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Each job runs on its own runner, which is completely destroyed once the job finishes — anything on that runner's filesystem, including files the job produced, is genuinely gone at that point unless it was deliberately saved. Uploading as an artifact is the explicit mechanism for preserving something worth keeping before that destruction happens.</div>
+</details>
+<details class="faq-item">
+<summary>What do the name and path parameters in actions/upload-artifact actually control?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">name is the label this specific artifact will be known by, used later when downloading it (either through the Actions tab or by another job). path specifies which file or folder should actually be saved — the real content being preserved. Together, they determine both what gets kept and how it's identified afterward.</div>
+</details>
+<details class="faq-item">
+<summary>Why might a team deliberately avoid uploading an entire repository's contents as an artifact, including node_modules?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Most of a repository's full contents are either already safely stored in version control (source code) or can be regenerated on demand (installed dependencies) — uploading them as an artifact adds real storage cost and time for no genuine benefit. Artifacts are most useful for things that are otherwise genuinely at risk of being lost, like a specific build's actual compiled output.</div>
+</details>
+<details class="faq-item">
+<summary>Why does it matter that artifacts have a retention period rather than being kept indefinitely?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A workflow or process that assumes an artifact will remain available far into the future (weeks or months after the run that created it) could break unexpectedly once that artifact is automatically deleted after its retention period expires. Knowing the actual retention period matters for correctly designing any process that depends on retrieving an older artifact later.</div>
+</details>
+<details class="faq-item">
+<summary>Can a single artifact contain more than one file or folder?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Yes — the path parameter accepts multiple paths, one per line, all of which get bundled together into the same named artifact. This is useful when several genuinely related outputs (a build folder and a specific log file, for instance) should be grouped and retrieved together as a single unit rather than as separate, individually-named artifacts.</div>
+</details>
+</div>
+</article>
+</body></html>

@@ -1,0 +1,94 @@
+<!doctype html>
+<html><head>
+<title>Playwright getByPlaceholder(): Complete Guide with Real-World Examples</title>
+<meta name="description" content="How Playwright&#x27;s getByPlaceholder() locator works, when to use it over getByLabel(), and why placeholder text is a weaker signal than a real label." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/get-by-placeholder.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1><code class="api-name">getByPlaceholder()</code></h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="locators.html">Locators overview</a>, <a href="get-by-label.html">getByLabel()</a></p>
+<article class="content">
+<h2 id="what-is-getbyplaceholder">What is <code>getByPlaceholder()</code>?</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>page.getByPlaceholder(text: string | RegExp, options?: { exact?: boolean })</code></pre>
+      <p><code>getByPlaceholder()</code> finds an input by its <code>placeholder</code> attribute — the greyed-out hint text shown inside an empty field.</p>
+
+      <h2 id="why-it-exists-and-why-it-s-ranked-below-getbylabel">Why it exists (and why it's ranked below getByLabel)</h2>
+      <p>Placeholder text is visible to sighted users but disappears the moment a field has a value, and it's not a reliable accessible name for all assistive technology in the way a real <code>&lt;label&gt;</code> is. Playwright still ranks it above <code>getByText()</code> because it's specific to one field, but below <code>getByLabel()</code> for exactly this reason: a placeholder is a hint, not a proper label.</p>
+
+      <h2 id="basic-example">Basic Example</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>await page.getByPlaceholder('Search products').fill('wireless mouse');</code></pre>
+
+      <h2 id="detailed-example">Detailed Example</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// A search bar that intentionally has no visible label, only placeholder text
+await page.getByPlaceholder('Search by order number').fill('ORD-10492');
+await page.keyboard.press('Enter');
+await expect(page.getByRole('heading', { name: 'Order #ORD-10492' })).toBeVisible();</code></pre>
+
+      <h2 id="real-world-example-filter-bar">Real-World Example — Filter Bar</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('user can filter the inventory table by SKU', async ({ page }) =&gt; {
+  await page.goto('/inventory');
+  await page.getByPlaceholder('Filter by SKU').fill('SKU-2291');
+  await expect(page.getByRole('row')).toHaveCount(1); // header row was excluded elsewhere
+  await expect(page.getByText('Wireless Mouse')).toBeVisible();
+});</code></pre>
+
+      <h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Reaching for CSS when the field genuinely has a real label
+await page.locator('input.search-input').fill('wireless mouse');
+
+// ✅ If there's a real label, prefer it — placeholder is the fallback
+await page.getByLabel('Search products').fill('wireless mouse');
+// only use getByPlaceholder() when no real label exists</code></pre>
+
+      <h2 id="common-mistakes">Common Mistakes</h2>
+      <ul>
+        <li><strong>Using <code>getByPlaceholder()</code> when the field also has a real label</strong> — check for a <code>&lt;label&gt;</code> first; if one exists, <code>getByLabel()</code> is the better locator even if a placeholder is also present.</li>
+        <li><strong>Asserting on placeholder text as if it were the field's current value</strong> — placeholder text and value are different things; <code>toHaveValue()</code> checks the value, not the placeholder.</li>
+        <li><strong>Relying on placeholder text alone to convey a field's purpose in the app itself</strong> — this is a UX/accessibility anti-pattern independent of testing; the test surfacing it is a useful signal.</li>
+      </ul>
+
+      <h2 id="edge-cases">Edge Cases</h2>
+      <ul>
+        <li><strong>Placeholder text that changes dynamically</strong> (e.g., "Search 1,204 products") — prefer a regex or partial match rather than hardcoding a count that will drift: <code>page.getByPlaceholder(/Search \d+ products/)</code>.</li>
+      </ul>
+
+      <h2 id="debugging">Debugging</h2>
+      <p>If the locator doesn't match, confirm the exact placeholder text via browser DevTools — placeholder text with trailing punctuation or slightly different casing than what's visually rendered (due to CSS text-transform) is a common source of mismatch, since Playwright reads the actual attribute value, not the rendered/styled text.</p>
+
+      <h2 id="best-practices">Best Practices</h2>
+      <ul>
+        <li>Check for a real label before defaulting to placeholder — only use this locator when no label exists.</li>
+        <li>Use a regex when placeholder text includes dynamic content like counts or dates.</li>
+      </ul>
+
+      <h2 id="practice-exercise">Practice Exercise</h2>
+      <p>Given a search field with placeholder "Search 342 items," write a locator that matches regardless of the current item count.</p>
+
+      <h2 id="summary">Summary</h2>
+      <p><code>getByPlaceholder()</code> targets a field's placeholder attribute — useful when no real label exists, but a weaker signal than <code>getByLabel()</code> since placeholder text vanishes once a field has a value and isn't a fully reliable accessible name.</p>
+
+      <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why does Playwright rank getByPlaceholder() below getByLabel() in its locator priority?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Placeholder text disappears once the field has a value and isn't a robust accessible name across all assistive technology, whereas a real <code>&lt;label&gt;</code> is a persistent, standard, accessibility-recognized association — placeholder is a fallback for fields that genuinely lack a proper label.</div>
+</details>
+<details class="faq-item">
+<summary>Why is getByPlaceholder() ranked below getByLabel() in locator priority?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Placeholder text disappears once a field has a value and isn't a fully reliable accessible name, while a real label persists and is standard.</div>
+</details>
+<details class="faq-item">
+<summary>When is getByPlaceholder() actually the right choice?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">When a field genuinely has no real label — only then should it be reached for, ideally alongside a note to add a proper label to the app.</div>
+</details>
+<details class="faq-item">
+<summary>How would you match a placeholder that includes a changing count, like 'Search 342 items'?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Use a regex instead of a plain string, e.g. page.getByPlaceholder(/Search \d+ items/).</div>
+</details>
+<details class="faq-item">
+<summary>Does getByPlaceholder() check the field's current value?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">No — it matches the placeholder attribute specifically, not the value; toHaveValue() is the correct assertion for a field's actual content.</div>
+</details>
+</div>
+</article>
+</body></html>

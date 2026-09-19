@@ -1,0 +1,226 @@
+<!doctype html>
+<html><head>
+<title>Build a Production-Ready CI/CD Pipeline: The ShopEasy Capstone</title>
+<meta name="description" content="Every technique from this course, assembled into one real, production-grade CI/CD pipeline for ShopEasy — PR checks, main-branch builds, test deployment, production deployment, optimization, and security." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/production-cicd-pipeline-capstone.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Build a Production-Ready CI/CD Pipeline</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="advanced-github-actions-and-production-cicd.html">Advanced GitHub Actions & Production CI/CD</a></p>
+<article class="content">
+<h2 id="what-this-capstone-builds">What This Capstone Builds</h2>
+<p>Every technique from this entire course, assembled into one coherent, genuinely production-grade pipeline — for <strong>ShopEasy</strong>, the same application used as a running example since Chapter 1. Built incrementally across six real stages, each one referencing exactly where its techniques were originally covered.</p>
+
+<h2 id="stage-1-pull-request-ci">Stage 1 — Pull Request CI</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>name: PR Checks
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: 'npm' }
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with: { name: pr-build, path: dist/ }
+
+  unit-tests:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: 'npm' }
+      - run: npm ci
+      - run: npm test
+
+  api-tests:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { java-version: '17', distribution: 'temurin' }
+      - run: mvn test
+
+  ui-tests:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: 'npm' }
+      - run: npm ci
+      - run: npx playwright install --with-deps
+      - run: npx playwright test
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: playwright-report, path: playwright-report/ }</code></pre>
+<p><code>api-tests</code> and <code>ui-tests</code> both only depend on <code>build</code> — not on each other — so they run in parallel (Chapter 9's genuine-independence lesson), each with a realistic <code>timeout-minutes</code> (Chapter 13). The <code>concurrency</code> group cancels an outdated run when a new commit lands on the same PR (Chapter 13), and the Playwright report always uploads regardless of outcome (Chapter 8's <code>if: always()</code>).</p>
+
+<h2 id="stage-2-main-branch">Stage 2 — Main Branch</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>name: Main Build
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    uses: ./.github/workflows/pr-checks.yml   # REUSING Stage 1's checks (Ch. 11)
+
+  package:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: pr-build, path: dist/ }
+      - run: tar -czf shopeasy-release.tar.gz dist/
+      - uses: actions/upload-artifact@v4
+        with: { name: release-package, path: shopeasy-release.tar.gz, retention-days: 30 }</code></pre>
+<p>Rather than duplicating Stage 1's build-and-test logic, this calls it as a reusable workflow (Chapter 11) — the exact same verification runs on merge as on the original PR, with zero duplicated YAML. <code>package</code> then creates the genuine, deployable release artifact, kept for 30 days (Chapter 8).</p>
+
+<h2 id="stage-3-test-deployment">Stage 3 — Test Deployment</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>  deploy-test:
+    needs: package
+    environment: test
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { name: release-package }
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::123456789:role/shopeasy-test-deploy
+          aws-region: us-east-1
+      - run: aws s3 cp shopeasy-release.tar.gz s3://shopeasy-test-bucket/
+
+  smoke-test:
+    needs: deploy-test
+    runs-on: ubuntu-latest
+    steps:
+      - run: curl -f https://test.shopeasy.example.com/health</code></pre>
+<p>Deployment authenticates to AWS via OIDC (Chapter 13) — no stored cloud credential exists anywhere. <code>environment: test</code> (Chapter 12) has no protection rules, so this runs automatically. A minimal smoke test confirms the deployment actually came up healthy before anything proceeds further.</p>
+
+<h2 id="stage-4-production-deployment">Stage 4 — Production Deployment</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>  deploy-production:
+    needs: smoke-test
+    environment: production   # required reviewers configured here (Ch. 12) —
+                               # this line alone makes the job PAUSE for approval
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { name: release-package }
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::123456789:role/shopeasy-prod-deploy
+          aws-region: us-east-1
+      - run: aws s3 cp shopeasy-release.tar.gz s3://shopeasy-prod-bucket/
+
+  production-smoke-test:
+    needs: deploy-production
+    runs-on: ubuntu-latest
+    steps:
+      - run: curl -f https://shopeasy.example.com/health
+
+  report:
+    needs: [deploy-production, production-smoke-test]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          if [ "${{ needs.production-smoke-test.result }}" == "success" ]; then
+            echo "✅ ShopEasy deployed and verified successfully"
+          else
+            echo "❌ Deployment or smoke test failed — investigate immediately"
+          fi</code></pre>
+<p>This is the entire deliberate asymmetry from Chapter 12: nothing in this YAML says "wait for approval" — it comes entirely from the <code>production</code> environment's own configured protection rules. <code>concurrency</code> prevents two simultaneous production deploys (Chapter 13). <code>report</code> runs regardless of outcome (Chapter 9's complete status vocabulary) and communicates the real result either way.</p>
+
+<h2 id="stage-5-optimization-applied-throughout">Stage 5 — Optimization, Applied Throughout</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Already present above, not bolted on separately:
+- Caching:            cache: 'npm' on every Node setup step        (Ch. 5)
+- Parallel execution:  api-tests / ui-tests share no dependency      (Ch. 9)
+- Reusable workflows:   Stage 2 calling Stage 1's checks               (Ch. 11)
+- Conditional execution: if: always() on reports and artifacts          (Ch. 6, 8)
+- Artifact handling:      build once, promoted through every stage       (Ch. 8, 12)
+- Failure handling:        needs.&lt;job&gt;.result checked explicitly           (Ch. 9)</code></pre>
+<p>This is deliberate: a genuinely optimized pipeline doesn't bolt optimization on as an afterthought — every technique above was already woven into Stages 1 through 4 as they were built, not added as a separate pass at the end.</p>
+
+<h2 id="stage-6-security-applied-throughout">Stage 6 — Security, Applied Throughout</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Already present above, not bolted on separately:
+- Secrets:              never a hardcoded credential anywhere            (Ch. 7)
+- Least privilege:        permissions: scoped to exactly what's needed    (Ch. 7)
+- Environment protection:  required reviewers + concurrency on production  (Ch. 12, 13)
+- OIDC:                     zero stored cloud credentials, anywhere at all  (Ch. 13)</code></pre>
+<p>Same principle as Stage 5 — security woven throughout the actual pipeline design, not a checklist applied after the fact.</p>
+
+<h2 id="the-complete-picture">The Complete Picture</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Pull Request:  build → unit/API/UI tests (parallel) → merge decision
+     ↓
+Main Branch:    reuse PR checks → package into a real release artifact
+     ↓
+Test:            OIDC-authenticated deploy → automated smoke test
+     ↓
+Production:       required approval (invisible in YAML) → OIDC deploy →
+                   smoke test → always-run report</code></pre>
+<p>This is what "capable of designing, implementing, executing, and maintaining a real-world CI/CD pipeline" actually looks like — not a single trick, but thirteen chapters' worth of individually-learned techniques, each earning its place in one coherent system.</p>
+
+<h2 id="common-mistakes-across-a-real-pipeline-like-this">Common Mistakes Across a Real Pipeline Like This</h2>
+<ul>
+  <li><strong>Rebuilding at each stage</strong> instead of promoting one artifact — exactly the mistake Chapter 12 warned about, weakening the "what's tested is what's deployed" guarantee.</li>
+  <li><strong>Treating production identically to test</strong> — no approval gate, no concurrency protection, on the environment holding real user data.</li>
+  <li><strong>Bolting security on at the end</strong> rather than designing permissions and secret handling into each job as it's written.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Extend this pipeline with a rollback job that runs if <code>production-smoke-test</code> fails, redeploying the previous known-good artifact — using <code>if:</code> checking that specific job's result (Chapter 9), and considering what environment protection rules a rollback itself should reasonably have.</p>
+
+<h2 id="summary">Summary</h2>
+<p>This capstone is the practical destination for every chapter in this course — a real pull-request gate running genuinely parallel test suites, a main-branch pipeline that reuses rather than duplicates that same verification, a build-once artifact promoted deliberately through test and production, OIDC authentication with zero stored cloud credentials, an approval gate that lives entirely in environment configuration rather than workflow YAML, and reliability safeguards (concurrency, timeouts, always-run reporting) woven through every stage. Building something like this — not just a single working workflow — is what separates knowing GitHub Actions' syntax from being able to design and maintain a genuine, production-grade CI/CD practice.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why does Stage 2 call Stage 1's workflow as a reusable workflow rather than duplicating the build-and-test steps?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Duplicating the same verification logic in two places creates exactly the drift risk covered when reusable workflows were introduced — a fix or improvement to the checks would need to be applied in two separate places, and would eventually be missed in one. Calling the same reusable workflow ensures main-branch pushes are verified by the identical logic as pull requests, with zero duplicated YAML to keep in sync.</div>
+</details>
+<details class="faq-item">
+<summary>Why does the production deployment job's YAML contain no visible mention of an approval requirement, even though deployments genuinely pause for review?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The approval gate comes entirely from the production environment's own configured protection rules — required reviewers — not from anything written in the workflow file. This is a deliberate design choice covered when environments were introduced: the same job structure behaves differently (automatic versus approval-gated) purely based on which environment's configuration applies, keeping the workflow file itself environment-agnostic.</div>
+</details>
+<details class="faq-item">
+<summary>Why does this pipeline authenticate to AWS via OIDC rather than storing AWS access keys as secrets?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">OIDC eliminates the need for any long-lived cloud credential to exist at all — the workflow requests a short-lived identity token from GitHub and exchanges it for temporary AWS credentials scoped to that specific run. This removes an entire category of risk that a stored, long-lived secret would otherwise carry indefinitely, regardless of how carefully that secret was managed.</div>
+</details>
+<details class="faq-item">
+<summary>Why does the report job use if: always() combined with an explicit check of production-smoke-test's result, rather than just relying on needs: alone?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">if: always() ensures the report job runs regardless of whether the deployment or smoke test actually succeeded, which is essential since a report specifically about failure needs to run precisely when something failed. needs: alone only establishes execution order, not a success requirement — the explicit result check is what lets the report job accurately communicate whether the pipeline's later stages genuinely succeeded or failed, rather than assuming success just because it was reached.</div>
+</details>
+<details class="faq-item">
+<summary>Why does this capstone describe security and optimization as "woven throughout" rather than as separate, final stages?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A pipeline where security and performance are only considered as a final pass, after the "real" logic is written, tends to produce awkward retrofits — permissions granted too broadly because narrowing them later is inconvenient, or optimization skipped because restructuring already-working jobs feels risky. Designing each job's permissions, secret handling, and parallelization as it's written — exactly as this capstone's Stages 1 through 4 do — produces a genuinely more secure and efficient result than bolting either concern on afterward.</div>
+</details>
+</div>
+</article>
+</body></html>

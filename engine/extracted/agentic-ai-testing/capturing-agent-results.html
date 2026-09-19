@@ -1,0 +1,214 @@
+<!doctype html>
+<html><head>
+<title>Capturing Agent Results: Making Output a Human Can Actually Use</title>
+<meta name="description" content="Turning an agent&#x27;s raw run history into a genuinely useful report — what to include, how to distinguish observed fact from inference, and why raw logs aren&#x27;t enough." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/capturing-agent-results.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Capturing Agent Results</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="agent-execution-loop-in-code.html">Agent Execution Loop in Code</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>The loop from the previous page already calls <code>self._build_report(...)</code> at every exit point — this page writes what that function actually does, and why a genuinely useful report is more than just the raw <code>history</code> list dumped as-is.</p>
+
+<h2 id="why-raw-history-isn-t-enough">Why Raw History Isn't Enough</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Raw history (what the loop already tracks):
+[
+  {"step": 0, "action": "fill_field(label='Email', value='...')",
+   "result": "Filled field labeled 'Email'"},
+  {"step": 1, "action": "fill_field(label='Password', value='...')",
+   "result": "Filled field labeled 'Password'"},
+  {"step": 2, "action": "click_element(role='button', name='Log In')",
+   "result": "Clicked element with role='button', name='Log In'"},
+  ...
+]
+
+Genuinely useful to a human? Only partially — it shows WHAT
+happened mechanically, but not clearly whether the objective
+was actually achieved, or what specifically to pay attention
+to if something looks worth a second look.</code></pre>
+
+<h2 id="a-genuinely-useful-report-built-from-the-same-history">A Genuinely Useful Report, Built From the Same History</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def _build_report(self, history, success, final_text):
+    return {
+        "objective": self.objective,
+        "success": success,
+        "summary": final_text,
+        "steps_taken": len(history),
+        "full_history": history,   # kept for anyone who wants
+                                     # to inspect the actual detail
+    }</code></pre>
+<p>Genuinely simple — the real work is in what gets fed into <code>final_text</code>, which comes directly from the LLM's own "TASK COMPLETE" summary (success case) or the specific stopping reason (failure case), both already captured by the loop from the previous page.</p>
+
+<h2 id="distinguishing-observed-fact-from-inference">Distinguishing Observed Fact From Inference</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>❌ A report that blurs fact and inference together:
+  "Login works correctly."
+
+  Worth asking: did the agent verify EVERY aspect of "works
+  correctly," or just the one specific path it happened to try?
+
+✅ A report that's explicit about what was actually checked:
+  "Verified: a user with valid credentials can log in and
+  reaches the account dashboard. NOT verified: behavior with
+  invalid credentials, or behavior if the login form is
+  submitted with empty fields — outside this task's objective."</code></pre>
+<p>This connects directly to the instructions page's ambiguity-handling rule — a genuinely trustworthy report is explicit about its own actual scope, not just its conclusion.</p>
+
+<h2 id="running-the-complete-agent">Running the Complete Agent</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># main.py — putting every piece from this chapter together
+from playwright.sync_api import sync_playwright
+from agent import QAAgent
+import os
+
+agent = QAAgent(api_key=os.environ["ANTHROPIC_API_KEY"])
+agent.set_objective(
+    "Verify that a user with valid credentials can successfully "
+    "log into ShopEasy, ending up on their account dashboard."
+)
+
+with sync_playwright() as p:
+    browser = p.chromium.launch()
+    page = browser.new_page()
+    page.goto("https://staging.shopeasy.example.com/login")
+
+    report = agent.run(page)
+
+    print(f"Success: {report['success']}")
+    print(f"Summary: {report['summary']}")
+    print(f"Steps taken: {report['steps_taken']}")
+
+    browser.close()</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might a report that only says "Login works correctly" — with no mention of what specifically was checked — actually be worse than a report that's honest about a genuine limitation in what it verified? A confident, unqualified "works correctly" can create false confidence in coverage the agent never actually had — a human reading it might reasonably assume invalid-credential handling was also checked, when it wasn't. An honest report about scope, even if it sounds less impressively complete, gives a human reviewer an accurate picture of what's genuinely been verified versus what still needs separate coverage.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Treating the raw <code>history</code> list as the report itself, without a genuine summary a human can quickly read. Full history matters and should be kept (this page's <code>_build_report</code> retains it), but a report that's ONLY raw history forces every reviewer to manually reconstruct what actually happened and whether it succeeded — exactly the summarization work the agent itself is well-positioned to do.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>Include <code>steps_taken</code> in every report, even successful ones. A task that succeeded in 4 steps versus one that barely squeaked by at 14 (against a 15-step limit) are genuinely different outcomes worth distinguishing — the second is worth a closer look even though it technically succeeded.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Build a genuine, human-readable summary from the agent's own final output, not just a raw dump of mechanical action history.</li>
+  <li>Instruct the agent (via the instructions page's guidance) to be explicit about what was and wasn't actually verified, not just its overall conclusion.</li>
+  <li>Retain full history alongside the summary — useful for anyone who wants to inspect the actual detail behind a given result.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>A genuinely useful report combines a clear, human-readable summary with the full underlying history, not one or the other alone.</li>
+  <li>Reports should be explicit about what was actually verified versus what's outside a task's scope, not just state a confident conclusion.</li>
+  <li>Metrics like steps taken are worth capturing even on success — a narrow, near-limit success is meaningfully different from a clean, efficient one.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Run the complete <code>main.py</code> example on this page (against a real or mock login page you have access to), and review the resulting report — specifically checking whether the summary text the agent produced is genuinely clear about what it verified, or whether you'd want to revise the instructions to get a more explicit, scope-honest report.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A stakeholder reads an agent's report saying "Checkout works correctly" and concludes the feature is fully tested. What questions would you ask before agreeing with that conclusion?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd specifically ask what the underlying objective actually was, and check the full history for what was genuinely exercised — a confident-sounding summary doesn't tell you the actual scope of what was checked, exactly this page's core point.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Genuinely important questions to ask:
+- What was the EXACT objective given to the agent? ("verify
+  checkout works with valid payment info" is much narrower
+  than "checkout" broadly)
+- Does the report explicitly state what was NOT covered
+  (invalid payment methods, out-of-stock items, discount
+  codes)? If not, that's a gap worth investigating directly
+- How many steps did it take, and does the full history show
+  it genuinely exercised the real flow, or did something
+  perhaps complete "successfully" in a way that doesn't
+  reflect thorough coverage?</code></pre>
+<p>"Works correctly" as a bare conclusion, without explicit scope, is exactly the kind of report this page argues against — the right response isn't to distrust the agent, but to insist on the explicit-scope reporting standard this page recommends before treating any conclusion as complete.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page's _build_report function retain full_history even though summary already provides a human-readable conclusion?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because the summary and the full history serve genuinely different purposes — the summary is for quick review, while the full history is for genuinely verifying or investigating a result when something's worth a closer look, and discarding it would make that impossible.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What the SUMMARY is good for:
+Quick, everyday review — "did this pass, and what was the
+  general conclusion" — genuinely sufficient for routine,
+  successful runs that don't need deeper scrutiny.
+
+What FULL HISTORY is good for, that summary alone can't provide:
+- Debugging a FAILED run — exactly which step went wrong, and
+  what the agent actually observed at that point
+- Auditing a SUSPICIOUSLY fast or slow success — did it
+  genuinely exercise the real flow, or take a shortcut?
+- Building genuine trust over time — reviewing several runs'
+  full histories to confirm the agent's summaries are actually
+  accurately reflecting what happened underneath</code></pre>
+<p>Keeping both, rather than discarding history once a summary exists, directly supports the incremental-trust-building principle from Chapter 1 — genuine verification requires being able to actually look underneath a summary when needed, not just trust it by default.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might instructing the agent to explicitly state what it did NOT verify be considered more important than instructing it to describe what it DID verify?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Both matter, but the "did NOT verify" half addresses a genuinely more dangerous failure mode — a human silently assuming broader coverage than what actually happened, which the "DID verify" half alone doesn't prevent.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A report ONLY describing what WAS verified:
+"Verified: valid credentials successfully log in and reach the
+  dashboard." — accurate, but says NOTHING about invalid
+  credentials, empty fields, or other realistic scenarios — a
+  reader could reasonably but WRONGLY assume broader coverage.
+
+A report that ALSO states what was NOT verified:
+"...NOT verified: invalid credential handling, empty-field
+  submission — outside this task's objective." — actively
+  PREVENTS the reader from assuming broader coverage than
+  genuinely happened, closing exactly the gap the first
+  version leaves dangerously open.</code></pre>
+<p>The "DID verify" half tells you what to trust; the "did NOT verify" half tells you what NOT to mistakenly trust — and it's the second one that most directly prevents the false-confidence risk this page's opening "Think About It" section specifically raises.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you modify this chapter's report structure to also capture the real, actual cost (in API calls or tokens) of a given agent run, and why might that matter?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A genuinely straightforward addition — tracking token usage from each LLM response (available in the response object, as covered on the "Creating the AI Agent" page) and accumulating it across the run, since cost visibility matters for exactly the reasons Chapter 1's honest limitations discussion raised.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def run(self, page):
+    history = []
+    total_tokens = 0
+    for step in range(MAX_STEPS):
+        response = self.client.messages.create(...)
+        total_tokens += response.usage.input_tokens + response.usage.output_tokens
+        # ... rest of the loop unchanged ...
+
+    return self._build_report(history, success, final_text, total_tokens)
+
+def _build_report(self, history, success, final_text, total_tokens):
+    return {
+        "objective": self.objective,
+        "success": success,
+        "summary": final_text,
+        "steps_taken": len(history),
+        "total_tokens": total_tokens,   # NEW
+        "full_history": history,
+    }</code></pre>
+<p>This matters because Chapter 1 was explicit that agentic testing has real, genuine cost trade-offs compared to traditional automation — capturing actual token usage per run turns that abstract trade-off into a concrete, trackable number a team can genuinely monitor and make informed decisions about, rather than a vague sense that "it's more expensive."</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Trace through what this chapter's complete agent (main.py) would actually do, end to end, if the login form on the real staging page had genuinely changed since the agent's instructions were written.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because this chapter's agent uses genuine reasoning grounded in real, current observation (not a fixed script), it should adapt to a real, moderate UI change — this is exactly the practical payoff of everything built across this chapter's earlier pages.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What actually happens, step by step:
+1. agent.run(page) starts the loop; page.url and get_page_text
+   give the REAL, current page content — not what the agent's
+   instructions assumed the page would look like
+2. The reasoner, seeing the ACTUAL current form (even if
+   fields are labeled or arranged differently than expected),
+   uses genuine reasoning to identify the email and password
+   fields based on their real, current labels
+3. fill_field and click_element execute against whatever the
+   REAL page actually presents, not a hardcoded assumption
+4. The loop continues normally, genuinely adapting to the real,
+   current UI throughout</code></pre>
+<p>This is the concrete, practical version of Chapter 1's core argument for agentic testing — a traditional Playwright script with hardcoded locators would have simply failed outright at the first changed element, while this chapter's agent, built on real observation and reasoning rather than fixed instructions, has a genuine chance of adapting to a reasonable, moderate change without needing to be rewritten first.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

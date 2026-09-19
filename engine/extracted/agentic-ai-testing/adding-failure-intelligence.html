@@ -1,0 +1,203 @@
+<!doctype html>
+<html><head>
+<title>Adding Failure Intelligence: Classification and Flaky Detection, Layered On</title>
+<meta name="description" content="Wrapping the multi-surface agent&#x27;s failures with Chapter 8&#x27;s classification and Chapter 9&#x27;s flaky detection — and the genuine question of what a cross-surface failure even means." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/adding-failure-intelligence.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Adding Failure Intelligence</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="integrating-multi-surface-testing.html">Integrating Multi-Surface Testing</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Layer 2 wraps the previous page's multi-surface agent with Chapter 8's classification and Chapter 9's flaky detection. Both techniques already exist — this page is about the one genuine wrinkle: what does "classify this failure" even mean when the failure could have originated on either surface?</p>
+
+<h2 id="classification-applied-to-a-cross-surface-failure">Classification, Applied to a Cross-Surface Failure</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def classify_capstone_failure(run_report, client):
+    # Chapter 8's SIX categories, applied to a run that MIGHT
+    # have failed at EITHER the browser step OR the API step
+    failing_step = find_failing_step(run_report["full_history"])
+    surface = "browser" if failing_step["action"]["name"] in \
+        BROWSER_TOOL_NAMES else "api"
+
+    # THIS is the genuine wrinkle: the classification PROMPT
+    # now needs surface-SPECIFIC evidence, not a ONE-size-fits-
+    # all evidence-gathering approach
+    if surface == "browser":
+        evidence = gather_browser_evidence(failing_step)  # Chapter
+                                                              # 8's OWN
+                                                              # screenshot/
+                                                              # trace approach
+    else:
+        evidence = gather_api_evidence(failing_step)  # Chapter 8's
+                                                          # OWN log/
+                                                          # status-code
+                                                          # approach
+    return classify_failure(evidence, client)</code></pre>
+
+<h2 id="flaky-detection-across-both-surfaces">Flaky Detection, Across Both Surfaces</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># Chapter 9's OWN detection function is GENUINELY unchanged —
+# but it now needs historical DATA spanning BOTH surfaces,
+# since a run "FAILS" regardless of WHICH surface caused it
+historical_runs = load_run_history(
+    test_name="checkout_and_confirmation_verification"
+)
+# EACH record includes the surface field THIS page's
+# classification function needs:
+# {"test_name": "...", "result": "fail", "failing_surface": "api",
+#  "commit_hash": "...", "environment": "staging"}
+
+flaky_candidates = detect_flaky_tests(historical_runs)  # Chapter
+                                                            # 9's function,
+                                                            # completely
+                                                            # unmodified</code></pre>
+
+<h2 id="why-the-wrinkle-is-genuinely-small-not-a-redesign">Why the Wrinkle Is Genuinely Small, Not a Redesign</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>NOTICE Chapter 8'S classify_failure and Chapter 9'S
+detect_flaky_tests are BOTH called EXACTLY as WRITTEN — the
+ONLY genuine ADDITION is determining WHICH surface'S evidence-
+gathering approach APPLIES before CALLING them. This is
+EXACTLY the kind of SMALL, well-BOUNDED integration WORK the
+PREVIOUS page'S architecture PREDICTS — layers COMBINE without
+REQUIRING changes to the LOWER-layer logic ITSELF.</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why does determining the failing surface need to happen BEFORE evidence gathering, rather than gathering both browser AND API evidence for every failure regardless? This connects directly to Chapter 8's own cost-ordering principle — gathering full evidence for a surface that didn't actually fail would be genuinely wasteful, paying real cost for information that isn't diagnostically relevant. Determining the surface first is the cheap, quick check that determines which of the two more expensive evidence-gathering paths is actually worth pursuing.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Building an entirely new, surface-agnostic classification system from scratch to handle multi-surface failures, rather than recognizing that Chapter 8's existing function works unchanged once given the right surface-specific evidence. The genuine integration work is routing to the right evidence-gathering approach, not rewriting classification logic.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>This page's <code>failing_surface</code> field in the historical run record is a genuinely small addition to Chapter 9's original schema — but skipping it would mean Chapter 9's flaky-detection function loses the ability to distinguish "this test is flaky on the browser step" from "this test is flaky on the API step," a real, useful distinction worth the minor schema addition.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Reuse Chapter 8 and 9's classification and detection functions exactly as written, routing to the correct surface-specific evidence rather than rewriting the underlying logic.</li>
+  <li>Determine which surface actually failed before gathering evidence, avoiding the waste of collecting both browsers' and API's evidence when only one is relevant.</li>
+  <li>Extend historical data schemas with small, purposeful additions (like a surface field) rather than large restructuring, when integration genuinely calls for it.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Layer 2 wraps the multi-surface agent with Chapter 8 and 9's existing classification and flaky-detection logic, unchanged.</li>
+  <li>The one genuine integration wrinkle is routing to the correct surface-specific evidence-gathering approach before calling the existing classification function.</li>
+  <li>This small, well-bounded integration work is exactly what the capstone's layered architecture predicted — lower-layer logic stays stable as new layers attach.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Extend this page's <code>classify_capstone_failure</code> function to handle a third surface — Chapter 7's performance tools — following the same pattern of routing to surface-appropriate evidence before calling Chapter 8's unchanged classification function.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A teammate proposes gathering both browser AND API evidence for every capstone failure, "just to be thorough." What genuine cost does this page's own reasoning identify with this approach?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>THIS repeats EXACTLY the cost-ordering MISTAKE Chapter 8'S OWN Failure CLASSIFICATION page warned AGAINST — gathering EVIDENCE for a SURFACE that DIDN'T actually FAIL wastes REAL time and RESOURCES on INFORMATION that ISN'T diagnostically RELEVANT to the ACTUAL problem.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What "gather BOTH, always" GENUINELY wastes:
+IF a FAILURE occurred AT the API step SPECIFICALLY,
+  gathering FULL browser evidence (SCREENSHOTS, DOM state,
+  network TRACE) is GENUINELY pointless — NOTHING about the
+  BROWSER step'S evidence will EXPLAIN an API-LEVEL failure,
+  since THAT step SUCCEEDED cleanly.
+
+Why THIS page'S surface-FIRST approach AVOIDS this WASTE:
+Determining WHICH surface GENUINELY failed FIRST (a CHEAP,
+  quick CHECK) means ONLY the RELEVANT, MORE expensive
+  evidence-GATHERING process RUNS — EXACTLY the SAME
+  "cheap CHECK before EXPENSIVE investigation" PRINCIPLE
+  Chapter 8 ESTABLISHED, now APPLIED to a TWO-surface
+  scenario SPECIFICALLY.</code></pre>
+<p>The TEAMMATE'S "thoroughness" INSTINCT is UNDERSTANDABLE, but it REPEATS a MISTAKE this COURSE already IDENTIFIED and SOLVED — Chapter 8'S OWN cost-ordering PRINCIPLE directly APPLIES here, JUST scaled to a MULTI-surface SCENARIO.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page argue THIS integration WORK is "GENUINELY small," RATHER than requiring a SUBSTANTIAL redesign of Chapter 8'S classification LOGIC?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Chapter 8'S classify_FAILURE function ITSELF is CALLED completely UNCHANGED — the ONLY genuine ADDITION is a ROUTING step DETERMINING which EVIDENCE-gathering approach APPLIES BEFORE calling THAT existing function, NOT a REWRITE of the CLASSIFICATION logic ITSELF.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What GENUINELY stays UNCHANGED, per THIS page'S OWN code:
+return classify_failure(EVIDENCE, client) — THIS is
+  Chapter 8'S EXACT function CALL, taking WHATEVER evidence
+  it'S GIVEN and PRODUCING a classification, EXACTLY as
+  Chapter 8 ORIGINALLY designed it.
+
+What GENUINELY represents the ONLY new WORK:
+DETERMINING surface = "BROWSER" or surface = "api" and
+  CALLING the appropriate gather_*_EVIDENCE function — a
+  SMALL, well-BOUNDED routing DECISION, not a
+  RECONSTRUCTION of HOW classification ITSELF works.</code></pre>
+<p>This is EXACTLY the SAME "SMALL, well-bounded INTEGRATION, not a REDESIGN" pattern THIS entire CAPSTONE has DEMONSTRATED at EVERY layer SO far — GENUINE evidence that the ARCHITECTURE'S layered STRUCTURE (from THIS capstone'S opening PAGE) is HOLDING up in PRACTICE, not JUST in THEORY.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why the failing_surface FIELD is DESCRIBED as a "GENUINELY small ADDITION" to Chapter 9'S SCHEMA, RATHER than a MAJOR restructuring of HOW historical data is STORED.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Chapter 9'S ORIGINAL historical-DATA record ALREADY had a WELL-defined STRUCTURE (test_NAME, result, COMMIT_hash, ENVIRONMENT) — ADDING ONE new FIELD to THAT existing structure is GENUINELY minimal, PRESERVING everything ELSE Chapter 9'S detect_FLAKY_tests function ALREADY relies ON.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What Chapter 9'S ORIGINAL schema ALREADY provided:
+test_NAME, result, COMMIT_hash, ENVIRONMENT,
+  PRECEDING_test — a COMPLETE, well-DESIGNED record FORMAT
+  detect_flaky_TESTS was BUILT to WORK with DIRECTLY.
+
+What THIS page ADDS, and WHY it'S genuinely MINIMAL:
+JUST failing_SURFACE — ONE new field, ADDED alongside the
+  EXISTING ones, WITHOUT changing ANYTHING about HOW the
+  OTHER fields WORK or how detect_flaky_TESTS itself
+  PROCESSES the RECORD (it SIMPLY ignores the NEW field,
+  since ITS own logic never NEEDED to know ABOUT surfaces
+  in the FIRST place).</code></pre>
+<p>This is a GENUINELY minimal, ADDITIVE change — Chapter 9'S function CONTINUES working EXACTLY as BEFORE, COMPLETELY unaware of the NEW field'S existence, WHILE this CAPSTONE'S own classification LOGIC (which DOES need the FIELD) can USE it — EXACTLY the KIND of clean, NON-disruptive extension a WELL-designed schema SHOULD support.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might it be a MISTAKE to assume THIS page'S surface-DETECTION logic (checking WHICH tool NAME failed) is SUFFICIENT for EVERY possible MULTI-surface scenario?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>The PREVIOUS page'S OWN discussion of CROSS-surface DATA dependency REVEALS a GENUINE edge CASE this page'S SIMPLE surface-detection LOGIC might MISS — a FAILURE that GENUINELY originates on ONE surface but only BECOMES visible on ANOTHER.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A GENUINELY tricky edge CASE this page'S SIMPLE logic
+might MISHANDLE:
+PER the previous PAGE'S own CROSS-surface data-DEPENDENCY
+  example, IF the BROWSER step GENUINELY succeeds but
+  CAPTURES the WRONG order NUMBER (a SUBTLE browser-SIDE
+  issue), the SUBSEQUENT API call USING that WRONG number
+  would ALSO fail — but THIS page'S simple "WHICH tool
+  failed" LOGIC would ATTRIBUTE the failure to the API
+  SURFACE, when the GENUINE root CAUSE actually ORIGINATED
+  on the BROWSER side.
+
+Why this MATTERS for HONEST classification:
+A MORE sophisticated VERSION of THIS page'S routing LOGIC
+  might need to CHECK not JUST "which TOOL call failed" but
+  "did an EARLIER, technically-SUCCESSFUL step GENUINELY
+  produce the DATA the LATER, failing step RELIED on" —
+  a GENUINELY harder, but MORE accurate, DETERMINATION.</code></pre>
+<p>This is a GENUINELY honest LIMITATION worth NAMING — THIS page'S simple SURFACE-detection approach WORKS well for the COMMON case, but the PREVIOUS page'S OWN cross-surface DATA-dependency discussion REVEALS a genuinely HARDER edge CASE a MORE mature IMPLEMENTATION would NEED to ADDRESS.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you EXTEND this page'S approach to HANDLE the edge CASE the PREVIOUS answer IDENTIFIED — a FAILURE whose ROOT cause and SURFACE of MANIFESTATION genuinely DIFFER?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A GENUINELY more sophisticated VERSION would CHECK whether the FAILING step'S inputs GENUINELY depended ON an earlier STEP'S output, and IF so, gather EVIDENCE for BOTH the failing STEP and its GENUINE data-SOURCE step, RATHER than assuming the FAILING tool'S surface is ALWAYS the root-CAUSE surface.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def classify_capstone_failure_v2(run_report, client):
+    failing_step = find_failing_step(run_report["full_history"])
+    surface = determine_surface(failing_step)
+
+    # NEW: check whether the failing step's INPUT PARAMETERS
+    # were derived from an EARLIER step's output — if so, the
+    # GENUINE root cause might be at that EARLIER step, not
+    # the surface where the failure ACTUALLY manifested
+    data_source_step = trace_input_data_origin(
+        failing_step, run_report["full_history"])
+
+    if data_source_step and data_source_step["step"] != failing_step["step"]:
+        # gather evidence for BOTH the MANIFESTING surface
+        # AND the ORIGINATING surface
+        evidence = (gather_surface_evidence(failing_step, surface) +
+                    gather_surface_evidence(
+                        data_source_step, determine_surface(data_source_step)))
+    else:
+        evidence = gather_surface_evidence(failing_step, surface)
+
+    return classify_failure(evidence, client)</code></pre>
+<p>This DIRECTLY extends THIS page'S approach to ADDRESS the GENUINE edge case the PREVIOUS question IDENTIFIED — TRACING data ORIGIN across steps BEFORE assuming the MANIFESTING surface is the GENUINE root-cause SURFACE, exactly the KIND of DEEPER, more CAREFUL investigation this CAPSTONE'S own CROSS-surface integration GENUINELY warrants, BUILDING directly on BOTH this page'S original LOGIC and the PREVIOUS page'S data-DEPENDENCY discussion.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

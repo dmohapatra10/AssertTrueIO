@@ -1,0 +1,166 @@
+<!doctype html>
+<html><head>
+<title>RestAssured Framework Layers: Config, Clients, Models, Specs, Utils, Auth</title>
+<meta name="description" content="What each layer of a RestAssured framework is actually responsible for — config, clients, models, specs, utils, auth, constants — and how they relate to each other." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/layer-by-layer-responsibilities.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Layer-by-Layer Responsibilities</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="framework-architecture.html">Framework Architecture overview</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Every layer in the framework structure exists to answer one specific question. This page goes through each one, what it owns, and — just as importantly — what it deliberately doesn't.</p>
+
+<h2 id="config-environment-settings">config/ — Environment & Settings</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>public class EnvConfig {
+    public static String baseUrl() {
+        return System.getenv("API_BASE_URL");
+    }
+    public static String seedProductId() {
+        return getPropertyForCurrentEnv("seed.product.catalog.id");
+    }
+}</code></pre>
+<p>Owns: base URIs, environment-specific values, reading from environment variables/properties files. Ties directly to Chapter 2's base URI setup and Chapter 10's environment-specific test data. Never contains request-building or assertion logic.</p>
+
+<h2 id="clients-one-class-per-api-resource">clients/ — One Class Per API Resource</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>public class UserClient {
+    private final RequestSpecification spec;
+    public UserClient(RequestSpecification spec) { this.spec = spec; }
+
+    public Response create(User user) {
+        return given().spec(spec).body(user).when().post("/users");
+    }
+    public Response getById(String id) {
+        return given().spec(spec).pathParam("id", id).when().get("/users/{id}");
+    }
+    public Response delete(String id) {
+        return given().spec(spec).pathParam("id", id).when().delete("/users/{id}");
+    }
+}</code></pre>
+<p>Owns: constructing and sending requests for one specific resource. This is the layer that makes tests read almost like plain English (<code>userClient.create(user)</code> instead of a full <code>given()/when()/then()</code> chain repeated inline) — every method returns a raw <code>Response</code>, deliberately leaving assertions to the test itself.</p>
+
+<h2 id="models-pojos">models/ — POJOs</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>public class User { /* request/response POJO, from Chapter 5 */ }
+public class Order { /* ... */ }</code></pre>
+<p>Owns: the shape of data going in and out. Nothing here talks to the network or makes assertions — these are the plain data-holding classes from Chapter 5's serialization/deserialization chapter, unchanged in principle, just now living in their own dedicated location.</p>
+
+<h2 id="specs-shared-request-response-configuration">specs/ — Shared Request/Response Configuration</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>public class SpecFactory {
+    public static RequestSpecification authenticated() {
+        return new RequestSpecBuilder()
+            .setBaseUri(EnvConfig.baseUrl())
+            .addHeader("Authorization", "Bearer " + TokenManager.getToken())
+            .build();
+    }
+}</code></pre>
+<p>Owns: the shared <code>RequestSpecification</code>/<code>ResponseSpecification</code> objects from Chapter 9. This is what every <code>clients/</code> class is built on top of, exactly the layering shown in Chapter 9's Specifications-vs-Utility-Methods page.</p>
+
+<h2 id="utils-general-purpose-helpers">utils/ — General-Purpose Helpers</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>public class JsonUtils {
+    public static String prettyPrint(Response response) {
+        return response.getBody().asPrettyString();
+    }
+}</code></pre>
+<p>Owns: genuinely general-purpose helpers that don't belong to any one resource or concern specifically — logging helpers, date formatting, anything reused broadly but not tied to a specific client or model.</p>
+
+<h2 id="auth-token-management">auth/ — Token Management</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>public class TokenManager { /* the expiration-aware, per-role cache from Chapter 6 */ }</code></pre>
+<p>Owns: exactly the token management logic from Chapter 6, given its own dedicated home rather than living inside a base test class or scattered across individual tests.</p>
+
+<h2 id="constants-shared-fixed-values">constants/ — Shared Fixed Values</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>public class ApiConstants {
+    public static final String ADMIN_ROLE = "admin";
+    public static final int DEFAULT_PAGE_SIZE = 20;
+}</code></pre>
+<p>Owns: named constants used across multiple places — role names, default values, anything you'd otherwise be tempted to hardcode as a magic string or number repeated in several files.</p>
+
+<h2 id="tests-data-assertions-the-test-side-layers">tests/, data/, assertions/ — The Test-Side Layers</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// tests/ — the actual test classes, using clients + models + specs together
+// data/ — test data builders (Chapter 10), factories
+// assertions/ — custom, reusable assertion helpers, like Chapter 12's ErrorAssertions</code></pre>
+<p>These three live under <code>src/test/java</code> rather than <code>src/main/java</code>, since (unlike the framework layers above) they're specifically test code, not reusable library code that could theoretically be shipped or reused outside a testing context.</p>
+
+<h2 id="real-world-example-a-test-using-every-layer-together">Real-World Example — A Test Using Every Layer Together</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void creatingAnOrderSucceeds() {
+    // clients/ + specs/ + auth/ (composed via the client's constructor)
+    UserClient userClient = new UserClient(SpecFactory.authenticated());
+
+    // data/ — a builder, from Chapter 10
+    User newUser = UserBuilder.aUser().build();
+
+    // The test itself owns only the assertion — everything else is delegated
+    Response response = userClient.create(newUser);
+    response.then().statusCode(201);
+}</code></pre>
+<p>Notice how thin the actual test method is — nearly everything it needs (the client, the spec, the test data) is composed from other layers, and the test itself is left doing only what a test should do: triggering the action and asserting on the result.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ A test file that builds its own request from scratch, inline,
+// duplicating logic that belongs in clients/ and specs/
+@Test void createUser() {
+    given().baseUri(url).header("Authorization", "Bearer " + token)
+        .body(Map.of("name", "John", "email", "john@x.com"))
+        .when().post("/users").then().statusCode(201);
+}
+
+// ✅ The same test, using the layered structure
+@Test void createUser() {
+    Response response = userClient.create(UserBuilder.aUser().build());
+    response.then().statusCode(201);
+}</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Putting assertions inside a <code>clients/</code> method</strong> — clients should return a raw <code>Response</code>; asserting on it is the test's job, not the client's.</li>
+  <li><strong>Duplicating request-construction logic in individual tests</strong> instead of using the client layer — reintroduces exactly the boilerplate this structure exists to eliminate.</li>
+  <li><strong>Mixing framework code (<code>src/main</code>) and test code (<code>src/test</code>)</strong> — keeps the distinction between reusable library code and test-specific code blurry.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>A very small project</strong> — don't scaffold all seven layers on day one for a two-test project; introduce them as genuine need arises, echoing the same "don't abstract prematurely" principle from Chapter 9.</li>
+  <li><strong>A client method needed by multiple, subtly different tests</strong> — resist the urge to add test-specific parameters to a client method; that logic usually belongs in the test itself or a data-layer builder instead.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If you're unsure which layer a new piece of code belongs in, ask: does this know how to make an HTTP call (clients), does it just describe data (models), is it about test-specific setup (data/tests), or is it genuinely general-purpose (utils)? Most placement confusion resolves once framed this way.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Keep clients returning raw responses — assertions belong in tests, not clients.</li>
+  <li>Build clients on top of shared specs, not inline request construction.</li>
+  <li>Introduce layers as genuine complexity warrants them, not preemptively for a small project.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Design a <code>ProductClient</code> class with <code>create()</code>, <code>getById()</code>, and <code>delete()</code> methods, built on top of a shared spec, and write one test using it that composes a client, a data builder, and an assertion — with the test method itself containing only the action and the assertion, nothing else.</p>
+
+<h2 id="summary">Summary</h2>
+<p>Each framework layer owns exactly one concern — config for environment, clients for making calls, models for data shape, specs for shared request/response setup, utils for general helpers, auth for tokens, constants for shared values — and test-side layers (tests, data, assertions) compose all of them together. A well-layered test method ends up thin: build test data, call a client, assert on the response — with everything else delegated to the layer that actually owns it.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why should a client class's methods return a raw Response rather than performing assertions internally?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Assertions express what a specific test cares about verifying — different tests calling the same client method often want to check different things (one test cares about the status code, another about a specific field, another about both). If the client itself asserted internally, every test using it would be locked into whatever the client happened to check, and testing a negative scenario (expecting a 400, say) through a client method hardcoded to assert 201 wouldn't even be possible. Returning a raw response keeps the client purely about making the call, leaving assertions — which are inherently test-specific — where they actually belong.</div>
+</details>
+<details class="faq-item">
+<summary>Why shouldn't a client class's methods perform assertions internally?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Different tests calling the same client method often want to check different things — a client hardcoded to assert one specific outcome would make testing a negative scenario through it impossible; assertions belong to the test, which knows what it actually cares about.</div>
+</details>
+<details class="faq-item">
+<summary>What's the difference between what clients/ and models/ each own?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Clients know HOW to call a specific endpoint (constructing and sending requests); models know the SHAPE of the data going in and out — neither talks to the network AND owns data structure at the same time.</div>
+</details>
+<details class="faq-item">
+<summary>Why does the auth/ layer get its own dedicated folder rather than living in a base test class?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Giving it a dedicated home (rather than scattering token logic across individual tests or burying it in a base class) makes it independently reusable and easier to locate when something about authentication needs to change.</div>
+</details>
+<details class="faq-item">
+<summary>What should a well-layered test method's body actually contain?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Only what a test should own — building test data via a builder, calling a client method, and asserting on the response — with everything else (request construction, auth, environment config) delegated to the layer that owns it.</div>
+</details>
+</div>
+</article>
+</body></html>

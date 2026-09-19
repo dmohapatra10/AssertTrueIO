@@ -1,0 +1,196 @@
+<!doctype html>
+<html><head>
+<title>Anomaly and Trend Detection: What a Single Run Can&#x27;t Tell You</title>
+<meta name="description" content="Comparing performance results across multiple runs over time to catch genuine, gradual regressions that any single passing run would never reveal — closing out this chapter&#x27;s hands-on work." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/anomaly-and-trend-detection.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Anomaly and Trend Detection</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="ai-generated-k6-scripts.html">AI-Generated K6 Scripts</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Every earlier page in this chapter analyzed ONE run. This final page asks a genuinely different question: how does performance change across MANY runs, over real time — catching a genuine, gradual regression that no single passing run would ever reveal on its own.</p>
+
+<h2 id="a-genuine-gradual-regression-invisible-in-any-single-run">A Genuine, Gradual Regression — Invisible in Any Single Run</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Six consecutive weekly checkout load test runs, EACH one
+individually passing its p(95)&lt;800ms threshold:
+
+Week 1:  p(95) = 620ms  ✓ PASS
+Week 2:  p(95) = 645ms  ✓ PASS
+Week 3:  p(95) = 680ms  ✓ PASS
+Week 4:  p(95) = 710ms  ✓ PASS
+Week 5:  p(95) = 745ms  ✓ PASS
+Week 6:  p(95) = 775ms  ✓ PASS
+
+Every SINGLE run passed. Looking at ANY one of these reports
+in isolation, there's genuinely nothing to flag. But looking
+ACROSS all six together reveals a real, steady, roughly 25ms
+weekly increase — heading directly toward the 800ms threshold,
+likely to FAIL within just 1-2 more weeks if this trend
+genuinely continues.</code></pre>
+
+<h2 id="trend-analysis-in-code">Trend Analysis, in Code</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def analyze_trend(historical_results, client):
+    prompt = f"""Here are p(95) response time results from the
+last several load test runs of the same checkout endpoint,
+in chronological order:
+
+{historical_results}
+
+Every individual result passed its own threshold. But does the
+TREND across these results suggest a genuine, ongoing
+regression worth investigating, even though nothing has
+technically failed yet?"""
+
+    result = client.messages.create(
+        model="claude-sonnet-4-6", max_tokens=512,
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return result.content[0].text</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># A genuinely realistic finding:
+"There's a clear, consistent upward trend — roughly 25ms
+increase per week, six weeks running. At this rate, the 800ms
+threshold will likely be crossed within 1-2 more weeks. This
+is worth investigating NOW, while the system is still passing,
+rather than waiting for an actual threshold failure to trigger
+the investigation."</code></pre>
+
+<h2 id="why-catching-this-before-a-failure-genuinely-matters">Why Catching This Before a Failure Genuinely Matters</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>❌ Waiting for an actual threshold FAILURE to investigate:
+  By week 8, the test finally fails. Now there's a real,
+  URGENT production performance problem, likely requiring a
+  RUSHED investigation and fix under real time pressure.
+
+✅ Catching the TREND at week 6, before any failure:
+  The SAME underlying issue gets investigated CALMLY, before
+  it's genuinely urgent — with real time to understand root
+  cause and fix it properly, rather than scrambling once
+  users are ALREADY experiencing degraded performance.</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why can't a single run's threshold check, no matter how well-constructed, ever catch this kind of gradual trend on its own? A threshold answers exactly one question: "did THIS run's result fall within the acceptable range?" It has no memory of previous runs and no way to compare against them — by design, it's evaluating one moment in isolation. Trend detection requires an entirely different kind of check, one that explicitly looks across multiple results over time, which is precisely why this capability needed its own dedicated final page rather than being folded into the single-run analysis from earlier in this chapter.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Running performance tests regularly but never actually comparing results across runs — treating each test as a fully independent, isolated event with no relationship to previous ones. This page's six-week example shows exactly what this misses: a genuine, real regression that's completely invisible without deliberately looking across runs together.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>Storing each load test run's key metrics (not just pass/fail) in a genuinely persistent, queryable location — connecting to Chapter 2's long-term memory concept — is what makes trend analysis like this page's example possible at all; without historical data to compare against, there's nothing for this kind of analysis to actually work with.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Store historical performance metrics persistently, not just pass/fail results, to make genuine trend analysis possible.</li>
+  <li>Periodically analyze trends across multiple runs, not just each individual run in isolation.</li>
+  <li>Investigate a genuine, concerning trend while the system is still passing, rather than waiting for an actual threshold failure to force the issue.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>A single run's threshold check structurally cannot catch a gradual trend — it has no memory of, or comparison against, previous runs by design.</li>
+  <li>A consistent, gradual regression can hide within a series of individually-passing results, becoming visible only when reasoning across multiple runs together.</li>
+  <li>Catching a genuine trend before an actual failure allows calm, deliberate investigation, rather than a rushed response to an already-urgent production problem.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Given six weekly error-rate results (rather than response time) — 0.1%, 0.15%, 0.3%, 0.5%, 0.7%, 0.9% — all individually under a 1% threshold, write out the trend-analysis finding you'd expect an agent to produce, and explain specifically why this particular trend might be even more urgent to flag than this page's own response-time example.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A team's dashboard shows every single weekly load test passing for the past two months. A stakeholder concludes "performance is stable." Using this page's argument, is this conclusion reliable?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Not necessarily reliable — "every run passed" and "performance is stable" are genuinely different claims, and this page's entire example is designed to show exactly how the first can be true while the second is false.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What "every run passed" genuinely confirms:
+Each individual week's result stayed under the threshold —
+  real, true information, but scoped to EACH single run in
+  isolation.
+
+What it does NOT confirm:
+Whether results have been STABLE (roughly flat, like 620,
+  615, 625, 618ms) or STEADILY DEGRADING while still staying
+  under threshold (like THIS page's actual 620→775ms example)
+  — BOTH scenarios would show "every run passed" on a simple
+  dashboard, but represent GENUINELY different underlying
+  situations, one stable and one actively, gradually worsening.</code></pre>
+<p>The stakeholder's conclusion needs an ADDITIONAL check — genuine trend analysis across the actual values, not just the pass/fail outcomes — before "stable" can be confidently claimed; a series of passes alone doesn't distinguish between a genuinely flat trend and a slowly rising one heading toward eventual failure.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page emphasize storing "key metrics, not just pass/fail results" as a genuine prerequisite for trend detection?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because trend analysis needs the actual, specific VALUES to reason about a trajectory — a bare pass/fail result discards exactly the information (the actual p(95) number each week) that reveals whether results are flat, rising, or falling.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What storing ONLY pass/fail would leave you with:
+Week 1: PASS, Week 2: PASS, Week 3: PASS... Week 6: PASS —
+  genuinely indistinguishable from a completely flat, stable
+  620ms every single week, even though the REAL underlying
+  data (620, 645, 680, 710, 745, 775ms) shows a clear, steady
+  climb. The PASS/FAIL summary alone has thrown away exactly
+  the information needed to detect this.
+
+What storing the ACTUAL values enables:
+The full trend-analysis example this page demonstrates —
+  reasoning about the SPECIFIC trajectory of real numbers,
+  not just a binary outcome that collapses genuinely different
+  situations (flat vs. gradually rising) into the same
+  "PASS" label.</code></pre>
+<p>This is a genuinely important, practical infrastructure point: trend detection isn't just an analytical technique — it depends entirely on actually RETAINING the specific data needed to perform it, which a pass/fail-only logging approach would silently discard.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why catching this page's regression at week 6 (before a failure) is genuinely better than catching it at week 8 (via an actual threshold failure), beyond just "earlier is better."<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>The genuine difference isn't just timing — it's the CONDITIONS under which the investigation happens: calm and deliberate versus rushed and reactive, which meaningfully affects the QUALITY of the resulting fix, not just how quickly it happens.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Investigating at week 8 (AFTER an actual failure):
+Real, ACTUAL users are ALREADY experiencing genuinely degraded
+  performance. There's real, urgent pressure to ship SOME fix
+  quickly — genuinely increasing the risk of a rushed,
+  incomplete fix that addresses symptoms rather than root
+  cause, or introduces its own new problems under time
+  pressure.
+
+Investigating at week 6 (BEFORE any failure, per this page):
+The system is STILL genuinely passing — there's real,
+  available time to properly understand the ACTUAL root cause
+  (per the earlier page's honest "I can't confirm the cause"
+  caveat) and implement a genuinely correct, well-considered
+  fix, rather than a rushed one.</code></pre>
+<p>The practical lesson: early detection isn't valuable merely because "sooner is generically better" — it's valuable because it changes the fundamental CONDITIONS of the response from reactive crisis management to proactive, considered engineering work, which tends to produce meaningfully better outcomes.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might the error-rate trend in this page's "Try It Yourself" exercise (0.1% → 0.9%) be considered even more urgent than the response-time trend in the main example, despite both technically passing their thresholds?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>The error-rate trend shows a much steeper RELATIVE growth rate — nearly a 9x increase from its starting point — compared to the response-time trend's more moderate, roughly 25% relative increase over the same number of data points, suggesting a potentially faster-approaching, more urgent problem.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Response time trend — MODERATE relative growth:
+620ms → 775ms is roughly a 25% relative increase over 6 weeks
+  — a real, worth-investigating trend, but growing at a
+  RELATIVELY measured pace.
+
+Error rate trend — STEEP relative growth:
+0.1% → 0.9% is nearly a NINE-FOLD relative increase over the
+  SAME number of data points — a MUCH steeper growth curve,
+  even though the absolute numbers (fractions of a percent)
+  might look small and unremarkable at a casual glance.</code></pre>
+<p>This is a genuinely useful, concrete illustration of why REASONING about a trend's actual SHAPE and RATE — not just whether it's technically increasing — matters for correctly prioritizing which regression deserves more urgent attention, exactly the kind of nuanced judgment fuzzy, reasoning-based analysis is well-suited to provide over a simple "is it going up, yes or no" check.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How does this final page's trend-analysis capability connect to Chapter 6's own final page (Schema and Contract Analysis), which also looked "beyond a single interaction"?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Both pages deliberately close their respective chapters with the SAME structural move — introducing a capability that requires comparing against something beyond a single interaction, whether that's an external contract (Chapter 6) or historical results over time (this chapter), completing a consistent pattern across all three major hands-on chapters.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Chapter 5's closing move — Screenshot/Trace analysis:
+Looks BEYOND individual DOM assertions, toward VISUAL and
+  TIMING information from a SINGLE interaction.
+
+Chapter 6's closing move — Schema/Contract analysis:
+Looks BEYOND a single response's internal correctness, toward
+  comparison against an EXTERNAL, documented PROMISE.
+
+THIS chapter's closing move — Anomaly/Trend detection:
+Looks BEYOND a single run's threshold result, toward
+  comparison ACROSS MULTIPLE runs over TIME.</code></pre>
+<p>All three final pages share the same genuine structural role: after building up the core testing capabilities for their respective surface (browser, API, performance), each chapter closes by introducing one more analytical capability that requires drawing on ADDITIONAL context beyond a single interaction — a deliberate, consistent pattern across this course's three parallel hands-on chapters, reinforcing that "look beyond the single instance" is itself a genuinely general, recurring principle in mature testing practice, not a coincidence unique to any one chapter.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

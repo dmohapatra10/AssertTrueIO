@@ -1,0 +1,130 @@
+<!doctype html>
+<html><head>
+<title>Bug Discovery</title>
+<meta name="description" content="Real, working code generating a genuine hypothesis, testing it, and evaluating whether the result reveals something worth reporting — the payoff of every earlier page." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/bug-discovery.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Bug Discovery</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="risk-based-exploration.html">Risk-Based Exploration</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Generating a genuine, testable hypothesis, not just a vague area to poke at</li>
+  <li>Testing it and evaluating whether the result reveals a real issue</li>
+  <li>Capturing evidence the way Chapter 9 established, applied to a discovery nobody explicitly asked to test</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>This page builds the real payoff of Chapter 13's opening steps 6 through 8 — generating a hypothesis, exploring it, and capturing what happens. This is where genuine, unplanned bugs actually get found.</p>
+
+<h2 id="step-by-step-implementation-generating-a-testable-hypothesis">Step-by-Step Implementation — Generating a Testable Hypothesis</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/generate-hypothesis.ts
+import { askClaude } from './ai-client';
+import { ExplorationObservation } from './observe-for-exploration';
+
+export interface Hypothesis {
+  description: string;
+  testSteps: string[];
+  expectedIfHealthy: string;
+}
+
+export async function generateHypothesis(
+  observation: ExplorationObservation, objective: string
+): Promise&lt;Hypothesis&gt; {
+  const prompt = `Exploration objective: "${objective}"
+Current page: ${JSON.stringify(observation)}
+
+Generate ONE specific, testable hypothesis about POTENTIAL
+unexpected behavior — not a vague concern, a concrete thing
+to actually TRY. State what a HEALTHY application should do
+if the hypothesis DOESN'T reveal a problem.
+
+Respond with ONLY valid JSON:
+{"description": string, "testSteps": [string, ...],
+"expectedIfHealthy": string}`;
+
+  const raw = await askClaude(prompt);
+  return JSON.parse(raw);
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p><code>expectedIfHealthy</code> is the genuinely important field here — without a stated expectation for the healthy case, there's no clear way to tell whether the hypothesis actually revealed something wrong or just... happened. This mirrors Chapter 4's own negative-test discipline: knowing what correct, safe behavior looks like is what makes an unexpected result actually recognizable as unexpected.</p>
+
+<h2 id="step-by-step-implementation-testing-the-hypothesis-and-evaluating-the-result">Step-by-Step Implementation — Testing the Hypothesis and Evaluating the Result</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import { Page } from '@playwright/test';
+import { buildEvidenceBundle } from './capture-evidence';
+
+export interface DiscoveryResult {
+  hypothesis: Hypothesis;
+  actualOutcome: string;
+  revealsIssue: boolean;
+  reasoning: string;
+}
+
+export async function testHypothesis(
+  hypothesis: Hypothesis, page: Page
+): Promise&lt;DiscoveryResult&gt; {
+  // Execute the hypothesis's steps against the REAL page —
+  // reusing Chapter 5's action-execution approach
+  for (const step of hypothesis.testSteps) {
+    // (mapped to real Playwright actions, per Chapter 5)
+  }
+
+  const actualOutcome = await page.locator('body').textContent() ?? '';
+
+  const evalPrompt = `Hypothesis: ${hypothesis.description}
+Expected if healthy: ${hypothesis.expectedIfHealthy}
+Actual observed outcome: ${actualOutcome.slice(0, 500)}
+
+Does the actual outcome reveal a genuine issue, or match
+healthy, expected behavior?
+
+Respond with ONLY valid JSON:
+{"revealsIssue": boolean, "reasoning": string}`;
+  const raw = await askClaude(evalPrompt);
+  const { revealsIssue, reasoning } = JSON.parse(raw);
+
+  return { hypothesis, actualOutcome, revealsIssue, reasoning };
+}</code></pre>
+
+<h2 id="example-a-real-genuine-discovery">Example — A Real, Genuine Discovery</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const hypothesis = await generateHypothesis(cartObservation,
+  'Explore the checkout functionality and identify unexpected behaviour.');
+// { description: "Applying the same discount code twice may
+//   incorrectly stack the discount",
+//   testSteps: ["Apply discount code SAVE10", "Apply SAVE10 again"],
+//   expectedIfHealthy: "The second application is rejected with
+//   a clear message; the discount is NOT applied twice" }
+
+const result = await testHypothesis(hypothesis, page);
+// { revealsIssue: true, reasoning: "The cart total reflects a
+//   20% discount after applying the same 10% code twice — this
+//   does NOT match the expected, healthy rejection behavior" }</code></pre>
+
+<h2 id="why-it-matters">Why It Matters</h2>
+<p>Nobody wrote a test case for "applying the same discount code twice" — Chapter 4's systematic generation, working from an explicit requirement, likely never would have either, since it's not an obvious negative case anyone would think to specify. This is exactly the kind of genuine, unplanned discovery exploratory testing exists to find.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Generating a vague hypothesis with no concrete test steps.</strong> "Something might be wrong with discounts" isn't testable — this page's structure requires a specific, executable hypothesis.</li>
+  <li><strong>Skipping <code>expectedIfHealthy</code> and asking the model to judge the outcome without it.</strong> Without a stated healthy expectation, the evaluation has nothing concrete to compare against.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Always require a concrete, executable hypothesis with explicit healthy-case expectations before testing it.</li>
+  <li>Capture full evidence (Chapter 9's <code>EvidenceBundle</code>) for any hypothesis that reveals a genuine issue — this is exactly the kind of finding worth a complete, reviewable record.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Run this page's <code>generateHypothesis</code> function against a real observation from your own application. Manually test the resulting hypothesis by hand and confirm whether the actual outcome matches the stated <code>expectedIfHealthy</code> case.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>A genuine hypothesis needs concrete, executable steps and a stated expectation for the healthy case — not just a vague area of concern.</li>
+  <li>Evaluating the actual outcome against the healthy expectation is what makes "reveals an issue" a real, checkable judgment rather than a guess.</li>
+  <li>This is exactly the kind of unplanned discovery — like discount codes stacking incorrectly — that systematic test generation from Chapter 4 would likely never surface on its own.</li>
+</ul>
+</article>
+</body></html>

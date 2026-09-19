@@ -1,0 +1,122 @@
+<!doctype html>
+<html><head>
+<title>RestAssured XML Response Validation with XPath</title>
+<meta name="description" content="How to validate XML responses in RestAssured — dot-notation body validation backed by XPath, and when you&#x27;ll actually encounter XML in modern API testing." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/xml-response-validation.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>XML Response Validation</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="validate-vs-extract.html">Validate vs. Extract</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Not every API you'll test speaks JSON. Older enterprise systems, SOAP-based services, and some financial/banking APIs still respond in XML. RestAssured detects an XML response (via its <code>Content-Type</code> header) and lets you validate it with syntax that looks similar to JSON validation, backed by XPath instead of JsonPath underneath.</p>
+
+<h2 id="basic-example">Basic Example</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>&lt;user&gt;
+  &lt;name&gt;John&lt;/name&gt;
+  &lt;email&gt;john@example.com&lt;/email&gt;
+&lt;/user&gt;</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>.then()
+    .body("user.name", equalTo("John"))
+    .body("user.email", equalTo("john@example.com"));</code></pre>
+<p>The dot-notation shape looks nearly identical to JSON body validation — this is deliberate on RestAssured's part, so switching between validating JSON and XML responses doesn't require learning an entirely separate mental model, just a different underlying path language.</p>
+
+<h2 id="nested-elements-and-attributes">Nested Elements and Attributes</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>&lt;order id="1024"&gt;
+  &lt;customer&gt;
+    &lt;name&gt;John&lt;/name&gt;
+  &lt;/customer&gt;
+  &lt;items&gt;
+    &lt;item&gt;Widget&lt;/item&gt;
+    &lt;item&gt;Gadget&lt;/item&gt;
+  &lt;/items&gt;
+&lt;/order&gt;</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>.then()
+    .body("order.@id", equalTo("1024"))            // XML attribute — note the @ prefix
+    .body("order.customer.name", equalTo("John"))
+    .body("order.items.item", hasItems("Widget", "Gadget"));</code></pre>
+<p>The <code>@</code> prefix addresses an XML attribute rather than a child element — a distinction that doesn't exist in JSON at all, since JSON has no separate concept of "attribute" versus "field." This is the one syntax difference worth internalizing when moving between the two formats.</p>
+
+<h2 id="using-raw-xpath-directly">Using Raw XPath Directly</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>.then()
+    .body(hasXPath("/order/customer/name[text()='John']"));</code></pre>
+<p>For more complex queries than the dot-notation shorthand comfortably expresses — conditions, sibling relationships, more elaborate filtering — dropping into raw XPath via <code>hasXPath()</code> gives you the full expressive power of the XPath language itself.</p>
+
+<h2 id="real-world-example-a-soap-style-response">Real-World Example — A SOAP-Style Response</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>&lt;soap:Envelope&gt;
+  &lt;soap:Body&gt;
+    &lt;GetUserResponse&gt;
+      &lt;User&gt;
+        &lt;Id&gt;42&lt;/Id&gt;
+        &lt;Name&gt;John&lt;/Name&gt;
+      &lt;/User&gt;
+    &lt;/GetUserResponse&gt;
+  &lt;/soap:Body&gt;
+&lt;/soap:Envelope&gt;</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>.then()
+    .body("Envelope.Body.GetUserResponse.User.Id", equalTo("42"))
+    .body("Envelope.Body.GetUserResponse.User.Name", equalTo("John"));</code></pre>
+<p>Namespace prefixes (like <code>soap:</code>) are typically omitted in the dot-path expression — RestAssured's default XML path handling generally ignores them for simple lookups, though deeply namespace-sensitive validation may need raw XPath with explicit namespace declarations instead.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Manually parsing the raw XML string with regex or string manipulation
+String body = response.getBody().asString();
+boolean hasJohn = body.contains("&lt;name&gt;John&lt;/name&gt;"); // extremely fragile
+
+// ✅ Structured XML validation
+.then().body("user.name", equalTo("John"));</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Forgetting the <code>@</code> prefix for XML attributes</strong> — attempting to address <code>order.id</code> when <code>id</code> is actually an attribute (<code>order.@id</code>) rather than a child element.</li>
+  <li><strong>Manually parsing raw XML strings</strong> instead of using RestAssured's structured validation — loses all the readability and matcher flexibility structured validation gives you.</li>
+  <li><strong>Assuming JSON-style array syntax works identically</strong> — repeated XML elements (like the <code>&lt;item&gt;</code> elements above) collect into a list similarly to JSON arrays, but the underlying XML structure (no explicit array marker the way JSON has <code>[]</code>) means some edge cases behave differently than a JSON developer might expect.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Mixed content</strong> (an element containing both text and child elements) — XPath handles this natively; dot-notation shorthand can get awkward here, and raw XPath via <code>hasXPath()</code> is usually the more reliable tool.</li>
+  <li><strong>Namespace-heavy documents</strong> — if simple dot-path lookups aren't resolving correctly, the namespace prefixes are the most likely cause; raw XPath with explicit namespace context is the fallback.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>When an XML path expression isn't matching as expected, print the raw response body first (<code>.log().all()</code> or <code>response.getBody().asPrettyString()</code>) to confirm the actual element/attribute structure — XML namespaces and attribute-vs-element confusion account for the large majority of "my path expression doesn't work" moments here.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Use the dot-notation shorthand for straightforward lookups; drop into raw <code>hasXPath()</code> only when you genuinely need XPath's fuller expressiveness.</li>
+  <li>Remember the <code>@</code> prefix specifically marks attributes, not child elements — check the actual XML structure before assuming which one a value is.</li>
+  <li>Never fall back to manual string/regex parsing of raw XML — it's exactly the kind of fragile approach structured validation exists to replace.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Given a small XML response with a root element, one attribute, one nested child element, and a repeated sibling element, write RestAssured assertions validating all three: the attribute value, the nested element's text, and that the repeated elements collectively contain a specific expected value.</p>
+
+<h2 id="summary">Summary</h2>
+<p>XML validation in RestAssured mirrors JSON validation's dot-notation style, backed by XPath instead of JsonPath — with one meaningful syntax difference, the <code>@</code> prefix for attributes. You'll use this far less than JSON validation in most modern projects, but the pattern stays familiar when a SOAP service or legacy XML API shows up in a real project.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>What does the @ prefix mean in an XML body validation path like order.@id, and why doesn't JSON validation have an equivalent?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The <code>@</code> prefix addresses an XML <em>attribute</em> rather than a child element — XML has a genuine structural distinction between attributes (<code>&lt;order id="1024"&gt;</code>) and child elements (<code>&lt;order&gt;&lt;id&gt;1024&lt;/id&gt;&lt;/order&gt;</code>), which the path syntax needs to distinguish between. JSON has no equivalent concept — every field is simply a key-value pair with no separate "attribute" category — so JSON body validation never needs this prefix at all.</div>
+</details>
+<details class="faq-item">
+<summary>What does the @ prefix mean in an XML path expression like order.@id?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It addresses an XML attribute specifically, as opposed to a child element — a distinction JSON has no equivalent for, since JSON has no separate 'attribute' concept at all.</div>
+</details>
+<details class="faq-item">
+<summary>Why might dot-notation shorthand struggle with mixed XML content?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">An element containing both text and child elements is awkward for the simple dot-path shorthand; raw XPath via hasXPath() is the more reliable tool for that specific structure.</div>
+</details>
+<details class="faq-item">
+<summary>Why are namespace prefixes like soap: often omitted in simple XML path lookups?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">RestAssured's default XML path handling generally ignores them for straightforward lookups, though deeply namespace-sensitive validation may need raw XPath with explicit namespace declarations.</div>
+</details>
+<details class="faq-item">
+<summary>When would you reach for XML validation today, given most modern APIs use JSON?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Older enterprise systems, SOAP-based services, and some financial/banking APIs still respond in XML — you'll use this far less often than JSON validation, but the pattern stays familiar when it's needed.</div>
+</details>
+</div>
+</article>
+</body></html>

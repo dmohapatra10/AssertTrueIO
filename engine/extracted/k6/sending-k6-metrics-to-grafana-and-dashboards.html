@@ -1,0 +1,111 @@
+<!doctype html>
+<html><head>
+<title>Sending k6 Metrics to Grafana &amp; External Dashboards</title>
+<meta name="description" content="Getting k6 results out of the terminal and into a real, persistent, shareable dashboard — output formats, InfluxDB/Prometheus integration, and time-series visualization with Grafana." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/sending-k6-metrics-to-grafana-and-dashboards.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Sending k6 Metrics to Grafana &amp; External Dashboards</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="results-analysis-monitoring-and-cicd.html">Results Analysis, Monitoring & CI/CD overview</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>k6's terminal summary is genuinely useful for a quick local run, but it disappears the moment the terminal closes, and it's hard to compare against a previous run without manually copying numbers. This page covers getting results into something persistent, shareable, and visual instead.</p>
+
+<h2 id="k6-s-built-in-output-formats">k6's Built-in Output Formats</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>$ k6 run --out json=results.json script.js
+$ k6 run --out csv=results.csv script.js</code></pre>
+<p>The simplest option — raw JSON or CSV output, useful for basic archiving or custom post-processing, though it doesn't provide the real-time, visual experience a proper dashboard offers.</p>
+
+<h2 id="streaming-to-influxdb-then-visualizing-in-grafana">Streaming to InfluxDB, Then Visualizing in Grafana</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>$ k6 run --out influxdb=http://localhost:8086/k6 script.js</code></pre>
+<p>k6 can stream metrics directly to InfluxDB (a time-series database) as the test runs, in real time — not just at the end. Grafana then connects to that same InfluxDB instance to render live, visual dashboards: response time over the course of the test, VU count ramping, error rate, all updating as the test actually runs, not just as a final static summary.</p>
+
+<h2 id="what-a-real-grafana-dashboard-actually-shows">What a Real Grafana Dashboard Actually Shows</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A typical k6 Grafana dashboard panel layout:
+- VUs over time (confirms the ramp/stage behavior actually happened as configured)
+- http_req_duration percentiles over time (not just a final average —
+  the SHAPE of performance across the whole test)
+- http_req_failed rate over time (spotting exactly WHEN errors started,
+  not just how many total)
+- Requests per second (actual achieved throughput, moment to moment)</code></pre>
+<p>The genuinely valuable addition over a terminal summary is the "over time" dimension — a terminal summary gives you one final aggregate number; a dashboard shows you the shape of the whole test, which is often where the real story is (a response time that was fine for the first 10 minutes and then degraded specifically once VU count crossed some threshold, for instance).</p>
+
+<h2 id="detailed-example-spotting-a-problem-the-terminal-summary-would-hide">Detailed Example — Spotting a Problem the Terminal Summary Would Hide</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Terminal summary (final aggregate only):
+  http_req_duration: avg=280ms p(95)=650ms
+
+Grafana dashboard (same test, viewed over time):
+  Minutes 0-8:  p95 hovering around 220ms — healthy
+  Minutes 8-15: p95 climbing steadily, ending near 1,800ms — degrading
+  → The AGGREGATE p95 (650ms) blends a healthy first half with a
+    genuinely degrading second half, hiding the actual pattern</code></pre>
+<p>This is a genuinely important insight: an aggregate summary can mathematically average away a real, meaningful trend within the test — degradation that started partway through and got progressively worse is completely different from uniform, stable mediocrity throughout, and only a time-series view reveals which one actually happened.</p>
+
+<h2 id="real-world-example-comparing-two-test-runs-side-by-side">Real-World Example — Comparing Two Test Runs Side by Side</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A dashboard configured to overlay this week's test run against last
+week's baseline run makes a regression immediately, visually obvious —
+two lines on the same chart, one clearly worse than the other — rather
+than requiring someone to manually compare two separate terminal outputs
+line by line.</code></pre>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Relying only on the terminal summary, which disappears after the
+// terminal closes and only shows a final aggregate
+
+// ✅ Streaming to InfluxDB/Grafana for a persistent, visual,
+// time-series view that survives beyond a single terminal session</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Relying exclusively on the terminal summary</strong> for anything beyond a quick local sanity check — it disappears, and it can't show a trend within the test.</li>
+  <li><strong>Never comparing a test's dashboard against a previous run's</strong> — a single run's data, viewed in isolation, can't reveal a regression the way a side-by-side comparison immediately would.</li>
+  <li><strong>Setting up a dashboard once and never actually reviewing it</strong> during or after subsequent test runs — infrastructure that exists but goes unused provides no real value.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>A very short test</strong> (a quick smoke test, for instance) — a full dashboard setup may be genuine overkill for a five-iteration sanity check; the terminal summary is often perfectly sufficient there, and dashboards earn their value specifically for longer, more consequential test runs.</li>
+  <li><strong>High-cardinality tags</strong> (from Chapter 10) sent to a time-series database — an excessive number of distinct tag combinations can strain the database's own storage and query performance, echoing the same "don't over-tag" guidance from earlier.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a test's final aggregate metrics look only moderately concerning, but you suspect a real problem is being averaged away, check the same data in a time-series dashboard before drawing any conclusion from the aggregate alone — a moderate-looking average can hide a genuinely severe, but shorter-duration, degradation within the test.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Use a persistent dashboard (Grafana via InfluxDB or a similar setup) for any test run that matters beyond a quick local sanity check.</li>
+  <li>Compare each significant test run against a previous baseline run visually, not just by eyeballing two separate terminal summaries.</li>
+  <li>Match dashboard investment to the test's actual significance — a quick smoke test doesn't need the same infrastructure as a scheduled production load test.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Given a terminal summary reporting <code>http_req_duration: avg=310ms p(95)=480ms</code>, describe what specific pattern in a time-series dashboard view would make you suspicious that this aggregate is hiding a real, meaningful degradation partway through the test, versus one that would confirm genuinely stable, uniform performance throughout.</p>
+
+<h2 id="summary">Summary</h2>
+<p>k6's terminal summary is useful for a quick check but disappears after the session and can't show how performance changed over the course of a test. Streaming metrics to InfluxDB and visualizing them in Grafana provides a persistent, shareable, time-series view — which is often where the real story of a test actually lives, since an aggregate number can mathematically average away a meaningful trend within the run.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why can a healthy-looking aggregate p95 in a terminal summary still hide a real problem?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">An aggregate percentile is calculated across the entire test run — if performance was healthy for the first half and genuinely degraded for the second half, the aggregate blends both periods into one number that doesn't clearly represent either. A time-series view, showing the metric over the course of the test rather than as one final number, reveals this kind of trend directly, which the aggregate alone cannot.</div>
+</details>
+<details class="faq-item">
+<summary>What's the practical advantage of streaming k6 metrics to InfluxDB in real time versus writing results to a JSON file at the end?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Real-time streaming lets a dashboard update live as the test runs, useful for actively monitoring a long test in progress, and it naturally builds a time-series history in the database that supports visualizing trends over the test's duration. A JSON file written at the end is a static snapshot, useful for archiving or later post-processing, but doesn't provide the live or genuinely time-series visualization experience a real-time-fed dashboard does.</div>
+</details>
+<details class="faq-item">
+<summary>Why is comparing two test runs side by side on the same dashboard more effective than comparing two separate terminal outputs?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Two separate terminal outputs require manually reading and comparing numbers line by line, which is slow and easy to misjudge, especially for subtle regressions. A dashboard that overlays both runs on the same visual chart makes a difference immediately, visually apparent — a regression shows up as one line clearly diverging from the other, rather than requiring careful manual number-by-number comparison.</div>
+</details>
+<details class="faq-item">
+<summary>Why might setting up a full Grafana dashboard be unnecessary overhead for a quick smoke test?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A smoke test runs briefly, at minimal load, specifically to confirm basic correctness — its terminal summary is typically sufficient to answer the simple question it's asking. The added value of a time-series dashboard (revealing trends over a longer, more substantial run) doesn't really apply to a test that's over in seconds with only a handful of iterations, making the setup effort disproportionate to the value it would add for that specific, quick check.</div>
+</details>
+<details class="faq-item">
+<summary>Why might sending highly unique, high-cardinality tags to a time-series database become a genuine problem?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Time-series databases like InfluxDB create a separate series for each distinct combination of tag values — an excessive number of unique tag combinations (tagging by something like a full request ID rather than a meaningful category) can significantly strain the database's storage and query performance, echoing the same over-tagging concern already covered when tags were first introduced, now with a concrete downstream consequence.</div>
+</details>
+</div>
+</article>
+</body></html>

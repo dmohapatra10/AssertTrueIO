@@ -1,0 +1,84 @@
+<!doctype html>
+<html><head>
+<title>Observability and Cost</title>
+<meta name="description" content="A real, system-wide dashboard aggregating every agent&#x27;s usage — going beyond Chapter 18&#x27;s per-call logging to genuine, organization-level visibility." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/observability-and-cost.html" />
+</head><body>
+<p class="difficulty">Advanced</p>
+<h1>Observability and Cost</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="security-and-scalability.html">Security and Scalability</a></p>
+<article class="content">
+<h2>What You'll Learn</h2>
+<ul>
+  <li>Why per-agent logging, alone, doesn't answer a real organization's actual questions</li>
+  <li>Aggregating Chapter 18's own usage logging across every agent in the system</li>
+  <li>A real, concrete dashboard view combining cost and audit data</li>
+</ul>
+
+<h2>Introduction — Aggregation, Not New Instrumentation</h2>
+<p>Chapter 18 logged real usage per call. Chapter 19 logged real actions per agent. Neither, alone, answers a genuinely different, real question: what is this entire system costing and doing, across every team, every week?</p>
+
+<h2>Step-by-Step Implementation — Aggregating What Already Exists</h2>
+<pre><code>// src/system-wide-observability.ts
+import { readFileSync } from 'fs';
+
+interface UsageRecord { agentId: string; inputTokens: number; outputTokens: number; timestamp: string; }
+
+export function aggregateUsageByAgent(
+  usageLogPath: string
+): Record&lt;string, { totalCalls: number; totalTokens: number }&gt; {
+  const lines = readFileSync(usageLogPath, 'utf-8').split('\n').filter(Boolean);
+  const records: UsageRecord[] = lines.map((l) =&gt; JSON.parse(l));
+
+  const byAgent: Record&lt;string, { totalCalls: number; totalTokens: number }&gt; = {};
+  for (const r of records) {
+    if (!byAgent[r.agentId]) byAgent[r.agentId] = { totalCalls: 0, totalTokens: 0 };
+    byAgent[r.agentId].totalCalls++;
+    byAgent[r.agentId].totalTokens += r.inputTokens + r.outputTokens;
+  }
+  return byAgent;
+}</code></pre>
+
+<h2>Code Explanation</h2>
+<p>Notice this reads the exact same usage data Chapter 18's own logging already produces — nothing new is instrumented here. The real, new value is aggregation: turning many individual, per-call log lines into one genuine, organization-level picture, grouped by agent, ready for a real dashboard or weekly report.</p>
+
+<h2>Example — A Real, Combined Weekly View for ShopSmart</h2>
+<pre><code>const usage = aggregateUsageByAgent('logs/agent-usage.jsonl');
+
+// {
+//   "checkout-team-agent": { totalCalls: 1240, totalTokens: 890000 },
+//   "search-team-agent": { totalCalls: 340, totalTokens: 210000 },
+//   "exploration-agent": { totalCalls: 2100, totalTokens: 1450000 }
+// }
+
+// A REAL, genuine finding: the exploration agent — GENUINELY
+// open-ended, per Chapter 13'S own design — accounts for the
+// MAJORITY of real system-wide usage, worth a real,
+// deliberate conversation about ITS own limits specifically</code></pre>
+
+<h2>Why It Matters — This Finding Is Only Visible in Aggregate</h2>
+<p>No single agent's own log would have revealed that exploration accounts for the majority of real system-wide cost — that pattern only becomes visible once every agent's usage is aggregated together. This is the genuine, real value observability adds beyond what Chapter 18 and Chapter 19's per-call and per-agent logging already provide individually.</p>
+
+<h2>Common Mistakes</h2>
+<ul>
+  <li><strong>Building separate, new instrumentation instead of aggregating existing logs.</strong> Chapter 18 and 19 already produce real, structured data — this page's whole point is reusing it, not duplicating collection effort.</li>
+  <li><strong>Reviewing individual agent logs without ever aggregating across the whole system.</strong> This page's ShopSmart example shows real, actionable patterns that only appear once data from every agent is combined.</li>
+</ul>
+
+<h2>Best Practices</h2>
+<ul>
+  <li>Build aggregation on top of Chapter 18 and 19's existing logging, rather than instrumenting new, separate collection.</li>
+  <li>Review system-wide aggregated usage regularly, not just individual agent logs in isolation — real patterns emerge only at that level.</li>
+</ul>
+
+<h2>Hands-On Exercise</h2>
+<p>Run this page's aggregation function against your own project's real usage logs, if you've built Chapter 18's logging across multiple agents. Identify which agent accounts for the largest real share of usage, and consider whether that matches your own expectations.</p>
+
+<h2>Key Takeaways</h2>
+<ul>
+  <li>System-wide observability aggregates data Chapter 18 and 19 already collect — it doesn't require new, separate instrumentation.</li>
+  <li>Real, actionable patterns — like which agent dominates system-wide cost — only become visible once individual logs are combined.</li>
+  <li>Regular review of aggregated, system-wide data is what turns individual logging into genuine organizational insight.</li>
+</ul>
+</article>
+</body></html>

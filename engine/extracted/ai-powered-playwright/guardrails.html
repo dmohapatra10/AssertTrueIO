@@ -1,0 +1,171 @@
+<!doctype html>
+<html><head>
+<title>Guardrails</title>
+<meta name="description" content="Wiring Chapter 13&#x27;s safety controls into the agent as a mandatory check before every tool call, then assembling the complete PlaywrightAgent class and running it end to end." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/guardrails.html" />
+</head><body>
+<p class="difficulty">Advanced</p>
+<h1>Guardrails</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="recovery-and-termination-conditions.html">Recovery and Termination Conditions</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Wiring Chapter 13's safety controls into the agent as a mandatory, non-optional check</li>
+  <li>Assembling every earlier page in this chapter into one complete <code>PlaywrightAgent</code> class</li>
+  <li>Running it end to end against a real objective — the payoff of this entire track</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>This page closes Chapter 14 the way Chapter 13 closed its own arc — with real, non-negotiable safety controls, now wired into the full agent rather than a standalone function.</p>
+
+<h2 id="step-by-step-implementation-guardrails-reusing-chapter-13-directly">Step-by-Step Implementation — Guardrails, Reusing Chapter 13 Directly</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/agent-guardrails.ts
+import { isActionSafe, verifyExplorationEnvironment } from './exploration-safety-controls';
+
+export function guardToolCall(
+  toolName: string, toolInput: any, baseUrl: string
+): { allowed: boolean; reason?: string } {
+  const envCheck = verifyExplorationEnvironment(baseUrl);
+  if (!envCheck.safe) return { allowed: false, reason: envCheck.reason };
+
+  const actionCheck = isActionSafe(`${toolName} ${JSON.stringify(toolInput)}`);
+  if (!actionCheck.safe) return { allowed: false, reason: actionCheck.reason };
+
+  return { allowed: true };
+}</code></pre>
+
+<h2 id="step-by-step-implementation-the-complete-assembled-agent">Step-by-Step Implementation — The Complete, Assembled Agent</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/playwright-agent.ts
+import { Page } from '@playwright/test';
+import { createInitialState } from './agent-state';
+import { planNextStep } from './agent-planner';
+import { executeAgentTool } from './agent-execute';
+import { recordObservation } from './agent-observe';
+import { evaluateProgress } from './agent-evaluator';
+import { attemptRecovery } from './agent-recovery';
+import { guardToolCall } from './agent-guardrails';
+import { shouldStopExploring } from './exploration-limits';
+
+export async function runPlaywrightAgent(objective: string, page: Page) {
+  let state = createInitialState(objective);
+  const limits = { maxSteps: 30, maxDepthFromStart: 4, maxDurationMs: 5 * 60 * 1000 };
+
+  while (true) {
+    const toolCall = await planNextStep(state);
+
+    const guard = guardToolCall(toolCall.name, toolCall.input, page.url());
+    if (!guard.allowed) {
+      return { outcome: 'blocked-by-guardrail' as const, reason: guard.reason };
+    }
+
+    if (toolCall.name === 'report_objective_complete') {
+      const evaluation = await evaluateProgress(state);
+      if (evaluation.objectiveLikelyMet) {
+        return { outcome: 'success' as const, evaluation };
+      }
+    }
+
+    try {
+      const result = await executeAgentTool(toolCall.name, toolCall.input, page);
+      recordObservation(state, toolCall.id, result);
+    } catch (error: any) {
+      const recovery = await attemptRecovery(toolCall.name, page);
+      if (!recovery.recovered) {
+        return { outcome: 'unrecoverable-failure' as const, error: String(error) };
+      }
+      recordObservation(state, toolCall.id, `Recovered: ${recovery.newApproach}`);
+    }
+
+    state.stepCount++;
+    const limitCheck = shouldStopExploring(
+      { stepCount: state.stepCount, currentDepth: 0, startTime: state.startTime }, limits
+    );
+    if (limitCheck.stop) {
+      return { outcome: 'limit-reached' as const, reason: limitCheck.reason };
+    }
+  }
+}</code></pre>
+
+<h2 id="why-it-matters-every-import-traces-to-an-earlier-chapter">Why It Matters — Every Import Traces to an Earlier Chapter</h2>
+<p>Look at the import list above: state (this chapter), planning (this chapter, built on Chapters 5 and 13), execution (Chapter 5), observation (this chapter's real tool-result format), evaluation (this chapter, genuinely new), recovery (Chapter 6), guardrails (Chapter 13), and limits (Chapter 13). Nothing in this final assembly is invented fresh — it is, quite literally, this entire track's real work, connected.</p>
+
+<h2 id="example-running-the-complete-agent">Example — Running the Complete Agent</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const result = await runPlaywrightAgent(
+  'Verify checkout completes correctly, and report anything unexpected.',
+  page
+);
+
+console.log(result);
+// { outcome: 'success', evaluation: {
+//     objectiveLikelyMet: true,
+//     reasoning: "Checkout completed with a valid order
+//       confirmation. Additionally noticed applying the same
+//       discount code twice incorrectly stacks the discount —
+//       reported as a genuine finding, not part of the
+//       original objective but discovered along the way.",
+//     confidence: "high"
+// } }</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Checking guardrails only occasionally, or after execution rather than before.</strong> This page's loop checks every single tool call before it executes — a guardrail that runs too late has already failed at its one job.</li>
+  <li><strong>Treating this chapter's code as something to memorize rather than trace.</strong> The real value is recognizing how every earlier chapter's work fits together — not the specific lines of this final assembly.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Guard every single tool call, unconditionally, before execution — never skip this check for calls that "seem obviously safe."</li>
+  <li>When extending this agent, ask which existing chapter's function already solves your new need before writing anything new.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Run this chapter's complete <code>runPlaywrightAgent</code> function against a real objective in your own application, end to end. Review the final outcome and, regardless of which of the three termination conditions occurred, trace the result back through the specific earlier-chapter functions that produced it.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Guardrails, reused directly from Chapter 13, run as a mandatory check before every single tool call, never after or occasionally.</li>
+  <li>The complete <code>PlaywrightAgent</code> is assembled entirely from functions this track built and explained across its first thirteen chapters.</li>
+  <li>This chapter's real achievement isn't new capability — it's proving that thirteen chapters of separately-built techniques genuinely combine into one coherent, working agent.</li>
+</ul>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Beginner: What are the three properties this chapter uses to define a genuine agent, and which one did earlier chapters not yet have?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A genuine agent is persistent (maintains state across many steps), tool-using (chooses among real available actions via actual tool calling), and objective-driven (receives one high-level goal and decides its own path). Earlier chapters had genuine objective-driven behavior in pieces — Chapter 5's planning, Chapter 13's exploration — but lacked real persistence across a continuous, multi-capability run, and used JSON-prompting rather than actual tool calling.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Beginner: Why did this track wait until Chapter 14 to use Anthropic's real tool-calling API, after Chapter 2 introduced the concept?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>The simpler JSON-in-prose pattern used since Chapter 3 was easier to reason about while this track built up its real techniques one at a time — generation, locators, assertions, failure analysis, and more. Real tool calling genuinely earns its place specifically in an agent architecture, where a model needs to choose among several distinct actions repeatedly within one continuous run — exactly the scenario Chapter 14 introduces for the first time in this track.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Intermediate: Explain why the Evaluator is described as the one genuinely new capability in this chapter's architecture, while the other five boxes are reused.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Chapter 5's loop finished once a known, finite sequence of steps completed — it never needed to ask "is the goal actually achieved" as a separate question, since finishing the steps WAS the definition of done. Chapter 13's exploration stopped when a limit was hit, again without needing to evaluate genuine success. This chapter's agent, with an open-ended objective and no natural stopping point, genuinely needs a dedicated step that asks whether the actual goal has been met — a question with no earlier equivalent to reuse.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Intermediate: Why does evaluateProgress run as a separate step from the action that was just taken, rather than having the model assess success immediately after each tool call?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Bundling self-assessment into the same reasoning step that just took an action risks the same overconfidence problem Chapter 9 addressed for failure-analysis confidence — a model reasoning about whether its own recent action succeeded may not have fully considered the full conversation history and genuine alternative explanations. A separate, dedicated evaluation step, instructed explicitly toward honesty, produces a more reliable judgment specifically because it isn't entangled with the action that just happened.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Advanced: Why does runPlaywrightAgent distinguish between limit-reached and unrecoverable-failure as separate outcomes, rather than treating both as "the agent stopped without success"?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>These represent genuinely different situations requiring different responses. A limit-reached outcome means the agent simply ran out of allotted steps, depth, or time — the objective might still be achievable with more budget, or the limits might need adjusting; this doesn't necessarily indicate anything is wrong with the application under test. An unrecoverable-failure outcome means something genuinely broke and Chapter 6's healing couldn't find a working alternative — this is much more likely to represent a real, reportable problem worth a developer's attention. Collapsing these into one generic "stopped" status would force a human reviewer to redo the investigation the agent's own outcome could have told them directly.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Scenario-based: A teammate suggests removing the guardrail check from inside the main loop and instead validating the entire planned sequence of actions once, upfront, before execution begins. How would you respond, using this chapter's own reasoning?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd point out that this agent, unlike Chapter 5's fixed sequence, doesn't have a full planned sequence to validate upfront — each tool call is chosen one at a time, informed by what happened in the previous step, exactly the open-endedness this chapter's own architecture is built around. There is no "the whole plan" to check in advance, since the model may choose a completely different next action depending on what it just observed, including a hypothesis generated mid-run the way Chapter 13 described. Checking guardrails only upfront would leave every single subsequent tool call unguarded, which defeats the entire purpose of a mandatory, per-call safety check. The guardrail belongs inside the loop, checked before every individual tool call, precisely because the agent's next action is never fully known until the moment it's chosen.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

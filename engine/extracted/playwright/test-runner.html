@@ -1,0 +1,211 @@
+<!doctype html>
+<html><head>
+<title>Playwright Test Runner: test(), describe(), and expect() Explained</title>
+<meta name="description" content="A deep dive into @playwright/test — the test runner&#x27;s core building blocks, how it discovers and organizes tests, and what it manages behind the scenes." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/test-runner.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Chapter 16: Playwright Test Runner</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="getting-started.html">Getting Started</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Every example so far has used <code>test()</code> and <code>expect()</code> from <code>@playwright/test</code> without much explanation of what that package actually does. This chapter is the deliberate deep dive: what the test runner manages, how it discovers and organizes tests, and why it exists as a separate concern from the automation library itself.</p>
+
+<h2 id="why-it-s-important">Why it's important</h2>
+<p>Playwright is really two things bundled together: a browser automation library (everything covered in earlier chapters — locators, actions, contexts) and a test runner (<code>@playwright/test</code>) built on top of it. Understanding that split clarifies which problems each part solves — automation vs. organizing, running, retrying, and reporting on tests.</p>
+
+<h2 id="mental-model">Mental Model</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@playwright/test  (the test runner)
+   │
+   ├── Discovers test files
+   ├── Manages fixtures (setup/teardown)
+   ├── Runs files in parallel across workers
+   ├── Retries failed tests
+   ├── Generates reports
+   │
+   └── playwright-core  (the automation library underneath)
+          Browser, BrowserContext, Page, locators, actions</code></pre>
+<p>None of the runner's responsibilities are part of core browser automation — a raw script using <code>chromium.launch()</code> directly gets none of it for free, which is why the Getting Started chapter recommended <code>@playwright/test</code> from the very first line.</p>
+
+<h2 id="what-the-test-runner-provides">What the Test Runner Provides</h2>
+<ul>
+  <li><strong>Test discovery</strong> — finds every file matching the configured pattern (default: <code>*.spec.ts</code>) under <code>testDir</code></li>
+  <li><strong>Fixtures</strong> — automatic setup/teardown, like the <code>page</code> fixture used throughout this course (its own chapter)</li>
+  <li><strong>Parallelization</strong> — runs test files concurrently across workers by default</li>
+  <li><strong>Retries</strong> — automatic re-running of failed tests, configurable per environment</li>
+  <li><strong>Reporting</strong> — HTML, JSON, JUnit, and other output formats</li>
+  <li><strong>Projects</strong> — running the same suite across multiple browsers/devices/configs</li>
+</ul>
+
+<h2 id="basic-example-test-and-describe">Basic Example — test() and describe()</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import { test, expect } from '@playwright/test';
+
+test.describe('checkout flow', () =&gt; {
+  test('completes with a valid card', async ({ page }) =&gt; {
+    // ...
+  });
+
+  test('shows an error for a declined card', async ({ page }) =&gt; {
+    // ...
+  });
+});</code></pre>
+<p><code>test.describe()</code> groups related tests — mainly for reporting clarity and for scoping shared hooks (covered in the next chapter), not for sharing state between tests, which remain fully isolated from each other regardless of grouping.</p>
+
+<h2 id="detailed-example-test-step-for-readable-reports">Detailed Example — test.step() for Readable Reports</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('completes checkout end to end', async ({ page }) =&gt; {
+  await test.step('add item to cart', async () =&gt; {
+    await page.goto('/products/wireless-mouse');
+    await page.getByRole('button', { name: 'Add to cart' }).click();
+  });
+
+  await test.step('fill shipping details', async () =&gt; {
+    await page.getByLabel('Address').fill('221B Baker Street');
+    await page.getByLabel('City').fill('London');
+  });
+
+  await test.step('complete payment', async () =&gt; {
+    await page.getByLabel('Card number').fill('4242 4242 4242 4242');
+    await page.getByRole('button', { name: 'Pay now' }).click();
+  });
+
+  await expect(page.getByText('Order confirmed')).toBeVisible();
+});</code></pre>
+<p><code>test.step()</code> doesn't change execution at all — it's purely for organizing the HTML report and Trace Viewer timeline into named, collapsible sections, which makes a long end-to-end test's failure point immediately obvious ("failed during 'complete payment'") instead of requiring a full read of the test body.</p>
+
+<h2 id="test-modifiers-skip-fixme-slow-only-fail">Test Modifiers — skip, fixme, slow, only, fail</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test.skip('not yet implemented', async ({ page }) =&gt; { /* ... */ });
+
+test.fixme('known broken, tracked in JIRA-4821', async ({ page }) =&gt; { /* ... */ });
+
+test('slow legacy page', async ({ page }) =&gt; {
+  test.slow(); // triples the timeout for this test only
+  // ...
+});
+
+test.only('debugging this one test in isolation', async ({ page }) =&gt; {
+  // when present, only .only tests run — remove before committing
+});
+
+test.fail('known browser bug, tracked upstream', async ({ page }) =&gt; {
+  // this test is EXPECTED to fail — the suite reports an error only if it unexpectedly passes
+  await expect(page.getByText('Never actually shows')).toBeVisible();
+});</code></pre>
+<p><code>test.skip()</code> and <code>test.fixme()</code> look similar but signal different things: <code>skip</code> is for tests that shouldn't run right now for a deliberate reason (an unsupported browser, a feature flag), while <code>fixme</code> specifically marks a test that's currently failing due to a known bug — useful for keeping the bug visible in the report rather than silently excluding it. <code>test.only()</code> is useful while actively writing or debugging a single test, but it's also a common source of an accidentally-skipped CI suite if left in a commit — most teams lint against it being merged. <code>test.fail()</code> is the least common of the five: it marks a test as <em>expected</em> to fail (a known upstream bug, a not-yet-supported browser quirk) — the test still runs, but the suite only reports a problem if it unexpectedly starts passing, which is a useful signal that the underlying issue was fixed and the annotation can be removed.</p>
+
+<h2 id="annotations-and-test-metadata">Annotations and Test Metadata</h2>
+<p>Beyond the five modifiers above, Playwright has a separate, more general <strong>annotation</strong> mechanism for attaching arbitrary metadata to a test — a JIRA ticket link, an owning team, a category — that shows up in the HTML report but doesn't change how the test runs at all.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('refund flow matches PCI compliance rules', async ({ page }, testInfo) =&gt; {
+  testInfo.annotations.push({
+    type: 'ticket',
+    description: 'https://jira.example.com/browse/PAY-482',
+  });
+  // ...
+});</code></pre>
+<p>This is different from <code>test.skip()</code>/<code>test.fixme()</code>, which are also technically annotations under the hood but specifically ones the runner acts on (skipping execution, marking expected failure). A custom annotation like the one above is purely informational — it's for humans reading the report, not for the runner itself.</p>
+
+<h2 id="tags-the-dedicated-tag-option">Tags — the Dedicated tag Option</h2>
+<p>Putting <code>@smoke</code> directly in a test's title (shown earlier) works and is common, but Playwright also has a dedicated <code>tag</code> option that keeps the title itself clean and is what most newer projects reach for:</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('completes checkout', { tag: '@smoke' }, async ({ page }) =&gt; {
+  // ...
+});
+
+// A test can carry more than one tag
+test('admin can refund an order', { tag: ['@smoke', '@admin'] }, async ({ page }) =&gt; {
+  // ...
+});</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># Filtering works exactly the same way regardless of which approach was used
+npx playwright test --grep @smoke</code></pre>
+<p>Functionally, title-based tags and the <code>tag</code> option filter identically with <code>--grep</code> — the dedicated option's advantage is purely readability: a test's title stays a plain English sentence instead of getting cluttered with <code>@smoke @admin @regression</code> appended to the end of it.</p>
+
+<h2 id="real-world-example-organized-suite-structure">Real-World Example — Organized Suite Structure</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import { test, expect } from '@playwright/test';
+
+test.describe('order management', () =&gt; {
+  test.describe('as an admin', () =&gt; {
+    test('can cancel any order', async ({ page }) =&gt; { /* ... */ });
+    test('can issue a refund', async ({ page }) =&gt; { /* ... */ });
+  });
+
+  test.describe('as a customer', () =&gt; {
+    test('can cancel their own pending order', async ({ page }) =&gt; { /* ... */ });
+    test('cannot cancel a shipped order', async ({ page }) =&gt; { /* ... */ });
+  });
+});</code></pre>
+<p>Nested describe blocks like this produce a readable HTML report tree (order management → as an admin → can cancel any order) and let role-specific setup live in a hook scoped to just that nested block — covered fully in the Hooks chapter.</p>
+
+<h2 id="tags-for-selective-runs">Tags for Selective Runs</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('completes checkout @smoke', async ({ page }) =&gt; { /* ... */ });</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># Run only tests tagged @smoke
+npx playwright test --grep @smoke</code></pre>
+<p>Tagging tests in their title (or via the newer dedicated <code>tag</code> option) and filtering with <code>--grep</code> is how most teams implement a fast "smoke suite" that runs on every commit, separate from a slower full regression suite that runs less frequently.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Sharing mutable state between tests via a describe-scoped variable
+let createdOrderId;
+test.describe('orders', () =&gt; {
+  test('creates an order', async ({ page }) =&gt; { createdOrderId = '...'; });
+  test('can view the created order', async ({ page }) =&gt; { /* uses createdOrderId — fragile! */ });
+});
+
+// ✅ Each test is fully self-contained, using a fixture or setup step for shared needs
+test('can view an order', async ({ page, createTestOrder }) =&gt; {
+  const order = await createTestOrder();
+  // ...
+});</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Committing a <code>test.only()</code></strong> that was left in from local debugging, silently disabling the rest of the suite in CI.</li>
+  <li><strong>Using describe blocks to share mutable state between tests</strong> (a variable set in one test, read in another) — tests should stay independent regardless of grouping, since parallel execution makes ordering assumptions unreliable anyway.</li>
+  <li><strong>Writing automation scripts with a raw <code>chromium.launch()</code></strong> instead of <code>@playwright/test</code>, then manually reimplementing parallelization or retries that the test runner already provides.</li>
+  <li><strong>Confusing <code>skip</code> and <code>fixme</code></strong> — using <code>skip</code> for a genuinely broken test hides it from bug-tracking visibility that <code>fixme</code> preserves.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Conditional skipping based on project/browser</strong> — <code>test.skip(browserName === 'webkit', 'not supported on Safari yet')</code> lets a single test file skip only for specific configured projects rather than needing entirely separate files.</li>
+  <li><strong>Nested <code>test.step()</code> calls</strong> — steps can be nested inside other steps, useful for breaking a long step down further without flattening the report structure.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>UI Mode (Chapter 2) shows <code>test.step()</code> boundaries directly in its timeline, making it easy to jump straight to the step that failed rather than scrubbing through a flat list of every individual action.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Use describe blocks primarily for report readability and scoped hooks, not as a substitute for well-named individual tests.</li>
+  <li>Wrap logical phases of a long test in <code>test.step()</code> for report and trace clarity.</li>
+  <li>Lint or CI-check against committed <code>test.only()</code> calls.</li>
+  <li>Default to <code>@playwright/test</code> for anything that will run more than once or needs CI integration — reach for the raw library API only for one-off scripts.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Write a test for a multi-step registration flow (account info → profile details → confirmation) using <code>test.step()</code> for each phase, and tag it <code>@smoke</code> so it can be selectively run with <code>--grep</code>.</p>
+
+<h2 id="summary">Summary</h2>
+<p><code>@playwright/test</code> is the layer that turns browser automation into an organized, parallel, retryable, reportable test suite — discovery, fixtures, parallelization, retries, and reporting are all its responsibility, distinct from the automation library underneath it. <code>describe</code> groups tests for readability and scoped hooks without sharing state between them, and <code>test.step()</code>/tags help organize both reports and selective test runs.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>What's the difference between Playwright the automation library and @playwright/test the test runner?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The automation library (Browser, BrowserContext, Page, locators, actions) handles driving the browser itself. <code>@playwright/test</code> is built on top of it and adds everything needed to run automation as an organized test suite — test discovery, fixtures, parallel execution across workers, automatic retries, and reporting — none of which the automation library provides on its own.</div>
+</details>
+<details class="faq-item">
+<summary>What's the actual split between Playwright the library and @playwright/test the runner?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The library drives browser automation (Browser, Context, Page, locators); the runner adds discovery, fixtures, parallelization, retries, and reporting on top of it.</div>
+</details>
+<details class="faq-item">
+<summary>Does test.describe() share state between the tests inside it?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">No — grouping is for reporting clarity and scoped hooks only; tests remain fully isolated regardless of grouping.</div>
+</details>
+<details class="faq-item">
+<summary>What does test.step() actually change about execution?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Nothing functionally — it's purely for organizing the HTML report and Trace Viewer timeline into named, collapsible sections.</div>
+</details>
+<details class="faq-item">
+<summary>What's the difference between test.skip() and test.fixme()?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">skip is for tests that shouldn't run right now for a deliberate reason; fixme specifically marks a test failing due to a known bug, keeping it visible in the report.</div>
+</details>
+</div>
+</article>
+</body></html>

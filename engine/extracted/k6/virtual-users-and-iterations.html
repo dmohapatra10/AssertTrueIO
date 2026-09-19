@@ -1,0 +1,126 @@
+<!doctype html>
+<html><head>
+<title>Virtual Users &amp; Iterations in k6: vus, duration, and iterations Explained</title>
+<meta name="description" content="The basic units of load in k6 — virtual users, iterations, concurrent execution, and the vus/duration/iterations options — explained precisely, not just by syntax." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/virtual-users-and-iterations.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Virtual Users &amp; Iterations</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="virtual-users-scenarios-workload-modeling.html">Virtual Users, Scenarios & Workload Modeling overview</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Chapter 1 defined a virtual user conceptually — a simulated user your load-testing tool runs. This page covers how that concept actually becomes real k6 configuration: the exact options that control how many VUs run, for how long, and how many times each one repeats its work.</p>
+
+<h2 id="vus-how-many-virtual-users">vus — How Many Virtual Users</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export const options = {
+  vus: 50,
+};</code></pre>
+<p><code>vus</code> sets how many virtual users run concurrently. With no other configuration, k6 defaults to running each of these 50 VUs through your default function exactly once — which is rarely what you actually want for a real test, which is exactly why <code>vus</code> is almost always paired with either <code>duration</code> or <code>iterations</code>.</p>
+
+<h2 id="duration-how-long-the-test-runs">duration — How Long the Test Runs</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export const options = {
+  vus: 50,
+  duration: '5m',
+};</code></pre>
+<p>With <code>duration</code> set, each of the 50 virtual users keeps repeating the default function in a loop for the full 5 minutes, rather than running just once. This is the most common configuration shape for a straightforward load test — a fixed number of concurrent users, sustained for a meaningful period.</p>
+
+<h2 id="iterations-a-fixed-total-count-instead">iterations — A Fixed Total Count Instead</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export const options = {
+  vus: 50,
+  iterations: 500,
+};</code></pre>
+<p>Instead of running for a fixed duration, this configuration runs a fixed total number of iterations (500) distributed across the 50 virtual users, then stops — regardless of how long that actually takes. This is useful when you care about completing a specific total amount of work, rather than sustaining load for a specific period of time.</p>
+
+<h2 id="concurrent-execution-what-50-vus-actually-means-moment-to-moment">Concurrent Execution — What "50 VUs" Actually Means Moment to Moment</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Time →
+VU 1: [request][sleep][request][sleep][request]...
+VU 2: [request][sleep][request][sleep][request]...
+VU 3: [request][sleep][request][sleep][request]...
+...
+VU 50: [request][sleep][request][sleep][request]...</code></pre>
+<p>All 50 virtual users execute independently and in parallel, each running through the default function on their own timeline (including their own <code>sleep()</code> calls) — "50 VUs" means up to 50 requests could genuinely be happening at the same literal instant, not 50 requests processed one after another.</p>
+
+<h2 id="detailed-example-vus-and-iterations-are-not-the-same-as-requests">Detailed Example — VUs and Iterations Are Not the Same as Requests</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export default function () {
+  http.get(url1); // request 1
+  sleep(1);
+  http.get(url2); // request 2
+  sleep(1);
+  http.get(url3); // request 3
+}</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>vus: 10, iterations: 10  →  10 total iterations, but 30 total HTTP requests
+                             (3 requests per iteration × 10 iterations)</code></pre>
+<p>This is a genuinely common point of confusion: an "iteration" is one full run through the default function, which might contain any number of actual HTTP requests inside it. Configuring "10 iterations" doesn't mean "10 requests" — it means 10 complete passes through whatever your script's default function actually does.</p>
+
+<h2 id="real-world-example-choosing-vus-duration-vs-vus-iterations">Real-World Example — Choosing vus+duration vs. vus+iterations</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Scenario A: "Simulate typical Tuesday afternoon traffic for 10 minutes."
+→ Use vus + duration — you care about SUSTAINED load over a time period.
+export const options = { vus: 200, duration: '10m' };
+
+Scenario B: "Confirm the system correctly processes exactly 1,000 order submissions."
+→ Use vus + iterations — you care about a specific TOTAL amount of completed work.
+export const options = { vus: 20, iterations: 1000 };</code></pre>
+<p>Neither configuration style is universally "correct" — the right choice depends entirely on whether the real question you're asking is about sustained behavior over time, or about completing a specific, countable amount of work.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Setting vus with no duration or iterations — runs each VU exactly once, rarely useful
+export const options = { vus: 50 };
+
+// ✅ Pairing vus with a deliberate duration or iteration count matching the actual goal
+export const options = { vus: 50, duration: '5m' }; // sustained load test
+</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Setting <code>vus</code> alone with no <code>duration</code> or <code>iterations</code></strong> — produces a test that runs each VU exactly once, almost never what's actually intended for real load testing.</li>
+  <li><strong>Confusing an iteration count with a request count</strong> — one iteration can contain any number of actual HTTP requests, depending on what the default function does.</li>
+  <li><strong>Assuming higher VU count always means proportionally more realistic load</strong> — the actual traffic pattern (sustained, ramping, bursty) matters as much as the raw VU number, covered fully in the next two pages.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>An iteration that takes meaningfully longer for some VUs than others</strong> (due to varying sleep durations or response times) — with <code>duration</code>-based configuration, this naturally balances out over the test's runtime; with <code>iterations</code>-based configuration, some VUs may complete their share of iterations well before others.</li>
+  <li><strong>A test needing to stop after a fixed total amount of work regardless of how long it takes</strong> — this is exactly when <code>iterations</code> is the right choice over <code>duration</code>, even though <code>duration</code> is more commonly seen in typical load test examples.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a test's request count doesn't match what you expected from a given iteration count, check how many actual HTTP requests happen inside a single pass through the default function — this is almost always the source of an "iterations vs. requests" mismatch.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Always pair <code>vus</code> with either <code>duration</code> or <code>iterations</code> deliberately — never leave it configured alone.</li>
+  <li>Choose <code>duration</code> when the real question is about sustained behavior over time; choose <code>iterations</code> when it's about completing a specific total amount of work.</li>
+  <li>Remember that one iteration can contain multiple requests — don't assume iteration count equals request count without checking the actual script.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>For a script whose default function makes exactly 2 HTTP requests per iteration, calculate the total number of requests generated by a configuration of <code>vus: 25, iterations: 200</code>, and explain whether this same script would produce a fixed, predictable total request count if configured with <code>duration</code> instead.</p>
+
+<h2 id="summary">Summary</h2>
+<p><code>vus</code> sets how many virtual users run concurrently, <code>duration</code> sustains that concurrency for a fixed time period, and <code>iterations</code> instead runs a fixed total count of complete passes through the default function. An iteration is not the same as a request — one iteration can contain any number of actual HTTP calls — and choosing between duration-based and iteration-based configuration depends on whether the real goal is sustained behavior over time or a specific total amount of completed work.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why does setting vus alone, with no duration or iterations, rarely produce a useful test?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">With no duration or iteration count specified, k6 runs each virtual user through the default function exactly once and then stops — this almost never represents meaningful sustained load, since real performance testing is usually about how the system behaves over a period of time or across a specific volume of work, not a single pass per VU.</div>
+</details>
+<details class="faq-item">
+<summary>Why isn't "10 iterations" the same as "10 HTTP requests"?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">An iteration is one complete pass through the default function, which can contain any number of actual HTTP requests depending on what that function does — a script making three requests per iteration configured for 10 iterations would generate 30 total requests, not 10. Iteration count and request count are only equal when the default function makes exactly one request per pass.</div>
+</details>
+<details class="faq-item">
+<summary>When would you choose iterations over duration for configuring a test's load?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Choose iterations when the actual goal is completing a specific, countable amount of work — like confirming the system correctly processes exactly 1,000 order submissions — regardless of how long that takes. Choose duration when the goal is about sustained behavior over a fixed time period, like simulating 10 minutes of typical afternoon traffic, regardless of exactly how many iterations that produces.</div>
+</details>
+<details class="faq-item">
+<summary>What does "50 concurrent virtual users" actually mean in terms of real-time execution?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It means up to 50 virtual users are executing their scripted behavior — including their own requests and sleep calls — independently and in parallel at the same literal moment, not 50 requests being processed sequentially one after another. Each VU runs on its own independent timeline, which is what makes this genuinely concurrent rather than just a queue of 50 sequential executions.</div>
+</details>
+<details class="faq-item">
+<summary>If two VUs in the same test have different sleep durations in their scripts, how does that affect an iterations-based configuration differently than a duration-based one?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">In a duration-based test, both VUs simply keep running for the full configured time period regardless of how their individual pacing differs — the total elapsed time is fixed and predictable. In an iterations-based test, a VU with shorter sleep times will complete its share of the total iteration count faster than one with longer sleeps, meaning some VUs may finish their assigned work and stop before others, which can shift the actual concurrency level partway through the test.</div>
+</details>
+</div>
+</article>
+</body></html>

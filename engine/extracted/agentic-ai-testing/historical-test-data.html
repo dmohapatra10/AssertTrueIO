@@ -1,0 +1,178 @@
+<!doctype html>
+<html><head>
+<title>Historical Test Data: What You Need to Record Before Detection Is Possible</title>
+<meta name="description" content="The genuinely minimal data every test run needs to record for flaky-test detection to work at all, and why a bare pass/fail log isn&#x27;t enough on its own." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/historical-test-data.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Historical Test Data</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="why-tests-become-flaky.html">Why Tests Become Flaky</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Chapter 7's Anomaly and Trend Detection page made the same point for performance metrics: you can't detect a pattern across runs without genuinely recording enough about each run to compare them. Flaky test detection has the exact same prerequisite.</p>
+
+<h2 id="the-genuinely-minimal-record-per-run">The Genuinely Minimal Record Per Run</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>{
+  "test_name": "cart total updates after adding an item",
+  "run_id": "run-4821",
+  "timestamp": "2026-09-10T10:15:00Z",
+  "result": "fail",
+  "commit_hash": "a3f9c21",       // was the CODE genuinely
+                                    // the same as other runs?
+  "environment": "staging",         // was the ENVIRONMENT the
+                                      // same?
+  "duration_ms": 31204,
+  "preceding_test": "cart empty state shows correctly",  // for
+                                                            // shared-state investigation
+  "failure_message": "Timed out waiting for cart-total text"
+}</code></pre>
+<p>Notice this directly maps to the previous page's four causes — <code>commit_hash</code> and <code>environment</code> let you confirm the previous page's "genuinely unchanged" conditions from Chapter 9's own definition page; <code>preceding_test</code> gives you what's needed to investigate shared state or test-order dependency.</p>
+
+<h2 id="why-a-bare-pass-fail-log-genuinely-isn-t-enough">Why a Bare Pass/Fail Log Genuinely Isn't Enough</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>❌ Minimal, INSUFFICIENT logging:
+  Run 1: PASS   Run 2: FAIL   Run 3: PASS   Run 4: FAIL
+
+  This confirms INCONSISTENCY — but per the What is a Flaky
+  Test? page's own definition, inconsistency ALONE isn't
+  sufficient evidence. Was the CODE the same across all four?
+  Was staging healthy for all four? This bare log can't answer
+  either question.
+
+✅ This page's fuller record enables GENUINE confirmation:
+  All four runs' commit_hash values can be checked for equality
+  — confirming code was genuinely unchanged. All four runs'
+  environment field and independently-tracked staging health
+  data can confirm environment was genuinely stable too.</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why does recording <code>commit_hash</code> for every single run matter even for a team that deploys relatively infrequently? Even infrequent deploys mean SOME test runs happen before a change and some happen after — without recording which commit was actually running for each specific result, there's no reliable way to separate "genuinely flaky under the same code" from "the code itself changed between these specific runs, and THAT'S why results differ." The whole point of this page's record is making the What is a Flaky Test? page's "genuinely unchanged" conditions checkable after the fact, not just assumed.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Adding historical data recording only after flakiness has already become a real, visible problem. By the time flakiness is noticed, the historical record needed to properly diagnose it (commit hashes, environment state, preceding tests) often doesn't exist for the runs that already happened — exactly why this page's recording needs to be a standing practice, not a reactive addition.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>Recording <code>preceding_test</code> specifically is easy to overlook but genuinely valuable — it's the one field that makes shared-state and test-order investigation possible at all; without it, that entire category of cause becomes very difficult to confirm or rule out after the fact.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Record commit hash and environment for every test run from the start, not just pass/fail — this is what makes the definition of flakiness actually checkable.</li>
+  <li>Include the preceding test in each run's record, specifically enabling shared-state and test-order investigation later.</li>
+  <li>Treat historical data recording as a standing practice, established before flakiness is suspected, not a reactive addition once it's already a visible problem.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>A bare pass/fail log confirms inconsistency but can't confirm the "genuinely unchanged" conditions the actual definition of flakiness requires.</li>
+  <li>A genuinely useful record includes commit hash, environment, and preceding test — directly enabling the checks the previous two pages established as necessary.</li>
+  <li>Historical data needs to be recorded as a standing practice before flakiness is suspected, since the record needed to diagnose it retroactively often doesn't exist otherwise.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Using this page's record format, write out five hypothetical run records for the cart-total test that would provide genuinely strong evidence FOR a race condition specifically, and explain which fields in your records support that conclusion.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A team has six months of pass/fail history for their test suite, but no commit hash or environment data recorded alongside it. What can and can't they actually determine about flakiness from this data?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>They can observe raw inconsistency patterns, but genuinely can't confirm actual flakiness per this chapter's own definition — without commit hash and environment data, there's no way to rule out the alternative explanations the definition specifically requires excluding.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What they CAN determine:
+"Test X has passed 75% of its 200 runs over six months" — a
+  genuine, real STATISTIC about inconsistency.
+
+What they CANNOT determine from THIS data alone:
+Whether that 75% reflects GENUINE flakiness (same code,
+  environment, input, inconsistent results) or is CONTAMINATED
+  by genuine fix-then-regression cycles, environment outages,
+  or other confounding factors this page's fuller record would
+  have let them rule out.</code></pre>
+<p>The honest conclusion: six months of bare pass/fail data is a useful STARTING signal (worth investigating further) but not sufficient EVIDENCE of genuine flakiness on its own — exactly the gap this page's fuller recommended record exists to close going forward.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page argue that adding proper historical data recording AFTER flakiness is already noticed is a genuine, real problem, not just a missed optimization?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because the specific runs that already occurred — the ones that first revealed the flakiness pattern — are genuinely unrecoverable; you can't retroactively record what commit or environment state existed for a run that already happened without that data being captured at the time.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What's PERMANENTLY lost without contemporaneous recording:
+The EXACT commit hash running during last month's suspicious
+  failure, the EXACT environment health status at that moment
+  — this information existed ONCE, at that specific point in
+  time, and is genuinely gone once the run completes without
+  it being captured.
+
+Why this matters PRACTICALLY:
+A team NOTICING flakiness today, then starting to record
+  proper historical data GOING FORWARD, has to essentially
+  restart their evidence-gathering from scratch — the
+  POTENTIALLY VALUABLE evidence from when the pattern FIRST
+  emerged is permanently unavailable, extending how long real
+  diagnosis takes.</code></pre>
+<p>This is exactly why this page insists on treating the recording itself as a standing practice — unlike most kinds of analysis, which can be run retroactively on existing data, THIS specific data genuinely can't be reconstructed after the fact once the opportunity to capture it has passed.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why preceding_test is described as "easy to overlook but genuinely valuable" — why might a team's initial data-recording design skip this field?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because it's not an obviously necessary field when designing a LOGGING system in isolation — commit hash and pass/fail feel like obvious things to record, while "what test ran immediately before this one" only becomes obviously important once you're specifically thinking about shared-state and test-order flakiness causes.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why it's EASY to overlook when FIRST designing test logging:
+Most teams design basic test result logging thinking primarily
+  about "did this test pass or fail, and when" — commit hash
+  and timestamp feel like natural, obvious additions. Nobody
+  DESIGNING a logging system from scratch, without already
+  knowing about test-order-dependency flakiness specifically,
+  would necessarily think to record WHICH test ran immediately
+  before each one.
+
+Why it's GENUINELY valuable once you know to look for it:
+Per the Why Tests Become Flaky page's own discussion, test
+  order dependency is a REAL, recurring cause — and without
+  this SPECIFIC field, investigating it retroactively becomes
+  genuinely difficult, since "what ran right before this" isn't
+  reconstructable from a bare pass/fail/commit-hash log alone.</code></pre>
+<p>This is a genuinely useful, practical lesson: designing historical data collection benefits from thinking BACKWARD from "what would I need to investigate each possible cause" (this chapter's own four categories), rather than just forward from "what seems obviously worth logging" in isolation.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you extend this page's record format to also support investigating "external dependency" as a cause, given the current fields don't obviously address it?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A genuinely useful addition would record the response time (or success/failure) of any significant external dependency calls made during the test, making it possible to correlate flaky results with that dependency's own behavior at the time.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>{
+  "test_name": "checkout completes with valid payment",
+  "run_id": "run-5102",
+  "timestamp": "2026-09-10T14:22:00Z",
+  "result": "fail",
+  "commit_hash": "a3f9c21",
+  "environment": "staging",
+  "external_dependencies": {                    // NEW field
+    "payment_sandbox_response_time_ms": 8420,
+    "payment_sandbox_status": "success_but_slow"
+  }
+}</code></pre>
+<p>With this addition, a team could later query specifically for "does this test's failure rate correlate with slow <code>payment_sandbox_response_time_ms</code> values" — directly testing the external-dependency hypothesis from the previous page with real, recorded evidence, rather than only being able to guess at it after the fact without any data actually supporting or refuting the theory.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might it be reasonable to NOT record every conceivable piece of data about every test run, given this chapter's emphasis on the value of historical data?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This connects directly to a consistent theme across this entire course — more data isn't automatically better, and recording genuinely irrelevant detail adds real storage cost and noise without adding genuine diagnostic value, exactly the same "relevant beats exhaustive" principle from Chapter 2's Reasoning page.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What's WORTH recording (this page's actual fields):
+Each field maps DIRECTLY to one of the four causes from the
+  previous page — commit_hash (code changed?), environment
+  (environment changed?), preceding_test (shared state/order?)
+  — genuinely purposeful, tied to specific, real diagnostic
+  questions this chapter needs to answer.
+
+What would be GENUINELY excessive to also record:
+The full browser console output, every single network request's
+  full headers, the complete DOM snapshot — for EVERY run,
+  passing or failing — would add real, ongoing storage cost
+  for information that's rarely actually needed, given that
+  Chapter 8's deeper, per-failure evidence gathering (traces,
+  screenshots, logs) already covers this need specifically for
+  INDIVIDUAL failures worth deeper investigation.</code></pre>
+<p>The practical principle: historical data for PATTERN detection (this chapter) should stay lean and purposeful, while DEEP, per-failure evidence (Chapter 8's traces, screenshots, logs) is reserved for specific failures that warrant that fuller, more expensive investigation — not collected exhaustively for every single run by default.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

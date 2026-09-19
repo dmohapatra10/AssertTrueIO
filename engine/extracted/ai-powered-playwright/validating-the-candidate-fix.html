@@ -1,0 +1,98 @@
+<!doctype html>
+<html><head>
+<title>Validating the Candidate Fix</title>
+<meta name="description" content="Actually running the test with the candidate patch applied, in an isolated location — real, empirical proof the fix works, not just a plausible-looking diff." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/validating-the-candidate-fix.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Validating the Candidate Fix</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="generating-a-candidate-fix.html">Generating a Candidate Fix</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Why a plausible-looking diff still needs to actually be run before anyone trusts it</li>
+  <li>Applying a patch to an isolated copy, never the real source file directly</li>
+  <li>What "validated" genuinely means at this stage — and what it doesn't yet mean</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>The previous page's diff is readable and well-reasoned — it's still just a proposal nobody has actually run. This page closes that gap with real, empirical proof: does the originally-failing test genuinely pass with this patch applied?</p>
+
+<h2 id="step-by-step-implementation">Step-by-Step Implementation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/validate-candidate-patch.ts
+import { execSync } from 'child_process';
+import { copyFileSync, writeFileSync, readFileSync, mkdtempSync } from 'fs';
+import { tmpdir } from 'os';
+import { CandidatePatch } from './build-candidate-diff';
+
+export interface ValidationResult {
+  passed: boolean;
+  output: string;
+}
+
+export function validatePatchInIsolation(
+  patch: CandidatePatch, testName: string
+): ValidationResult {
+  // NEVER touch the REAL source file — copy it to an ISOLATED,
+  // TEMPORARY location first
+  const tempDir = mkdtempSync(`${tmpdir()}/patch-validation-`);
+  const tempFilePath = `${tempDir}/${patch.filePath.split('/').pop()}`;
+  copyFileSync(patch.filePath, tempFilePath);
+
+  let content = readFileSync(tempFilePath, 'utf-8');
+  for (const change of patch.changes) {
+    content = content.replace(change.before.trim(), change.after.trim());
+  }
+  writeFileSync(tempFilePath, content, 'utf-8');
+
+  try {
+    const output = execSync(
+      `npx playwright test ${tempFilePath} -g "${testName}"`,
+      { encoding: 'utf-8' }
+    );
+    return { passed: true, output };
+  } catch (error: any) {
+    return { passed: false, output: error.stdout ?? String(error) };
+  }
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p>The isolated temp directory is the genuinely important detail here — the real source file is never modified, even temporarily, during validation. This means a validation run that goes wrong, crashes, or produces an unexpected result never leaves the actual codebase in an inconsistent state, no matter what happens during the test execution itself.</p>
+
+<h2 id="example-validating-shopsmart-s-locator-fix">Example — Validating ShopSmart's Locator Fix</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const result = validatePatchInIsolation(patch, 'adds product to cart');
+
+console.log(result.passed);
+// true — the PATCHED version of the test, run in ISOLATION,
+// GENUINELY passes against the real, current ShopSmart page
+
+// If it DIDN'T pass, result.output contains the REAL Playwright
+// failure output — genuinely useful for understanding WHY the
+// candidate fix, despite LOOKING reasonable, didn't actually work</code></pre>
+
+<h2 id="why-it-matters-what-validated-does-and-doesn-t-mean-yet">Why It Matters — What "Validated" Does and Doesn't Mean Yet</h2>
+<p>A passing result here proves the specific, originally-failing test now genuinely passes with this patch. It says nothing about whether the patch breaks something else in the suite — that's a real, separate question this chapter's next page addresses directly. Validation at this stage is necessary, not sufficient.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Applying the patch directly to the real source file "just to test it quickly."</strong> This page's isolated-copy approach exists specifically to prevent an in-progress validation from ever touching the actual codebase.</li>
+  <li><strong>Treating a passing validation as proof the fix is safe to merge.</strong> It only proves the originally-failing test now passes — regression risk across the rest of the suite is still completely unaddressed at this point.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Always validate in an isolated copy, never the real file — no exceptions, even for a quick check.</li>
+  <li>Keep the full test output, not just a pass/fail boolean — it's genuinely useful if the patch doesn't work as expected.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Run this page's function against a real candidate patch from this chapter's earlier exercises. Deliberately introduce a mistake into one proposed change first, and confirm the function correctly reports failure with useful, real output explaining why.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>A candidate patch needs to actually run, in isolation, before anyone trusts that it genuinely fixes the failing test.</li>
+  <li>Working in an isolated copy, never the real source file, means a failed or crashed validation never leaves the actual codebase inconsistent.</li>
+  <li>A passing validation here is necessary but not sufficient — it says nothing yet about regressions elsewhere in the suite, covered next.</li>
+</ul>
+</article>
+</body></html>

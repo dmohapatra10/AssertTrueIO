@@ -1,0 +1,176 @@
+<!doctype html>
+<html><head>
+<title>Project Setup for Your First QA Agent</title>
+<meta name="description" content="The actual files, dependencies, and configuration needed to build a real QA agent — a genuinely minimal setup, deliberately avoiding anything the first chapter doesn&#x27;t actually need." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/project-setup.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Project Setup</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="building-your-first-qa-agent.html">Building Your First QA Agent overview</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Before writing any agent logic, this page sets up the actual project — deliberately minimal, since a first agent doesn't need a sophisticated framework to genuinely work.</p>
+
+<h2 id="what-you-actually-need">What You Actually Need</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A real, minimal QA agent project needs exactly three things:
+
+1. A way to call an LLM (an API client library)
+2. A way to actually control a browser (Playwright, already
+   covered in this site's own Playwright track)
+3. Plain Python to wire the two together
+
+Nothing else — no agent framework, no orchestration platform,
+no vector database. Those can genuinely matter later, for more
+complex agents. This chapter's agent doesn't need any of them.</code></pre>
+
+<h2 id="the-actual-project-structure">The Actual Project Structure</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>shopeasy-qa-agent/
+├── agent.py           # the agent's core logic
+├── tools.py             # the browser actions the agent can call
+├── requirements.txt       # dependencies
+└── .env                    # API key, kept out of version control</code></pre>
+
+<h2 id="installing-dependencies">Installing Dependencies</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># requirements.txt
+anthropic          # or your LLM provider's own client library
+playwright
+python-dotenv</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>pip install -r requirements.txt
+playwright install chromium   # downloads the actual browser binary</code></pre>
+
+<h2 id="configuration-keeping-the-api-key-out-of-your-code">Configuration — Keeping the API Key Out of Your Code</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># .env  (never commit this file to version control)
+ANTHROPIC_API_KEY=your-actual-key-here
+SHOPEASY_TEST_USERNAME=test-user@shopeasy.example.com
+SHOPEASY_TEST_PASSWORD=a-genuine-test-password</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># at the top of agent.py
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+api_key = os.environ["ANTHROPIC_API_KEY"]</code></pre>
+<p>This is genuinely the same practice as any other credential in this course's other tracks — an API key is a real secret, and belongs in environment configuration, never hardcoded directly into a script that might end up committed to a shared repository.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might starting with the smallest possible dependency list — just an LLM client and Playwright — be a genuinely better choice for a first agent than adopting a full agent framework from the start? A framework adds real abstraction between you and what's actually happening — useful once you understand the fundamentals well, but genuinely counterproductive while you're still building that understanding. Writing the loop, the tool calling, and the prompt construction yourself, even in a simple form, is exactly what makes the concepts from Chapter 2 concrete rather than hidden behind someone else's abstraction.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Reaching for a full agent framework or orchestration platform before building a single simple agent by hand. Frameworks genuinely add value once you understand what they're actually doing underneath — adopting one first often means learning the framework's specific API instead of learning how agents genuinely work, which is precisely this chapter's actual goal.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>Pin your dependency versions in <code>requirements.txt</code> (e.g., <code>playwright==1.48.0</code>) rather than leaving them unpinned — the same reasoning covered in this site's GitHub Actions track for pinning action versions applies here: an unpinned dependency can change underneath you without warning.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Keep a first agent's dependencies genuinely minimal — an LLM client and whatever tool libraries the task actually needs, nothing speculative.</li>
+  <li>Store credentials in environment configuration, never directly in code, from the very first version.</li>
+  <li>Pin dependency versions deliberately, for the same reliability reasons this applies anywhere else in software.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>A real first QA agent needs surprisingly little: an LLM client, a browser automation tool, and plain code to connect them.</li>
+  <li>Credentials belong in environment configuration from the start, not hardcoded — a practice worth establishing immediately, not retrofitting later.</li>
+  <li>Skipping a full agent framework for a first build is a deliberate choice that keeps the underlying concepts visible and genuinely understood.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Set up this exact project structure locally (even without an API key yet, you can create the files and install Playwright), and confirm <code>playwright install chromium</code> completes successfully before moving to the next page.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A colleague suggests starting your team's first QA agent project with a popular agent orchestration framework, arguing it'll save time. How would you weigh this against building a simple agent by hand first, as this page recommends?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd distinguish between a team's actual production project and a genuine first learning exercise — the framework might be the right call for the former, but this page's argument is specifically about the latter, where the actual goal is understanding, not shipping speed.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>For a genuine LEARNING first build (this chapter's context):
+Writing the loop, tool calling, and prompt construction by
+  hand — even simply — means every concept from Chapter 2 has
+  a concrete, visible piece of code behind it. A framework
+  would hide these behind its own abstractions, undermining
+  the actual goal of understanding.
+
+For a team's REAL production agent, once fundamentals are
+  genuinely understood:
+A framework's abstractions (session handling, retry logic,
+  structured tool definitions) become genuine time savers,
+  since the team already understands what's happening
+  underneath and can debug through the abstraction if needed.</code></pre>
+<p>The recommendation isn't "frameworks are bad" — it's "understand the fundamentals by building without one first, then a framework's abstractions are a genuine productivity gain rather than a black box."</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page treat storing the API key in a .env file as equally important as any other part of the actual setup, rather than a minor detail?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because an LLM API key is a genuine credential with real, ongoing cost implications if exposed — anyone with the key can make API calls billed to your account, exactly the same category of risk as any other credential covered elsewhere in this course.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Real, concrete risk of hardcoding the key directly in agent.py:
+api_key = "sk-ant-actual-real-key-value"
+If this file is EVER committed to a shared or public
+  repository — even briefly, even if later removed — the key
+  is exposed in the commit history, exactly the same
+  permanent-exposure risk covered for other secrets throughout
+  this site's other tracks.
+
+The .env approach specifically prevents this by keeping the
+  actual secret value OUT of any file that would normally be
+  committed, with .env itself excluded via .gitignore.</code></pre>
+<p>This isn't a minor housekeeping detail — it's establishing a genuinely correct security habit from the very first line of code, exactly matching this course's consistent emphasis on treating credentials seriously from the start, not as an afterthought.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does the project structure on this page separate tools.py from agent.py, rather than putting everything in one file for a project this small?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because it mirrors the genuine architectural separation from Chapter 2 — the agent's reasoning logic and its actual tools are conceptually distinct pieces, and keeping them in separate files reinforces that distinction even in a small project where it wouldn't strictly be necessary for the code to function.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>agent.py — the "thinking" side: builds prompts, calls the LLM,
+  interprets responses, runs the loop
+
+tools.py — the "doing" side: actual functions that click
+  buttons, fill fields, read page text — ordinary, deterministic
+  code with no LLM involvement at all
+
+This separation directly matches the Anatomy page's own
+  distinction between LLM-powered pieces (planner, reasoner)
+  and non-LLM pieces (tools, memory) — the file structure is a
+  genuine, deliberate reflection of the conceptual architecture,
+  not just an arbitrary organizational choice.</code></pre>
+<p>For a genuinely tiny project, one file would technically work — but starting with this separation builds the right habit for when the project inevitably grows more complex, and reinforces the conceptual boundaries this course has been building throughout Chapter 2.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might pinning exact dependency versions matter more for an AI agent project specifically, compared to a more traditional, non-AI software project?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>An AI agent's behavior can already vary somewhat between runs due to the LLM itself — adding unpinned dependencies introduces a SECOND source of potential variability, making it genuinely harder to tell whether a change in behavior came from the model, an updated library, or something else entirely.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>With PINNED dependencies (playwright==1.48.0):
+If the agent's behavior changes between two runs, you can
+  more confidently attribute it to the LLM's own variability
+  or a genuine application change — not a library update that
+  silently happened underneath.
+
+With UNPINNED dependencies:
+A library update could change browser automation behavior in
+  a way that looks identical to "the LLM decided something
+  different" — genuinely confounding two separate variables
+  that are already hard enough to distinguish given the LLM's
+  own inherent variability.</code></pre>
+<p>Since agentic systems already have one genuine source of run-to-run variability (the LLM's reasoning), keeping everything else in the stack deliberately stable and pinned makes debugging unexpected behavior meaningfully more tractable.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>This page explicitly avoids adopting a vector database or orchestration platform for the first agent. When, later in a real project, might those genuinely become necessary?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A vector database becomes genuinely relevant once long-term memory (covered in Chapter 2) needs to search across a large, growing volume of past observations by semantic similarity, rather than a simple, small stored list — something this chapter's minimal login-testing agent has no real need for yet.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>This chapter's agent's actual memory needs: a handful of
+  short-term facts within ONE simple task — genuinely fits in
+  a plain Python list or dictionary, no database needed at all.
+
+A LATER, genuinely more complex agent might need: "search
+  across 500 past test runs for situations similar to this
+  new failure" — THIS specific need is what a vector database
+  is actually built to solve efficiently, once the scale and
+  the nature of the search genuinely require it.</code></pre>
+<p>The general principle worth taking from this page: adopt infrastructure when a genuine, concrete need for it arises from the actual problem you're solving — not preemptively, based on what a "real" or "production" system might eventually need. This chapter's agent simply hasn't reached that point yet, and forcing that complexity in early would only obscure the fundamentals it's meant to teach.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

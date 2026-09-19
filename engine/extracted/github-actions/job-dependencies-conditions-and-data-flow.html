@@ -1,0 +1,42 @@
+<!doctype html>
+<html><head>
+<title>Job Dependencies, Conditions &amp; Data Flow in GitHub Actions</title>
+<meta name="description" content="Building real multi-job pipelines — needs: in full depth, passing values between steps and between jobs, and the complete failure-handling status vocabulary." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/job-dependencies-conditions-and-data-flow.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Job Dependencies, Conditions &amp; Data Flow</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="artifacts-caching-and-build-outputs.html">Artifacts, Caching & Build Outputs</a></p>
+<article class="content">
+<h2 id="formalizing-something-you-ve-already-used">Formalizing Something You've Already Used</h2>
+<p><code>needs:</code> has appeared in examples since Chapter 6 — conditioning deployment on a test job's outcome, downloading an artifact only after its job finishes — without ever being taught as its own topic. This chapter finally gives it, and its two genuinely new companions (passing real values between steps and between jobs), full treatment. Four focused pages:</p>
+<ol>
+  <li><a href="job-dependencies-with-needs-in-depth.html">Job Dependencies: needs: In Depth</a> — single and multiple dependencies, fully explained</li>
+  <li><a href="passing-information-between-steps.html">Passing Information Between Steps</a> — the actual mechanism behind <code>steps.&lt;id&gt;.outputs</code></li>
+  <li><a href="passing-information-between-jobs.html">Passing Information Between Jobs</a> — small values, not files — genuinely different from artifacts</li>
+  <li><a href="conditional-jobs-and-failure-handling.html">Conditional Jobs & Failure Handling</a> — the complete status vocabulary, and designing a pipeline around it</li>
+</ol>
+
+<h2 id="the-real-pipeline-this-chapter-builds">The Real Pipeline This Chapter Builds</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Build
+  ↓
+Unit Tests
+  ↓
+API Tests
+  ↓
+UI Tests
+  ↓
+Deploy</code></pre>
+<p>This looks like a strict, linear chain — but it doesn't have to be. API Tests and UI Tests might genuinely be independent of each other, both only needing Build to finish first, meaning they could run in parallel rather than one waiting for the other. Deciding which jobs truly need to wait for which is exactly what this chapter is about.</p>
+
+<h2 id="common-mistakes-to-watch-for">Common Mistakes to Watch For</h2>
+<ul>
+  <li><strong>Chaining every job sequentially "to be safe,"</strong> even when two jobs are genuinely independent and could run in parallel, needlessly slowing the whole pipeline down.</li>
+  <li><strong>Confusing a step output with a job output</strong> — related mechanisms, but genuinely different scopes, covered as two distinct pages here.</li>
+  <li><strong>Treating "skipped" the same as "failed"</strong> when designing conditional logic — they're genuinely different states with different correct handling.</li>
+</ul>
+
+<h2 id="what-you-ll-be-able-to-do">What You'll Be Able to Do</h2>
+<p>By the end of the four pages that follow, you should be able to design a multi-job pipeline that correctly parallelizes independent work, pass a value from one step to a later one, pass a value from one job to an entirely different job, and build conditional logic that correctly distinguishes success, failure, cancellation, and skipping. Start with Job Dependencies: needs: In Depth below.</p>
+</article>
+</body></html>

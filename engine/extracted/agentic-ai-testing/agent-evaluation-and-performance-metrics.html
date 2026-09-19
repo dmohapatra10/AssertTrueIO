@@ -1,0 +1,197 @@
+<!doctype html>
+<html><head>
+<title>Agent Evaluation and Performance Metrics: Quantifying Quality Across Many Runs</title>
+<meta name="description" content="Combining every check from this chapter into one genuine agent quality scorecard, tracked over time — closing this chapter the same way Chapter 11 closed its own." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/agent-evaluation-and-performance-metrics.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Agent Evaluation and Performance Metrics</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="testing-agent-recovery.html">Testing Agent Recovery</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>This page brings together every check from this chapter's earlier pages — plan quality, tool accuracy, memory usage, state accuracy, recovery — into one genuine scorecard, tracked across many runs the same way Chapter 11 tracked LLM output quality.</p>
+
+<h2 id="a-genuine-agent-scorecard">A Genuine Agent Scorecard</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def compute_agent_scorecard(run_reports):
+    from statistics import mean
+    scorecard = {
+        "plan_quality_pass_rate": mean(
+            1 if r["plan_check"]["passed"] else 0 for r in run_reports),
+        "tool_selection_accuracy": mean(
+            r["tool_selection_correct_pct"] for r in run_reports),
+        "tool_parameter_accuracy": mean(
+            r["tool_parameter_correct_pct"] for r in run_reports),
+        "memory_effective_rate": mean(
+            1 if r["memory_check"]["influenced_behavior"] else 0
+            for r in run_reports),
+        "state_accuracy_rate": mean(
+            1 if r["state_check"]["state_accurate"] else 0
+            for r in run_reports),
+        "recovery_success_rate": mean(
+            1 if r["recovery_check"]["recovered"] else 0
+            for r in run_reports),
+        "avg_steps_per_task": mean(r["steps_taken"] for r in run_reports),
+    }
+    return scorecard</code></pre>
+
+<h2 id="why-per-dimension-not-a-single-blended-agent-quality-score">Why Per-Dimension, Not a Single Blended "Agent Quality" Score</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>This is DIRECTLY Chapter 11's OWN argument, now applied to
+agent architecture instead of LLM response quality:
+
+A blended "87% agent quality" score could HIDE that
+recovery_success_rate is a genuinely CONCERNING 40%, while
+tool_selection_accuracy sits at a GENUINELY solid 98% —
+AVERAGING these together produces a NUMBER that looks
+REASONABLE while COMPLETELY OBSCURING the SPECIFIC, SERIOUS
+weakness (recovery) that ACTUALLY needs real attention.</code></pre>
+
+<h2 id="a-genuine-scorecard-revealing-a-real-priority">A Genuine Scorecard Revealing a Real Priority</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>{
+  "plan_quality_pass_rate": 0.96,
+  "tool_selection_accuracy": 0.98,
+  "tool_parameter_accuracy": 0.94,
+  "memory_effective_rate": 0.91,
+  "state_accuracy_rate": 0.89,
+  "recovery_success_rate": 0.42,  # GENUINELY concerning
+  "avg_steps_per_task": 5.2,
+}
+
+FIVE dimensions genuinely strong. ONE — recovery — genuinely
+weak, and it's PRECISELY the dimension Testing Agent Recovery
+argued matters MOST for real-world reliability, since
+happy-path success alone (which the OTHER five dimensions
+largely reflect) doesn't predict how an agent handles GENUINE,
+real-world surprises.</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might this page's example scorecard — five strong dimensions, one weak — be a genuinely realistic, common pattern for agents in practice, rather than an artificially constructed example? An agent's core execution logic (planning, tool use, memory, state) tends to be exercised heavily during normal development and happy-path testing, naturally getting refined through that repeated use. Recovery from genuinely unexpected obstacles is exercised far less often during ordinary development — exactly Testing Agent Recovery's own point about needing deliberate, injected testing rather than relying on natural occurrence — making it a genuinely plausible, realistic dimension to lag behind the others in practice, not just a contrived example.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Reporting a single, blended "agent quality" percentage that averages across every dimension this chapter has covered. This page's own example shows exactly how this can hide a genuinely serious, specific weakness — recovery — behind an overall number that looks reassuring.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>Tracking this scorecard over time — the same way Chapter 7 tracked performance trends and Chapter 11 tracked LLM quality trends — lets a team see whether a specific dimension is improving, stable, or degrading after changes to the agent's prompt, tools, or architecture, not just its current snapshot.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Report agent quality per dimension — planning, tool selection, tool parameters, memory, state, recovery — never as one blended score.</li>
+  <li>Treat a genuinely weak dimension as the priority for improvement, even when every other dimension looks strong.</li>
+  <li>Track this scorecard over time to catch dimension-specific trends, not just a single, current-moment snapshot.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>A genuine agent scorecard combines every check from this chapter's earlier pages into per-dimension metrics, never a single blended score.</li>
+  <li>Recovery is a genuinely plausible dimension to lag behind others in practice, since it's exercised far less during ordinary development than core execution logic.</li>
+  <li>This page closes the chapter the same way Chapter 11 closed its own — honest, distribution-and-dimension-aware measurement over a single reassuring number.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Using this page's scorecard format, sketch out what a genuinely different weak-dimension pattern might look like — one where tool_parameter_accuracy is the weak dimension instead of recovery — and explain what specific underlying agent problem (connecting to this chapter's earlier pages) that particular pattern would most likely suggest investigating.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A team reports "our agent scores 87% overall quality" and considers this sufficient for a go/no-go deployment decision. Using this page's example, what would you want to see before agreeing?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd want the FULL per-dimension breakdown, not the blended 87% — this page's own example shows exactly how a REASONABLE-looking overall number can average away a GENUINELY concerning weakness in one SPECIFIC, important dimension like recovery.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What "87% overall" GENUINELY doesn't tell you:
+Whether this reflects CONSISTENTLY solid performance across
+  ALL dimensions, or (per THIS page's OWN example) FIVE
+  genuinely STRONG dimensions (90%+ each) AVERAGED against ONE
+  GENUINELY WEAK one (42% recovery) — producing a SIMILAR
+  BLENDED number that OBSCURES a SERIOUS, SPECIFIC risk.
+
+What I'd ACTUALLY want to see BEFORE a go/no-go decision:
+The FULL scorecard, dimension by dimension — SPECIFICALLY
+  checking whether RECOVERY (the dimension THIS page argues is
+  MOST likely to lag, and MOST important for REAL-WORLD
+  reliability) is ADEQUATE, REGARDLESS of what the BLENDED
+  number happens to say.</code></pre>
+<p>An 87% blended score is exactly the kind of REASSURING-sounding number this ENTIRE chapter (and Chapter 11 before it) has argued CAN mask a GENUINELY serious, SPECIFIC problem — deployment decisions deserve the FULL, HONEST, dimension-by-dimension picture, not a single AVERAGED number.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page argue recovery is "a genuinely plausible dimension to lag behind others," rather than assuming all six dimensions should naturally develop at a similar pace?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>The OTHER five dimensions get GENUINELY exercised repeatedly during ORDINARY development and happy-path testing, naturally IMPROVING through that REPEATED use — recovery, per the PREVIOUS page's OWN argument, requires DELIBERATE, INJECTED testing to be exercised AT ALL, meaning it GENUINELY has FEWER natural opportunities to improve without SPECIFIC, deliberate attention.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why PLANNING, TOOL USE, MEMORY, and STATE naturally get
+EXERCISED and REFINED during ORDINARY development:
+EVERY SINGLE happy-path test run EXERCISES planning, tool
+  selection, memory, and state TRACKING — REPEATED use
+  NATURALLY surfaces and helps FIX problems in THESE
+  dimensions, even WITHOUT dimension-SPECIFIC testing
+  DELIBERATELY targeting them.
+
+Why RECOVERY specifically DOESN'T get this SAME natural
+exercise:
+Per Testing Agent Recovery's OWN argument, GENUINE obstacles
+  occur RARELY and UNPREDICTABLY during ORDINARY testing — a
+  team COULD run HUNDREDS of happy-path tests WITHOUT EVER
+  GENUINELY exercising recovery AT ALL, meaning this DIMENSION
+  specifically DOESN'T benefit from the SAME kind of NATURAL,
+  REPEATED refinement the OTHER five dimensions get FOR FREE.</code></pre>
+<p>This is a GENUINELY useful, practical insight connecting THIS page directly back to the PREVIOUS one — recovery's tendency to LAG isn't a COINCIDENCE, it's a DIRECT, LOGICAL consequence of the SAME testing-reliability gap Testing Agent Recovery identified, now showing up CONCRETELY in this page's OWN scorecard metrics.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why tracking this scorecard OVER TIME matters, using a concrete scenario where a single, current snapshot would genuinely mislead a team.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A single SNAPSHOT can't distinguish "this dimension has ALWAYS been at THIS level" from "this dimension USED to be BETTER and is NOW GENUINELY DEGRADING" — a GENUINELY important distinction for deciding WHETHER a recent change caused a REAL regression.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A GENUINELY misleading single-SNAPSHOT scenario:
+Team checks the scorecard TODAY: tool_parameter_accuracy is
+  94% — LOOKS genuinely fine in ISOLATION. But WITHOUT
+  historical TRACKING, there's NO way to know this SAME metric
+  was 99% LAST MONTH, BEFORE a recent TOOL DEFINITION change —
+  a GENUINE, real REGRESSION that a SINGLE snapshot COMPLETELY
+  hides.
+
+What TRACKING OVER TIME (this page's OWN "Quick Tip") would
+REVEAL instead:
+A CLEAR, VISIBLE DOWNWARD trend in tool_parameter_accuracy,
+  CORRELATING with the TIMING of a RECENT tool definition
+  change — DIRECTLY actionable evidence of a REGRESSION,
+  EXACTLY the kind of finding a SINGLE, CURRENT-moment
+  snapshot could NEVER reveal on its OWN.</code></pre>
+<p>This directly reuses Chapter 7's OWN trend-detection argument — SOME regressions are ONLY visible as a TREND across MULTIPLE measurements over TIME, NEVER from ANY SINGLE snapshot ALONE, REGARDLESS of how CAREFULLY that ONE snapshot is examined.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might avg_steps_per_task be a genuinely useful metric to track ALONGSIDE the pass/fail-style rates, rather than just another dimension score?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This connects DIRECTLY to Chapter 12's OWN opening page — a RISING step count, even WITHOUT any dimension's PASS rate dropping, is EXACTLY the kind of signal that page argued deserves INVESTIGATION even when the SURFACE-level "success" outcome looks UNCHANGED.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why avg_steps_per_task GENUINELY adds something the OTHER
+metrics MISS:
+An agent could MAINTAIN a PERFECT 100% success rate across
+  EVERY dimension while GRADUALLY taking MORE steps to
+  ACCOMPLISH the SAME tasks OVER TIME — EXACTLY the kind of
+  "technically PASSING but GENUINELY concerning" pattern Why
+  AI Agents Need Testing warned COULD hide BEHIND a clean-
+  looking SUCCESS report.
+
+What a RISING avg_steps_per_task might GENUINELY indicate:
+INCREASING reliance on RETRIES, GENUINELY GROWING inefficiency
+  in REASONING, or a SUBTLE, GRADUAL DEGRADATION in SOME
+  underlying CAPABILITY that HASN'T YET crossed the THRESHOLD
+  to cause an OUTRIGHT FAILURE in any SINGLE dimension's PASS
+  rate — WORTH catching EARLY, before it EVENTUALLY does.</code></pre>
+<p>This is a GENUINELY valuable, COMPLEMENTARY metric — it catches a DIFFERENT KIND of degradation (GROWING inefficiency) than the PASS-rate-style metrics are DESIGNED to catch (OUTRIGHT failures), EXACTLY the kind of "look BEYOND simple pass/fail" principle THIS entire chapter (and COURSE) has consistently argued for.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Looking back across this entire chapter, how does this final page's scorecard connect every previous page's technique into one coherent whole?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Each metric in this page's scorecard is DIRECTLY derived from ONE SPECIFIC earlier page's OWN testing technique — this page doesn't INTRODUCE new evaluation methods, it AGGREGATES the RESULTS of every technique this chapter has ALREADY built, across MANY runs, into ONE coherent, HONEST picture.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>DIRECT mapping from THIS page's metrics back to their SOURCE:
+plan_quality_pass_rate          ← Testing Agent Planning
+tool_selection_accuracy          ← Testing Tool Selection and
+tool_parameter_accuracy              Parameters (BOTH halves)
+memory_effective_rate                ← Testing Agent Memory
+state_accuracy_rate                    ← Testing Agent State
+recovery_success_rate                    ← Testing Agent Recovery</code></pre>
+<p>This is EXACTLY the SAME structural pattern Chapters 5, 6, 7, and 10's OWN synthesis pages followed — build INDIVIDUAL capabilities across SEVERAL pages, then CLOSE the chapter by showing them GENUINELY working TOGETHER on ONE coherent, REAL example (here, ONE agent's FULL scorecard) — reinforcing, ONE final time in this chapter, that EVERY individual skill this chapter TAUGHT is meant to COMBINE into a GENUINELY complete, HONEST picture of agent QUALITY, not remain SEPARATE, ISOLATED techniques.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

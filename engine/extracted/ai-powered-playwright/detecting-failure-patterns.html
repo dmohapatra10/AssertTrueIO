@@ -1,0 +1,105 @@
+<!doctype html>
+<html><head>
+<title>Detecting Failure Patterns</title>
+<meta name="description" content="A deterministic, non-AI scan of accumulated history that flags genuine flakiness candidates — applying this tutorial&#x27;s exact-versus-judgment rule before any AI reasoning happens." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/detecting-failure-patterns.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Detecting Failure Patterns</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="collecting-test-history.html">Collecting Test History</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Scanning real history deterministically to flag genuine flakiness candidates</li>
+  <li>Why this specific detection step doesn't need AI at all</li>
+  <li>Setting a reasonable minimum sample size before trusting any result</li>
+</ul>
+
+<h2 id="introduction-another-exact-deterministic-question">Introduction — Another Exact, Deterministic Question</h2>
+<p>"Does this test show inconsistent outcomes across the same commit" is, once real history exists, an exact, countable question — not a judgment call. This page applies Chapter 5's core rule once more: deterministic code answers this reliably, before any AI reasoning gets involved.</p>
+
+<h2 id="step-by-step-implementation">Step-by-Step Implementation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/detect-flaky-candidates.ts
+import { TestRunRecord } from './collect-test-history';
+
+export interface FlakyCandidate {
+  testName: string;
+  totalRuns: number;
+  failureRate: number;
+  sameCommitInconsistency: boolean;
+}
+
+const MINIMUM_SAMPLE_SIZE = 10;
+
+export function detectFlakyCandidates(
+  history: TestRunRecord[]
+): FlakyCandidate[] {
+  const byTest = new Map&lt;string, TestRunRecord[]&gt;();
+  for (const record of history) {
+    const existing = byTest.get(record.testName) ?? [];
+    existing.push(record);
+    byTest.set(record.testName, existing);
+  }
+
+  const candidates: FlakyCandidate[] = [];
+  for (const [testName, records] of byTest) {
+    if (records.length &lt; MINIMUM_SAMPLE_SIZE) continue;
+
+    const failures = records.filter((r) =&gt; r.status === 'failed').length;
+    const failureRate = failures / records.length;
+
+    const byCommit = new Map&lt;string, Set&lt;string&gt;&gt;();
+    for (const r of records) {
+      const outcomes = byCommit.get(r.commitHash) ?? new Set();
+      outcomes.add(r.status);
+      byCommit.set(r.commitHash, outcomes);
+    }
+    const sameCommitInconsistency = [...byCommit.values()].some((s) =&gt; s.size &gt; 1);
+
+    if (failureRate &gt; 0 &amp;&amp; failureRate &lt; 1 &amp;&amp; sameCommitInconsistency) {
+      candidates.push({ testName, totalRuns: records.length, failureRate, sameCommitInconsistency });
+    }
+  }
+  return candidates;
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p><code>MINIMUM_SAMPLE_SIZE</code> matters as much as the detection logic itself — a test with only two or three runs recorded doesn't have enough real evidence to distinguish genuine flakiness from ordinary variance. <code>sameCommitInconsistency</code> is the real, decisive check: it specifically looks for the same commit hash producing more than one distinct outcome, exactly the concrete evidence this chapter's previous page identified as unambiguous.</p>
+
+<h2 id="example-real-candidates-from-shopsmart-s-history">Example — Real Candidates From ShopSmart's History</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const candidates = detectFlakyCandidates(fullHistory);
+
+// A REAL, evidence-based result:
+// [
+//   { testName: "completes checkout with valid payment",
+//     totalRuns: 50, failureRate: 0.24, sameCommitInconsistency: true }
+// ]
+// 24% failure rate, ACROSS the same commit — GENUINE,
+// deterministic evidence of flakiness, no AI call needed yet</code></pre>
+
+<h2 id="why-it-matters-this-is-where-ai-genuinely-isn-t-needed-yet">Why It Matters — This Is Where AI Genuinely Isn't Needed Yet</h2>
+<p>Notice this entire page contains no AI call. Finding which tests show inconsistent outcomes across identical commits is exactly the kind of countable, exact question deterministic code answers completely reliably — the same discipline this tutorial applied to locator mapping in Chapter 5 and failed-action detection in Chapter 10. AI earns its place on this chapter's next page, for a genuinely different, harder question: why.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Skipping the minimum sample size check.</strong> A test with two runs, one pass and one fail, technically shows "inconsistency" — but this is nowhere near enough evidence to trust, and <code>MINIMUM_SAMPLE_SIZE</code> exists specifically to prevent premature conclusions.</li>
+  <li><strong>Reaching for AI to detect the pattern itself.</strong> This is an exact, countable question with one correct answer — deterministic code handles it completely and reliably, at zero AI cost.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Set a real, deliberate minimum sample size before trusting any flakiness signal — ten runs is a reasonable starting point, adjustable to your own suite's real run frequency.</li>
+  <li>Keep pattern detection itself fully deterministic — reserve AI specifically for the harder, genuinely judgment-requiring questions that follow.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Run this page's function against your own accumulated history from the previous page's exercise, once you have enough real runs. Review any flagged candidates and confirm, by eye, that the same-commit inconsistency genuinely holds.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Detecting a flakiness pattern from real history is a deterministic, countable operation — no AI call is needed for this specific step.</li>
+  <li>A minimum sample size is a real, necessary safeguard against drawing conclusions from too little evidence.</li>
+  <li>This page answers "is this test flaky"; the next page tackles the genuinely harder question of "why," where AI reasoning finally earns its place.</li>
+</ul>
+</article>
+</body></html>

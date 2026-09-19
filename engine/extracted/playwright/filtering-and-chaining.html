@@ -1,0 +1,131 @@
+<!doctype html>
+<html><head>
+<title>Playwright Locator Filtering and Chaining: filter(), has, hasText, first/last/nth</title>
+<meta name="description" content="How to narrow Playwright locators with filter(), has, and hasText, select by position with first()/last()/nth(), and chain locators to handle repeated components." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/filtering-and-chaining.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Filtering and Chaining Locators</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="locators.html">Locators overview</a>, <a href="get-by-role.html">getByRole()</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+      <p>Every locator strategy so far finds elements by a single property — a role, a label, some text. Real UIs are full of <em>repeated</em> structures (table rows, list items, cards) where many elements share that same role or text, and you need to narrow down to exactly one. Filtering and chaining are how you do that precisely, without falling back to a positional CSS selector.</p>
+
+      <h2 id="why-it-s-important">Why it's important</h2>
+      <p>This is where locator strategy stops being about which <code>getBy*()</code> method to use and starts being about composition — combining locators to describe "the button, but specifically inside this row" the way a person would describe it, instead of "the third button on the page," which breaks the moment the list order changes.</p>
+
+      <h2 id="filter-with-hastext"><code>filter()</code> with <code>hasText</code></h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>page.locator(selector).filter(options: {
+  hasText?: string | RegExp,
+  hasNotText?: string | RegExp,
+  has?: Locator,
+  hasNot?: Locator,
+})</code></pre>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Find the list item that CONTAINS certain text, then act inside it
+await page.getByRole('listitem')
+  .filter({ hasText: 'Wireless Mouse' })
+  .getByRole('button', { name: 'Remove' })
+  .click();</code></pre>
+      <p><code>filter()</code> doesn't change what a locator matches directly — it takes a locator that matches several elements and narrows it down to the subset satisfying the filter condition, still returning a locator (lazy, re-searched on each use), not a snapshot.</p>
+
+      <h2 id="filter-with-has"><code>filter()</code> with <code>has</code></h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Find the table row that CONTAINS a specific button — narrowing by
+// the presence of a child element, not just text
+const outOfStockRow = page.getByRole('row').filter({
+  has: page.getByText('Out of stock'),
+});
+await outOfStockRow.getByRole('button', { name: 'Notify me' }).click();</code></pre>
+      <p><code>has</code> filters by the presence of a matching descendant locator — useful when the distinguishing feature isn't the row's own text, but something nested inside it, like a status badge or icon.</p>
+
+      <h2 id="basic-example-first-last-nth">Basic Example — first(), last(), nth()</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>await page.getByRole('listitem').first().click();   // first match
+await page.getByRole('listitem').last().click();    // last match
+await page.getByRole('listitem').nth(2).click();    // third match (0-indexed)</code></pre>
+      <p>These select by position within the current match set — powerful, but the least meaningful option here, since position is exactly the kind of implementation detail that changes for reasons unrelated to the feature under test. Reach for these only when position is genuinely part of what's being tested (e.g., "the most recently added item").</p>
+
+      <h2 id="detailed-example-chaining-into-a-specific-row">Detailed Example — Chaining into a Specific Row</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Chaining: scope a search to inside one specific, uniquely-identified row
+const row = page.getByRole('row', { name: 'Order #1042' });
+await row.getByRole('button', { name: 'Cancel' }).click();
+await expect(row.getByText('Cancelled')).toBeVisible();</code></pre>
+      <p>Chaining calls <code>.getByRole()</code> (or any locator method) directly on an existing locator, scoping the search to descendants of that element only. This is the cleanest way to disambiguate repeated elements — find the unique container first, then search within it.</p>
+
+      <h2 id="real-world-example-shopping-cart-table">Real-World Example — Shopping Cart Table</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('user can remove a specific item from the cart', async ({ page }) =&gt; {
+  await page.goto('/cart');
+
+  const mouseRow = page.getByRole('row').filter({ hasText: 'Wireless Mouse' });
+  const keyboardRow = page.getByRole('row').filter({ hasText: 'Mechanical Keyboard' });
+
+  await mouseRow.getByRole('button', { name: 'Remove' }).click();
+
+  await expect(mouseRow).toBeHidden();
+  await expect(keyboardRow).toBeVisible(); // untouched
+  await expect(page.getByTestId('cart-count')).toHaveText('1 item');
+});</code></pre>
+      <p>Filtering both rows by text up front, then asserting one disappeared while the other remained, is a stronger test than checking cart count alone — it confirms the <em>right</em> item was removed, not just that <em>an</em> item was.</p>
+
+      <h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Positional — breaks the moment sort order or a new item changes the index
+await page.getByRole('row').nth(2).getByRole('button', { name: 'Remove' }).click();
+
+// ✅ Content-based — stays correct regardless of order
+await page.getByRole('row')
+  .filter({ hasText: 'Wireless Mouse' })
+  .getByRole('button', { name: 'Remove' })
+  .click();</code></pre>
+
+      <h2 id="common-mistakes">Common Mistakes</h2>
+      <ul>
+        <li><strong>Defaulting to <code>.first()</code> to silence a strict-mode error</strong> instead of writing a more specific locator — this doesn't resolve ambiguity, it just picks an arbitrary match that can be wrong, or become wrong later.</li>
+        <li><strong>Using <code>nth()</code> for content that isn't inherently ordered</strong> (e.g., cards in a grid that could re-flow) — makes the test coupled to layout, not content.</li>
+        <li><strong>Chaining too deep without an intermediate variable</strong>, producing an unreadable one-line locator that's hard to debug when it fails — assigning the intermediate row/section to a named variable (as in the cart example) keeps it traceable.</li>
+      </ul>
+
+      <h2 id="edge-cases">Edge Cases</h2>
+      <ul>
+        <li><strong>Filtering by a locator that itself matches multiple elements</strong> (<code>has</code>) — this doesn't cause a strict-mode error on its own, since <code>has</code> just checks presence within each candidate, not uniqueness of the inner match.</li>
+        <li><strong>Combining <code>hasText</code> and <code>has</code> together</strong> in one <code>filter()</code> call — both conditions must be satisfied; useful for very specific disambiguation, like "the row containing this text AND this icon."</li>
+      </ul>
+
+      <h2 id="debugging">Debugging</h2>
+      <p>When a filtered/chained locator matches zero elements, verify each step in isolation — first confirm the outer locator (e.g., <code>getByRole('row')</code>) matches the expected number of rows on its own, then add the filter, then add the chained action. Debugging the whole composed locator at once makes it hard to tell which link in the chain is wrong.</p>
+
+      <h2 id="best-practices">Best Practices</h2>
+      <ul>
+        <li>Prefer <code>filter({ hasText })</code> or <code>filter({ has })</code> over <code>nth()</code> whenever the distinguishing feature is content, not position.</li>
+        <li>Name intermediate locators with descriptive variables (<code>mouseRow</code>, not a re-typed chain) for both readability and reuse across multiple actions/assertions in the same test.</li>
+        <li>Treat a strict-mode violation as a prompt to add a filter or chain, not to reach for <code>.first()</code>.</li>
+      </ul>
+
+      <h2 id="practice-exercise">Practice Exercise</h2>
+      <p>A notifications list has five items, three marked "unread." Write a locator that filters to only unread items, then clicks the "Mark as read" button inside the first one, using <code>filter()</code> rather than <code>nth()</code> where the choice matters.</p>
+
+      <h2 id="summary">Summary</h2>
+      <p><code>filter()</code> (with <code>hasText</code> or <code>has</code>) and chaining are how you disambiguate repeated elements by content and structure rather than position. <code>first()</code>/<code>last()</code>/<code>nth()</code> exist for genuinely order-dependent cases, but should be the exception, not the default way of resolving strict-mode errors.</p>
+
+      <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why is filter({ hasText }) generally preferred over nth() when both could isolate the same element in a test run today?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer"><code>nth()</code> encodes the element's current position, which is incidental and can change (sorting, a new item added, a filter applied) without the underlying feature actually changing. <code>filter({ hasText })</code> encodes what makes that element meaningfully distinct, so the locator keeps working even if its position shifts — it's the same principle behind preferring role/label over CSS, applied to disambiguation instead of initial selection.</div>
+</details>
+<details class="faq-item">
+<summary>Why is filter({ hasText }) usually better than nth() for finding a specific row?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">nth() depends on position, which can change due to sorting or new rows; filtering by content stays correct regardless of order.</div>
+</details>
+<details class="faq-item">
+<summary>What's the difference between filter({ hasText }) and filter({ has })?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">hasText matches by the element's own text content; has matches by the presence of a descendant matching a given locator.</div>
+</details>
+<details class="faq-item">
+<summary>When is using .first() to resolve a strict-mode violation a mistake?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">When it just silences the error without actually disambiguating intent — it can pick the wrong element if order isn't guaranteed.</div>
+</details>
+<details class="faq-item">
+<summary>How would you scope an action to inside one specific table row?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Locate the row uniquely first (e.g. getByRole('row').filter({ hasText: '...' })), assign it to a variable, then chain further locator calls on that variable.</div>
+</details>
+</div>
+</article>
+</body></html>

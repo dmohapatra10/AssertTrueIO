@@ -1,0 +1,114 @@
+<!doctype html>
+<html><head>
+<title>Evidence-Based Failure Analysis</title>
+<meta name="description" content="Assembling classification and root cause into the complete structure this chapter has been building toward — Failure, Root Cause, Evidence, Confidence, Recommended Action." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/evidence-based-failure-analysis.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Evidence-Based Failure Analysis</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="ai-root-cause-analysis.html">AI Root Cause Analysis</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Assembling classification and root cause into one complete analysis</li>
+  <li>Adding a genuine confidence signal and a concrete recommended action</li>
+  <li>Running the full, combined pipeline against a real ShopSmart failure</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>This page brings together every earlier page in this chapter into the complete structure this chapter has been building toward: Failure, Root Cause, Evidence, Confidence, Recommended Action — five genuinely distinct pieces, each answering a different real question.</p>
+
+<h2 id="step-by-step-implementation">Step-by-Step Implementation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/complete-failure-analysis.ts
+import { buildEvidenceBundle } from './capture-evidence';
+import { selectEvidenceForAnalysis } from './select-evidence-for-analysis';
+import { classifyFailure } from './classify-failure';
+import { analyzeRootCause } from './root-cause-analysis';
+import { askClaude } from './ai-client';
+import { TestInfo } from '@playwright/test';
+
+export interface CompleteAnalysis {
+  failure: string;
+  rootCause: string;
+  evidence: string;
+  confidence: 'high' | 'medium' | 'low';
+  recommendedAction: string;
+}
+
+export async function analyzeFailureCompletely(
+  testInfo: TestInfo, consoleLogs: string[], networkFailures: string[]
+): Promise&lt;CompleteAnalysis&gt; {
+  const bundle = buildEvidenceBundle(testInfo, consoleLogs, networkFailures);
+  const payload = selectEvidenceForAnalysis(bundle);
+  const classification = await classifyFailure(payload);
+  const rootCause = await analyzeRootCause(payload, classification);
+
+  const confidencePrompt = `Given this analysis:
+Category: ${classification.category}
+Root cause: ${rootCause.likelyCause}
+Supporting evidence: ${rootCause.supportingEvidence}
+Alternatives considered: ${JSON.stringify(rootCause.alternativeExplanations)}
+
+Rate confidence (high, medium, low) based on how DIRECTLY the
+evidence supports this conclusion. Recommend ONE specific,
+concrete next action.
+
+Respond with ONLY valid JSON:
+{"confidence": "high" | "medium" | "low", "recommendedAction": string}`;
+
+  const raw = await askClaude(confidencePrompt);
+  const { confidence, recommendedAction } = JSON.parse(raw);
+
+  return {
+    failure: payload.errorMessage,
+    rootCause: rootCause.likelyCause,
+    evidence: rootCause.supportingEvidence,
+    confidence,
+    recommendedAction,
+  };
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p>Confidence is deliberately assessed as its own, separate step — after classification and root cause are already established, not bundled into the earlier calls. This mirrors Chapter 7's own discipline for judgment calls: a confidence rating that considers the completed reasoning is more honest than one produced alongside it, where the model might overstate certainty before fully working through alternatives.</p>
+
+<h2 id="example-the-complete-analysis-for-shopsmart-s-failure">Example — The Complete Analysis for ShopSmart's Failure</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const analysis = await analyzeFailureCompletely(testInfo, consoleLogs, networkFailures);
+
+// {
+//   failure: "expect(locator).toBeVisible() failed — Order
+//     Confirmed heading not found",
+//   rootCause: "The heading's accessible name likely changed",
+//   evidence: "Zero matches immediately, no console or network
+//     errors — consistent with a structural or textual change",
+//   confidence: "medium",
+//   recommendedAction: "Run Chapter 6's locator healing pipeline
+//     against this locator, then manually verify the accessible
+//     name change was intentional before updating the test"
+// }</code></pre>
+
+<h2 id="why-it-matters-confidence-changes-what-happens-next">Why It Matters — Confidence Changes What Happens Next</h2>
+<p>A high-confidence "Application Defect" classification might reasonably auto-file a bug report. A low-confidence one should route to a human for review first — the same finding, treated with meaningfully different urgency and autonomy based on how directly the evidence actually supports it. This is exactly why confidence is a first-class part of this structure, not an afterthought.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Treating every analysis, regardless of confidence, identically.</strong> A low-confidence result deserves more human scrutiny before acting on it — this chapter's next page's reports should make confidence visible, not bury it.</li>
+  <li><strong>Making <code>recommendedAction</code> generic ("investigate further").</strong> A genuinely useful recommendation is specific and actionable, the way this page's example points to a concrete next step.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Assess confidence as a distinct step, after the reasoning is complete, not bundled into the classification or root cause calls.</li>
+  <li>Make recommended actions concrete and specific enough that a human could act on them without further investigation.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Run this page's complete pipeline against a real failure in your own test suite. Review all five fields together and assess honestly whether the confidence rating feels genuinely calibrated to how directly the evidence supports the conclusion.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>This chapter's five-part structure — failure, root cause, evidence, confidence, recommended action — assembles every earlier page's function into one complete analysis.</li>
+  <li>Confidence is assessed as its own, separate step, which produces a more honest signal than bundling it into earlier reasoning.</li>
+  <li>Confidence should genuinely change what happens next — the same finding warrants different urgency depending on how directly it's supported.</li>
+</ul>
+</article>
+</body></html>

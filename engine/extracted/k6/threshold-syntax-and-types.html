@@ -1,0 +1,160 @@
+<!doctype html>
+<html><head>
+<title>k6 Threshold Syntax &amp; Types: Response-Time, Error-Rate, and Abort Conditions</title>
+<meta name="description" content="Every k6 threshold syntax variation — metric thresholds, percentage thresholds, response-time and error-rate thresholds, multiple thresholds per metric, and abort conditions." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/threshold-syntax-and-types.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Threshold Syntax &amp; Types</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="thresholds-and-performance-criteria.html">Thresholds & Performance Criteria overview</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Every threshold lives inside the <code>thresholds</code> key of the <code>options</code> object, keyed by metric name, with an array of condition strings — this page covers every variation of that syntax you're likely to need.</p>
+
+<h2 id="the-basic-shape">The Basic Shape</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export const options = {
+  thresholds: {
+    'metric_name': ['condition1', 'condition2'],
+  },
+};</code></pre>
+<p>Each metric can have one or more conditions, all of which must pass for that metric's threshold to be considered passed overall.</p>
+
+<h2 id="response-time-thresholds">Response-Time Thresholds</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export const options = {
+  thresholds: {
+    http_req_duration: ['p(95)&lt;500', 'p(99)&lt;1500'],
+  },
+};</code></pre>
+<p>Multiple conditions on the same metric — here, both p95 and p99 must be under their respective targets. This directly encodes something Chapter 6 established: a healthy p95 alone doesn't guarantee a healthy p99, so checking both catches a problem either alone might miss.</p>
+
+<h2 id="error-rate-thresholds">Error-Rate Thresholds</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export const options = {
+  thresholds: {
+    http_req_failed: ['rate&lt;0.01'], // less than 1% failure rate
+  },
+};</code></pre>
+<p>Since <code>http_req_failed</code> is implemented internally as a Rate metric (Chapter 6), its threshold condition uses <code>rate</code>, not a percentile — this is the direct, automated implementation of the error-rate half of a requirement like "error rate should remain below 1%."</p>
+
+<h2 id="thresholds-on-custom-metrics">Thresholds on Custom Metrics</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const ordersCreated = new Counter('orders_created');
+
+export const options = {
+  thresholds: {
+    orders_created: ['count>1000'], // at least 1000 orders created during the test
+  },
+};</code></pre>
+<p>Thresholds aren't limited to built-in metrics — any custom metric from Chapter 6 (Counter, Rate, Trend, Gauge) can have its own threshold, using whichever condition makes sense for that metric type: <code>count</code> for a Counter, <code>rate</code> for a Rate, percentiles for a Trend.</p>
+
+<h2 id="percentage-based-thresholds-on-checks">Percentage-Based Thresholds on Checks</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export const options = {
+  thresholds: {
+    checks: ['rate>0.99'], // at least 99% of all checks must pass
+  },
+};</code></pre>
+<p>k6 automatically tracks a built-in <code>checks</code> metric representing the pass rate across every <code>check()</code> call in the script — this threshold turns "checks are mostly passing" into an explicit, enforced requirement, rather than something only visible by eye in the summary.</p>
+
+<h2 id="multiple-thresholds-across-different-metrics">Multiple Thresholds Across Different Metrics</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export const options = {
+  thresholds: {
+    http_req_duration: ['p(95)&lt;500'],
+    http_req_failed: ['rate&lt;0.01'],
+    checks: ['rate>0.99'],
+  },
+};</code></pre>
+<p>A real test typically defines several thresholds together, each covering a genuinely different dimension of health — response time, error rate, and functional correctness (via checks) — exactly the multi-signal analysis Chapter 6 established as necessary, now made into an automated, enforced gate rather than something a human has to remember to check manually.</p>
+
+<h2 id="abort-conditions-stopping-early-on-a-clear-failure">Abort Conditions — Stopping Early on a Clear Failure</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export const options = {
+  thresholds: {
+    http_req_failed: [{ threshold: 'rate&lt;0.01', abortOnFail: true }],
+  },
+};</code></pre>
+<p>By default, a threshold failure is only reported at the end of the test — the test still runs to completion. Setting <code>abortOnFail: true</code> stops the test immediately once that specific threshold is violated, which is useful for a clearly catastrophic failure (like an error rate spiking far past any reasonable target) where continuing to generate load serves no purpose and only wastes time.</p>
+
+<h2 id="detailed-example-a-complete-realistic-threshold-configuration">Detailed Example — A Complete, Realistic Threshold Configuration</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export const options = {
+  scenarios: { /* ... */ },
+  thresholds: {
+    http_req_duration: ['p(95)&lt;500', 'p(99)&lt;1500'],
+    http_req_failed: [{ threshold: 'rate&lt;0.05', abortOnFail: true }],
+    checks: ['rate>0.99'],
+    order_creation_success: ['rate>0.98'], // custom metric from Chapter 6
+  },
+};</code></pre>
+<p>This encodes several genuinely different requirements at once — tail latency (both p95 and p99), a hard abort condition for a catastrophic error rate, functional correctness via the built-in checks metric, and business-specific correctness via a custom metric. This is what a mature, real threshold configuration actually looks like — not a single number, but several distinct signals enforced together.</p>
+
+<h2 id="real-world-example-why-abort-conditions-need-to-be-used-carefully">Real-World Example — Why Abort Conditions Need to Be Used Carefully</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ An overly aggressive abort condition
+thresholds: {
+  http_req_duration: [{ threshold: 'p(95)&lt;500', abortOnFail: true }],
+}
+// A single brief spike early in a ramp-up (before the system has stabilized)
+// could abort the ENTIRE test prematurely, before it ever reached its
+// actual intended peak load.</code></pre>
+<p><code>abortOnFail</code> is most appropriate for genuinely catastrophic, unambiguous failures (an error rate far beyond any acceptable range) — using it on a response-time threshold during a ramping test risks stopping the test on a transient early-stage fluctuation, before the system and the test itself have actually stabilized at the intended load level.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ A single, undifferentiated threshold covering only one dimension
+thresholds: { http_req_duration: ['p(95)&lt;500'] }
+
+// ✅ Multiple thresholds covering response time, error rate, and correctness together
+thresholds: {
+  http_req_duration: ['p(95)&lt;500', 'p(99)&lt;1500'],
+  http_req_failed: ['rate&lt;0.01'],
+  checks: ['rate>0.99'],
+}</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Defining only a response-time threshold</strong>, with no corresponding error-rate or correctness threshold — leaving exactly the kind of gap Chapter 6's misleading-analysis examples warned about.</li>
+  <li><strong>Using <code>abortOnFail</code> on a metric prone to early, transient fluctuation</strong> — risks aborting a test before it ever reaches its actual intended load level.</li>
+  <li><strong>Forgetting that <code>http_req_failed</code> uses <code>rate</code>, not a percentile syntax</strong> — mixing up which condition type applies to which metric.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>A threshold on a custom metric that was never actually populated</strong> during the test (a Counter that never got incremented, for instance) — worth confirming the custom metric is genuinely being fed data, since a threshold on an empty metric may behave in ways that aren't immediately obvious.</li>
+  <li><strong>Thresholds evaluated per-scenario</strong> — in a multi-scenario test (Chapter 4), it's possible to scope certain thresholds specifically to one scenario's metrics rather than the whole test's aggregate, worth considering when different scenarios have genuinely different acceptable performance targets.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a test aborts unexpectedly early, check whether any threshold has <code>abortOnFail: true</code> set, and whether that specific threshold's condition might be prone to a brief, early transient spike before the system and test have both stabilized — this is the most common cause of a test stopping well before its intended duration.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Define thresholds across multiple dimensions together — response time, error rate, and functional correctness — not just one in isolation.</li>
+  <li>Reserve <code>abortOnFail</code> for genuinely catastrophic, unambiguous failure conditions, not metrics prone to early transient fluctuation.</li>
+  <li>Use the correct condition syntax for each metric type — percentiles for Trend-based metrics like <code>http_req_duration</code>, <code>rate</code> for Rate-based metrics like <code>http_req_failed</code> and <code>checks</code>, <code>count</code> for Counter-based metrics.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Write a complete threshold configuration for a checkout API requiring: p95 response time under 800ms, p99 under 2,500ms, error rate under 2% (with an abort condition if it exceeds 10%), and at least 97% of all checks passing.</p>
+
+<h2 id="summary">Summary</h2>
+<p>k6 thresholds support response-time percentiles, error rates, custom metric conditions, and pass-rate checks on the built-in <code>checks</code> metric — all combinable into one configuration covering several genuinely distinct dimensions of health at once. Abort conditions can stop a test immediately on a clear, catastrophic failure, but need careful placement to avoid prematurely killing a test over a transient early-stage fluctuation rather than a genuine problem.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why might a threshold configuration define conditions on both p95 and p99 for the same metric?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A healthy p95 doesn't guarantee a healthy p99 — the two capture different points in the tail of the distribution, and a system can pass one while badly failing the other. Setting thresholds on both catches a tail-latency problem that checking only one percentile might miss entirely, directly applying the percentile literacy established earlier in this course.</div>
+</details>
+<details class="faq-item">
+<summary>Why does the threshold syntax for http_req_failed use rate rather than a percentile-based condition?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">http_req_failed is implemented internally as a Rate metric — it tracks the percentage of true/false outcomes (failed vs. not failed), not a distribution of numeric values the way http_req_duration does. Percentile syntax (p(95), for instance) only makes sense for Trend-style metrics with a genuine distribution of values; a Rate metric's threshold condition is naturally expressed as a percentage instead.</div>
+</details>
+<details class="faq-item">
+<summary>Why should abortOnFail be used carefully on a response-time threshold during a ramping test?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Early in a ramp-up, before the system and the test have both stabilized at the intended load level, response times can briefly fluctuate in ways that don't represent genuine, sustained performance problems. An abort condition triggered by this kind of transient early spike would stop the test before it ever reached its actual intended peak, potentially missing the very data the test was designed to collect.</div>
+</details>
+<details class="faq-item">
+<summary>Why would a real threshold configuration typically include a threshold on the built-in checks metric, not just http_req_duration and http_req_failed?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">http_req_duration and http_req_failed only capture HTTP-level mechanics — response time and status-code-based failure — neither says anything about whether the response content was actually functionally correct. A threshold on the checks metric enforces that functional check() calls are passing at an acceptable rate, directly addressing the "fast but functionally wrong" gap covered in the previous chapter, which the other two metrics alone cannot catch.</div>
+</details>
+<details class="faq-item">
+<summary>Can a threshold be defined on a custom metric, and if so, what condition syntax would apply to a Counter versus a Trend?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Yes — thresholds work on any metric, built-in or custom. A Counter-based threshold uses a count condition (like count>1000, ensuring a minimum number of occurrences), while a Trend-based threshold uses percentile syntax (like p(95)&lt;300, since a Trend tracks a full statistical distribution similar to http_req_duration). The correct syntax depends entirely on which of the four custom metric types (Counter, Gauge, Rate, Trend) is being thresholded.</div>
+</details>
+</div>
+</article>
+</body></html>

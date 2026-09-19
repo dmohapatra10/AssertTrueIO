@@ -1,0 +1,124 @@
+<!doctype html>
+<html><head>
+<title>Diagnosing Flaky Tests in Playwright: A Systematic Approach</title>
+<meta name="description" content="A systematic method for diagnosing flaky Playwright tests — poor locators, hard waits, shared state, race conditions, unstable test data — and why retries shouldn&#x27;t hide the real cause." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/diagnosing-flaky-tests.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Diagnosing Flaky Tests</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="parallel-execution-and-workers.html">Parallel Execution & Workers</a>, <a href="trace-viewer.html">Trace Viewer</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+  <p>A flaky test passes and fails inconsistently with no code change in between. This chapter is a systematic checklist for finding the real cause — pulling together nearly every earlier chapter's failure modes into one diagnostic process, since flakiness is rarely a new category of bug, just an unaddressed instance of one already covered.</p>
+
+  <h2 id="why-it-s-important">Why it's important</h2>
+  <p>Flaky tests are worse than tests that simply fail — they erode trust in the whole suite. Once a team starts assuming "it's probably just flaky" and re-running failures without investigating, real bugs start slipping through disguised as flakiness. Retries (Configuration chapter) can absorb genuine environmental noise, but should never be the first or only response to a newly flaky test.</p>
+
+  <h2 id="the-diagnostic-checklist">The Diagnostic Checklist</h2>
+  <table>
+    <thead><tr><th>Cause</th><th>Where it's covered</th><th>Tell-tale sign</th></tr></thead>
+    <tbody>
+      <tr><td>Poor locators</td><td><a href="locators.html">Locators</a></td><td>Fails when unrelated page content changes</td></tr>
+      <tr><td>Hard waits</td><td><a href="wait-for-selector-and-timeout.html">waitForTimeout()</a></td><td>Fails more often under CI load or on slower runs</td></tr>
+      <tr><td>Shared state</td><td><a href="parallel-execution-and-workers.html">Parallel Execution</a></td><td>Fails only when run alongside other tests, passes in isolation</td></tr>
+      <tr><td>Race conditions</td><td><a href="wait-for-request-and-response.html">waitForResponse()</a></td><td>Fails intermittently around a network call or new tab</td></tr>
+      <tr><td>Unstable test data</td><td><a href="page-object-model.html">Page Object Model</a></td><td>Fails when a previous run's leftover data exists</td></tr>
+      <tr><td>Environment differences</td><td><a href="playwright-config-options.html">Configuration</a></td><td>Passes locally, fails only in CI</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="step-1-reproduce-in-isolation">Step 1 — Reproduce in Isolation</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>npx playwright test flaky-test.spec.ts --workers=1 --repeat-each=10</code></pre>
+  <p><code>--repeat-each</code> runs the same test multiple times in a row — if it fails even running alone, repeatedly, the cause is internal to the test itself (a race condition, a hard wait) rather than cross-test interference. If it only fails as part of the full parallel suite, revisit the Parallel Execution chapter's shared-state checklist.</p>
+
+  <h2 id="step-2-read-the-trace-not-just-the-error">Step 2 — Read the Trace, Not Just the Error</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>npx playwright test flaky-test.spec.ts --trace on</code></pre>
+  <p>Force tracing on for every run (not just <code>on-first-retry</code>) while actively diagnosing — you want a trace from a passing run and a failing run to compare, not just the eventual failure. Open both in Trace Viewer and look for where they diverge.</p>
+
+  <h2 id="detailed-example-diagnosing-a-real-case">Detailed Example — Diagnosing a Real Case</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// The symptom: this test fails about 1 in 10 runs, always at the same assertion
+test('search results update after typing', async ({ page }) =&gt; {
+  await page.goto('/search');
+  await page.getByRole('searchbox').fill('mouse');
+  await expect(page.getByText('12 results')).toBeVisible(); // fails intermittently here
+});</code></pre>
+  <p>Working through the checklist: not shared state (fails even with <code>workers: 1</code>). Not a hard wait (there isn't one). Locator looks specific enough. That leaves race conditions — and indeed, this search is debounced, and <code>fill()</code> doesn't fire the same keystroke events a debounce timer listens for (a case covered on the <a href="fill-and-press-sequentially.html">fill() vs. pressSequentially()</a> page). The fix:</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>await page.getByRole('searchbox').pressSequentially('mouse', { delay: 100 });
+await expect(page.getByText('12 results')).toBeVisible();</code></pre>
+  <p>This is the point of the checklist — flakiness almost always maps back to a specific, already-covered mechanism once you work through it systematically, rather than being a mysterious new category of problem.</p>
+
+  <h2 id="real-world-example-ci-only-flakiness">Real-World Example — CI-Only Flakiness</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// playwright.config.ts — temporarily, for diagnosis only
+export default defineConfig({
+  workers: 1,          // rule out shared-state/parallelism
+  retries: 0,           // don't let a retry hide the failure
+  use: { trace: 'on' }, // capture every run, not just failures
+});</code></pre>
+  <p>When flakiness only appears in CI, deliberately narrow the config like this temporarily to isolate whether it's a parallelism issue, then download and inspect the resulting traces — this is almost always faster than guessing from CI logs alone.</p>
+
+  <h2 id="fragile-vs-recommended-response-to-flakiness">❌ Fragile vs. ✅ Recommended Response to Flakiness</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Silencing the symptom
+test('search results update after typing', async ({ page }) =&gt; {
+  test.retry(3); // just try more times and hope
+  // ...
+});
+
+// ✅ Diagnosing and fixing the actual mechanism
+await page.getByRole('searchbox').pressSequentially('mouse', { delay: 100 });</code></pre>
+
+  <h2 id="common-mistakes">Common Mistakes</h2>
+  <ul>
+    <li><strong>Adding retries as the first response</strong> to a newly flaky test instead of diagnosing it — this can mask a real, worsening problem for a long time.</li>
+    <li><strong>Assuming "it's just flaky" without following the checklist</strong> — nearly every real case maps to one of the six causes above; "no identifiable cause" is rare once you actually look.</li>
+    <li><strong>Diagnosing with the same parallel/worker settings as production CI</strong>, making it hard to isolate whether the cause is shared state versus something internal to the test.</li>
+    <li><strong>Not comparing a passing trace against a failing trace</strong> — the difference between the two is often exactly where the bug lives.</li>
+  </ul>
+
+  <h2 id="edge-cases">Edge Cases</h2>
+  <ul>
+    <li><strong>Flakiness tied to time of day</strong> (a batch job that runs at a specific hour, affecting data the test depends on) — genuinely real, and easy to dismiss as random; check for any time-based external dependency before ruling this out.</li>
+    <li><strong>Flakiness that only appears after many consecutive runs</strong> (a resource leak, an accumulating side effect) — <code>--repeat-each</code> with a high count can surface this even when a single isolated run looks fine.</li>
+  </ul>
+
+  <h2 id="debugging">Debugging</h2>
+  <p>The fastest path through most flaky-test investigations: reproduce with <code>--repeat-each</code> and <code>workers=1</code> first (isolating internal-to-the-test causes from cross-test causes), then read a failing trace side-by-side with a passing one — the checklist above covers the great majority of what that comparison will reveal.</p>
+
+  <h2 id="best-practices">Best Practices</h2>
+  <ul>
+    <li>Treat flakiness as a bug to diagnose, not noise to retry past.</li>
+    <li>Use retries in CI to absorb genuine environmental variance, never as a substitute for fixing a known-flaky test.</li>
+    <li>Keep a flaky-test triage habit — a test that fails intermittently should be investigated within the checklist above before being dismissed.</li>
+    <li>Force full tracing temporarily while diagnosing, even though <code>on-first-retry</code> is the right permanent CI setting.</li>
+  </ul>
+
+  <h2 id="practice-exercise">Practice Exercise</h2>
+  <p>Given a test that fails roughly 1 in 20 runs immediately after clicking a "Save" button, write out the diagnostic steps you'd take in order, and identify which of the six checklist causes each step is designed to rule in or out.</p>
+
+  <h2 id="summary">Summary</h2>
+  <p>Flaky tests almost always trace back to one of six causes already covered elsewhere in this course: poor locators, hard waits, shared state, race conditions, unstable test data, or environment differences. A systematic process — reproduce in isolation, compare traces, work through the checklist — resolves the great majority of cases, and retries should absorb genuine noise, never substitute for that diagnosis.</p>
+
+  <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A teammate suggests just adding retries to a newly flaky test and moving on. Why might you push back?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Retries can mask a genuine, worsening problem — a real race condition or shared-state bug that happens to pass on a second attempt today might fail more often as the codebase changes, and by then the original signal that something was wrong has been silenced. Diagnosing the actual cause (using the checklist and traces) fixes the problem rather than hiding it, and retries should be reserved for absorbing truly random environmental noise in CI, not as a first response to newly observed flakiness.</div>
+</details>
+<details class="faq-item">
+<summary>What does --repeat-each help you isolate when diagnosing flakiness?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Whether the failure is internal to the test itself (still fails when run alone, repeatedly) versus caused by cross-test interference (only fails in the full parallel suite).</div>
+</details>
+<details class="faq-item">
+<summary>Why is adding retries a risky first response to a newly flaky test?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It can mask a real, worsening problem — the underlying bug is still there, just silenced by a passing second attempt.</div>
+</details>
+<details class="faq-item">
+<summary>What are the six main causes of flakiness this course's checklist covers?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Poor locators, hard waits, shared state, race conditions, unstable test data, and environment differences.</div>
+</details>
+<details class="faq-item">
+<summary>What's the fastest way to compare a passing run against a failing one?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Force full tracing (trace: 'on') temporarily and open both traces side by side in Trace Viewer to see exactly where they diverge.</div>
+</details>
+</div>
+</article>
+</body></html>

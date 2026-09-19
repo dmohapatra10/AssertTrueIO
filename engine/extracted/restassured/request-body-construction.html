@@ -1,0 +1,145 @@
+<!doctype html>
+<html><head>
+<title>RestAssured Request Bodies: String, Map, and POJO Approaches</title>
+<meta name="description" content="Four ways to construct a RestAssured request body — raw String, Map, and POJO — with clear guidance on when each approach is the right choice." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/request-body-construction.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Request Body Construction</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="path-parameters.html">Path Parameters</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>RestAssured accepts a request body in several different shapes. This isn't a stylistic choice you make once and forget — picking the right representation for a given test is a real design decision, covered here in depth.</p>
+
+<h2 id="1-raw-string-body">1. Raw String Body</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>String requestBody = """
+{
+  "name": "John",
+  "email": "john@example.com"
+}
+""";
+
+given()
+    .contentType(ContentType.JSON)
+    .body(requestBody)
+.when()
+    .post("/users");</code></pre>
+<p>Java's text blocks (<code>"""..."""</code>, since Java 15) make raw JSON far more readable than old-style escaped-quote string concatenation. Use a raw string specifically when you need to test malformed or intentionally invalid JSON — a POJO literally can't represent something that isn't valid Java in the first place, so this is the only approach available for that specific negative-testing need.</p>
+
+<h2 id="2-map">2. Map</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Map&lt;String, Object&gt; user = new HashMap&lt;&gt;();
+user.put("name", "John");
+user.put("email", "john@example.com");
+
+given()
+    .contentType(ContentType.JSON)
+    .body(user)
+.when()
+    .post("/users");</code></pre>
+<p>Fast to write with no class definition required — RestAssured serializes it to JSON automatically. The tradeoff: zero compile-time safety. A typo'd key (<code>"emial"</code> instead of <code>"email"</code>) compiles fine and silently sends a slightly wrong payload with no warning at all.</p>
+
+<h2 id="3-pojo">3. POJO</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>public class User {
+    private String name;
+    private String email;
+    // no-arg constructor, parameterized constructor, getters/setters
+}
+
+User user = new User("John", "john@example.com");
+
+given()
+    .contentType(ContentType.JSON)
+    .body(user)
+.when()
+    .post("/users");</code></pre>
+<p>The approach real production suites converge on once a payload shape is reused: the compiler catches typo'd field names immediately, your IDE offers autocomplete, and renaming a field updates every usage at once. Chapter 5 (JSON, Serialization & Deserialization) goes considerably deeper on POJO design, serialization control, and nested structures — this is just the entry point.</p>
+
+<h2 id="decision-table">Decision Table</h2>
+<table>
+  <thead><tr><th>Approach</th><th>Use when</th></tr></thead>
+  <tbody>
+    <tr><td>Raw String</td><td>Testing malformed/invalid JSON specifically, or a genuine one-off with no reuse</td></tr>
+    <tr><td>Map</td><td>Quick prototyping, or a payload shape that's legitimately dynamic/unpredictable</td></tr>
+    <tr><td>POJO</td><td>Anything reused across more than one or two tests — the default for real projects</td></tr>
+  </tbody>
+</table>
+
+<h2 id="real-world-example-testing-a-validation-error-with-a-raw-string">Real-World Example — Testing a Validation Error with a Raw String</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void malformedJsonReturns400() {
+    String brokenJson = "{ \\"name\\": \\"John\\", }"; // trailing comma — invalid JSON
+
+    given()
+        .contentType(ContentType.JSON)
+        .body(brokenJson)
+    .when()
+        .post("/users")
+    .then()
+        .statusCode(400);
+}</code></pre>
+<p>This is exactly the scenario a POJO can never express — a trailing comma is a JSON syntax error, and Java's own type system won't let you construct an object that serializes to invalid JSON in the first place. A raw string is the only tool available for this specific, deliberately-malformed-input test.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ A raw Map body for a payload shape reused across a dozen tests,
+// with no compiler protection against a typo'd key anywhere
+Map&lt;String, Object&gt; order = new HashMap&lt;&gt;();
+order.put("itme", "Wireless Mouse"); // typo — compiles fine, silently wrong
+
+// ✅ A POJO catches this at compile time
+OrderRequest order = new OrderRequest("Wireless Mouse", 2); // typo'd field name won't compile
+</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Defaulting to <code>Map&lt;String, Object&gt;</code> for a growing test suite</strong> instead of graduating to a POJO once the same payload shape gets reused — silently accumulates typo risk with zero compiler protection.</li>
+  <li><strong>Attempting to represent deliberately malformed JSON as a POJO</strong> — this isn't possible; a raw string is the only correct tool for testing invalid input.</li>
+  <li><strong>Forgetting <code>.contentType(ContentType.JSON)</code></strong> regardless of which body representation is used — some servers infer it correctly, but relying on that is fragile across different API implementations.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Multipart/form-data bodies</strong> (file uploads via API) — none of the three approaches above apply; use <code>.multiPart()</code> instead of <code>.body()</code> for this specific case.</li>
+  <li><strong>Bodies that legitimately need dynamic, unpredictable shape</strong> (a generic proxy test, for instance) — a <code>Map</code> is the more honest representation here, since a POJO would need to over-specify a shape that isn't actually fixed.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If you're unsure exactly what JSON a POJO or Map will produce once serialized, add <code>.log().body()</code> right after <code>given()</code> to print the actual outgoing body before RestAssured sends the request.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Graduate from raw Maps to POJOs once a payload shape is genuinely reused across multiple tests.</li>
+  <li>Reserve raw string bodies specifically for malformed/invalid-JSON negative tests, not as a general-purpose default.</li>
+  <li>Always set Content-Type explicitly, regardless of which body representation you're using.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Write three versions of the same "create user" test — one using a raw String body, one using a Map, and one using a POJO — and note which felt most maintainable, and which would most quickly surface a typo'd field name.</p>
+
+<h2 id="summary">Summary</h2>
+<p>Raw strings, Maps, and POJOs each serve a genuinely different purpose as a request body: raw strings for testing malformed input a POJO structurally can't represent, Maps for quick one-offs with no lasting reuse, and POJOs as the default once a payload shape is reused enough that compile-time safety starts paying for itself.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why can't you use a POJO to test how an API handles malformed JSON, like a trailing comma or an unquoted key?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A POJO is a Java object, and Java's serialization libraries (Jackson/Gson) only ever produce syntactically valid JSON from it — there's no way to configure a POJO to serialize into JSON containing a syntax error, because valid Java objects simply don't have a representation for "broken JSON." Testing malformed input specifically requires bypassing object serialization entirely and providing the raw, deliberately invalid JSON text directly via a String body.</div>
+</details>
+<details class="faq-item">
+<summary>When is a raw String body the only viable option for a request?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">When testing deliberately malformed or invalid JSON — a POJO structurally can't represent invalid syntax, since Java's type system only ever produces valid JSON when serialized.</div>
+</details>
+<details class="faq-item">
+<summary>What's the main risk of using Map&lt;String, Object&gt; for a payload reused across many tests?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Zero compile-time safety — a typo'd key compiles fine and silently sends a slightly wrong payload with no warning, unlike a POJO where the compiler catches a misspelled field name immediately.</div>
+</details>
+<details class="faq-item">
+<summary>At what point should a project graduate from Map-based bodies to POJOs?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Once the same payload shape gets reused across more than a couple of tests — for a genuine one-off, a Map is faster to write with no real downside.</div>
+</details>
+<details class="faq-item">
+<summary>Why can't you meaningfully test 'invalid quantity type' using a POJO with an int field?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Java's own compiler prevents assigning a string to an int field, so there's no way to construct a POJO instance representing that invalid state — this scenario requires a raw string body instead.</div>
+</details>
+</div>
+</article>
+</body></html>

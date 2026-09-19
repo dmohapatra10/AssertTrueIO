@@ -1,0 +1,179 @@
+<!doctype html>
+<html><head>
+<title>What is a Flaky Test? A Genuine Definition</title>
+<meta name="description" content="What genuinely counts as flakiness versus a real, consistent bug or a genuine one-off event, and why the definition needs the code, environment, and input to be genuinely unchanged." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/what-is-a-flaky-test.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>What is a Flaky Test?</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="ai-powered-flaky-test-detection.html">AI-Powered Flaky Test Detection overview</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>A flaky test produces genuinely different results — pass or fail — across multiple runs, with the code, environment, and input all genuinely unchanged. Every word in that definition is doing real work, and this page is about why.</p>
+
+<h2 id="why-every-condition-in-the-definition-matters">Why Every Condition in the Definition Matters</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>"CODE genuinely unchanged" — rules out:
+  A test that failed yesterday and passes today because
+  someone ACTUALLY FIXED a real bug in between. That's not
+  flakiness — that's a genuine fix working as intended.
+
+"ENVIRONMENT genuinely unchanged" — rules out:
+  A test that failed once during a staging outage and passes
+  cleanly once staging is healthy again. That's Chapter 8's
+  "environment problem" category, not flakiness — the SAME
+  code, run against a GENUINELY DIFFERENT environment state.
+
+"INPUT genuinely unchanged" — rules out:
+  A test that failed with one set of test data and passes with
+  DIFFERENT test data. Different inputs producing different
+  results is completely expected, ordinary behavior — not
+  flakiness at all.</code></pre>
+
+<h2 id="this-chapter-s-test-meeting-the-genuine-definition">This Chapter's Test, Meeting the Genuine Definition</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('cart total updates after adding an item', ...)
+
+Run 1 (Monday, 10:00am):  PASS
+Run 2 (Monday, 10:15am):  FAIL
+Run 3 (Monday, 10:30am):  PASS
+Run 4 (Monday, 10:45am):  PASS
+Run 5 (Monday, 11:00am):  FAIL
+
+SAME code (no commits between these runs). SAME staging
+environment (confirmed healthy throughout — no Chapter 8-style
+environment issue). SAME test data (identical product, identical
+expected total, every single run). This GENUINELY meets the
+definition — nothing else changed except the outcome itself.</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why does confirming "nothing else changed" matter as much as observing the inconsistent pass/fail pattern itself? Without ruling out code, environment, and input changes between runs, an inconsistent pattern could have several completely different, non-flaky explanations — Chapter 8's environment problem, a series of genuine fixes and regressions, or simply different test data being used run to run. A pattern of inconsistent results alone isn't sufficient evidence of flakiness; it's the COMBINATION of inconsistency AND confirmed sameness of everything else that actually establishes genuine flakiness.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Labeling a test "flaky" the moment it fails once, then passes on a simple retry, without checking whether anything genuinely changed between those two runs. A single retry passing is consistent with genuine flakiness, but it's also consistent with a transient environment blip — Chapter 8's own categories — which needs the same "did anything actually change" check before concluding flakiness specifically.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>A genuinely reliable way to test the "everything else unchanged" condition directly: re-run the identical test back-to-back, in immediate succession, against the same environment, with no commits or deploys in between. If results are STILL inconsistent under these tightly controlled conditions, flakiness is much more confidently established.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Confirm code, environment, and input are genuinely unchanged before concluding a test is flaky, not just observing inconsistent results.</li>
+  <li>Distinguish flakiness from a genuine fix-then-regression cycle, an environment issue, or differing test data — each requires this same "what actually changed" check.</li>
+  <li>Use tightly-controlled, back-to-back re-runs to establish flakiness with real confidence, rather than relying on naturally-occurring runs where more could have changed.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>A flaky test produces genuinely different results across runs with code, environment, and input all confirmed unchanged — every condition in this definition rules out a real, different alternative explanation.</li>
+  <li>Inconsistent results alone aren't sufficient evidence of flakiness without confirming nothing else actually changed between runs.</li>
+  <li>Tightly-controlled, back-to-back re-runs provide the most confident way to establish genuine flakiness.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>For a test that passes on Monday and fails on Tuesday, list three genuinely different explanations consistent with this pattern — only one of which is actual flakiness — and describe what specific check would distinguish between them, following this page's own reasoning.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A test fails on Friday and passes on Monday. A teammate immediately labels it "flaky." What would you want to check before agreeing with this label?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd want to check whether anything genuinely changed over the weekend — code deployed, environment restarted, test data modified — before accepting "flaky" over the several other explanations this page's definition is specifically designed to distinguish.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What to check BEFORE accepting "flaky":
+- Were there any COMMITS or DEPLOYS between Friday and Monday?
+  (if yes, this could be a genuine FIX, not flakiness at all)
+- Was the ENVIRONMENT genuinely stable across the weekend, or
+  was there a known outage or maintenance window? (Chapter 8's
+  environment-problem category, not flakiness)
+- Was the SAME test data used both times? (different inputs
+  producing different results isn't flaky at all)
+
+Only if ALL THREE are confirmed unchanged does "flaky" become
+  the genuinely supported conclusion, rather than a convenient
+  default label for an unexplained pass/fail difference.</code></pre>
+<p>The teammate's instinct isn't unreasonable, but "flaky" specifically requires ruling out these alternatives first — exactly this page's central argument about why every condition in the definition matters.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page argue that a passing retry, on its own, doesn't confidently establish flakiness — even though it's consistent with flakiness being true?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because "consistent with" isn't the same as "confirms" — a single failed-then-passed pair is ALSO consistent with several other explanations this page's definition specifically distinguishes, and a naturally-occurring retry doesn't control for whether something else changed in between.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What a SIMPLE failed-then-passed retry is consistent with:
+- Genuine flakiness (the actual hypothesis being tested)
+- A transient ENVIRONMENT blip that happened to resolve
+  itself between the two attempts (Chapter 8's category)
+- Some OTHER uncontrolled factor changing between attempts
+  that wasn't tracked or noticed
+
+Why a TIGHTLY-CONTROLLED back-to-back re-run (this page's
+"Quick Tip") is more confident:
+Running IMMEDIATELY, with NO time for a deploy, environment
+  change, or anything else to occur between attempts, genuinely
+  narrows the possible explanations down much closer to just
+  flakiness itself — much stronger evidence than a naturally-
+  spaced pair of runs where more could have changed.</code></pre>
+<p>This is a genuinely important, real distinction: a single retry passing is weak, ambiguous evidence; a controlled, immediate, repeated re-run is much stronger evidence — and this page's recommendation specifically pushes toward the latter for genuine confidence.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why "different test data producing different results" is explicitly excluded from the definition of flakiness, even though it also produces inconsistent pass/fail outcomes.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because this is completely expected, correct test behavior — a test SHOULD produce different results for different inputs, and calling this "flaky" would misclassify entirely normal, intended behavior as a genuine problem.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A concrete example of NON-flaky, input-driven inconsistency:
+Run 1: test adds a product WITH SUFFICIENT stock — passes.
+Run 2: test adds a DIFFERENT product that happens to be OUT
+  OF STOCK — correctly fails, since adding an out-of-stock
+  item SHOULD fail.
+
+This ISN'T flakiness — it's the test CORRECTLY producing
+  different results for a GENUINELY different situation. The
+  definition's "input genuinely unchanged" condition
+  specifically excludes this case, since flakiness is
+  SPECIFICALLY about inconsistency DESPITE everything staying
+  the same — not ordinary, expected variation.</code></pre>
+<p>This is exactly why the definition needs all three conditions together — inconsistency alone, without confirming sameness of input (and code, and environment), would incorrectly sweep in completely normal, expected test behavior as if it were a genuine problem worth investigating as flakiness.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you distinguish, using this page's definition, between a test that's genuinely flaky and one that's simply testing a feature with genuinely non-deterministic real-world behavior (like a "recently viewed products" list based on current time)?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This is a genuinely subtle, real edge case worth examining carefully — a feature that's LEGITIMATELY time-dependent or non-deterministic by DESIGN produces different results across runs even with code, environment, and NOMINAL input unchanged, which could superficially look like flakiness.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A genuinely tricky case:
+A "recently viewed" list depends on the CURRENT TIMESTAMP at
+  test-run time — if the test doesn't ACCOUNT for this
+  (e.g., doesn't control or mock the current time), it might
+  produce genuinely different, "inconsistent" results across
+  runs, even with code and environment unchanged.
+
+Is this FLAKINESS, or a TEST DESIGN issue?
+Arguably, the "input" here ISN'T genuinely unchanged — the
+  CURRENT TIME is effectively part of the test's real input,
+  and it GENUINELY differs between runs. A more precise
+  framing: this is a TEST DEFECT (per Chapter 8's own
+  category) — the test should have CONTROLLED for time
+  (using a fixed, mocked timestamp) rather than relying on
+  the genuinely variable real clock.</code></pre>
+<p>This is a genuinely useful, honest edge case to work through: what looks like flakiness sometimes reveals that "input genuinely unchanged" wasn't actually true — time, random values, or other implicit inputs can be easy to overlook, and recognizing this distinction matters for choosing the correct fix (control the hidden input, rather than treating it as flakiness needing a retry).</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might it matter, practically, whether a team correctly distinguishes flakiness from a "fix that hasn't been merged everywhere yet" (a genuinely different, real situation)?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>These need genuinely different responses — flakiness needs the investigation this chapter's remaining pages cover, while an incompletely-deployed fix needs someone to simply finish deploying it, and conflating the two wastes real effort on the wrong solution.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>GENUINE flakiness — needs INVESTIGATION (this chapter's work):
+The test fails inconsistently even though the SAME, fully-
+  deployed code is running everywhere — the actual FIX is
+  understanding and addressing a real race condition or
+  timing issue in the test or application.
+
+A PARTIALLY-DEPLOYED fix, MISTAKEN for flakiness:
+A genuine bug fix was merged and deployed to SOME servers in
+  a load-balanced staging environment, but not YET to all of
+  them — tests hitting different servers get genuinely
+  DIFFERENT (fixed vs. still-buggy) code, despite looking like
+  the "same" deployment from a version-control perspective.
+  The ACTUAL fix here is simply completing the deployment
+  rollout, not investigating flakiness at all.</code></pre>
+<p>Misclassifying the second scenario as flakiness would send a team down this chapter's entire investigative process — looking for race conditions, timing issues — when the real, correct fix was simply "wait for the deployment to finish rolling out," a completely different and much simpler resolution that genuine flakiness investigation would never lead to.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

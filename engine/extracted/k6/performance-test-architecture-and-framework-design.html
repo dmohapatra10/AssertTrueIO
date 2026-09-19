@@ -1,0 +1,45 @@
+<!doctype html>
+<html><head>
+<title>Performance Test Architecture &amp; Framework Design in k6</title>
+<meta name="description" content="Moving from a single well-organized script to a real, maintainable k6 project — layer responsibilities, a real folder structure, and the anti-patterns that make a suite painful to maintain." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/performance-test-architecture-and-framework-design.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Performance Test Architecture &amp; Framework Design</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="advanced-k6-test-design.html">Advanced k6 Test Design</a></p>
+<article class="content">
+<h2 id="from-one-good-script-to-a-real-project">From One Good Script to a Real Project</h2>
+<p>Chapter 3 introduced the instinct — extract a repeated request into a function, then into a shared module. That instinct is the seed of everything here: what happens once a project has many workflows, many test types (Chapter 10), many environments (Chapter 9's <code>__ENV</code>), and enough scripts that "where does this code even go" becomes a real, recurring question. Three focused pages:</p>
+<ol>
+  <li><a href="layer-by-layer-responsibilities-k6.html">Layer-by-Layer Responsibilities</a> — what each part of a k6 project is actually for</li>
+  <li><a href="the-recommended-k6-folder-structure.html">The Recommended Folder Structure</a> — where everything actually lives</li>
+  <li><a href="avoiding-the-anti-patterns.html">Avoiding the Anti-Patterns</a> — the specific mistakes that make a suite painful to maintain</li>
+</ol>
+
+<h2 id="from-scripts-to-a-framework-what-actually-changes">From Scripts to a Framework — What Actually Changes</h2>
+<p>A handful of independent scripts, each doing its own setup inline, is perfectly fine for a small project — nothing here is about declaring that approach wrong at small scale. A framework becomes worth the investment specifically once a project has enough scripts that duplicated logic, inconsistent patterns, and hardcoded values scattered across files start costing real time whenever something needs to change.</p>
+
+<h2 id="a-quick-preview-of-the-structure">A Quick Preview of the Structure</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>k6-performance/
+├── tests/         (smoke, load, stress, spike, soak — Chapter 10's configurations)
+├── workflows/      (Chapter 9's realistic journeys — login, browse, checkout)
+├── api/             (Chapter 3's reusable request functions, one module per resource)
+├── data/             (Chapter 8's SharedArray-loaded test data)
+├── config/            (Chapter 9's environment configuration, __ENV-driven)
+├── utils/              (unique-data generation, JWT decoding, shared helpers)
+├── metrics/              (Chapter 6's custom Counter/Gauge/Rate/Trend definitions)
+├── thresholds/            (Chapter 7's threshold configurations, per test type)
+└── reports/                (output destination for results)</code></pre>
+<p>Every folder here maps directly onto a concept already covered in this course — this chapter is about organizing those concepts into one coherent project, not introducing new k6 mechanics.</p>
+
+<h2 id="common-mistakes-to-watch-for">Common Mistakes to Watch For</h2>
+<ul>
+  <li><strong>Duplicating request logic across many test files</strong> instead of extracting it once into the <code>api/</code> layer, exactly the Chapter 3 instinct applied at project scale.</li>
+  <li><strong>Hardcoding URLs and credentials directly in test files</strong> instead of the <code>config/</code> layer, undoing Chapter 9 and Chapter 10's environment-variable practices.</li>
+  <li><strong>Letting test scripts grow into giant, unstructured files</strong> mixing workflow logic, data generation, and configuration all in one place.</li>
+</ul>
+
+<h2 id="what-you-ll-be-able-to-do">What You'll Be Able to Do</h2>
+<p>By the end of the three pages that follow, you should be able to explain what each layer of a real k6 project is responsible for, lay out a project using the recommended structure, and recognize (and avoid) the specific anti-patterns — duplicated code, hardcoded configuration, shared mutable state, unrealistic workloads, giant scripts — that turn a growing k6 suite into something painful to maintain. Start with Layer-by-Layer Responsibilities below.</p>
+</article>
+</body></html>

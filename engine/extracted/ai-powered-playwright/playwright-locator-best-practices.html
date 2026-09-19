@@ -1,0 +1,78 @@
+<!doctype html>
+<html><head>
+<title>Playwright Locator Best Practices</title>
+<meta name="description" content="A no-AI refresher on getByRole, getByLabel, getByText, and getByTestId — the real foundation locator healing exists to protect, not replace." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/playwright-locator-best-practices.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Playwright Locator Best Practices</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="ai-powered-locator-intelligence.html">AI-Powered Locator Intelligence overview</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Playwright's built-in, semantic locator methods and why they're genuinely more stable</li>
+  <li>A concrete ranking of which locator strategies to reach for first</li>
+  <li>Why this whole chapter's AI techniques exist to protect good locators, not replace them</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>No AI in this page at all — deliberately. Before any healing or suggestion technique makes sense, it's worth being genuinely clear about what a good locator looks like, since that's exactly what this chapter's later pages are trying to preserve when things go wrong.</p>
+
+<h2 id="how-it-works-playwright-s-semantic-locators">How It Works — Playwright's Semantic Locators</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>getByRole('button', { name: 'Log In' })
+  // Targets by ACCESSIBILITY role and accessible name — tied
+  // to what a SCREEN READER would announce, genuinely stable
+  // across most visual and structural changes
+
+getByLabel('Email')
+  // Targets a FORM field by its associated label text —
+  // survives CSS changes, DOM restructuring, most refactors
+
+getByText('Order Confirmed')
+  // Targets by VISIBLE text content — reasonably stable for
+  // STATIC text, fragile for text that changes often
+
+getByTestId('cart-total')
+  // Targets by an EXPLICIT, dedicated test attribute — the
+  // MOST stable option, since it exists ONLY for testing and
+  // changes ONLY when a developer deliberately updates it</code></pre>
+
+<h2 id="why-it-matters-a-concrete-stability-ranking">Why It Matters — A Concrete Stability Ranking</h2>
+<p>These four aren't equally stable, and knowing the real order matters. <code>getByTestId</code> is the most robust, since it's explicitly maintained for testing and immune to visual redesigns. <code>getByRole</code> and <code>getByLabel</code> come next, tied to accessibility semantics that change less often than visual styling. <code>getByText</code> is the least stable of the four — genuinely useful for confirmation messages and static content, but the first to break when copy changes.</p>
+
+<h2 id="example-choosing-the-right-one-for-shopsmart-s-cart">Example — Choosing the Right One for ShopSmart's Cart</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// The CART TOTAL display — changes VALUE constantly, but the
+// ELEMENT itself should be reliably targetable:
+page.getByTestId('cart-total')
+  // BETTER than getByText('$49.98') — that locator breaks
+  // the INSTANT the price changes, which is CONSTANTLY
+
+// The "Add to Cart" BUTTON — a stable, semantic control:
+page.getByRole('button', { name: 'Add to Cart' })
+  // BETTER than a CSS class selector — survives a visual
+  // REDESIGN that changes classes but keeps the BUTTON'S role
+  // and accessible NAME intact</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Defaulting to CSS class or XPath selectors.</strong> These are tied to implementation and visual details that change often, for reasons that have nothing to do with the feature actually breaking.</li>
+  <li><strong>Using <code>getByText</code> for dynamic, frequently-changing content.</strong> A price, a count, a timestamp — anything that changes on every page load is a poor fit for text-based targeting.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Reach for <code>getByTestId</code> or <code>getByRole</code> first; treat <code>getByText</code> as a last resort for genuinely static content only.</li>
+  <li>Advocate for dedicated test IDs on elements your suite depends on heavily — this is a real, worthwhile conversation with the development team, not just a testing-side concern.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Look at five real locators from your own existing test suite. Rank each against this page's stability ordering — testId, role, label, text, everything else — and identify any that are genuinely fragile and worth rewriting before this chapter's AI techniques ever need to heal them.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Playwright's semantic locator methods have a real, meaningful stability ordering — testId and role-based locators are genuinely more robust than text or CSS-based ones.</li>
+  <li>Good locator practice is the real foundation this entire chapter's remaining pages exist to protect, not a step that AI techniques make unnecessary.</li>
+  <li>A test suite built on fragile locators will need healing constantly — the better fix is often writing more stable locators in the first place.</li>
+</ul>
+</article>
+</body></html>

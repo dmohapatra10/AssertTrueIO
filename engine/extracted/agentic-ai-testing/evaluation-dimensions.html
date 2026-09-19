@@ -1,0 +1,197 @@
+<!doctype html>
+<html><head>
+<title>Evaluation Dimensions: Relevance, Correctness, Groundedness, Consistency</title>
+<meta name="description" content="The four genuinely distinct questions a good LLM response needs to answer well — and why a response can pass three of them while badly failing the fourth." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/evaluation-dimensions.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Evaluation Dimensions</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="response-validation-for-llm-outputs.html">Response Validation for LLM Outputs</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>This page is this chapter's core: four genuinely distinct questions a good response needs to answer well. A response can score highly on three and badly fail the fourth — treating them as one undifferentiated "quality" score would hide exactly which dimension actually needs fixing.</p>
+
+<h2 id="the-four-dimensions-each-with-a-genuine-failure-example">The Four Dimensions, Each With a Genuine Failure Example</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>1. RELEVANCE — does it actually address what was asked?
+
+Question: "What's your return policy for electronics?"
+IRRELEVANT response: "ShopEasy was founded in 2019 and offers
+  free shipping on orders over $50." — factually TRUE, entirely
+  IRRELEVANT to the actual question asked.
+
+2. CORRECTNESS — is the actual claimed information accurate?
+
+Question: "What's your return policy for electronics?"
+INCORRECT response: "Electronics can be returned within 90
+  days." — DIRECTLY addresses the question (relevant), but the
+  real policy is 30 days, not 90 — genuinely WRONG.
+
+3. GROUNDEDNESS — is it based on real, provided information,
+   or invented?
+
+Question: "Does the Ergo Wireless Mouse have a 2-year warranty?"
+UNGROUNDED response: "Yes, it comes with a 2-year manufacturer
+  warranty." — stated CONFIDENTLY, but NOTHING in the actual
+  product catalog mentions a warranty at all — this is
+  genuinely FABRICATED, not derived from real, available data.
+
+4. CONSISTENCY — would substantially the same answer come back
+   if asked again?
+
+Question asked TWICE: "Is the Ergo Wireless Mouse compatible
+  with Mac?"
+Run 1: "Yes, it's compatible with both Mac and Windows."
+Run 2: "I'm not sure about Mac compatibility — I'd recommend
+  checking with support."
+Genuinely INCONSISTENT — one run confidently says yes, another
+  hedges completely, for the IDENTICAL question.</code></pre>
+
+<h2 id="why-these-four-are-genuinely-independent">Why These Four Are Genuinely Independent</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A response can score HIGH on THREE of these and badly FAIL
+the FOURTH — proving they're measuring genuinely different
+things, not four names for the same underlying quality:
+
+RELEVANT + CORRECT + CONSISTENT, but NOT GROUNDED:
+  The warranty example above — directly answers the question
+  (relevant), the answer HAPPENS to sound plausible (though we
+  can't confirm correctness without real data), would likely
+  be repeated consistently — but it's FABRICATED, not derived
+  from anything real. THREE dimensions look fine; the FOURTH
+  reveals the genuine, serious problem.</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might collapsing these four dimensions into one overall "quality score" from 1 to 10 be a genuinely worse design than tracking them separately? A single blended score for the warranty example above might land somewhere reasonably high — relevant, plausible-sounding, consistent — completely burying the one dimension (groundedness) that actually matters most for a fabricated claim. Separate dimension scores let a reviewer immediately see WHICH specific aspect needs attention; a single blended number can make a genuinely dangerous fabrication look like a merely mediocre response, hiding exactly the signal that matters most.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Evaluating only correctness and treating that as sufficient for overall quality. This page's warranty example is CONFIDENTLY stated and would likely be judged "sounds right" by a correctness-only check that has no real policy document to compare against — groundedness is a genuinely separate, necessary check specifically because correctness alone can't catch confident fabrication when no ground truth is readily available for comparison.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>When designing an evaluation prompt for any one of these four dimensions, keep it scoped to ONLY that dimension — a prompt asking "is this relevant AND correct AND grounded" all at once risks the same blended-score problem this page argues against, even when done through a single LLM call rather than a single number.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Evaluate relevance, correctness, groundedness, and consistency as genuinely separate dimensions, not one blended quality score.</li>
+  <li>Recognize that a response can score well on most dimensions while badly failing one — exactly the failure pattern a blended score would hide.</li>
+  <li>Keep each dimension's evaluation prompt scoped to that one dimension specifically, even when checking several dimensions in the same overall process.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Relevance, correctness, groundedness, and consistency are genuinely independent evaluation dimensions — a response can pass three and badly fail the fourth.</li>
+  <li>Groundedness specifically catches confident fabrication that relevance and correctness checks alone can miss, especially without ready access to ground-truth data.</li>
+  <li>Keeping these dimensions separate, rather than blending them into one score, preserves exactly the diagnostic signal a team needs to know what to actually fix.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Write a hypothetical shopping assistant response that's genuinely CORRECT and GROUNDED but fails RELEVANCE — directly answering a different, related question instead of the one actually asked — matching this page's pattern of showing each dimension can fail independently of the others.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A dashboard shows the shopping assistant's overall quality score as "8.5/10, looking great." A stakeholder is satisfied. What would you want to check before agreeing this is genuinely reassuring?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd want to see the FOUR dimensions broken out separately, not just the blended score — this page's own core argument is that a high blended score can hide a serious, specific problem in exactly one dimension, like fabricated but plausible-sounding claims.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What an 8.5/10 BLENDED score genuinely DOESN'T tell you:
+Whether this reflects CONSISTENTLY good performance across
+  ALL FOUR dimensions, or STRONG performance on THREE
+  (relevance, correctness-when-checkable, consistency) MASKING
+  a genuinely SERIOUS groundedness problem — exactly this
+  page's own warranty-fabrication example, which could easily
+  score HIGH on a blended scale while being a genuinely
+  dangerous, real issue.
+
+What I'd ACTUALLY want to see instead:
+Relevance: X/10, Correctness: X/10, Groundedness: X/10,
+  Consistency: X/10 — SEPARATELY, so a LOW groundedness score
+  specifically (even alongside high scores elsewhere) would be
+  IMMEDIATELY visible, rather than averaged away into a
+  reassuring-looking BLENDED number.</code></pre>
+<p>The stakeholder's satisfaction might be genuinely premature — a single blended number is exactly the kind of metric this page warns can hide the specific, serious problem worth actually caring about.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page's warranty example specifically demonstrate groundedness as independent from correctness, rather than treating fabrication as just "a kind of incorrectness"?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Correctness and groundedness ask genuinely different questions — correctness asks "does this match reality," while groundedness asks "is this actually derived from real, available information" — and a response can fail groundedness even when nobody can immediately confirm whether it's ALSO factually incorrect.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why CORRECTNESS alone can't catch this:
+Checking correctness for "the mouse has a 2-year warranty"
+  requires ACTUALLY KNOWING whether this is true — but if
+  there's NO warranty information in the product catalog at
+  ALL, there's no ground truth to check the CLAIM against
+  directly; a correctness check might GENUINELY be unable to
+  determine true or false here.
+
+Why GROUNDEDNESS catches it ANYWAY:
+Groundedness doesn't ask "is this true" — it asks "is this
+  DERIVED FROM the actual, provided information" — and the
+  answer here is CLEARLY no, REGARDLESS of whether the claim
+  happens to be accidentally true or false. This is CHECKABLE
+  even when correctness alone genuinely isn't.</code></pre>
+<p>This is exactly why groundedness deserves its own, separate dimension — it catches a genuine, real problem (fabrication) that correctness checking alone structurally cannot always catch, specifically in cases where ground truth for DIRECT correctness comparison isn't readily available.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why the Mac-compatibility example's inconsistency (page's dimension 4) matters even if BOTH individual responses happened to be independently reasonable.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Consistency isn't about whether any ONE response is good in isolation — it's about whether a customer asking the SAME question twice gets a reliable, dependable answer, and genuine inconsistency undermines trust even when neither individual answer is obviously wrong.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why EACH response, judged ALONE, might seem fine:
+"Yes, compatible with Mac and Windows" — reasonable IF true.
+"I'm not sure, check with support" — also a REASONABLE, honest
+  response IF the assistant genuinely doesn't know.
+
+Why the INCONSISTENCY BETWEEN them is still a real problem:
+A REAL customer asking this question TWICE — perhaps once
+  today, once tomorrow — would get GENUINELY DIFFERENT
+  guidance, undermining trust in the ASSISTANT overall,
+  regardless of which individual answer happens to be more
+  accurate. RELIABILITY itself has value independent of any
+  SINGLE response's individual quality.</code></pre>
+<p>This is exactly why consistency deserves its OWN dimension, separate from correctness — a system can be UNRELIABLE (failing consistency) even when EVERY individual response, judged alone, seems reasonably fine, which is a genuinely different, real problem worth tracking on its own.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might it be a mistake to assume these four dimensions are always EQUALLY important for every kind of LLM application?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Different applications genuinely have different real stakes for each dimension — a creative writing assistant might reasonably tolerate more inconsistency than a customer-facing support bot handling real policy questions with real financial consequences, like ShopEasy's own shopping assistant.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why GROUNDEDNESS is GENUINELY critical for ShopEasy's
+shopping assistant specifically:
+A fabricated WARRANTY claim could lead a customer to make a
+  REAL purchase decision based on FALSE information — a
+  GENUINE, real business and trust risk, making groundedness
+  a HIGH-STAKES dimension for THIS specific application.
+
+Where a DIFFERENT application might reasonably weigh
+dimensions differently:
+A creative BRAINSTORMING assistant, where the GOAL is
+  generating novel, VARIED ideas, might reasonably tolerate
+  (or even WANT) more inconsistency between runs than a
+  factual support bot — CONSISTENCY matters LESS when the
+  actual GOAL is genuine variety, not a single, reliable
+  answer.</code></pre>
+<p>This is a genuinely important, practical point: these four dimensions are a useful GENERAL framework, but which ones matter MOST, and how strictly, should be calibrated to the SPECIFIC application's real, actual stakes — not applied with identical weight to every LLM feature regardless of what it's actually for.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you design a test specifically to distinguish a relevance failure from a correctness failure, given that both can look superficially similar (a "wrong" response)?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>The genuinely distinguishing test is checking whether the response ADDRESSES the actual question topic at all — a relevance failure talks about something ELSE entirely; a correctness failure talks about the RIGHT topic but gets the FACTS wrong.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def classify_wrongness(question, response, client):
+    prompt = f"""Question: {question}
+Response: {response}
+
+Does this response ADDRESS the topic of the question at all
+(even if the specific facts might be wrong), or does it talk
+about something ENTIRELY DIFFERENT? Classify as either
+'off-topic (relevance issue)' or 'on-topic but check facts
+(possible correctness issue)'."""
+    result = client.messages.create(
+        model="claude-sonnet-4-6", max_tokens=200,
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return result.content[0].text</code></pre>
+<p>This directly operationalizes the distinction this page's own examples already establish — the founding-year/shipping response for a return-policy question is OFF-TOPIC entirely (a relevance failure), while the "90 days" response is genuinely ON-TOPIC but factually wrong (a correctness failure) — this classification prompt turns that conceptual distinction into an actual, checkable test that routes a "wrong-looking" response toward the CORRECT specific dimension worth investigating further.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

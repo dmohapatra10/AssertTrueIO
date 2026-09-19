@@ -1,0 +1,118 @@
+<!doctype html>
+<html><head>
+<title>Common GitHub Actions Security Mistakes, Plus a Real Security Challenge</title>
+<meta name="description" content="The five most common GitHub Actions security mistakes — hardcoded credentials, printed secrets, excessive permissions, untrusted input, unvetted third-party actions — plus a genuine workflow to secure yourself." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/common-security-mistakes-and-a-security-challenge.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Common Security Mistakes &amp; a Security Challenge</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="workflow-permissions-and-least-privilege.html">Workflow Permissions & Least Privilege</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Five specific, genuinely common security mistakes — each one already touched on somewhere in this chapter, gathered here as one deliberate checklist — followed by a real, complete workflow with several of them present at once, for you to actually find and fix.</p>
+
+<h2 id="mistake-1-hardcoded-credentials">❌ Mistake 1 — Hardcoded Credentials</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>env:
+  API_KEY: sk_live_abc123def456</code></pre>
+<p>Visible to anyone with repository access, permanently, in the commit history — covered fully earlier in this chapter. Fix: <code>${{ secrets.API_KEY }}</code>, never a literal value.</p>
+
+<h2 id="mistake-2-printing-secrets-to-logs">❌ Mistake 2 — Printing Secrets to Logs</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>- run: echo "The API key is $API_KEY"</code></pre>
+<p>Even though GitHub automatically masks known secret values in log output, deliberately printing a secret for debugging is a genuinely bad habit — a masked value can sometimes still leak through indirect means (a modified or partial value, an unexpected code path), and the instinct itself is worth avoiding entirely rather than relying on masking as a safety net.</p>
+
+<h2 id="mistake-3-excessive-permissions">❌ Mistake 3 — Excessive Permissions</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>permissions: write-all</code></pre>
+<p>Covered in full depth on the previous page — grants everything, when a specific task almost never genuinely needs everything.</p>
+
+<h2 id="mistake-4-trusting-untrusted-input">❌ Mistake 4 — Trusting Untrusted Input</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>- run: echo "${{ github.event.issue.title }}"</code></pre>
+<p>This looks harmless, but an issue title is text any user can set — including a malicious user, on a public repository. If that string is interpolated directly into a shell command, a carefully crafted issue title can potentially inject and execute arbitrary commands in that shell, not just print harmless text. User-controlled input flowing directly into a shell command is a genuine, real injection risk.</p>
+
+<h2 id="mistake-5-unvetted-third-party-actions">❌ Mistake 5 — Unvetted Third-Party Actions</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>- uses: some-random-account/do-something@main</code></pre>
+<p>A third-party action runs with the same access your workflow has — an action from an unknown, unmaintained, or untrustworthy source is running real code with real permissions inside your pipeline. Combined with pinning to <code>@main</code> (covered in Chapter 4) rather than a fixed version, this is a genuine, real supply-chain risk.</p>
+
+<h2 id="security-challenge-secure-this-workflow">🔒 Security Challenge — Secure This Workflow</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>name: Deploy
+on: push
+permissions: write-all
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      DEPLOY_KEY: prod-key-9f8e7d6c5b4a
+    steps:
+      - uses: actions/checkout@v4
+      - uses: some-account/deploy-action@main
+        with:
+          key: ${{ env.DEPLOY_KEY }}
+      - run: echo "Deployed with key $DEPLOY_KEY"
+      - run: echo "Triggered by: ${{ github.event.head_commit.message }}"</code></pre>
+<p>This single workflow contains <strong>every mistake from this page</strong>. Before reading further, try to identify all five yourself.</p>
+
+<h2 id="the-fixed-version">The Fixed Version</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>name: Deploy
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: some-account/deploy-action@v2.1.0   # pinned to a real, reviewed version
+        with:
+          key: ${{ secrets.DEPLOY_KEY }}            # a real secret, not hardcoded
+      - run: echo "Deployment step completed"        # no secret printed</code></pre>
+<p>Fixed: the credential is now a genuine secret rather than hardcoded; <code>permissions: write-all</code> is replaced with the actual minimum needed; the third-party action is pinned to a specific, presumably-reviewed version instead of a mutable branch; the secret is never echoed to the log; and the commit message (untrusted user input) is no longer interpolated directly into a shell command at all.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why does pinning a third-party action to a specific version (rather than <code>@main</code>) address a genuinely different risk than reviewing the action's code once before first using it? Even a thoroughly reviewed action, if pinned to a mutable branch, could have its code changed by its maintainer at any point after your review — pinning to an immutable version tag ensures the exact code you reviewed is what actually keeps running, rather than trusting that nothing changes later without your knowledge.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Treating security review as a one-time task rather than an ongoing practice. A workflow that was genuinely secure when written can become vulnerable later — a pinned action's maintainer account could be compromised, a dependency could introduce a vulnerability, an unrelated permissions change elsewhere could widen access unexpectedly. Periodic review matters, not just a single pass.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>GitHub's own security features — Dependabot alerts, secret scanning, and the security tab in a repository's settings — can automatically flag some of these issues (like an accidentally committed credential) even before a human reviewer catches them. Worth having enabled as a genuine, additional safety net, not a replacement for careful workflow design.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Review every workflow against this exact checklist of five mistakes periodically, not just when first written.</li>
+  <li>Treat any value derived from user-controllable input (issue titles, PR descriptions, commit messages) as untrusted before it touches a shell command.</li>
+  <li>Pin every third-party action to a specific, immutable version — never a branch name.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Hardcoded credentials, printed secrets, excessive permissions, untrusted input, and unvetted actions are the five most common, genuinely serious GitHub Actions security mistakes.</li>
+  <li>User-controlled text (issue titles, commit messages) flowing directly into a shell command is a real injection risk, not a theoretical one.</li>
+  <li>A third-party action runs with your workflow's own access — pinning to a reviewed, immutable version matters as much as reviewing the code itself.</li>
+</ul>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why is directly interpolating something like an issue title into a shell command a genuine security risk, not just bad style?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">An issue title is text any user can set, including a malicious one, especially on a public repository. If that user-controlled text is interpolated directly into a shell command, a carefully crafted title could potentially inject and execute arbitrary commands within that shell context, not just display as harmless text — this is a real command injection vulnerability, not a theoretical concern.</div>
+</details>
+<details class="faq-item">
+<summary>Why does pinning a third-party action to a specific version matter even after reviewing that action's code once?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Pinning to a mutable reference like a branch name means the actual code that runs can change at any point after your review, entirely outside your control or knowledge, if the action's maintainer pushes something new. Pinning to a specific, immutable version tag ensures the exact code you reviewed is what continues running, closing the gap between "reviewed once" and "still running what was reviewed."</div>
+</details>
+<details class="faq-item">
+<summary>Why is deliberately printing a secret's value to the workflow log a bad practice, even though GitHub automatically masks known secrets?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Automatic masking is a safety net, not a guarantee — a partial, modified, or unexpectedly formatted version of a secret value can sometimes bypass masking, and relying on masking as the primary safeguard rather than simply never printing the value in the first place is a genuinely riskier habit. Avoiding the practice entirely removes the dependency on masking working correctly in every possible situation.</div>
+</details>
+<details class="faq-item">
+<summary>Why does permissions: write-all represent a real security risk even for a workflow that currently behaves correctly?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The risk isn't about the workflow's current, intended behavior — it's about what becomes possible if that workflow, or any dependency or action it uses, is ever compromised. write-all means a compromise would grant an attacker access to everything the token could possibly touch, rather than being contained to the narrow, actual permissions the workflow's real task requires.</div>
+</details>
+<details class="faq-item">
+<summary>Why should security review of a GitHub Actions workflow be treated as an ongoing practice rather than a one-time check?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A workflow that was genuinely secure when first written can become vulnerable later through changes entirely outside the workflow file itself — a pinned action's maintainer account could be compromised, a dependency could introduce a new vulnerability, or a broader permissions change elsewhere could unexpectedly widen access. Treating security as a single, one-time pass misses these kinds of changes that can occur well after the original review.</div>
+</details>
+</div>
+</article>
+</body></html>

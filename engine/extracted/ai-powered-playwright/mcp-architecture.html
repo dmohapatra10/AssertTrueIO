@@ -1,0 +1,72 @@
+<!doctype html>
+<html><head>
+<title>MCP Architecture</title>
+<meta name="description" content="The real, three-part architecture — host, client, server — and where Chapter 14&#x27;s agent and browser tools each land within it." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/mcp-architecture.html" />
+</head><body>
+<p class="difficulty">Advanced</p>
+<h1>MCP Architecture</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="why-mcp-is-useful-for-qa.html">Why MCP is Useful for QA</a></p>
+<article class="content">
+<h2>What You'll Learn</h2>
+<ul>
+  <li>The three real components of MCP's architecture</li>
+  <li>Where Chapter 14's agent and tools each land within this structure</li>
+  <li>How a tool call actually travels through this architecture, concretely</li>
+</ul>
+
+<h2>Introduction</h2>
+<p>Before writing any real server code, it's worth seeing the complete picture — three components, each with a specific, real role, and a concrete mapping to what this track has already built.</p>
+
+<h2>How It Works — The Three Real Components</h2>
+<pre><code>HOST      — the application the HUMAN or SYSTEM actually
+             interacts with — Chapter 14'S OWN agent CLASS,
+             or any OTHER application that WANTS to use tools
+
+CLIENT       — lives INSIDE the host, manages the ACTUAL
+                connection to a server, handles the REAL
+                protocol details (discovery, calling, RESULTS)
+
+SERVER          — exposes the ACTUAL tools — THIS chapter's
+                   real Playwright browser TOOLS, wrapped and
+                   made available over the PROTOCOL</code></pre>
+
+<h2>Why It Matters — Mapping This to What Already Exists</h2>
+<p>Chapter 14's <code>PlaywrightAgent</code> class is genuinely a host — it's the application deciding what objective to pursue and reasoning about next steps. This chapter adds a client inside that agent, and a genuinely new server process exposing the same browser tools. Nothing about the agent's own reasoning changes; only how it reaches its tools does.</p>
+
+<h2>Example — Tracing a Real Tool Call Through This Architecture</h2>
+<pre><code>1. The AGENT (host) decides it needs to CLICK "Add to Cart"
+2. The CLIENT, living INSIDE the agent, sends a STANDARDIZED
+   tool-call REQUEST over the protocol
+3. The SERVER receives it, executes the REAL Playwright
+   click_element LOGIC (Chapter 14'S own function, UNCHANGED)
+4. The SERVER sends a STANDARDIZED result BACK
+5. The CLIENT hands the result BACK to the agent'S reasoning,
+   exactly the way Chapter 14'S OWN tool_result format DID</code></pre>
+
+<h2>Why This Separation Matters</h2>
+<p>The host never needs to know how the server actually implements <code>click_element</code> — whether it's calling Playwright directly, running in a container, or proxying to another service entirely. This separation is what makes the reusability from this chapter's earlier pages genuinely possible: a completely different host, written by a completely different team, can use the exact same server without ever seeing its implementation.</p>
+
+<h2>Common Mistakes</h2>
+<ul>
+  <li><strong>Conflating the client and the server.</strong> The client lives inside the host and manages the connection; the server is a separate, standalone process exposing the actual tools — confusing these makes the rest of this chapter's code harder to follow.</li>
+  <li><strong>Assuming the host needs protocol-level knowledge.</strong> The client handles all of that — the host, including Chapter 14's agent reasoning, only ever sees tool names, inputs, and results, the same shape it already worked with.</li>
+</ul>
+
+<h2>Best Practices</h2>
+<ul>
+  <li>Keep this three-part structure in mind as a mental model while reading the rest of this chapter's real server and client code.</li>
+  <li>Think of the server as owning implementation details entirely — the host and client should never need to know how a tool's real work actually happens.</li>
+</ul>
+
+<h2>Hands-On Exercise</h2>
+<p>Trace a different tool call of your choosing — <code>fill_field</code>, for example — through this page's five-step example, substituting the real field and value. Confirm you can name what changes and what stays exactly the same compared to Chapter 14's direct tool-calling approach.</p>
+
+<h2>Key Takeaways</h2>
+<ul>
+  <li>MCP's architecture has three real components — host, client, and server — each with a distinct, well-defined role.</li>
+  <li>Chapter 14's agent becomes the host; this chapter adds a client and a genuinely new server, without changing the agent's own reasoning.</li>
+  <li>The host never needs implementation knowledge of the server's tools — this separation is exactly what makes cross-team, cross-codebase reuse possible.</li>
+</ul>
+</article>
+</body></html>

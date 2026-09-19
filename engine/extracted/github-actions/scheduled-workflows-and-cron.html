@@ -1,0 +1,105 @@
+<!doctype html>
+<html><head>
+<title>Scheduled GitHub Actions Workflows: Cron Syntax Explained Simply</title>
+<meta name="description" content="How to run a GitHub Actions workflow automatically on a schedule using the schedule event and cron syntax, explained with real, simple examples." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/scheduled-workflows-and-cron.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Scheduled Workflows &amp; Cron</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="manual-workflows-with-workflow-dispatch.html">Manual Workflows: workflow_dispatch</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>The <code>schedule</code> event lets a workflow run automatically at specific times, with no push, pull request, or manual trigger needed at all — using cron syntax to describe exactly when.</p>
+
+<h2 id="why-do-we-need-it">Why do we need it?</h2>
+<p>Some automation genuinely needs to happen on a timer rather than in response to a code change — a nightly regression test suite, a weekly dependency-update check, a daily report. None of these are naturally tied to "something changed"; they're tied to "time has passed."</p>
+
+<h2 id="cron-syntax-explained-simply">Cron Syntax, Explained Simply</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>* * * * *
+│ │ │ │ │
+│ │ │ │ └─ day of week (0-6, Sunday=0)
+│ │ │ └─── month (1-12)
+│ │ └───── day of month (1-31)
+│ └─────── hour (0-23)
+└───────── minute (0-59)</code></pre>
+<p>Each position is either a specific number or an asterisk (<code>*</code>, meaning "any value"). Reading left to right: minute, hour, day of month, month, day of week.</p>
+
+<h2 id="simple-real-examples">Simple, Real Examples</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>'0 2 * * *'    # every day at 2:00 AM
+'0 0 * * 0'    # every Sunday at midnight
+'0 9 * * 1-5'  # every weekday at 9:00 AM
+'*/15 * * * *' # every 15 minutes</code></pre>
+<p>The last example uses <code>*/15</code> — a step value, meaning "every 15th unit" rather than a single specific value or every single one.</p>
+
+<h2 id="using-schedule-in-a-workflow">Using schedule in a Workflow</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>on:
+  schedule:
+    - cron: '0 2 * * *'</code></pre>
+<p>Note that <code>cron:</code> value needs to be a quoted string — YAML would otherwise try to interpret the asterisks and spacing in a way that doesn't parse correctly as plain YAML.</p>
+
+<h2 id="detailed-example-shopeasy-s-nightly-regression-suite">Detailed Example — ShopEasy's Nightly Regression Suite</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>name: Nightly Regression
+on:
+  schedule:
+    - cron: '0 2 * * *'  # every night at 2:00 AM
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci
+      - run: npm run test:regression</code></pre>
+<p>This satisfies the second part of ShopEasy's original three-part requirement — a full regression suite, running automatically every night, with no one needing to remember to trigger it.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might 2:00 AM specifically be a common choice for a nightly job, rather than, say, the middle of the workday? Running during low-traffic, low-activity hours minimizes competing for shared resources (build servers, external services the tests might touch) and means the results are ready and waiting when the team actually starts their day — a deliberate, practical scheduling choice, not an arbitrary one.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Forgetting that scheduled workflow times are in UTC, not the timezone the team happens to be in. A cron expression written assuming local time can quietly run at a genuinely different, unintended hour once you account for the actual timezone offset — worth converting deliberately rather than guessing.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>GitHub explicitly documents that scheduled workflows can be delayed during periods of high load on their infrastructure — a schedule is a request for "around this time," not an absolute, millisecond-precise guarantee. For most nightly or weekly jobs this doesn't matter, but it's worth knowing if precise timing genuinely matters for a specific use case.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Write cron expressions in UTC deliberately, converting from your team's local time rather than guessing.</li>
+  <li>Choose off-peak hours for resource-intensive scheduled jobs, minimizing contention with other work.</li>
+  <li>Quote the cron string explicitly in YAML — an unquoted cron expression can be misparsed.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>The <code>schedule</code> event runs a workflow automatically at specific times, described using cron syntax.</li>
+  <li>Cron's five fields are: minute, hour, day of month, month, day of week — each either a specific value or a wildcard.</li>
+  <li>Scheduled times are in UTC, and aren't a millisecond-precise guarantee during high-load periods.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Write the cron expression for "every Monday, Wednesday, and Friday at 6:00 AM UTC," using the field reference at the top of this page to work it out field by field rather than guessing.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>What do the five fields in a cron expression represent, in order?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Reading left to right: minute (0-59), hour (0-23), day of month (1-31), month (1-12), and day of week (0-6, where Sunday is 0). Each field is either a specific value or an asterisk meaning "any value," and together they describe exactly when a scheduled workflow should run.</div>
+</details>
+<details class="faq-item">
+<summary>Why does the cron: value in a GitHub Actions workflow need to be wrapped in quotes?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A cron expression's specific combination of asterisks, numbers, and spacing can otherwise be misinterpreted by YAML's own parser, which has its own rules about unquoted values. Wrapping the expression in quotes ensures it's treated as a plain string, parsed correctly and passed through exactly as written to GitHub's scheduling system.</div>
+</details>
+<details class="faq-item">
+<summary>Why is it important to remember that GitHub Actions schedules run in UTC?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A cron expression written without accounting for UTC, assuming it matches the team's local time, will actually run at a different real-world hour once the timezone offset is applied. A team wanting a job to run at 2 AM their own local time needs to convert that time to UTC first and write the cron expression based on the converted time, not their local clock.</div>
+</details>
+<details class="faq-item">
+<summary>Why might */15 * * * * be a useful cron pattern, and what does it actually mean?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The */15 in the minute field means "every 15th minute" — so this expression triggers the workflow every 15 minutes, all day, every day. This step-value syntax is useful for anything needing frequent, regular execution without needing to write out every individual minute value it should match.</div>
+</details>
+<details class="faq-item">
+<summary>Why shouldn't a scheduled workflow be relied upon for something requiring millisecond-precise timing?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">GitHub documents that scheduled workflow runs can experience delays during periods of high platform load — the schedule is a request for approximately that time, not an absolute guarantee down to the exact second or millisecond. For typical nightly or periodic jobs this is rarely an issue, but any use case genuinely requiring precise timing would need a different mechanism entirely.</div>
+</details>
+</div>
+</article>
+</body></html>

@@ -1,0 +1,100 @@
+<!doctype html>
+<html><head>
+<title>Context-Aware Test Data</title>
+<meta name="description" content="Data that respects real business rules and relationships between fields — a discount-eligible order, a ZIP code that genuinely matches its city — not just individually valid values." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/context-aware-test-data.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Context-Aware Test Data</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="invalid-and-boundary-test-data.html">Invalid and Boundary Test Data</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Why individually valid fields can still combine into unrealistic data</li>
+  <li>Generating data that respects real relationships between fields</li>
+  <li>A concrete ShopSmart example where this genuinely matters</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>Every earlier page in this chapter generated one field or one record type at a time. This page is about a subtler, real problem: a user with a valid email, a valid address, and a valid order total can still be nonsensical as a whole — a Denver ZIP code paired with a Miami city name, for instance, each individually well-formed, together clearly wrong.</p>
+
+<h2 id="why-it-matters-a-concrete-shopsmart-case">Why It Matters — A Concrete ShopSmart Case</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>INDIVIDUALLY valid, but TOGETHER nonsensical:
+  { city: "Denver", state: "CO", zip: "33139" }
+  // "33139" is a REAL, validly-formatted ZIP — it's ALSO
+  // Miami Beach's ZIP, not DENVER's. A field-by-field
+  // VALIDATOR would accept this WITHOUT complaint.
+
+GENUINELY coherent, context-aware:
+  { city: "Denver", state: "CO", zip: "80203" }</code></pre>
+
+<h2 id="step-by-step-implementation">Step-by-Step Implementation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/generate-context-aware-data.ts
+import { askClaude } from './ai-client';
+
+export interface CoherentAddress {
+  street: string;
+  city: string;
+  state: string;
+  zip: string;
+}
+
+export async function generateCoherentAddress(): Promise&lt;CoherentAddress&gt; {
+  const prompt = `Generate ONE realistic US address where the
+city, state, and ZIP code are GENUINELY consistent with each
+other — a REAL ZIP code that actually corresponds to the
+given city and state, not just a validly-formatted one.
+
+Respond with ONLY valid JSON:
+{"street": string, "city": string, "state": string, "zip": string}`;
+
+  const raw = await askClaude(prompt);
+  return JSON.parse(raw);
+}
+
+export async function generateCoherentOrder(
+  productPrice: number, discountPercent: number
+): Promise&lt;{ subtotal: number; discount: number; total: number }&gt; {
+  const prompt = `Product price: $${productPrice}
+Discount: ${discountPercent}%
+
+Calculate the GENUINELY correct subtotal, discount amount, and
+final total — these THREE numbers must be mathematically
+CONSISTENT with each other, not just individually plausible.
+
+Respond with ONLY valid JSON:
+{"subtotal": number, "discount": number, "total": number}`;
+
+  const raw = await askClaude(prompt);
+  return JSON.parse(raw);
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p>Notice the prompt's explicit emphasis on consistency between fields, not just individual validity — this is the whole point of this page. <code>generateCoherentOrder</code> is a particularly concrete example: subtotal, discount, and total have an exact mathematical relationship, and a genuinely useful test fixture needs all three to actually agree, not just each look like a plausible dollar amount on its own.</p>
+
+<h2 id="why-it-matters-catching-a-real-subtle-bug-class">Why It Matters — Catching a Real, Subtle Bug Class</h2>
+<p>A test using field-by-field-valid-but-incoherent data can pass even when ShopSmart's actual total calculation is subtly wrong, because the individually-generated numbers were never required to genuinely relate to each other. Context-aware data closes this gap — a test asserting the displayed total matches this page's calculated, consistent total will catch a real discount-calculation bug that isolated, unrelated field generation never would.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Generating each field of a record independently, in separate calls.</strong> This is exactly how the Denver ZIP code problem happens — nothing enforces consistency across genuinely separate generation calls.</li>
+  <li><strong>Assuming "individually valid" is the same standard as "realistic."</strong> This page's whole point is that it genuinely isn't — coherence across fields is a separate, additional requirement.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Generate related fields together, in one call, whenever their values genuinely need to relate to each other — never split them across independent generation calls.</li>
+  <li>Explicitly state the consistency requirement in the prompt, the way this page's examples do — it doesn't happen by default.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Identify a set of related fields in your own application — a subtotal/tax/total triple, or a city/state/postal-code triple. Write a generation function following this page's pattern, explicitly requesting consistency, and verify a real, generated example by hand.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Individually valid fields can still combine into unrealistic, incoherent data — a genuinely separate concern from per-field validity.</li>
+  <li>Generating related fields together, in one call, with an explicit consistency requirement, is what actually produces coherent data.</li>
+  <li>Context-aware data catches a real class of bug — inconsistency between related values — that isolated, per-field generation can miss entirely.</li>
+</ul>
+</article>
+</body></html>

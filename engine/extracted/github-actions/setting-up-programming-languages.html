@@ -1,0 +1,110 @@
+<!doctype html>
+<html><head>
+<title>Setting Up Programming Languages in GitHub Actions: Java, Node.js &amp; Python</title>
+<meta name="description" content="How to set up Java, Node.js, and Python runtimes in a GitHub Actions job using the official setup actions, including version pinning and built-in caching options." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/setting-up-programming-languages.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Setting Up Programming Languages: Java, Node.js &amp; Python</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="checking-out-repository-code.html">Checking Out Repository Code</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>GitHub-hosted runners come with several language versions pre-installed, but a real project usually needs a <em>specific</em> version — this page covers the official setup actions for the three languages this site's other tracks actually use: Java (RestAssured), Node.js (Playwright, k6), and Python.</p>
+
+<h2 id="setting-up-java">Setting Up Java</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>- uses: actions/setup-java@v4
+  with:
+    java-version: '17'
+    distribution: 'temurin'</code></pre>
+<p><code>distribution</code> matters — Java has several different official builds (Temurin, Corretto, Zulu, and others); <code>temurin</code> (Eclipse Adoptium) is a common, solid default choice unless a project has a specific reason to need a different one.</p>
+
+<h2 id="setting-up-node-js">Setting Up Node.js</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>- uses: actions/setup-node@v4
+  with:
+    node-version: 20</code></pre>
+<p>Simpler than Java — no distribution choice needed, just the version. <code>setup-node</code> also has a built-in caching option, covered on the next page alongside dependency caching more broadly.</p>
+
+<h2 id="setting-up-python">Setting Up Python</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>- uses: actions/setup-python@v5
+  with:
+    python-version: '3.12'</code></pre>
+<p>Follows the same basic pattern as the other two — specify the version your project actually needs, rather than relying on whatever happens to be pre-installed by default.</p>
+
+<h2 id="detailed-example-matching-a-real-project-s-requirements">Detailed Example — Matching a Real Project's Requirements</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>ShopEasy's actual stack:
+- Backend: Java 17 (for RestAssured-based API tests)
+- Frontend: Node.js 20 (for the application itself and Playwright tests)
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      - run: mvn test
+
+  frontend-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npm test</code></pre>
+<p>These are two entirely separate jobs, each setting up exactly the language it actually needs — neither job installs a language runtime it doesn't use, keeping each one focused and no slower than necessary.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why does <code>setup-java</code> require a <code>distribution</code> choice while <code>setup-node</code> and <code>setup-python</code> don't ask for anything equivalent? Java genuinely has multiple, meaningfully different official distributions maintained by different organizations, each with slightly different support terms and licensing. Node.js and Python don't have this same kind of ecosystem-level distribution fragmentation, so there's no equivalent choice to make.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Relying on whatever language version happens to be pre-installed on the runner by default, without pinning an explicit version at all. GitHub's default pre-installed versions can change over time as runner images update — a project with a genuine dependency on a specific version should specify it explicitly, not assume the current default will always match.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>All three setup actions accept a version file reference too (like reading from a project's own <code>.node-version</code> or <code>.python-version</code> file) — useful for keeping the CI version and a developer's local version defined in exactly one place, rather than duplicating the version number in the workflow file separately.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Always specify an explicit version for whichever language your project uses — never rely on the runner's current default.</li>
+  <li>Match the CI language version to what your project actually targets in production, not an arbitrary or convenient choice.</li>
+  <li>Only set up the specific languages a given job actually needs — don't install Java in a job that never touches Java code.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Each language has its own official setup action — <code>setup-java</code>, <code>setup-node</code>, <code>setup-python</code>.</li>
+  <li>Java's setup additionally requires choosing a <code>distribution</code>; Node.js and Python don't have an equivalent choice.</li>
+  <li>Always pin an explicit version matching your project's real requirements.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>For a project using Python 3.11 for its backend and Node.js 18 for a separate frontend build step, write the two corresponding setup steps (in YAML) that would correctly configure each language at its specific required version.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why shouldn't a real project simply rely on whatever language version a GitHub-hosted runner has pre-installed by default?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Runner images are updated over time by GitHub, which means the specific pre-installed default version of a language can change without any change to your own workflow file. A project with a genuine dependency on a specific version should explicitly pin it using the appropriate setup action, ensuring consistent behavior regardless of what the runner's current default happens to be.</div>
+</details>
+<details class="faq-item">
+<summary>Why does setting up Java specifically require choosing a distribution, unlike Node.js or Python?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Java has several meaningfully different official distributions — Temurin, Corretto, Zulu, and others — maintained by different organizations with different support and licensing terms, even though they all implement the same Java version. Node.js and Python don't have this same kind of distribution-level fragmentation, so setup-node and setup-python don't need an equivalent choice.</div>
+</details>
+<details class="faq-item">
+<summary>Why might a workflow with a Java backend job and a separate Node.js frontend job set up each language in its own distinct job rather than both in one?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Each job only needs the language runtime relevant to its own specific task — setting up Java in a job that never touches Java code adds unnecessary time with no benefit. Separating them into distinct jobs also allows both to potentially run in parallel, and keeps each job's setup focused and minimal.</div>
+</details>
+<details class="faq-item">
+<summary>What's a genuine advantage of reading a language version from a project file like .node-version rather than hardcoding it in the workflow YAML?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It keeps the version defined in exactly one place, which both the CI workflow and a developer's local development environment can reference consistently. Hardcoding the version separately in the workflow file risks it drifting out of sync with whatever version is actually specified for local development, requiring the same value to be updated in two places whenever it changes.</div>
+</details>
+<details class="faq-item">
+<summary>Why does matching the CI language version to what a project actually targets in production matter beyond just making tests pass?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Testing against a different language version than what actually runs in production means CI could pass while missing a genuine, version-specific behavior difference that would only surface in the real production environment. Matching versions ensures the CI pipeline's results are actually representative of how the application will behave once deployed, not just whether it works on an arbitrary, potentially mismatched version.</div>
+</details>
+</div>
+</article>
+</body></html>

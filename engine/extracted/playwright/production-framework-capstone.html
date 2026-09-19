@@ -1,0 +1,233 @@
+<!doctype html>
+<html><head>
+<title>Building a Production-Style Playwright Framework: The Complete Walkthrough</title>
+<meta name="description" content="A capstone walkthrough assembling every concept from this course — locators, fixtures, page objects, API testing, config, CI/CD — into one complete, production-style Playwright framework." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/production-framework-capstone.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Building the Framework</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> Every previous chapter — this is the capstone that assembles them all.</p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+  <p>This chapter doesn't introduce new APIs. It's a complete walkthrough of a small but genuinely production-style framework, built for a realistic e-commerce application, showing exactly how every earlier chapter's piece fits into one working whole — the destination all thirteen chapters before this were building toward.</p>
+
+  <h2 id="why-it-s-important">Why it's important</h2>
+  <p>Knowing each individual concept — locators, fixtures, POM, API testing, config, CI — is different from knowing how they compose into a single coherent project. This is the missing piece: seeing the whole shape at once.</p>
+
+  <h2 id="the-application">The Application</h2>
+  <p>A small e-commerce app: browse products, add to cart, check out, view order history. Enough surface area to exercise UI testing, API testing, authentication, and framework structure meaningfully, without being an unwieldy example.</p>
+
+  <h2 id="step-1-project-structure">Step 1 — Project Structure</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>ecommerce-tests/
+├── tests/
+│   ├── auth/login.spec.ts
+│   ├── catalog/product-search.spec.ts
+│   ├── checkout/checkout-payment.spec.ts
+│   └── orders/order-cancellation.spec.ts
+├── pages/
+│   ├── base-page.ts
+│   ├── login-page.ts
+│   ├── catalog-page.ts
+│   └── checkout-page.ts
+├── components/
+│   └── nav-bar.ts
+├── api/
+│   └── orders-api.ts
+├── fixtures/
+│   └── index.ts
+├── test-data/
+│   └── sample-avatar.png
+├── setup/
+│   └── global.setup.ts
+├── playwright.config.ts
+└── .github/workflows/playwright.yml</code></pre>
+  <p>This is exactly the Framework Folder Structure chapter's layout, populated with real files for this specific application.</p>
+
+  <h2 id="step-2-configuration">Step 2 — Configuration</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// playwright.config.ts
+import { defineConfig, devices } from '@playwright/test';
+
+export default defineConfig({
+  testDir: './tests',
+  fullyParallel: true,
+  forbidOnly: !!process.env.CI,
+  retries: process.env.CI ? 2 : 0,
+  workers: process.env.CI ? 4 : undefined,
+  reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'list',
+
+  use: {
+    baseURL: process.env.BASE_URL || 'http://localhost:3000',
+    trace: 'on-first-retry',
+    screenshot: 'only-on-failure',
+  },
+
+  projects: [
+    { name: 'setup', testMatch: /global\\.setup\\.ts/ },
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'], storageState: 'playwright/.auth/user.json' },
+      dependencies: ['setup'],
+    },
+  ],
+});</code></pre>
+  <p>Every option here is a deliberate choice traceable to a specific earlier chapter: environment-driven <code>baseURL</code> (Configuration), CI-only retries (Configuration), the setup-project dependency for authentication (Authentication), and environment-aware reporters (Reporting).</p>
+
+  <h2 id="step-3-authentication-setup">Step 3 — Authentication Setup</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// setup/global.setup.ts
+import { test as setup } from '@playwright/test';
+
+setup('authenticate', async ({ page }) =&gt; {
+  await page.goto('/login');
+  await page.getByLabel('Email').fill(process.env.TEST_USER_EMAIL!);
+  await page.getByLabel('Password').fill(process.env.TEST_USER_PASSWORD!);
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await page.waitForURL('/dashboard');
+  await page.context().storageState({ path: 'playwright/.auth/user.json' });
+});</code></pre>
+
+  <h2 id="step-4-page-objects-and-api-helper">Step 4 — Page Objects and API Helper</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// pages/checkout-page.ts
+export class CheckoutPage extends BasePage {
+  readonly cardNumberInput: Locator;
+  readonly payButton: Locator;
+
+  constructor(page: Page) {
+    super(page);
+    this.cardNumberInput = page.getByLabel('Card number');
+    this.payButton = page.getByRole('button', { name: 'Pay now' });
+  }
+
+  async payWithTestCard() {
+    await this.cardNumberInput.fill('4242 4242 4242 4242');
+    await this.payButton.click();
+  }
+}</code></pre>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// api/orders-api.ts
+import { APIRequestContext } from '@playwright/test';
+
+export class OrdersApi {
+  constructor(private request: APIRequestContext) {}
+
+  async create(data: { item: string; quantity: number }) {
+    const res = await this.request.post('/api/orders', { data });
+    return res.json();
+  }
+
+  async delete(id: string) {
+    await this.request.delete(`/api/orders/${id}`);
+  }
+}</code></pre>
+
+  <h2 id="step-5-fixture-wiring">Step 5 — Fixture Wiring</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// fixtures/index.ts
+import { test as base } from '@playwright/test';
+import { CheckoutPage } from '../pages/checkout-page';
+import { OrdersApi } from '../api/orders-api';
+
+type Fixtures = { checkoutPage: CheckoutPage; ordersApi: OrdersApi };
+
+export const test = base.extend&lt;Fixtures&gt;({
+  checkoutPage: async ({ page }, use) =&gt; { await use(new CheckoutPage(page)); },
+  ordersApi: async ({ request }, use) =&gt; { await use(new OrdersApi(request)); },
+});
+export { expect } from '@playwright/test';</code></pre>
+
+  <h2 id="step-6-a-complete-test-using-everything-together">Step 6 — A Complete Test, Using Everything Together</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// tests/orders/order-cancellation.spec.ts
+import { test, expect } from '../../fixtures';
+
+test.describe('order cancellation', () =&gt; {
+  let orderId: string;
+
+  test.beforeEach(async ({ ordersApi }) =&gt; {
+    const order = await ordersApi.create({ item: 'Wireless Mouse', quantity: 1 });
+    orderId = order.id;
+  });
+
+  test.afterEach(async ({ ordersApi }) =&gt; {
+    await ordersApi.delete(orderId).catch(() =&gt; {}); // already cancelled is fine
+  });
+
+  test('customer can cancel a pending order', async ({ page }) =&gt; {
+    await test.step('navigate to the order', async () =&gt; {
+      await page.goto(`/orders/${orderId}`);
+    });
+
+    await test.step('cancel it', async () =&gt; {
+      await page.getByRole('button', { name: 'Cancel order' }).click();
+    });
+
+    await expect(page.getByText('Order cancelled')).toBeVisible();
+  });
+});</code></pre>
+  <p>Trace this one test back through the course: <code>ordersApi</code> fixture (Fixtures, Framework Structure) using API setup (API Testing) for speed, <code>beforeEach</code>/<code>afterEach</code> (Hooks) for clean setup/teardown, <code>test.step()</code> (Test Runner) for report clarity, role-based locators (Locators) for the interaction, and a web-first assertion (Assertions) to finish. Nothing here is a new concept — it's the composition that makes it a framework rather than a script.</p>
+
+  <h2 id="step-7-ci-cd">Step 7 — CI/CD</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># .github/workflows/playwright.yml
+name: Playwright Tests
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm ci
+      - run: npx playwright install --with-deps
+      - run: npx playwright test
+        env:
+          BASE_URL: ${{ secrets.STAGING_BASE_URL }}
+          TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
+          TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with: { name: playwright-report, path: playwright-report/ }</code></pre>
+
+  <h2 id="what-makes-this-production-style-not-just-a-working-script">What Makes This "Production-Style," Not Just a Working Script</h2>
+  <ul>
+    <li><strong>No hardcoded URLs or credentials anywhere</strong> — everything environment-driven, per the Configuration and Projects chapters.</li>
+    <li><strong>Setup and teardown are symmetric and automatic</strong> — every created order gets cleaned up, per the Hooks chapter.</li>
+    <li><strong>API used for speed, UI used for verification</strong> — per the API Testing chapter's core principle.</li>
+    <li><strong>A single fixture file wires everything</strong> — no test manually constructs a page object or API client, per Framework Structure.</li>
+    <li><strong>CI failure produces a debuggable artifact</strong>, not just a red X, per the Reporting chapter.</li>
+  </ul>
+
+  <h2 id="common-mistakes-at-this-scale">Common Mistakes at This Scale</h2>
+  <ul>
+    <li><strong>Skipping the fixture layer</strong> "since the project is still small" — this is exactly the debt that makes a growing suite painful; introduce it from the start, it costs little.</li>
+    <li><strong>Letting test data accumulate</strong> without teardown, eventually polluting a shared staging environment other teams also use.</li>
+    <li><strong>Copy-pasting a whole test file to make a small variation</strong> instead of parameterizing or extracting shared setup — a sign the framework's abstractions need to grow with the suite.</li>
+  </ul>
+
+  <h2 id="where-to-go-from-here">Where to Go From Here</h2>
+  <p>This framework is intentionally small enough to hold in your head — a real production suite grows the same structure outward: more page objects, more API helpers, more projects (mobile, tablet, additional browsers), a smoke/regression split, and probably a visual regression suite alongside the functional one. None of that requires new concepts beyond this course; it's the same pieces, more of them, composed the same way.</p>
+
+  <h2 id="summary">Summary</h2>
+  <p>A production-style Playwright framework is not a single advanced technique — it's the disciplined composition of everything covered in this course: locators and actions for reliable interaction, fixtures for clean setup, page objects for maintainability, API testing for speed, environment-driven configuration for portability, and CI/CD with real reporting for continuous confidence. Every piece traces back to a specific earlier chapter; the skill this capstone teaches is fitting them together.</p>
+
+  <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>What separates a "framework" from a folder of individual Playwright test scripts?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A framework has consistent, reusable structure — shared fixtures instead of per-test setup duplication, page objects instead of repeated locators, environment-driven configuration instead of hardcoded values, and a CI pipeline producing debuggable artifacts on failure. A folder of scripts might individually work, but each new test re-solves problems (login, navigation, data setup) that a framework solves once and makes available everywhere — which is what actually lets a test suite scale to hundreds of tests without becoming unmaintainable.</div>
+</details>
+<details class="faq-item">
+<summary>What actually separates a 'framework' from a folder of individual test scripts?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Consistent, reusable structure — shared fixtures instead of duplicated setup, page objects instead of repeated locators, environment-driven config instead of hardcoded values.</div>
+</details>
+<details class="faq-item">
+<summary>Why does the capstone framework use the API for setup but the UI for the actual workflow being tested?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Speed and reliability for the parts that aren't the point of the test, while still genuinely exercising the UI for what the test is actually meant to verify.</div>
+</details>
+<details class="faq-item">
+<summary>Why does every created order get deleted in afterEach, even if the test's own logic already deleted it?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Because DELETE is idempotent and the cleanup call is wrapped in .catch(), making the repeat call a safe no-op rather than a failure.</div>
+</details>
+<details class="faq-item">
+<summary>What would 'growing' this capstone framework for a larger real product typically involve?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">More page objects, more API helpers, more projects (mobile, additional browsers), a smoke/regression split — the same pieces, more of them, not new concepts.</div>
+</details>
+</div>
+</article>
+</body></html>

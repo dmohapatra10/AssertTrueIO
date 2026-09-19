@@ -1,0 +1,171 @@
+<!doctype html>
+<html><head>
+<title>k6 check(), sleep(), and group() Explained</title>
+<meta name="description" content="The three functions that give a k6 script real structure — check() for verification, sleep() for realistic pacing, and group() for organizing related requests." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/check-sleep-and-group.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>check(), sleep(), and group()</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="making-http-requests-in-k6.html">Making HTTP Requests: GET, POST, PUT, PATCH, DELETE</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Sending requests alone doesn't make a meaningful test — these three functions are what turn a sequence of HTTP calls into something that actually verifies correctness, behaves like a realistic user, and stays organized as a script grows.</p>
+
+<h2 id="check-verifying-a-response">check() — Verifying a Response</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import { check } from 'k6';
+
+const response = http.get('https://test-api.example.com/products');
+
+check(response, {
+  'status is 200': (r) => r.status === 200,
+  'response has products': (r) => r.json().length > 0,
+});</code></pre>
+<p><code>check()</code> takes a response and an object of named conditions, each a function returning true or false. Every check is reported independently in k6's output — a named check that fails is immediately identifiable, rather than the test just generically "not working." This is the single most important function for making a performance test actually validate something, not just generate load blindly.</p>
+
+<h2 id="check-failures-don-t-stop-the-test">check() Failures Don't Stop the Test</h2>
+<p>This is a genuinely important distinction from how assertions typically work in functional testing: a failed <code>check()</code> in k6 does <strong>not</strong> stop script execution or fail the iteration outright — it's recorded as a failed check, and the script continues. This is deliberate: a performance test needs to keep generating load even if some checks are failing, since stopping entirely the moment one request looks wrong would defeat the purpose of sustained load generation. Thresholds (Chapter 7) are the mechanism that turns a check failure rate into an actual pass/fail signal for the whole test.</p>
+
+<h2 id="sleep-realistic-pacing">sleep() — Realistic Pacing</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import { sleep } from 'k6';
+
+export default function () {
+  http.get('https://test-api.example.com/products');
+  sleep(2); // pause for 2 seconds, simulating a user reading the page
+  http.get('https://test-api.example.com/products/500');
+}</code></pre>
+<p><code>sleep()</code> pauses execution for a given number of seconds. Without any sleep, a virtual user hammers the target system with requests back-to-back as fast as possible — which is almost never how a real user actually behaves. Real users read, think, scroll, and hesitate between actions; <code>sleep()</code> is what makes simulated traffic resemble that instead of an unrealistic, unbroken burst.</p>
+
+<h2 id="why-sleep-duration-actually-matters-for-test-validity">Why Sleep Duration Actually Matters for Test Validity</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// No sleep at all — unrealistic; produces far more load than real users ever would
+export default function () {
+  http.get(url); // repeated as fast as physically possible, no pause
+}
+
+// Realistic pacing
+export default function () {
+  http.get(url);
+  sleep(Math.random() * 3 + 1); // 1-4 seconds, mimicking natural variation
+}</code></pre>
+<p>A script with no sleep at all doesn't just look unrealistic — it produces a fundamentally different, exaggerated load pattern that doesn't represent how real traffic would actually hit the system, which can make your test's results genuinely misleading rather than just imprecise.</p>
+
+<h2 id="group-organizing-related-requests">group() — Organizing Related Requests</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import { group } from 'k6';
+
+export default function () {
+  group('Browse Products', function () {
+    http.get('https://test-api.example.com/products');
+    http.get('https://test-api.example.com/products/500');
+  });
+
+  group('Checkout', function () {
+    http.post('https://test-api.example.com/cart/checkout', payload);
+  });
+}</code></pre>
+<p><code>group()</code> wraps related requests together under a named label, which then appears in k6's output as its own reportable section — letting you see performance metrics broken down by logical workflow step ("Browse Products" vs. "Checkout") rather than one undifferentiated pile of every request the whole script made.</p>
+
+<h2 id="detailed-example-all-three-together-in-a-realistic-user-journey">Detailed Example — All Three Together in a Realistic User Journey</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import http from 'k6/http';
+import { check, sleep, group } from 'k6';
+
+export default function () {
+  group('Browse', function () {
+    const response = http.get('https://test-api.example.com/products');
+    check(response, { 'browse succeeded': (r) => r.status === 200 });
+    sleep(2);
+  });
+
+  group('View Product Detail', function () {
+    const response = http.get('https://test-api.example.com/products/500');
+    check(response, { 'product detail loaded': (r) => r.status === 200 });
+    sleep(3);
+  });
+
+  group('Add to Cart', function () {
+    const response = http.post('https://test-api.example.com/cart',
+      JSON.stringify({ productId: 500, quantity: 1 }),
+      { headers: { 'Content-Type': 'application/json' } });
+    check(response, { 'added to cart': (r) => r.status === 201 });
+  });
+}</code></pre>
+<p>This reads almost like a narrative of a real user's session — browse, view a product, add it to cart — with each step verified and paced realistically, and grouped so the eventual results clearly show which stage of the journey performs well and which doesn't.</p>
+
+<h2 id="real-world-example-diagnosing-which-step-is-actually-slow">Real-World Example — Diagnosing Which Step Is Actually Slow</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Without groups: overall p95 = 1.2s (which step is slow? unclear)
+
+With groups:
+  Browse............: p95=180ms
+  View Product Detail: p95=210ms
+  Add to Cart........: p95=3.1s  ← the actual problem, isolated clearly</code></pre>
+<p>This is the real, practical payoff of <code>group()</code> — without it, a slow overall result tells you something is wrong somewhere in the whole script; with it, you immediately know which specific step of the user journey is actually the bottleneck, without needing to manually correlate timestamps or guess.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ No checks, no sleep, no groups — load with zero verification, unrealistic pacing
+export default function () {
+  http.get(url);
+  http.post(url2, body);
+}
+
+// ✅ Verified, realistically paced, and organized
+export default function () {
+  group('Step 1', function () {
+    const r = http.get(url);
+    check(r, { 'ok': (r) => r.status === 200 });
+    sleep(1);
+  });
+}</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Writing a script with zero <code>check()</code> calls</strong> — generates load without verifying anything, which can run against a broken endpoint indefinitely without ever reporting a problem.</li>
+  <li><strong>Omitting <code>sleep()</code> entirely</strong> — produces an unrealistic, unbroken burst of requests that doesn't represent real user behavior, skewing what the test actually measures.</li>
+  <li><strong>Not using <code>group()</code> in a multi-step script</strong> — makes it much harder to identify which specific step is actually slow when results come back generically poor.</li>
+  <li><strong>Assuming a failed <code>check()</code> stops the test</strong> — it doesn't; thresholds (Chapter 7) are the actual mechanism for turning check failures into a pass/fail test result.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>A check() condition that throws an exception</strong> rather than returning false — this is treated as a failed check, but debugging why it threw requires looking at the actual error, not just the check's pass/fail count.</li>
+  <li><strong>Nested groups</strong> — k6 supports groups within groups for deeply structured workflows, though excessive nesting can make results harder to read rather than easier.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If overall test results look poor but it's unclear why, add <code>group()</code> around each logical step of the script before investigating further — this alone often immediately reveals which specific part of a multi-step workflow is actually the problem, without any other diagnostic work.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Include at least one meaningful <code>check()</code> for every request that matters to the test's purpose.</li>
+  <li>Use realistic, varied sleep durations (not a single fixed value) to better mimic genuine user behavior.</li>
+  <li>Wrap logically distinct steps of a multi-request script in <code>group()</code>, especially once a script has more than two or three requests.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Take the "no checks, no sleep, no groups" example from this page and rewrite it into a realistic three-step user journey (browse, view detail, purchase), adding appropriate checks, realistic sleep pacing, and named groups for each step.</p>
+
+<h2 id="summary">Summary</h2>
+<p><code>check()</code> verifies a response without stopping the test on failure (thresholds handle the pass/fail decision), <code>sleep()</code> paces a script to resemble realistic user behavior instead of an unbroken burst, and <code>group()</code> organizes related requests so results can be broken down by logical workflow step rather than one undifferentiated pile. Together, these three functions are what turn "a script that sends requests" into a genuinely meaningful performance test.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why doesn't a failed check() stop a k6 test's execution?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A performance test needs to keep generating load even when some individual checks are failing, since the whole point is measuring sustained behavior under load — stopping entirely at the first failure would defeat that purpose. Instead, k6 records the failure and continues; thresholds (covered in a later chapter) are the actual mechanism that turns an accumulated check failure rate into a genuine pass/fail decision for the test as a whole.</div>
+</details>
+<details class="faq-item">
+<summary>Why does omitting sleep() from a script produce misleading test results, not just an unrealistic-looking one?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Without sleep(), a virtual user sends requests back-to-back as fast as physically possible, which almost never matches how real users actually behave — they read, think, and pause between actions. This produces a fundamentally different, exaggerated load pattern than real traffic would generate, meaning the test's results describe a scenario that doesn't actually represent genuine usage, not just a cosmetically unrealistic one.</div>
+</details>
+<details class="faq-item">
+<summary>What practical problem does group() solve that check() and sleep() don't address?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">check() verifies correctness and sleep() paces requests realistically, but neither helps you understand WHICH part of a multi-step script is actually performing poorly when overall results look bad. group() breaks results down by logical workflow step, so a slow overall test immediately points to a specific stage (like "Checkout" specifically, not the whole script generically) rather than requiring manual investigation to isolate the problem.</div>
+</details>
+<details class="faq-item">
+<summary>If a check() condition function throws an exception instead of returning false, what happens?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It's treated as a failed check, similar to a condition that explicitly returns false — but the underlying cause is different, and diagnosing it requires looking at the actual thrown error rather than just noting that the check failed. This is worth knowing specifically because a check written carelessly (assuming a field always exists on a response, for instance) can fail via an exception rather than a clean false, which looks the same in the pass/fail count but needs different debugging.</div>
+</details>
+<details class="faq-item">
+<summary>Why might you use a randomized sleep duration instead of a single fixed value?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Real users don't all pause for exactly the same amount of time between actions — some read quickly, others slowly. A fixed sleep duration across every virtual user produces an artificially synchronized pattern of requests that doesn't reflect the natural variation in real traffic, while a randomized range (like 1 to 4 seconds) better approximates how genuine user behavior is actually distributed.</div>
+</details>
+</div>
+</article>
+</body></html>

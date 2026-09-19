@@ -1,0 +1,203 @@
+<!doctype html>
+<html><head>
+<title>AI-Generated Failure Reports: Turning a Diagnosis Into Something a Human Can Act On</title>
+<meta name="description" content="What a genuinely useful failure report includes beyond the classification itself, and why a report a human has to re-investigate defeats this whole chapter&#x27;s purpose." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/ai-generated-failure-reports.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>AI-Generated Failure Reports</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="root-cause-analysis.html">Root Cause Analysis</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>A correct diagnosis that never reaches a human in a usable form has wasted this entire chapter's work. This final page is about the actual report — the artifact a human genuinely reads and acts on, not just the reasoning behind it.</p>
+
+<h2 id="a-report-that-wastes-the-diagnosis">A Report That Wastes the Diagnosis</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>❌ "login.spec.ts failed. Classification: test defect."
+
+This is technically the CORRECT conclusion from the previous
+page's full investigation — but a human reading ONLY this has
+to go re-investigate EVERYTHING from scratch to actually fix
+anything, completely wasting the diagnostic work already done.</code></pre>
+
+<h2 id="a-report-that-genuinely-preserves-the-work">A Report That Genuinely Preserves the Work</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>## Failure Report: login.spec.ts — "user can log in with valid credentials"
+
+**Classification:** Test defect (stale test credentials)
+**Confidence:** High — corroborated across 4 independent
+  evidence sources
+
+**What happened:**
+The login attempt was correctly REJECTED by the server (401,
+"password hash mismatch" in server logs). The UI correctly
+displayed "Invalid credentials." This is NOT an application
+bug — the app behaved exactly as it should when given wrong
+credentials.
+
+**Why this is a test defect, not an app bug:**
+Server logs show the test account's last successful login was
+14 days ago — the test's stored password likely became stale
+after an account change during that window.
+
+**Ruled out:** application defect, locator problem, environment
+problem, network problem, flaky behavior — see attached
+evidence for each.
+
+**Recommended fix:**
+Update the stored test password in the test environment's
+credential configuration. Consider whether test account
+password changes should trigger a notification going forward.
+
+**Evidence attached:** stack trace, failure screenshot,
+network trace excerpt, server log excerpt (all referenced
+above)</code></pre>
+<p>This report lets a human act IMMEDIATELY — update one credential — without re-deriving anything this chapter's earlier pages already established.</p>
+
+<h2 id="why-confidence-high-belongs-in-the-report">Why "Confidence: High" Belongs in the Report</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>This directly reuses Chapter 5's confidence-level principle
+for fuzzy assertions — a report should distinguish a diagnosis
+corroborated across FOUR independent sources (this chapter's
+example) from one based on a SINGLE, more ambiguous piece of
+evidence. Both are genuinely useful reports; a human should
+know which kind they're reading.</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why does the "Ruled out" section matter almost as much as the "Classification" itself, even though a human might assume the conclusion is the only genuinely important part? A human reviewing this report needs to trust the classification enough to act on it without re-deriving it themselves. Seeing exactly which alternatives were considered and specifically why each was rejected gives a reviewer a concrete way to spot-check the reasoning — if they know something the report doesn't (a recent, unmentioned staging outage, for instance), the ruled-out section is exactly where they'd notice a genuine gap, rather than blindly trusting an unexplained final answer.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Producing a technically accurate classification with no supporting narrative, forcing a human to reopen the entire investigation to understand or trust it. This page's own example shows genuine value in preserving the reasoning chain, the ruled-out alternatives, and a concrete recommended fix — not just the bare final label.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>A genuinely useful failure report includes a specific, actionable recommended fix, not just a diagnosis — "test defect" alone leaves a human to figure out what to actually DO; "update the stored test password" tells them exactly what action closes the loop.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Preserve the full reasoning chain in a failure report, not just the final classification — this is what actually saves a human's time.</li>
+  <li>Include a confidence level reflecting how well-corroborated the diagnosis genuinely is, not a uniform, undifferentiated presentation.</li>
+  <li>End every report with a specific, actionable recommended fix, not just a diagnostic label.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>A failure report's real value is in preserving diagnostic work for a human to act on immediately — a bare classification alone wastes the investigation behind it.</li>
+  <li>Including which alternatives were ruled out, and why, lets a human reviewer genuinely spot-check the reasoning rather than blindly trust an unexplained conclusion.</li>
+  <li>A specific, actionable recommended fix — not just a diagnosis — is what actually closes the loop between analysis and resolution.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Write a complete failure report, following this page's structure, for the hypothetical scenario from Root Cause Analysis's own "Try It Yourself" exercise (blank screenshot, incomplete network request, no corresponding server log entry) — including a genuine classification, ruled-out alternatives, and a specific recommended next step.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A stakeholder asks why the failure report includes a "Ruled out" section at all, arguing "just tell us what's wrong, not what isn't." How would you respond?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd point out that the ruled-out section is specifically what makes the "what's wrong" part TRUSTWORTHY — without it, a human has no way to verify the classification was reached through genuine investigation rather than a guess, exactly this page's own "Think About It" argument.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What a report WITHOUT ruled-out alternatives asks a reader to
+do:
+Simply TRUST "test defect" as the conclusion, with no way to
+  verify whether application defect, locator problem, or any
+  other genuine alternative was actually considered and
+  correctly eliminated — or just never occurred to whoever
+  (human or agent) produced the report.
+
+What the RULED-OUT section provides instead:
+A reviewer with SPECIFIC domain knowledge (say, they happen
+  to know staging had connectivity issues that day) can
+  IMMEDIATELY check whether "environment problem — ruled out"
+  genuinely accounted for that, rather than discovering days
+  later that a real alternative was silently overlooked.</code></pre>
+<p>The stakeholder's instinct toward brevity is reasonable in general — but for a DIAGNOSIS specifically, the ruled-out section isn't padding; it's the part that makes the headline conclusion something a reader can actually trust rather than simply accept on faith.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page argue a bare "Classification: test defect" wastes the ENTIRE previous four pages' worth of diagnostic work, not just some of it?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because the actual, genuine value of this chapter's work was never just reaching a correct label — it was the EVIDENCE-GATHERING and REASONING process itself, and none of that survives into a report containing only the final word.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What gets LOST with a bare classification:
+The stack trace's confirmation of which steps succeeded, the
+  screenshot's visible error text, the network trace's 401
+  status, the log's 'password hash mismatch' and '14 days ago'
+  detail — ALL of this genuine, hard-won diagnostic work
+  disappears, leaving only a two-word label a human has NO way
+  to verify or build on.
+
+What a human receiving ONLY "test defect" must now do:
+Essentially RE-RUN the entire four-page investigation
+  themselves, from scratch, to understand WHY it's a test
+  defect and WHAT specifically needs fixing — completely
+  negating whatever time the AGENT'S investigation was
+  supposed to have saved in the first place.</code></pre>
+<p>This is exactly why this page treats report-writing as a genuinely essential, non-optional final step — the diagnostic work only creates real value once it successfully reaches a human in a form they can actually use, and a bare classification fails at exactly that transfer.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why this page's report includes a specific recommended fix ("update the stored test password") rather than stopping at the diagnosis itself.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A diagnosis alone still leaves a genuine gap between "here's what's wrong" and "here's what to actually DO about it" — closing that gap is what turns a report from an interesting finding into something immediately actionable.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Diagnosis ALONE (leaves a gap):
+"Test defect — stale test credentials, last valid 14 days ago."
+  A human reading this STILL needs to figure out: does this
+  mean updating a config file? Rotating a shared secret?
+  Regenerating a test account entirely? The diagnosis doesn't
+  specify the ACTUAL fix action.
+
+Diagnosis WITH a specific recommended fix (this page's actual
+approach):
+"Update the stored test password in the test environment's
+  credential configuration." — this tells a human EXACTLY what
+  to do, closing the gap between understanding the problem and
+  actually resolving it.</code></pre>
+<p>This mirrors the same principle from Chapter 1's honest description of autonomous QA's value — genuinely useful automation doesn't just identify problems, it moves a human as close as possible to RESOLVING them, and a specific recommended fix is exactly what does that for a failure report.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might it be a mistake for an agent to AUTOMATICALLY apply its own recommended fix (updating the test password) rather than just recommending it in the report?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This connects directly to Chapter 2's Guardrails page and Chapter 1's human-checkpoint principle — even a well-diagnosed, high-confidence recommendation is still a CONSEQUENTIAL action (modifying stored credentials) that deserves human review before execution, not autonomous application.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why AUTOMATIC application would be genuinely risky, even here:
+What if the diagnosis, despite being well-corroborated, is
+  actually WRONG in some subtle way this page's own honest
+  framework acknowledges is possible? Automatically updating a
+  CREDENTIAL based on a possibly-incorrect diagnosis could
+  itself introduce a NEW problem, compounding rather than
+  fixing the original issue.
+
+Why RECOMMENDING (not applying) is the correct, safer approach:
+A human reviewing the recommendation can catch a genuine
+  mistake before it's actually executed — exactly the
+  action-level guardrail category from Chapter 2, applied here
+  to "fix application," not just "test execution" actions.</code></pre>
+<p>This is a direct, consistent continuation of a principle this course has maintained since Chapter 1 — even highly confident, well-evidenced AI output benefits from a human checkpoint before any consequential action is actually taken, and applying a fix to real credentials is squarely a consequential action, not a routine one.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you extend this chapter's failure-report format to handle a case where the investigation genuinely couldn't reach a confident, single classification — connecting to Root Cause Analysis's own conflicting-evidence discussion?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>The report format itself should accommodate genuine uncertainty explicitly, rather than forcing a false confidence level or an unsupported single classification just to fit the template.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>## Failure Report: [test name] — INCONCLUSIVE
+
+**Classification:** Unable to reach a single confident
+  classification — evidence sources CONFLICT (see below)
+
+**Confidence:** Low — conflicting evidence between sources
+
+**What the evidence shows:**
+[Screenshot suggests X; server logs suggest Y; these are
+  NOT consistent with each other]
+
+**What would resolve this:**
+[Specific, additional evidence or investigation that would
+  genuinely help distinguish between the conflicting
+  possibilities — e.g., "checking whether staging had a
+  known outage at this specific timestamp"]
+
+**Recommended next step:**
+Human investigation needed — the conflicting evidence itself
+  is worth understanding before further automated diagnosis
+  can proceed reliably.</code></pre>
+<p>This directly extends the honest-uncertainty principle from Root Cause Analysis's own discussion of conflicting evidence into the REPORT format itself — a report template that can ONLY express confident, single classifications would pressure toward false certainty exactly in the cases where honesty matters most, which this chapter's entire approach has consistently argued against.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

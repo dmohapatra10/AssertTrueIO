@@ -1,0 +1,154 @@
+<!doctype html>
+<html><head>
+<title>RestAssured Request Headers: Content-Type, Accept &amp; Custom Headers</title>
+<meta name="description" content="How to set single and multiple headers in RestAssured requests, the Content-Type vs Accept distinction, and how custom headers fit in." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/headers-in-requests.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Headers</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="building-http-requests.html">Building HTTP Requests overview</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>given()
+    .header("Content-Type", "application/json")
+.when()
+    .get("/users");</code></pre>
+<p>A header attaches metadata to a request, separate from the actual body content — what format the body is in, what format you want back, credentials, tracing identifiers. This page covers setting them correctly and knowing which ones actually matter for a given request.</p>
+
+<h2 id="single-header">Single Header</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>given()
+    .header("X-Request-ID", UUID.randomUUID().toString())
+.when()
+    .get("/users");</code></pre>
+
+<h2 id="multiple-headers">Multiple Headers</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Map&lt;String, String&gt; headers = new HashMap&lt;&gt;();
+headers.put("Content-Type", "application/json");
+headers.put("Accept", "application/json");
+headers.put("X-Request-ID", UUID.randomUUID().toString());
+
+given()
+    .headers(headers)
+.when()
+    .get("/users");</code></pre>
+<p>Chaining <code>.header()</code> repeatedly works for two or three headers; beyond that, a <code>Map</code> passed to <code>.headers()</code> reads more cleanly and avoids a long chain of near-identical calls.</p>
+
+<h2 id="content-type-vs-accept">Content-Type vs. Accept</h2>
+<p>These two are frequently confused because they often carry the same value in practice, but they answer different questions: <strong>Content-Type</strong> describes the format of the body <em>you're sending</em> — relevant on POST/PUT/PATCH, meaningless on a bodyless GET. <strong>Accept</strong> describes the format you want <em>back</em> — relevant on every request, including GET.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// POST with a body — Content-Type matters here
+given()
+    .contentType(ContentType.JSON)  // shorthand for .header("Content-Type", "application/json")
+    .body(user)
+.when()
+    .post("/users");
+
+// GET with no body — only Accept is meaningful
+given()
+    .accept(ContentType.JSON)
+.when()
+    .get("/users");</code></pre>
+<p><code>.contentType()</code> and <code>.accept()</code> are typed convenience methods RestAssured provides specifically for these two headers — functionally equivalent to setting them via <code>.header()</code>, but clearer about intent and less error-prone than typing the header name as a raw string.</p>
+
+<h2 id="custom-headers">Custom Headers</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>given()
+    .header("X-Request-ID", UUID.randomUUID().toString())
+    .header("X-Client-Version", "2.4.1")
+.when()
+    .get("/users");</code></pre>
+<p>Custom headers (anything prefixed <code>X-</code> by convention, though this isn't a hard rule) follow the exact same <code>.header()</code> pattern as standard ones — there's no special API for "important" headers. A request-tracing ID is a common real-world example: attaching one to every outgoing test request makes it far easier to correlate a specific test run with server-side logs when debugging a failure.</p>
+
+<h2 id="real-world-example-a-realistic-authenticated-request">Real-World Example — A Realistic Authenticated Request</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>given()
+    .contentType(ContentType.JSON)
+    .accept(ContentType.JSON)
+    .header("Authorization", "Bearer " + token)
+    .header("X-Request-ID", UUID.randomUUID().toString())
+    .body(order)
+.when()
+    .post("/orders")
+.then()
+    .statusCode(201);</code></pre>
+<p>This combines typed convenience methods (<code>contentType</code>, <code>accept</code>) with raw <code>.header()</code> calls for anything without a dedicated method — the natural shape of a real authenticated request.</p>
+
+<h2 id="overriding-a-header-set-elsewhere">Overriding a Header Set Elsewhere</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>RequestSpecification baseSpec = new RequestSpecBuilder()
+    .addHeader("Authorization", "Bearer default-token")
+    .build();
+
+given()
+    .spec(baseSpec)
+    .header("Authorization", "Bearer " + testSpecificToken) // overrides the base spec's value
+.when()
+    .get("/profile");</code></pre>
+<p>When a header is set both in a shared <code>RequestSpecification</code> (covered fully in Chapter 8) and again directly in a specific test, the value set later — closer to when the request actually fires — wins. This is genuinely useful for a test that needs to run as a specific, different user than whatever the shared base configuration defaults to.</p>
+
+<h2 id="sending-a-header-multiple-times">Sending a Header Multiple Times</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>given()
+    .header("X-Tag", "beta")
+    .header("X-Tag", "internal") // does NOT overwrite — RestAssured sends BOTH
+.when()
+    .get("/features");
+// Sends two separate X-Tag headers: beta AND internal</code></pre>
+<p>Unlike overriding a value from a shared spec (above), calling <code>.header()</code> twice with the <em>same</em> name within a single request adds a second instance of that header rather than replacing the first — some APIs genuinely expect repeated headers with the same name (uncommon, but real). If you actually meant to replace a value rather than add a second one, double-check you're not accidentally sending both.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Setting Content-Type manually as a raw string, prone to typos
+given().header("Content-Type", "aplication/json").body(user); // typo — silently wrong
+
+// ✅ Typed convenience method — no string typo possible
+given().contentType(ContentType.JSON).body(user);</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Setting Content-Type on a GET request</strong> where it's meaningless — a GET has no body, so there's nothing for Content-Type to describe.</li>
+  <li><strong>Typing header values as raw strings</strong> when a typed method exists (<code>.contentType(ContentType.JSON)</code> instead of a hand-typed string) — trades away typo protection for no real benefit.</li>
+  <li><strong>Confusing Content-Type and Accept</strong> when only one is actually relevant to the request being made.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Multiple values for the same header name</strong> — some APIs genuinely expect this (rare, but happens with certain caching or CDN headers); RestAssured supports it via repeated <code>.header()</code> calls with the same name.</li>
+  <li><strong>Case sensitivity</strong> — HTTP header names are case-insensitive by spec; don't assume a test failure is header-name-casing related without checking the actual response first.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a request seems to be missing an expected header, add <code>.log().headers()</code> right after <code>given()</code> to print exactly what's being sent before the request goes out.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Use typed convenience methods (<code>.contentType()</code>, <code>.accept()</code>) over raw string headers whenever one exists.</li>
+  <li>Only set headers that are actually meaningful for the specific method being used.</li>
+  <li>Consider a request-tracing header (like <code>X-Request-ID</code>) as a standing habit in a real test suite — it pays off during debugging far more often than it costs to add.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Write a POST request with a JSON body, setting Content-Type via the typed convenience method, plus a custom <code>X-Request-ID</code> header with a randomly generated UUID — then confirm via <code>.log().headers()</code> that all three headers appear correctly in the outgoing request.</p>
+
+<h2 id="summary">Summary</h2>
+<p>Headers carry metadata alongside a request — Content-Type describes what you're sending, Accept describes what you want back, and custom headers (tracing IDs, client versions) follow the same pattern as standard ones. Typed convenience methods like <code>.contentType()</code> are safer than raw string headers wherever RestAssured provides one.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why is setting Content-Type meaningless on a GET request?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Content-Type describes the format of the request body — but a GET request, by REST convention, doesn't carry a body at all; anything the request needs to express goes in the URL via query or path parameters instead. Setting Content-Type on a bodyless GET has nothing to actually describe, so it's a harmless but meaningless header in that context — Accept, which describes the format of the response you want back, is the one that's actually relevant on a GET.</div>
+</details>
+<details class="faq-item">
+<summary>What's the actual difference between Content-Type and Accept?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Content-Type describes the format of the body you're SENDING (relevant on POST/PUT/PATCH); Accept describes the format you want back (relevant on any request, including a bodyless GET).</div>
+</details>
+<details class="faq-item">
+<summary>Why prefer .contentType(ContentType.JSON) over manually setting the header as a string?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The typed convenience method avoids the possibility of a typo in the raw header value string, which would silently produce a wrong Content-Type with no compile-time protection.</div>
+</details>
+<details class="faq-item">
+<summary>What happens if you call .header() twice with the same name in one request?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It adds a second instance of that header rather than replacing the first — some APIs genuinely expect repeated headers with the same name; if you meant to replace a value, check you're not accidentally sending both.</div>
+</details>
+<details class="faq-item">
+<summary>Why is a request-tracing header like X-Request-ID worth adding as a standing habit?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It makes correlating a specific test run with server-side logs far easier during debugging — a small addition that pays off disproportionately when investigating a failure.</div>
+</details>
+</div>
+</article>
+</body></html>

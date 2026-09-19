@@ -1,0 +1,198 @@
+<!doctype html>
+<html><head>
+<title>Playwright Authentication and storageState: Skip Logging In Every Test</title>
+<meta name="description" content="How to reuse a logged-in session across an entire Playwright suite with storageState, handle multiple user roles, and avoid re-authenticating in every test." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/authentication-and-storage-state.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Authentication & storageState</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="browser-and-browsercontext.html">Browser & Context</a>, <a href="fixtures.html">Fixtures</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+  <p>Most real applications require a login before anything useful can be tested. Logging in through the UI on every single test works, but is slow and repetitive across hundreds of tests. <code>storageState</code> — introduced briefly in the Browser & Context chapter — lets you log in once, save the resulting session, and reuse it across your entire suite.</p>
+
+  <h2 id="why-it-s-important">Why it's important</h2>
+  <p>If logging in takes 3 seconds and a suite has 300 tests that each need to be authenticated, that's 15 minutes spent on nothing but repeated logins. <code>storageState</code> turns that into a one-time cost paid before the suite runs, not per test.</p>
+
+  <h2 id="the-standard-pattern-a-setup-project">The Standard Pattern — a Setup Project</h2>
+  <p>The idiomatic approach uses a dedicated "setup" project that runs once, logs in, and saves state — every other project then depends on it and starts already authenticated:</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// playwright.config.ts
+export default defineConfig({
+  projects: [
+    { name: 'setup', testMatch: /global\\.setup\\.ts/ },
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'], storageState: 'playwright/.auth/user.json' },
+      dependencies: ['setup'],
+    },
+  ],
+});</code></pre>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// global.setup.ts
+import { test as setup } from '@playwright/test';
+
+setup('authenticate', async ({ page }) =&gt; {
+  await page.goto('/login');
+  await page.getByLabel('Email').fill('user@example.com');
+  await page.getByLabel('Password').fill('correct-horse-battery-staple');
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await page.waitForURL('/dashboard');
+
+  await page.context().storageState({ path: 'playwright/.auth/user.json' });
+});</code></pre>
+  <p>Every test in the <code>chromium</code> project now starts already logged in — no test needs to know authentication happened at all. This is a specific, standard application of the <code>dependencies</code> config option (covered fully in Configuration) combined with the <code>storageState</code> context option.</p>
+
+  <h2 id="basic-example-verifying-it-worked">Basic Example — Verifying It Worked</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('dashboard loads without a login step', async ({ page }) =&gt; {
+  await page.goto('/dashboard'); // no login code here at all
+  await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+});</code></pre>
+
+  <h2 id="detailed-example-multiple-user-roles">Detailed Example — Multiple User Roles</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Two setup tests, saving two separate auth states
+setup('authenticate as admin', async ({ page }) =&gt; {
+  await page.goto('/login');
+  await page.getByLabel('Email').fill('admin@example.com');
+  await page.getByLabel('Password').fill('admin-password');
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await page.context().storageState({ path: 'playwright/.auth/admin.json' });
+});
+
+setup('authenticate as customer', async ({ page }) =&gt; {
+  await page.goto('/login');
+  await page.getByLabel('Email').fill('customer@example.com');
+  await page.getByLabel('Password').fill('customer-password');
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await page.context().storageState({ path: 'playwright/.auth/customer.json' });
+});</code></pre>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Then in a test file, load a specific role's state deliberately
+test.use({ storageState: 'playwright/.auth/admin.json' });
+
+test('admin can access the user management panel', async ({ page }) =&gt; {
+  await page.goto('/admin/users');
+  await expect(page.getByRole('heading', { name: 'User Management' })).toBeVisible();
+});</code></pre>
+  <p><code>test.use()</code> overrides the project-level <code>storageState</code> for just that file — the mechanism that makes role-based testing practical without needing a separate project per role.</p>
+
+  <h2 id="real-world-example-testing-the-logged-out-state">Real-World Example — Testing the Logged-Out State</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test.describe('unauthenticated', () =&gt; {
+  test.use({ storageState: { cookies: [], origins: [] } }); // explicitly empty state
+
+  test('visiting a protected page redirects to login', async ({ page }) =&gt; {
+    await page.goto('/dashboard');
+    await expect(page).toHaveURL('/login');
+  });
+});</code></pre>
+  <p>Since every other test in the project defaults to authenticated via config, deliberately testing the logged-out path needs this explicit override — otherwise it's easy to have zero coverage of what happens when a user isn't logged in at all.</p>
+
+  <h2 id="token-based-authentication-apis-not-cookies">Token-Based Authentication (APIs, not cookies)</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Some apps store auth as a token in localStorage rather than a cookie —
+// storageState captures both automatically
+const state = await context.storageState();
+console.log(state.origins[0].localStorage); // includes any auth token stored here</code></pre>
+  <p><code>storageState</code> captures cookies <em>and</em> localStorage/sessionStorage per origin, so it works whether an app's session lives in a cookie, a JWT in localStorage, or both.</p>
+
+  <h2 id="authentication-fixtures">Authentication Fixtures</h2>
+  <p>The setup-project pattern above is the standard approach and the right default. There's a second, complementary pattern worth knowing: a custom <strong>fixture</strong> (from the Fixtures chapter) that logs in on demand, inside the test process itself, rather than relying on a pre-generated file. This trades a little speed for flexibility — useful when the role needed varies per test in ways a fixed set of <code>storageState</code> files doesn't cleanly cover.</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// auth-fixtures.ts
+import { test as base } from '@playwright/test';
+
+type Role = 'admin' | 'customer' | 'guest';
+
+export const test = base.extend&lt;{ loginAs: (role: Role) =&gt; Promise&lt;void&gt; }&gt;({
+  loginAs: async ({ page }, use) =&gt; {
+    await use(async (role: Role) =&gt; {
+      const credentials = {
+        admin: { email: 'admin@example.com', password: 'admin-password' },
+        customer: { email: 'customer@example.com', password: 'customer-password' },
+        guest: null,
+      }[role];
+
+      if (!credentials) return; // guest = stay logged out, nothing to do
+
+      await page.goto('/login');
+      await page.getByLabel('Email').fill(credentials.email);
+      await page.getByLabel('Password').fill(credentials.password);
+      await page.getByRole('button', { name: 'Sign in' }).click();
+      await page.waitForURL('/dashboard');
+    });
+  },
+});
+export { expect } from '@playwright/test';</code></pre>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// role-switch.spec.ts — a single test that genuinely needs two different roles in sequence,
+// which pre-generated storageState files can't do within one test
+import { test, expect } from './auth-fixtures';
+
+test('admin can impersonate a customer and see their cart', async ({ page, loginAs }) =&gt; {
+  await loginAs('admin');
+  await page.getByRole('button', { name: 'Impersonate customer' }).click();
+
+  await expect(page.getByText('Viewing as: customer@example.com')).toBeVisible();
+});</code></pre>
+  <p>The setup-project approach is faster for the common case — most tests need exactly one fixed role for their whole duration, and paying the login cost once up front beats paying it inside every test. Reach for an authentication fixture like this instead when a test genuinely needs to log in as more than one role within a single test, or needs login behavior that depends on data only known at test-run time (a dynamically created test account, for instance).</p>
+
+  <h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Logging in through the UI in every single test file
+test.beforeEach(async ({ page }) =&gt; {
+  await page.goto('/login');
+  await page.getByLabel('Email').fill('user@example.com');
+  // ...repeated in every file...
+});
+
+// ✅ Authenticate once via a setup project, reuse storageState everywhere
+// (see the config + global.setup.ts pattern above)</code></pre>
+
+  <h2 id="common-mistakes">Common Mistakes</h2>
+  <ul>
+    <li><strong>Committing a real <code>storageState</code> JSON file with live credentials</strong> to version control — treat auth state files like secrets, generate them fresh in CI rather than committing a long-lived static file.</li>
+    <li><strong>Not regenerating <code>storageState</code> when the underlying session/token expires</strong> — a stale file silently produces logged-out behavior that looks like an unrelated test failure.</li>
+    <li><strong>Using UI-based login in every test "to be thorough"</strong> — the login flow itself only needs its own dedicated test; every other test just needs to already be logged in.</li>
+  </ul>
+
+  <h2 id="edge-cases">Edge Cases</h2>
+  <ul>
+    <li><strong>Short-lived tokens</strong> (session expires in minutes) — regenerate <code>storageState</code> as part of each CI run rather than caching it across runs, so tests don't intermittently fail against an expired session.</li>
+    <li><strong>Multi-factor authentication</strong> — the setup project's login step needs to handle MFA the same way a real login would (a test-only bypass, a fixed TOTP seed, or a staging environment that skips MFA); this is highly app-specific.</li>
+  </ul>
+
+  <h2 id="debugging">Debugging</h2>
+  <p>If tests that should be authenticated suddenly start behaving as if logged out, check whether the <code>storageState</code> file is stale (an expired session token) before assuming the app itself broke — regenerating it is often the fix.</p>
+
+  <h2 id="best-practices">Best Practices</h2>
+  <ul>
+    <li>Use the setup-project + <code>dependencies</code> pattern as the default for any suite with more than a handful of authenticated tests.</li>
+    <li>Keep a dedicated, separate test for the actual login UI flow — don't skip testing login itself just because everything else bypasses it.</li>
+    <li>Generate <code>storageState</code> files fresh in CI; never commit real, long-lived credentials to the repository.</li>
+    <li>Maintain one saved state per distinct role/permission level your app has, when role-based access is part of what needs testing.</li>
+  </ul>
+
+  <h2 id="practice-exercise">Practice Exercise</h2>
+  <p>Set up a project with two roles (admin and regular user), each with their own <code>storageState</code> file generated by a setup project, and write one test per role verifying they see different content on the same URL.</p>
+
+  <h2 id="summary">Summary</h2>
+  <p><code>storageState</code> captures a logged-in session's cookies and local/session storage, letting a whole suite skip repeated UI-based logins after one setup step. The standard pattern uses a dedicated setup project with <code>dependencies</code>, and <code>test.use()</code> to override state per file for multi-role testing.</p>
+
+  <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why is a dedicated setup project with dependencies preferred over calling login code in beforeEach for every test?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Logging in through the UI is slow, and repeating it in every test multiplies that cost across the whole suite for no additional coverage — the login flow itself only needs to be verified once. A setup project authenticates a single time, saves the resulting session via <code>storageState</code>, and every dependent test starts already logged in, cutting total suite time significantly while still keeping a dedicated test for the login flow itself.</div>
+</details>
+<details class="faq-item">
+<summary>Why is the setup-project pattern faster than logging in via UI in every test?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Login happens once for the whole suite, not per test — with 300 tests each taking 3 seconds to log in, that's 15 minutes saved.</div>
+</details>
+<details class="faq-item">
+<summary>What does storageState actually capture?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Cookies and localStorage/sessionStorage per origin, so it works whether a session lives in a cookie, a JWT in localStorage, or both.</div>
+</details>
+<details class="faq-item">
+<summary>How do you override the project-level authenticated state for just one test file?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Call test.use({ storageState: '...' }) at the top of that file, pointing to a different saved state.</div>
+</details>
+<details class="faq-item">
+<summary>Why use a custom authentication fixture instead of the setup-project pattern in some cases?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">When a single test genuinely needs to log in as more than one role within its own body — something a fixed set of pre-generated storageState files can't do.</div>
+</details>
+</div>
+</article>
+</body></html>

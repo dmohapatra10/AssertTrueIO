@@ -1,0 +1,84 @@
+<!doctype html>
+<html><head>
+<title>Generating the Test Plan</title>
+<meta name="description" content="Stage one, real code — turning the capstone&#x27;s open-ended objective into Chapter 4&#x27;s structured test cases and Chapter 5&#x27;s executable plan." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/generating-the-test-plan.html" />
+</head><body>
+<p class="difficulty">Advanced</p>
+<h1>Generating the Test Plan</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="capstone-overview.html">Capstone Overview</a></p>
+<article class="content">
+<h2>What You'll Learn</h2>
+<ul>
+  <li>Turning the capstone's open-ended objective into a real, structured plan</li>
+  <li>Reusing Chapter 4's test case generation directly, unchanged</li>
+  <li>Where this stage's output actually goes next</li>
+</ul>
+
+<h2>Introduction</h2>
+<p>The capstone's objective — verify checkout, report anything unexpected — is deliberately open-ended, the way Chapter 13's exploration objectives were. This page's job is turning it into something concrete enough to actually run.</p>
+
+<h2>Step-by-Step Implementation</h2>
+<pre><code>// src/capstone-pipeline.ts (stage 1)
+import { generateTestCases } from './generate-test-cases';
+import { prioritizeByRisk } from './risk-based-generation';
+import { convertToPlaywrightTests } from './convert-to-playwright';
+
+export async function generateCapstonePlan(objective: string) {
+  const testCases = await generateTestCases(
+    'ShopSmart checkout flow, including discount code handling',
+    'E-commerce checkout: cart review, discount application,
+    shipping, payment, order confirmation'
+  );
+
+  const prioritized = prioritizeByRisk(testCases);
+  const playwrightTests = await convertToPlaywrightTests(prioritized);
+
+  return { testCases: prioritized, playwrightTests };
+}</code></pre>
+
+<h2>Code Explanation</h2>
+<p>Every function here is Chapter 4's own, called exactly as it was originally built — <code>generateTestCases</code>, <code>prioritizeByRisk</code>, <code>convertToPlaywrightTests</code>. Nothing about running inside this capstone changes their behavior; this stage's entire real contribution is calling them with the capstone's specific, real objective.</p>
+
+<h2>Example — The Real, Generated Plan</h2>
+<pre><code>const plan = await generateCapstonePlan(capstoneObjective);
+
+// A REAL, prioritized set of test cases, INCLUDING — because
+// Chapter 4'S risk-based prioritization correctly recognizes
+// discount handling as GENUINELY high-risk for an e-commerce
+// checkout — a case that will EVENTUALLY surface this
+// chapter'S OWN real bug:
+//
+// { name: "Applies a single valid discount code correctly",
+//   riskScore: 4, ... }
+// { name: "Rejects an expired discount code",
+//   riskScore: 3, ... }
+// { name: "Applies a valid discount code, verifies total",
+//   riskScore: 4, ... }</code></pre>
+
+<h2>Why It Matters — Setting Up the Real Discovery</h2>
+<p>Notice none of Chapter 4's generated cases explicitly say "apply the same code twice" — that's precisely the point this track made back in Chapter 13: systematic generation, working from an explicit requirement, doesn't reliably think to test the specific case that reveals this particular bug. This stage's plan is genuinely solid, thorough coverage — and it's about to run into evidence during execution that points toward exactly the gap Chapter 13's exploration was built to fill.</p>
+
+<h2>Common Mistakes</h2>
+<ul>
+  <li><strong>Writing new generation logic specific to this capstone.</strong> Chapter 4's functions already exist, tested and explained — this stage is deliberately just a real, direct call into them.</li>
+  <li><strong>Skipping risk-based prioritization.</strong> Without it, this chapter's capstone execution stage would run every generated case with equal priority, rather than genuinely focusing on checkout's real, higher-risk areas first.</li>
+</ul>
+
+<h2>Best Practices</h2>
+<ul>
+  <li>Reuse Chapter 4's generation functions exactly as written — this stage's only real job is providing the capstone's specific, real context.</li>
+  <li>Keep the generated plan's output structure — both raw test cases and converted Playwright tests — since the next stage needs both.</li>
+</ul>
+
+<h2>Hands-On Exercise</h2>
+<p>Run this page's <code>generateCapstonePlan</code> function against your own real feature's objective. Review the generated, prioritized test cases and identify whether any obvious edge case — the way "apply the same code twice" is obvious only in hindsight — seems to be missing.</p>
+
+<h2>Key Takeaways</h2>
+<ul>
+  <li>This stage reuses Chapter 4's generation functions completely unchanged — its real contribution is the capstone's specific objective and context.</li>
+  <li>The generated plan is genuinely thorough, systematic coverage — and still, honestly, doesn't include the specific case that will reveal this chapter's real bug.</li>
+  <li>This sets up exactly the gap Chapter 13's exploration exists to fill, which this capstone's later stages will genuinely encounter.</li>
+</ul>
+</article>
+</body></html>

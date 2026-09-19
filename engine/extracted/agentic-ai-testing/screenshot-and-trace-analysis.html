@@ -1,0 +1,205 @@
+<!doctype html>
+<html><head>
+<title>Screenshot and Trace Analysis: What an Agent Can Learn From What Playwright Already Captures</title>
+<meta name="description" content="Using visual reasoning over screenshots and Playwright&#x27;s own trace data, what this genuinely catches that DOM inspection misses, and its real, honest limitations." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/screenshot-and-trace-analysis.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Screenshot and Trace Analysis</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="ai-generated-playwright-tests.html">AI-Generated Playwright Tests</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Playwright already captures screenshots and detailed traces for debugging — this page is about having an agent genuinely reason over them, not just store them, closing out this chapter's hands-on work with the two richest sources of information Playwright provides.</p>
+
+<h2 id="visual-reasoning-over-a-screenshot">Visual Reasoning Over a Screenshot</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def analyze_screenshot(page, question, client):
+    screenshot_bytes = page.screenshot()
+    response = client.messages.create(
+        model="claude-sonnet-4-6", max_tokens=512,
+        messages=[{
+            "role": "user",
+            "content": [
+                {"type": "text", "text": question},
+                {"type": "image", "source": {"type": "base64",
+                    "media_type": "image/png",
+                    "data": base64.b64encode(screenshot_bytes).decode()}}
+            ]
+        }]
+    )
+    return response.content[0].text
+
+# A genuinely real use — catching something DOM inspection alone
+# would likely miss entirely:
+result = analyze_screenshot(page,
+    "Does this checkout page's 'Place Order' button appear "
+    "visually obscured or overlapped by any other element?",
+    client)</code></pre>
+<p>This is genuinely different from every DOM-based tool earlier in this chapter — <code>get_page_text</code> or <code>get_search_results</code> tell you what's technically PRESENT in the DOM; visual analysis can catch a button that's technically present, technically clickable via Playwright, but VISUALLY covered by something else — exactly the cookie-banner-overlap scenario from Chapter 4's own validation example.</p>
+
+<h2 id="what-trace-analysis-adds">What Trace Analysis Adds</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Playwright's own trace captures a genuinely rich, structured
+timeline: every action, every network request, every console
+message, with timing — this site's Playwright track covers
+generating and viewing traces in full depth.
+
+An agent reasoning over a trace's DATA (not just looking at
+it manually) can answer genuinely useful questions:
+
+"Did any network request during this test take longer than
+2 seconds?" — a structured, checkable question over trace
+timing data, distinct from anything a screenshot alone reveals.
+
+"Were there any console errors logged during this specific
+interaction?" — trace data the DOM itself wouldn't show at all.</code></pre>
+
+<h2 id="the-real-honest-limitations">The Real, Honest Limitations</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Visual analysis, genuinely, CANNOT reliably:
+- Determine EXACT pixel measurements ("is this margin exactly
+  16px") — an LLM's visual reasoning is genuinely approximate,
+  not precise measurement
+- Catch a color that's TECHNICALLY correct but subtly, subjectively
+  "off" in a way a design system's exact color values would
+  catch precisely, that visual judgment alone might miss
+- Replace deterministic, exact visual regression testing tools
+  built specifically for precise pixel-level comparison
+
+What it genuinely CAN do well:
+- Notice GENUINE overlap or obstruction ("this button appears
+  covered by that banner")
+- Notice CONTENT that's clearly, obviously wrong ("this shows
+  a broken image icon instead of a product photo")
+- Provide a GENERAL, useful sanity check a human reviewer would
+  also give at a glance, at a fraction of the time cost</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might visual screenshot analysis be a genuinely useful COMPLEMENT to DOM-based tools, rather than a replacement for them, even though a screenshot technically shows "everything" that's on a page? A screenshot shows what's visually rendered, but an LLM's visual reasoning over it is approximate and can miss precise details a structured DOM query would catch reliably (like an exact price value). DOM-based tools are precise but blind to purely visual problems (overlap, broken images); visual analysis is more holistic but genuinely less precise — using both together covers more real ground than either alone.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Using visual analysis for a check that has one single, exact correct value — like confirming a specific price displays as "$27.50" precisely. This belongs to the AI Assertions page's "exact assertion" category, checkable reliably and cheaply via DOM text extraction; visual analysis for this specific purpose is both less reliable and genuinely more expensive than a direct text check.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>When asking an LLM to analyze a screenshot, phrase the question about something a human could genuinely, reliably judge by eye — "does this look overlapped or broken" — rather than something requiring precise measurement a human couldn't reliably eyeball either, like "is this exactly 3 pixels off."</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Use visual analysis for genuinely visual problems — overlap, obviously broken content — not for checks with one precise, exact correct value.</li>
+  <li>Combine visual analysis with structured DOM and trace tools, using each for what it's genuinely, honestly good at.</li>
+  <li>Phrase visual-analysis questions the way you'd ask a human glancing at the screen, not the way you'd ask a precise measurement tool.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Visual screenshot analysis catches genuinely visual problems — overlap, broken images — that DOM inspection alone structurally can't detect.</li>
+  <li>Trace analysis adds reasoning over timing, network requests, and console output — a genuinely different, complementary information source.</li>
+  <li>Visual analysis is honestly approximate, not precise — appropriate for general sanity checks, not a replacement for exact assertions or dedicated pixel-level visual regression tools.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Write a genuine visual-analysis question (following this page's phrasing guidance) for ShopEasy's product detail page, checking for something a screenshot could reveal that a DOM-based tool from earlier in this chapter genuinely couldn't — being explicit about why DOM inspection alone would miss it.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A teammate wants to use visual screenshot analysis to verify a specific product's price displays as exactly "$27.50." Would you recommend this approach? Why or why not?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd recommend against it — this is exactly the kind of check with ONE precise, exact correct value that this page's own "Common Mistake" section warns against using visual analysis for, when a reliable, cheap DOM text check already handles it perfectly.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why visual analysis is the WRONG tool here:
+LLM visual reasoning over an image is genuinely APPROXIMATE —
+  reading exact text from an image, while often accurate, is
+  NOT as reliably precise as directly extracting the actual
+  text value from the DOM. There's also real, unnecessary cost
+  (an image-based LLM call) for a check that doesn't need it.
+
+The genuinely correct approach:
+await expect(page.getByTestId('product-price')).toHaveText('$27.50');
+  — a DIRECT, deterministic DOM text check. Cheaper, faster,
+  and MORE reliably precise than asking an LLM to visually
+  "read" a price from a screenshot.</code></pre>
+<p>This is a direct, concrete application of the AI Assertions page's exact-vs-fuzzy distinction — an exact, single-correct-value check belongs to deterministic comparison, not visual (or any other kind of) AI reasoning, regardless of which specific AI capability might technically be able to attempt it.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page describe visual analysis's inability to measure "exactly 16px margin" as a genuine, honest limitation, rather than something to work around with better prompting?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because this is a genuine, structural limitation of how visual/image reasoning actually works, not a prompting problem that better wording could fix — no amount of clever prompting makes an LLM's visual perception precisely measure pixels the way a dedicated tool genuinely can.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why this ISN'T fixable through better prompting:
+Asking "measure this margin PRECISELY in pixels" doesn't
+  change the underlying capability — an LLM reasoning over an
+  image is fundamentally doing approximate visual JUDGMENT,
+  similar to how a human glancing at a screenshot could
+  estimate "that looks like a decent gap" but couldn't reliably
+  state "that's EXACTLY 16 pixels" without an actual
+  measurement tool, regardless of how the question is phrased.
+
+The HONEST, correct response instead:
+Use a DEDICATED tool actually built for precise measurement —
+  Playwright's own bounding-box APIs, or a dedicated visual
+  regression testing tool doing genuine pixel-level comparison
+  — for anything requiring this level of exact precision, and
+  reserve visual LLM analysis for genuinely holistic,
+  human-judgment-style questions instead.</code></pre>
+<p>This is exactly the kind of honest limitation this course has emphasized since Chapter 1 — recognizing what a capability genuinely can't do well is more valuable than trying to force it to do something it's fundamentally not well-suited for through clever prompting alone.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why the cookie-banner-overlap scenario (referenced from Chapter 4) is a genuinely good example of something DOM inspection alone would miss, but visual analysis would likely catch.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>The DOM tree itself doesn't inherently know or represent visual OVERLAP between elements — technically, the "Place Order" button and a cookie banner can both be fully present in the DOM, each with correct attributes, while one is visually covering the other.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why DOM-based tools genuinely miss this:
+get_page_text() or a role-based locator would find the "Place
+  Order" button perfectly fine — it EXISTS, has the correct
+  role and accessible name, and Playwright can technically
+  still CLICK it via coordinates even while visually obscured.
+  Nothing about the DOM structure itself flags "this element
+  is covered by another element" as a distinct problem.
+
+Why VISUAL analysis genuinely catches this:
+A screenshot directly SHOWS the actual, real visual overlap —
+  an LLM reasoning over the IMAGE can notice "this button
+  appears to be behind/under this banner" in a way that's
+  fundamentally about PIXELS and RENDERING, not DOM structure,
+  which is exactly the category of problem visual analysis is
+  genuinely well-suited for.</code></pre>
+<p>This is a clean, concrete illustration of why this page argues visual and DOM-based analysis are genuinely complementary — each one structurally can catch real problems the other one is blind to, by design, regardless of how sophisticated either approach becomes.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you design a trace-analysis check specifically for catching a genuine performance regression, connecting this to concepts from this site's K6 track?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A genuinely useful trace-based check would extract network request timing data from a Playwright trace and compare it against a reasonable, established baseline — conceptually similar to K6's own performance-testing thresholds, applied here to a single, specific user flow rather than load testing.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def check_for_slow_requests(trace_data, threshold_ms=2000):
+    slow_requests = [
+        r for r in trace_data.network_requests
+        if r.duration_ms > threshold_ms
+    ]
+    if slow_requests:
+        return (f"Found {len(slow_requests)} request(s) exceeding "
+                f"{threshold_ms}ms: " +
+                ", ".join(r.url for r in slow_requests))
+    return "All network requests completed within threshold."</code></pre>
+<p>This is genuinely, deliberately similar in SPIRIT to K6's own threshold-based approach (covered in depth in this site's K6 track) — establishing a reasonable performance expectation and checking real, captured data against it — just applied here to a single user flow's trace rather than aggregate load-test metrics, showing how concepts from this site's OTHER tracks genuinely connect to and inform agentic testing work, exactly matching the cross-track connections Chapter 1 established as a real, deliberate theme of this course.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might it be reasonable to run visual screenshot analysis on specific, targeted pages rather than after every single step of every agent run?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Similar to the cost-cadence reasoning from the previous page's exploratory-testing discussion, visual analysis carries real, genuine per-call cost — an image-based LLM call is typically more expensive than a text-only one, making blanket, every-step usage genuinely wasteful for most routine steps.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Steps that DON'T genuinely benefit from visual analysis:
+"Fill in the email field" — this is a simple, mechanical
+  action with no genuine visual-judgment component; a DOM-based
+  confirmation (the field now contains the expected value) is
+  both cheaper AND more reliably precise than a screenshot
+  check would be here.
+
+Steps that GENUINELY benefit from visual analysis:
+Reaching a genuinely NEW, unfamiliar page state — especially
+  right before a consequential action like "Place Order," or
+  specifically when investigating a reported visual issue —
+  where the actual RISK (a genuinely obscured or broken
+  element) justifies the added cost.</code></pre>
+<p>The general, practical principle: match the tool's real cost to the genuine value it adds at that specific point — visual analysis earns its cost at points genuinely worth the extra scrutiny, not as a blanket default for every single mechanical step in a run.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

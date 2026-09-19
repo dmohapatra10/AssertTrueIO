@@ -1,0 +1,122 @@
+<!doctype html>
+<html><head>
+<title>Failure Handling and Governance</title>
+<meta name="description" content="What happens when the shared MCP server itself fails, not one test — and a real, working escalation path when this track&#x27;s own safeguards disagree." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/failure-handling-and-governance.html" />
+</head><body>
+<p class="difficulty">Advanced</p>
+<h1>Failure Handling and Governance</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="observability-and-cost.html">Observability and Cost</a></p>
+<article class="content">
+<h2>What You'll Learn</h2>
+<ul>
+  <li>What happens when shared infrastructure itself fails, not one individual test</li>
+  <li>A real, working escalation path for genuine disagreement between this track's own safeguards</li>
+  <li>Chapter 20's closing interview questions</li>
+</ul>
+
+<h2>Introduction — A Genuinely Different Kind of Failure</h2>
+<p>Every earlier chapter addressed one test failing, one agent hitting a limit, one action getting blocked. This page addresses something different: the shared infrastructure itself — the MCP server every team depends on — genuinely failing.</p>
+
+<h2>How It Works — Real Failure Modes at the System Level</h2>
+<pre><code>MCP server GOES down entirely — EVERY connected agent, ACROSS
+  every team, LOSES access to its tools SIMULTANEOUSLY
+
+evidence STORAGE fills up or becomes UNREACHABLE — Chapter
+  9'S own analysis pipeline CAN'T capture or REVIEW anything
+
+audit LOG itself fails to WRITE — Chapter 19'S own
+  traceability GUARANTEE breaks down at EXACTLY the moment
+  it might matter MOST</code></pre>
+
+<h2>Why It Matters — These Failures Affect Every Team at Once</h2>
+<p>A single agent hitting Chapter 13's own step limit affects one objective, one run. The MCP server going down affects every team's agent simultaneously — a genuinely different scale of impact that needs its own, real response plan, not just a retry.</p>
+
+<h2>Step-by-Step Implementation — A Real Fallback</h2>
+<pre><code>// src/mcp-server-health-check.ts
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+
+export async function checkServerHealthWithFallback(
+  client: Client
+): Promise&lt;{ healthy: boolean; fallbackMode: boolean }&gt; {
+  try {
+    await client.listTools();
+    return { healthy: true, fallbackMode: false };
+  } catch (error) {
+    console.error('MCP server unreachable — entering fallback mode');
+    // FALLBACK: pause ALL agents, alert the PLATFORM team
+    // (Chapter 20'S own ownership model), and REFUSE new runs
+    // until the SERVER is confirmed healthy AGAIN
+    return { healthy: false, fallbackMode: true };
+  }
+}</code></pre>
+
+<h2>Code Explanation</h2>
+<p>The real, deliberate choice here is refusing new runs during an outage, rather than letting agents fail individually and confusingly. A clean, explicit fallback state is genuinely easier for a team to diagnose and recover from than dozens of agents each failing in their own, separate, less-obvious way.</p>
+
+<h2>Why It Matters — A Real Governance Question This Track's Rules Don't Fully Answer</h2>
+<p>This track's earlier chapters gave clear, individual answers — Chapter 11 for code changes, Chapter 19 for security concerns. But what happens when Chapter 12's flaky-detection says a failure is known and safe to ignore, while Chapter 9's classification, on the same failure, says it's a genuine Application Defect? This is a real, genuine disagreement between two of this track's own systems, and it needs an explicit, human escalation path — not an automatic tiebreaker either safeguard imposes on its own.</p>
+
+<h2>Common Mistakes</h2>
+<ul>
+  <li><strong>Letting agents fail individually and silently during a shared infrastructure outage.</strong> This page's health-check fallback exists specifically to make an outage visible and diagnosable, rather than a confusing scatter of unrelated-looking individual failures.</li>
+  <li><strong>Having no defined escalation path when this track's own systems genuinely disagree.</strong> Chapter 12's flaky detection and Chapter 9's classification can legitimately conflict — pretending this never happens leaves a real gap in governance.</li>
+</ul>
+
+<h2>Best Practices</h2>
+<ul>
+  <li>Build an explicit health check and fallback mode for shared infrastructure, rather than relying on individual agents to fail gracefully on their own.</li>
+  <li>Define a real, human escalation path for genuine disagreement between this track's own automated systems — don't assume they'll always agree.</li>
+</ul>
+
+<h2>Hands-On Exercise</h2>
+<p>Design a real escalation path for your own system, for the specific case where flaky-detection and failure-classification disagree. Decide, explicitly, who reviews this kind of disagreement and how quickly.</p>
+
+<h2>Key Takeaways</h2>
+<ul>
+  <li>Shared infrastructure failure affects every team simultaneously — a genuinely different scale of impact than one agent's individual failure.</li>
+  <li>An explicit fallback mode, refusing new runs during an outage, is easier to diagnose than many individual, confusing agent failures.</li>
+  <li>Genuine disagreement between this track's own automated systems needs a real, defined human escalation path, not an assumption that such conflicts never arise.</li>
+</ul>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Beginner: Why does this chapter operate at a genuinely different level than Chapter 14, even though both are architecture chapters?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Chapter 14 assembled one agent's internal architecture — Planner, Browser Tools, Observation, Evaluator, and Recovery, all within a single process pursuing one objective. This chapter operates one level up: multiple agents from different teams, sharing one real MCP server, CI/CD pipeline, evidence storage, and audit log, as one deployed system an entire organization depends on. The scale and the questions genuinely change — from "how does one agent reason" to "how does a shared system serve many agents safely."</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Beginner: Why does explicit component ownership matter more for shared infrastructure than for something only one team uses?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>When only one team uses something, that team naturally feels responsible for it by default. Shared infrastructure, used by multiple teams, doesn't have this natural default — without an explicit owner, it's easy for every team to assume someone else is responsible, especially when something breaks. Writing down clear ownership, as this chapter's second page argues, prevents this ambiguity from becoming a real problem exactly when it matters most, during an actual failure.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Intermediate: Explain why three individually well-behaved agents can still cause a real problem for shared infrastructure, using this chapter's own example.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Each agent respecting its own Chapter 13 rate limits only bounds that one agent's own individual load — it says nothing about what happens when multiple agents' individually-reasonable loads combine at the same shared server simultaneously. Three agents each staying within their own limits can still sum to three times the load the server was actually sized for, since no single agent's self-imposed limit accounts for other agents' concurrent activity. This is exactly why the chapter argues for a genuinely separate, server-wide limit independent of any individual agent's own restrictions.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Intermediate: Why does this chapter argue that system-wide observability requires aggregation rather than new instrumentation?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Chapter 18 and Chapter 19 already produce real, structured logs — per-call usage data and per-agent audit entries. The genuine gap isn't a lack of data; it's that this data sits in separate, per-agent or per-call records that no single log reveals the whole picture from. Aggregating existing logs by agent, as this chapter's example does, surfaces real, organization-level patterns — like one agent dominating system-wide cost — that were always present in the underlying data but invisible until combined. Building new, separate instrumentation would duplicate effort the existing logs already accomplish.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Advanced: Why does this chapter treat disagreement between Chapter 12's flaky detection and Chapter 9's failure classification as a genuine governance gap, rather than something to resolve with an automatic rule?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Both systems produce genuinely real, evidence-based conclusions from their own real data — flaky detection from accumulated history across many runs, classification from the specific evidence of one failure. Neither conclusion is inherently more authoritative than the other; picking one automatically (always trust flaky detection, or always trust classification) would be arbitrary and could be wrong in either direction. This is exactly the kind of genuine ambiguity Chapter 7 and Chapter 9 established belongs to real human judgment, not automated resolution — the disagreement itself is meaningful information a person should actually look at, not a tiebreak to automate away.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Scenario-based: A teammate proposes that during an MCP server outage, each affected agent should just retry with exponential backoff individually, rather than implementing this chapter's shared fallback mode. How would you respond?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd point to this chapter's own reasoning about scale of impact: an outage affects every connected agent simultaneously, and having each one retry independently, with its own backoff timing, produces a confusing scatter of individually-failing agents rather than one clear, diagnosable signal that the shared infrastructure itself is down. A human investigating would need to notice the pattern across many separate agent logs rather than seeing one clear "server unreachable, fallback mode active" state. Independent retries might also mean the server, if it's struggling rather than fully down, gets hit with a wave of retry traffic right as it's trying to recover — exactly the kind of uncoordinated load this chapter's server-wide thinking argues against. A shared, explicit fallback mode is both easier to diagnose and less likely to compound the original problem.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

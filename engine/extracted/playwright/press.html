@@ -1,0 +1,120 @@
+<!doctype html>
+<html><head>
+<title>Playwright press(): Keyboard Shortcuts and Key Combinations Explained</title>
+<meta name="description" content="How Playwright&#x27;s press() action works for single keys and key combinations, the key naming syntax, and real-world keyboard-shortcut testing examples." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/press.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1><code class="api-name">press()</code></h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="actions.html">Actions overview</a>, <a href="fill-and-press-sequentially.html">fill() and pressSequentially()</a></p>
+<article class="content">
+<h2 id="what-is-press">What is <code>press()</code>?</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>locator.press(key: string, options?: { delay?: number })
+page.keyboard.press(key: string)</code></pre>
+      <p><code>press()</code> sends a single key or key combination — <code>Enter</code>, <code>Escape</code>, <code>Tab</code>, or a combo like <code>Control+A</code> — dispatching a real keydown/keyup pair. It exists on both a locator (focuses the element first) and on <code>page.keyboard</code> directly (uses whatever currently has focus).</p>
+
+      <h2 id="why-it-s-important">Why it's important</h2>
+      <p>Some interactions are keyboard-only by nature — submitting a form with Enter, dismissing a modal with Escape, navigating a custom dropdown with arrow keys — and testing them properly means testing the actual keyboard interaction, not simulating the same outcome via a click that happens to trigger the same code path.</p>
+
+      <h2 id="key-naming-syntax">Key Naming Syntax</h2>
+      <table>
+        <thead><tr><th>Example</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><code>Enter</code></td><td>Single key</td></tr>
+          <tr><td><code>Escape</code></td><td>Single key</td></tr>
+          <tr><td><code>Control+A</code></td><td>Key combination (Cmd+A is written the same way on Mac; Playwright maps Control to Meta automatically per OS convention when relevant)</td></tr>
+          <tr><td><code>Shift+Tab</code></td><td>Reverse-tab combination</td></tr>
+          <tr><td><code>ArrowDown</code></td><td>Arrow keys, by full name</td></tr>
+        </tbody>
+      </table>
+
+      <h2 id="basic-example">Basic Example</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>await page.getByLabel('Search').fill('playwright');
+await page.getByLabel('Search').press('Enter');</code></pre>
+
+      <h2 id="detailed-example-keyboard-only-modal-dismissal">Detailed Example — Keyboard-Only Modal Dismissal</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('pressing Escape closes the modal', async ({ page }) =&gt; {
+  await page.goto('/dashboard');
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toBeHidden();
+});</code></pre>
+      <p>Using <code>page.keyboard.press()</code> here (rather than a locator's <code>press()</code>) is deliberate — Escape is a global keyboard interaction, not tied to a specific focused field.</p>
+
+      <h2 id="real-world-example-arrow-key-navigation-in-a-custom-dropdown">Real-World Example — Arrow-Key Navigation in a Custom Dropdown</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('arrow keys navigate a custom combobox', async ({ page }) =&gt; {
+  await page.goto('/settings');
+
+  const combobox = page.getByRole('combobox', { name: 'Timezone' });
+  await combobox.click();
+  await combobox.press('ArrowDown');
+  await combobox.press('ArrowDown');
+  await combobox.press('Enter');
+
+  await expect(combobox).toHaveValue(/Pacific/);
+});</code></pre>
+      <p>Custom-built dropdowns (not native <code>&lt;select&gt;</code>) often implement their own arrow-key handling, and this is exactly the case where <code>selectOption()</code> won't work — the interaction genuinely needs to be driven by keyboard events, since that's how the component itself is built.</p>
+
+      <h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Clicking a visible "Close" icon when the real requirement is keyboard accessibility
+await page.getByRole('button', { name: 'Close' }).click();
+
+// ✅ If Escape-to-close is a stated requirement, test the actual keyboard path
+await page.keyboard.press('Escape');
+await expect(page.getByRole('dialog')).toBeHidden();</code></pre>
+
+      <h2 id="common-mistakes">Common Mistakes</h2>
+      <ul>
+        <li><strong>Using <code>locator.press()</code> when the interaction isn't tied to a specific field</strong> (like Escape) — <code>page.keyboard.press()</code> is more accurate for global shortcuts.</li>
+        <li><strong>Assuming <code>press('Enter')</code> always submits a form</strong> — it only does if there's a keydown/submit handler wired up to respond to it; if not, this correctly reveals the form isn't keyboard-submittable, which may be a real bug.</li>
+        <li><strong>Forgetting an element needs focus before <code>page.keyboard.press()</code> affects it</strong> — unlike <code>locator.press()</code>, which focuses first automatically, <code>page.keyboard.press()</code> acts on whatever currently has focus.</li>
+      </ul>
+
+      <h2 id="edge-cases">Edge Cases</h2>
+      <ul>
+        <li><strong>OS-specific modifier keys</strong> (Cmd on Mac vs. Ctrl on Windows/Linux) — for cross-platform shortcut testing, branch on <code>process.platform</code> or use Playwright's <code>ControlOrMeta</code> alias where supported, rather than hardcoding one OS's convention.</li>
+        <li><strong>Holding a key down across multiple actions</strong> — use <code>page.keyboard.down('Shift')</code> / <code>page.keyboard.up('Shift')</code> instead of <code>press()</code> when a modifier needs to stay held across more than one subsequent action.</li>
+      </ul>
+
+      <h2 id="debugging">Debugging</h2>
+      <p>If a key press doesn't seem to do anything, verify focus is actually where you expect it — <code>page.keyboard.press()</code> silently does nothing meaningful if focus is on the wrong (or no) element; checking <code>document.activeElement</code> via <code>page.evaluate()</code> can confirm this while debugging.</p>
+
+      <h2 id="best-practices">Best Practices</h2>
+      <ul>
+        <li>Use <code>locator.press()</code> for field-specific key interactions; use <code>page.keyboard.press()</code> for global shortcuts not tied to a specific element.</li>
+        <li>Test keyboard-only paths (Escape, Tab, arrow-key navigation) explicitly when accessibility or keyboard support is a real requirement — don't assume a click-based test covers it.</li>
+      </ul>
+
+      <h2 id="practice-exercise">Practice Exercise</h2>
+      <p>Write a test that tabs through three form fields using <code>press('Tab')</code> and asserts focus lands on the submit button last, without clicking anything directly.</p>
+
+      <h2 id="summary">Summary</h2>
+      <p><code>press()</code> sends real single-key or key-combination events — the right tool for keyboard shortcuts, form submission via Enter, and any interaction that's genuinely keyboard-driven rather than click-driven. Use the locator variant for field-specific keys, and <code>page.keyboard</code> for global ones.</p>
+
+      <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why would you use page.keyboard.press('Escape') instead of clicking a close button to test a modal's dismiss behavior?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">If the requirement is that the modal be dismissible via keyboard (a common accessibility requirement), clicking a visible close button doesn't actually test that path — it could pass even if Escape does nothing. Driving the interaction with the real keyboard event verifies the feature the test is meant to check.</div>
+</details>
+<details class="faq-item">
+<summary>What's the difference between locator.press() and page.keyboard.press()?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">locator.press() focuses the element first automatically; page.keyboard.press() acts on whatever currently has focus, with no implicit focusing step.</div>
+</details>
+<details class="faq-item">
+<summary>Why would you test Escape-to-close with page.keyboard.press() instead of clicking a close button?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">If the requirement is keyboard dismissibility, clicking a visible close button doesn't verify that Escape itself works — it could pass even if the keyboard path is broken.</div>
+</details>
+<details class="faq-item">
+<summary>How do you hold a modifier key across multiple subsequent actions?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Use page.keyboard.down('Shift') and page.keyboard.up('Shift') instead of press(), which only holds the modifier for a single key event.</div>
+</details>
+<details class="faq-item">
+<summary>Why might a Control+A shortcut behave differently across operating systems?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Mac uses Meta (Cmd) where Windows/Linux use Control by convention; cross-platform tests may need to branch on process.platform or use a ControlOrMeta alias.</div>
+</details>
+</div>
+</article>
+</body></html>

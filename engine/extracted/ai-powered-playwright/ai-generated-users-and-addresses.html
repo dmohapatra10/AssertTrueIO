@@ -1,0 +1,110 @@
+<!doctype html>
+<html><head>
+<title>AI-Generated Users and Addresses</title>
+<meta name="description" content="Real, working code generating realistic user and address data as reusable Playwright fixtures — directly closing the poor-diversity problem from the previous page." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/ai-generated-users-and-addresses.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>AI-Generated Users and Addresses</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="why-test-data-is-difficult.html">Why Test Data Is Difficult</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Generating realistic, varied user and address data</li>
+  <li>Wrapping generation as a real, reusable Playwright fixture</li>
+  <li>Why variety across many generated records matters more than any single one's realism</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>This page directly addresses the previous page's poor-diversity problem — generating genuinely varied users and addresses, rather than reusing the same three hardcoded ones indefinitely.</p>
+
+<h2 id="step-by-step-implementation">Step-by-Step Implementation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/generate-user-data.ts
+import { askClaude } from './ai-client';
+
+export interface GeneratedUser {
+  firstName: string;
+  lastName: string;
+  email: string;
+  address: {
+    street: string;
+    city: string;
+    state: string;
+    zip: string;
+  };
+}
+
+export async function generateUsers(
+  count: number
+): Promise&lt;GeneratedUser[]&gt; {
+  const prompt = `Generate ${count} realistic, GENUINELY varied
+test users for an e-commerce application — different name
+origins, different US states and cities, different street
+address formats (some with apartment numbers, some without).
+Use example.com email domains only, never real domains.
+
+Respond with ONLY valid JSON:
+{"users": [{"firstName": string, "lastName": string,
+"email": string, "address": {"street": string, "city": string,
+"state": string, "zip": string}}]}`;
+
+  const raw = await askClaude(prompt);
+  const parsed = JSON.parse(raw);
+  if (!Array.isArray(parsed.users)) {
+    throw new Error(`Expected {"users": [...]} but got: ${raw.slice(0, 200)}`);
+  }
+  return parsed.users;
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p>"Genuinely varied" is doing real work in this prompt — without it, a model tends toward the same statistically common patterns repeatedly, quietly reproducing exactly the poor-diversity problem this chapter opened with. The explicit request for different name origins, address formats, and states is what actually produces the variety the previous page identified as missing.</p>
+
+<h2 id="wrapping-this-as-a-playwright-fixture">Wrapping This as a Playwright Fixture</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/fixtures.ts
+import { test as base } from '@playwright/test';
+import { generateUsers, GeneratedUser } from './generate-user-data';
+
+export const test = base.extend&lt;{ testUser: GeneratedUser }&gt;({
+  testUser: async ({}, use) => {
+    const [user] = await generateUsers(1);
+    await use(user);
+  },
+});
+
+export { expect } from '@playwright/test';</code></pre>
+
+<h2 id="example-using-the-fixture-in-a-real-test">Example — Using the Fixture in a Real Test</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import { test, expect } from './fixtures';
+
+test('registration succeeds with a realistic, varied user', async ({ page, testUser }) => {
+  await page.goto('/register');
+  await page.getByLabel('First Name').fill(testUser.firstName);
+  await page.getByLabel('Email').fill(testUser.email);
+  await page.getByLabel('Street Address').fill(testUser.address.street);
+  // A REAL, freshly-generated, varied user — NOT the same
+  // hardcoded "Jane Doe" every single test run has used
+});</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Asking for generic "realistic user data" without emphasizing variety explicitly.</strong> This tends to reproduce the same statistically common patterns repeatedly, quietly recreating the poor-diversity problem.</li>
+  <li><strong>Generating a fresh user for every single assertion within one test.</strong> One user per test, via the fixture, is usually the right granularity — regenerating mid-test adds unnecessary AI calls for no benefit.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Request explicit variety dimensions — name origin, address format, region — rather than a vague "realistic" request alone.</li>
+  <li>Wrap generation in a Playwright fixture, the way this page does, so any test can request a real user without repeating generation logic.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Generate 10 users with this page's function and review them by eye. Check whether they genuinely span different name origins, address formats, and states — or whether they cluster around a narrower pattern than the prompt intended.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Explicit variety requests in the prompt are what actually produce diverse data — a vague "realistic" request tends to converge on common patterns.</li>
+  <li>Wrapping generation as a Playwright fixture makes varied test data available to any test with zero added complexity per test.</li>
+  <li>This page addresses the previous page's diversity problem directly — the next page applies the same approach to a different real ShopSmart concern, product data.</li>
+</ul>
+</article>
+</body></html>

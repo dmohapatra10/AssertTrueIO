@@ -1,0 +1,200 @@
+<!doctype html>
+<html><head>
+<title>Playwright Hooks: beforeEach, afterEach, beforeAll, and afterAll</title>
+<meta name="description" content="Learn how Playwright&#x27;s test hooks work, the difference between per-test and per-file hooks, and how to use them for setup and teardown without leaking state." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/hooks.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Chapter 17: Hooks</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="test-runner.html">Playwright Test Runner</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Hooks let you run setup and teardown code around your tests — before each test, after each test, once before all tests in a file, or once after. They're how repeated setup (navigating to a starting page, seeding data) gets factored out of every individual test.</p>
+
+<h2 id="why-it-s-important">Why it's important</h2>
+<p>Without hooks, every test repeats its own setup inline, which is both repetitive and easy to get subtly inconsistent between tests. But hooks are also a common source of hidden coupling between tests if used carelessly — this chapter covers both the mechanics and the discipline needed to use them well.</p>
+
+<h2 id="test-lifecycle">Test Lifecycle</h2>
+<p>For a single test, the lifecycle runs in exactly this order:</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Test Suite
+   │
+   ▼
+beforeAll
+   │
+   ▼
+beforeEach
+   │
+   ▼
+Test
+   │
+   ▼
+afterEach
+   │
+   ▼
+afterAll</code></pre>
+<p>That linear picture is exactly right for a suite with one test — but it slightly understates what happens with more than one, which is the far more common real case:</p>
+
+<h2 id="mental-model-execution-order-with-multiple-tests">Mental Model — Execution Order With Multiple Tests</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>beforeAll                (once, start of file)
+   │
+   ├── beforeEach → Test 1 → afterEach
+   ├── beforeEach → Test 2 → afterEach
+   ├── beforeEach → Test 3 → afterEach
+   │
+afterAll                 (once, end of file)</code></pre>
+<p><code>beforeAll</code> and <code>afterAll</code> genuinely run exactly once each — at the very start and very end of the file — no matter how many tests it contains. <code>beforeEach</code> and <code>afterEach</code>, by contrast, wrap <em>every individual test</em>: with three tests in a file, you get three full <code>beforeEach → Test → afterEach</code> cycles, not one. The simple linear diagram above is the correct mental model for what happens around any single test; this one is the correct picture for a whole file.</p>
+<p>With nested <code>describe</code> blocks, outer hooks always run before/after inner ones for each test — an outer <code>beforeEach</code> fires before an inner <code>beforeEach</code>, and the corresponding <code>afterEach</code> hooks unwind in the reverse order, the same nesting behavior you'd expect from any layered setup/teardown pattern.</p>
+
+<h2 id="the-four-hooks">The Four Hooks</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import { test } from '@playwright/test';
+
+test.beforeEach(async ({ page }) =&gt; {
+  await page.goto('/dashboard'); // runs before every test in this file/describe block
+});
+
+test.afterEach(async ({ page }, testInfo) =&gt; {
+  console.log(`${testInfo.title} finished with status: ${testInfo.status}`);
+});
+
+test.beforeAll(async () =&gt; {
+  // runs once, before any test in this file — no page/context fixture available here
+});
+
+test.afterAll(async () =&gt; {
+  // runs once, after all tests in this file complete
+});</code></pre>
+<p><code>beforeEach</code>/<code>afterEach</code> receive the same fixtures (like <code>page</code>) as a regular test, since a fresh one exists for each test. <code>beforeAll</code>/<code>afterAll</code> run once for the whole file and don't get a per-test <code>page</code> fixture, since no single test's isolated context exists yet at that point.</p>
+
+<h2 id="basic-example-scoping-hooks-to-a-describe-block">Basic Example — Scoping Hooks to a describe Block</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test.describe('admin panel', () =&gt; {
+  test.beforeEach(async ({ page }) =&gt; {
+    await page.goto('/admin');
+    await page.getByLabel('Email').fill('admin@example.com');
+    await page.getByLabel('Password').fill('admin-password');
+    await page.getByRole('button', { name: 'Sign in' }).click();
+  });
+
+  test('can view all users', async ({ page }) =&gt; {
+    await expect(page.getByRole('heading', { name: 'Users' })).toBeVisible();
+  });
+
+  test('can suspend a user', async ({ page }) =&gt; {
+    await page.getByRole('button', { name: 'Suspend' }).first().click();
+  });
+});</code></pre>
+<p>A hook inside a describe block only applies to tests within that block — this is the main tool for giving different groups of tests different setup without repeating it in every single test.</p>
+
+<h2 id="detailed-example-extra-diagnostics-on-failure-via-aftereach">Detailed Example — Extra Diagnostics on Failure via afterEach</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test.afterEach(async ({ page }, testInfo) =&gt; {
+  if (testInfo.status !== testInfo.expectedStatus) {
+    // Capture an extra full-page screenshot specifically for failed tests,
+    // beyond whatever the config's default screenshot setting already captures
+    const screenshotPath = testInfo.outputPath('failure.png');
+    await page.screenshot({ path: screenshotPath, fullPage: true });
+    testInfo.attachments.push({ name: 'failure-screenshot', path: screenshotPath, contentType: 'image/png' });
+  }
+});</code></pre>
+<p><code>testInfo</code> carries useful metadata about the test that just ran — its title, status, and duration — making <code>afterEach</code> a natural place for custom failure diagnostics beyond what automatic screenshot/video/trace config already provides.</p>
+
+<h2 id="real-world-example-seeding-and-cleaning-up-test-data">Real-World Example — Seeding and Cleaning Up Test Data</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import { test, expect } from '@playwright/test';
+
+test.describe('order cancellation', () =&gt; {
+  let orderId: string;
+
+  test.beforeEach(async ({ request }) =&gt; {
+    // Seed a fresh order via the API before each test, rather than the UI —
+    // faster and decoupled from unrelated UI flows.
+    const response = await request.post('/api/orders', {
+      data: { item: 'Wireless Mouse', quantity: 1 },
+    });
+    ({ id: orderId } = await response.json());
+  });
+
+  test.afterEach(async ({ request }) =&gt; {
+    await request.delete(`/api/orders/${orderId}`);
+  });
+
+  test('customer can cancel a pending order', async ({ page }) =&gt; {
+    await page.goto(`/orders/${orderId}`);
+    await page.getByRole('button', { name: 'Cancel order' }).click();
+    await expect(page.getByText('Order cancelled')).toBeVisible();
+  });
+});</code></pre>
+<p>This uses <code>afterEach</code> for cleanup regardless of whether the test passed or failed — important, since leftover test data from a failed test can otherwise pollute the next run.</p>
+
+<h2 id="hooks-vs-fixtures-quick-recap">Hooks vs. Fixtures — Quick Recap</h2>
+<p>The Fixtures chapter covers this comparison in full, but the short version: a hook is simpler and file/describe-scoped, right for setup only a handful of tests in one file need. A fixture is reusable across many files, supports dependencies between fixtures, and separates "what a test needs" from "how it's built" — worth the extra structure once shared setup spans more than one test file.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Shared mutable state across tests via beforeAll — makes test order matter
+let sharedOrderId;
+test.beforeAll(async ({ request }) =&gt; {
+  const res = await request.post('/api/orders', { data: { /* ... */ } });
+  sharedOrderId = (await res.json()).id;
+});
+// Multiple tests now all depend on the SAME order, and on running after this hook
+
+// ✅ Fresh data per test via beforeEach — no cross-test coupling
+let orderId;
+test.beforeEach(async ({ request }) =&gt; {
+  const res = await request.post('/api/orders', { data: { /* ... */ } });
+  orderId = (await res.json()).id;
+});</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Sharing mutable state between tests via a variable set in <code>beforeAll</code></strong> and mutated by individual tests — this makes test order matter, breaking the isolation the test runner otherwise guarantees, especially under parallel execution.</li>
+  <li><strong>Putting expensive UI-based login in <code>beforeEach</code></strong> for every single test in a large suite instead of using <code>storageState</code> (from the Browser/Context chapter) to skip repeating login entirely.</li>
+  <li><strong>Forgetting cleanup in <code>afterEach</code>/<code>afterAll</code></strong>, letting test data accumulate across runs.</li>
+  <li><strong>Using a hook when a fixture would scale better</strong> — a hook duplicated across many files is a sign that setup belongs in a shared fixture instead.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>A hook that itself throws</strong> — if <code>beforeEach</code> fails, the test itself is marked failed without running at all, and any already-registered <code>afterEach</code> for that test still runs, giving cleanup a chance even when setup didn't fully succeed.</li>
+  <li><strong>Multiple <code>beforeEach</code> hooks at the same level</strong> — Playwright runs them in the order they're declared, which matters if one depends on state set up by another.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a test's actual body never seems to run, check whether a <code>beforeEach</code> at any enclosing level is silently failing or hanging — Trace Viewer (Chapter 15) includes hook execution in its timeline, making this visible rather than needing to guess.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Prefer API calls over UI actions for setup/teardown in hooks (as in the example above) — faster, and decoupled from whatever the UI flow being tested is.</li>
+  <li>Keep <code>beforeAll</code>/<code>afterAll</code> for genuinely one-time, expensive setup; default to <code>beforeEach</code>/<code>afterEach</code> otherwise to preserve test isolation.</li>
+  <li>Always pair setup with corresponding teardown, especially anything that writes real data.</li>
+  <li>Once a hook's logic is duplicated across more than one or two files, consider promoting it to a fixture instead.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Write a describe block for a "user profile" suite that uses <code>beforeEach</code> to create a test user via the API, and <code>afterEach</code> to delete that user regardless of whether the test passed or failed.</p>
+
+<h2 id="summary">Summary</h2>
+<p>Hooks factor out repeated setup and teardown — <code>beforeEach</code>/<code>afterEach</code> run per-test with full fixture access, while <code>beforeAll</code>/<code>afterAll</code> run once per file without one. Scoping hooks to a describe block is the main tool for giving different groups of tests different setup, and API-based setup in hooks is usually faster and more reliable than UI-based setup — with fixtures as the natural next step once setup needs to be shared across files.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why don't beforeAll and afterAll receive the page fixture the way beforeEach and afterEach do?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The test runner creates a fresh, isolated BrowserContext and page for each individual test. <code>beforeAll</code>/<code>afterAll</code> run once for an entire file, before any single test's isolated context exists (or after all of them have finished), so there's no single test-scoped page to hand them — using page-level fixtures there would break the per-test isolation model.</div>
+</details>
+<details class="faq-item">
+<summary>How many times do beforeAll and afterAll run in a file with 10 tests?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Exactly once each — at the very start and very end of the file — regardless of how many tests it contains.</div>
+</details>
+<details class="faq-item">
+<summary>Why don't beforeAll/afterAll receive the page fixture the way beforeEach/afterEach do?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">They run before any single test's isolated context exists (or after all finish), so there's no per-test page to hand them.</div>
+</details>
+<details class="faq-item">
+<summary>What's a common mistake with hooks and parallel execution?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Sharing mutable state across tests via a variable set in beforeAll, which makes test order matter and breaks isolation under parallel runs.</div>
+</details>
+<details class="faq-item">
+<summary>When should you promote a hook to a fixture instead?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Once its logic is duplicated across more than one or two files — that's a sign the setup belongs in shared, reusable fixture code.</div>
+</details>
+</div>
+</article>
+</body></html>

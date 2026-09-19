@@ -1,0 +1,159 @@
+<!doctype html>
+<html><head>
+<title>API Testing with Playwright: APIRequestContext Explained</title>
+<meta name="description" content="How to use Playwright&#x27;s built-in APIRequestContext for GET, POST, PUT, PATCH, and DELETE requests, and how to combine API calls with UI tests for fast, reliable setup." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/api-testing-with-playwright.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>API Testing</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="authentication-and-storage-state.html">Authentication & storageState</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+  <p>Playwright includes a full HTTP client — <code>APIRequestContext</code> — for making real API calls directly, with no browser involved at all. It shares the same context/cookie model as browser testing, which makes it a natural fit for both pure API test suites and for mixing API calls into UI tests for fast setup and verification. Each HTTP method gets its own dedicated page:</p>
+  <ol>
+    <li><a href="get-request.html">GET Requests</a> — query parameters, headers, pagination</li>
+    <li><a href="post-request.html">POST Requests</a> — creating resources, payloads, file uploads</li>
+    <li><a href="put-and-patch-request.html">PUT & PATCH Requests</a> — full vs. partial updates</li>
+    <li><a href="delete-request.html">DELETE Requests</a> — removal, idempotence, cleanup</li>
+  </ol>
+
+  <h2 id="why-it-s-important">Why it's important</h2>
+  <p>Not everything needs a browser. Seeding test data, verifying a backend response shape, or checking that a UI action produced the correct database change are all often faster and more reliable done via a direct API call than by driving the UI to accomplish the same thing.</p>
+
+  <h2 id="making-requests">Making Requests</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('API: creating an order returns 201', async ({ request }) =&gt; {
+  const response = await request.post('/api/orders', {
+    data: { item: 'Wireless Mouse', quantity: 2 },
+  });
+
+  expect(response.status()).toBe(201);
+  const body = await response.json();
+  expect(body).toMatchObject({ item: 'Wireless Mouse', quantity: 2 });
+});</code></pre>
+  <p>The <code>request</code> fixture is built in, just like <code>page</code> — no separate HTTP library needed. Every HTTP method is available the same way: <code>request.get()</code>, <code>.post()</code>, <code>.put()</code>, <code>.patch()</code>, <code>.delete()</code> — see each method's dedicated page above for the details, response validation patterns, and common pitfalls specific to it.</p>
+
+  <h2 id="api-ui-workflows">API + UI Workflows</h2>
+  <p>The setup-then-verify pattern shown next covers half of the picture. The fuller, and often more valuable, pattern closes the loop back to the API afterward, to confirm the backend's actual state changed — not just that the UI visually looks right:</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>API
+ ↓
+Create test data
+ ↓
+UI
+ ↓
+Perform user workflow
+ ↓
+API
+ ↓
+Validate backend state</code></pre>
+  <p>The first API step exists purely for speed (avoiding a slow UI-driven setup); the workflow itself is genuinely exercised through the UI, since that's what the test is actually meant to verify; the final API step exists because some outcomes — a database row's exact final state, a field the UI never displays — aren't fully verifiable by looking at the screen alone.</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('cancelling an order through the UI actually cancels it on the backend', async ({ page, request }) =&gt; {
+  // API: create test data
+  const created = await request.post('/api/orders', {
+    data: { item: 'Wireless Mouse', quantity: 1 },
+  });
+  const { id } = await created.json();
+
+  // UI: perform the user workflow
+  await page.goto(`/orders/${id}`);
+  await page.getByRole('button', { name: 'Cancel order' }).click();
+  await expect(page.getByText('Order cancelled')).toBeVisible();
+
+  // API: validate backend state — not just what the UI happens to display
+  const fetched = await request.get(`/api/orders/${id}`);
+  const order = await fetched.json();
+  expect(order.status).toBe('cancelled');
+  expect(order.cancelledAt).not.toBeNull();
+});</code></pre>
+  <p>That final assertion is the point of the pattern: the UI showing "Order cancelled" only proves the frontend rendered a success message — it doesn't prove the backend actually persisted the cancellation, or that a field like <code>cancelledAt</code> got set correctly. A UI bug that shows a false-positive success message would slip past a UI-only test but get caught immediately by the closing API check.</p>
+
+  <h2 id="real-world-example-api-setup-ui-verification">Real-World Example — API Setup, UI Verification</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import { test, expect } from '@playwright/test';
+
+test('order created via API appears correctly in the UI', async ({ page, request }) =&gt; {
+  // Fast, reliable setup — no need to click through a multi-step checkout UI
+  const response = await request.post('/api/orders', {
+    data: { item: 'Wireless Mouse', quantity: 1, status: 'shipped' },
+  });
+  const { id } = await response.json();
+
+  // Now use the UI for what's actually being tested — how the order displays
+  await page.goto(`/orders/${id}`);
+  await expect(page.getByRole('heading', { name: 'Wireless Mouse' })).toBeVisible();
+  await expect(page.getByText('Shipped')).toBeVisible();
+});</code></pre>
+  <p>This is the highest-value pattern in this chapter: use the API for setup that isn't itself the point of the test, and the UI only for what genuinely needs UI-level verification. It's dramatically faster than clicking through a full checkout flow just to get an order into a "shipped" state.</p>
+
+  <h2 id="sharing-auth-between-api-and-ui-calls">Sharing Auth Between API and UI Calls</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// The request fixture automatically uses the same storageState as the page fixture,
+// so authenticated API calls work without any extra setup once storageState is configured
+test('authenticated API call using the same session as the browser', async ({ page, request }) =&gt; {
+  await page.goto('/dashboard'); // already logged in via storageState
+  const response = await request.get('/api/profile'); // shares the same cookies
+  expect(response.ok()).toBeTruthy();
+});</code></pre>
+
+  <h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Clicking through the full UI just to create test data for an unrelated test
+await page.goto('/products/wireless-mouse');
+await page.getByRole('button', { name: 'Add to cart' }).click();
+await page.goto('/checkout');
+// ...ten more lines just to get one order into the database...
+
+// ✅ Create it directly via the API in one line
+const { id } = await (await request.post('/api/orders', { data: { /* ... */ } })).json();</code></pre>
+
+  <h2 id="common-mistakes">Common Mistakes</h2>
+  <ul>
+    <li><strong>Using the UI for setup that isn't what the test is actually verifying</strong> — slow and adds unrelated failure points to a test that's supposed to be about something else.</li>
+    <li><strong>Not checking <code>response.ok()</code>/<code>status()</code> before parsing the body</strong> — a failed request with an unexpected error format can make <code>.json()</code> throw a confusing parsing error instead of a clear status-code assertion failure.</li>
+    <li><strong>Assuming <code>request</code> and browser <code>page</code> calls never share state</strong> — by default they do share cookies/storage within the same test, which is a feature (see the shared-auth example) but can also be a source of confusion if not expected.</li>
+  </ul>
+
+  <h2 id="edge-cases">Edge Cases</h2>
+  <ul>
+    <li><strong>APIs requiring multipart/form-data</strong> (file uploads via API) — <code>request.post()</code> supports a <code>multipart</code> option for this, separate from the <code>data</code> option used for JSON bodies.</li>
+    <li><strong>Non-JSON responses</strong> — use <code>response.text()</code> or <code>response.body()</code> instead of <code>.json()</code> for plain text or binary responses.</li>
+  </ul>
+
+  <h2 id="debugging">Debugging</h2>
+  <p>When an API assertion fails unexpectedly, log <code>response.status()</code> and the raw response text before assuming the JSON shape is wrong — a non-2xx status with an HTML error page body is a very different problem than a 200 with an unexpected JSON structure, and the two produce confusingly similar-looking test failures if you only look at the parsed body.</p>
+
+  <h2 id="best-practices">Best Practices</h2>
+  <ul>
+    <li>Default to API calls for any setup or teardown that isn't itself the feature under test.</li>
+    <li>Check status codes explicitly rather than only inspecting the response body.</li>
+    <li>Combine API and UI calls within the same test freely — they share context/auth by default, which is a deliberate design choice, not a workaround.</li>
+    <li>Write dedicated pure-API tests for backend contract verification separate from UI-focused tests that happen to also use the API for setup.</li>
+  </ul>
+
+  <h2 id="practice-exercise">Practice Exercise</h2>
+  <p>Write a test that creates three orders via the API with different statuses (pending, shipped, cancelled), then navigates to an orders dashboard in the UI and verifies each order displays with the correct status badge.</p>
+
+  <h2 id="summary">Summary</h2>
+  <p><code>APIRequestContext</code> (the <code>request</code> fixture) provides a full HTTP client sharing the same session/context as browser testing, supporting all standard methods. Its highest-value use is fast, reliable setup and teardown for UI tests — reserving actual browser interaction for what genuinely needs UI-level verification.</p>
+
+  <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why would you use the request fixture to create test data instead of clicking through the UI, even in a test that's primarily about the UI?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">If creating the precondition (an existing order, a user account) isn't itself what the test is verifying, doing it through the UI adds unnecessary time and unrelated failure points — a bug anywhere in that setup flow could fail a test that has nothing to do with it. An API call achieves the same starting state faster and more reliably, letting the UI interaction in the test focus only on the behavior actually being tested.</div>
+</details>
+<details class="faq-item">
+<summary>Why use the API instead of the UI to seed test data?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It's faster and decoupled from unrelated UI flows, so a bug in checkout doesn't fail a test that's actually about order history.</div>
+</details>
+<details class="faq-item">
+<summary>Does the request fixture share authentication with the page fixture automatically?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Yes — they share the same context/cookie model by default, so an already-authenticated session via storageState covers both.</div>
+</details>
+<details class="faq-item">
+<summary>What's the value of the final API step in the API→UI→API workflow pattern?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It confirms the backend's actual state changed, not just that the UI displayed a success message — catching bugs a UI-only check would miss.</div>
+</details>
+<details class="faq-item">
+<summary>What HTTP methods does APIRequestContext support?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">All standard methods — get(), post(), put(), patch(), and delete() — each available the same way on the request fixture.</div>
+</details>
+</div>
+</article>
+</body></html>

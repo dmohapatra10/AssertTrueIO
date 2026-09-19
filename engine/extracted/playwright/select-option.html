@@ -1,0 +1,114 @@
+<!doctype html>
+<html><head>
+<title>Playwright selectOption(): Dropdown Selection Explained</title>
+<meta name="description" content="How Playwright&#x27;s selectOption() works with native select dropdowns, selecting by value, label, or index, multi-select lists, and custom dropdown components." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/select-option.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1><code class="api-name">selectOption()</code></h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="actions.html">Actions overview</a>, <a href="get-by-label.html">getByLabel()</a></p>
+<article class="content">
+<h2 id="what-is-selectoption">What is <code>selectOption()</code>?</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>locator.selectOption(
+  value: string | string[] | { value?: string, label?: string, index?: number }
+)</code></pre>
+      <p><code>selectOption()</code> chooses one or more options in a native <code>&lt;select&gt;</code> dropdown, in a single call — no need to click to open it, hover an option, and click again, the way a raw simulation of the interaction would require.</p>
+
+      <h2 id="why-it-s-important">Why it's important</h2>
+      <p>Native <code>&lt;select&gt;</code> elements render their own OS-level dropdown UI in most browsers, which isn't part of the regular DOM and can't be interacted with via ordinary clicks the way custom dropdowns can. <code>selectOption()</code> sidesteps this entirely by operating on the underlying <code>&lt;select&gt;</code> element's value directly, which is both simpler and more reliable than trying to click through a native OS dropdown.</p>
+
+      <h2 id="selecting-by-value-label-or-index">Selecting by value, label, or index</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// By the option's value attribute
+await page.getByLabel('Country').selectOption('IN');
+
+// By the option's visible label text
+await page.getByLabel('Country').selectOption({ label: 'India' });
+
+// By position (least readable — avoid unless genuinely necessary)
+await page.getByLabel('Country').selectOption({ index: 2 });</code></pre>
+      <p>Selecting by <code>value</code> or <code>label</code> is almost always preferable to <code>index</code> — index-based selection breaks silently if the option order changes for any reason unrelated to the feature under test.</p>
+
+      <h2 id="basic-example">Basic Example</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>await page.getByLabel('Shipping method').selectOption('express');</code></pre>
+
+      <h2 id="detailed-example-multi-select">Detailed Example — Multi-Select</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// A multi-select &lt;select multiple&gt; — pass an array to select several options at once
+await page.getByLabel('Skills').selectOption(['playwright', 'typescript', 'ci-cd']);
+
+await expect(page.getByLabel('Skills')).toHaveValues(['playwright', 'typescript', 'ci-cd']);</code></pre>
+
+      <h2 id="real-world-example-dependent-dropdowns">Real-World Example — Dependent Dropdowns</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('selecting a country populates the state dropdown', async ({ page }) =&gt; {
+  await page.goto('/shipping-address');
+
+  await page.getByLabel('Country').selectOption({ label: 'United States' });
+
+  // The state dropdown's options are populated dynamically after country changes
+  const stateDropdown = page.getByLabel('State');
+  await expect(stateDropdown.getByRole('option', { name: 'California' })).toBeAttached();
+
+  await stateDropdown.selectOption({ label: 'California' });
+  await expect(stateDropdown).toHaveValue('CA');
+});</code></pre>
+      <p>Note the wait implied by <code>toBeAttached()</code> before selecting — since the state dropdown's options are populated asynchronously after the country change, this confirms they've actually loaded before attempting the second selection, rather than assuming they're there instantly.</p>
+
+      <h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Position-based — breaks if the option order changes
+await page.getByLabel('Country').selectOption({ index: 5 });
+
+// ✅ Meaning-based — stable regardless of order
+await page.getByLabel('Country').selectOption({ label: 'India' });</code></pre>
+
+      <h2 id="common-mistakes">Common Mistakes</h2>
+      <ul>
+        <li><strong>Trying to click a native <code>&lt;select&gt;</code>'s options directly</strong> — the dropdown's open-state UI is rendered by the OS/browser outside the normal DOM in many cases, so clicking "into" it the way you'd click a custom dropdown often doesn't work reliably; <code>selectOption()</code> exists specifically to avoid this problem.</li>
+        <li><strong>Using <code>selectOption()</code> on a custom, non-native dropdown component</strong> (a styled <code>&lt;div&gt;</code>-based combobox) — this only works on real <code>&lt;select&gt;</code> elements; custom dropdowns need <code>click()</code> to open plus a subsequent <code>click()</code> or <code>press()</code> on the option (see <a href="press.html">press()</a> for arrow-key-driven examples).</li>
+        <li><strong>Selecting by index without a comment explaining why</strong> — makes the test harder to maintain since the intended option isn't visible from the code itself.</li>
+      </ul>
+
+      <h2 id="edge-cases">Edge Cases</h2>
+      <ul>
+        <li><strong>Disabled options within an enabled select</strong> — <code>selectOption()</code> will throw if targeting a disabled <code>&lt;option&gt;</code>, correctly reflecting that a real user couldn't select it either.</li>
+        <li><strong>Dynamically populated selects</strong> (options loaded via an API call after the page renders) — as in the dependent-dropdown example, ensure the options actually exist before selecting; Playwright's auto-waiting covers the select element itself being ready, but doesn't know to wait for a specific option's asynchronous arrival.</li>
+      </ul>
+
+      <h2 id="debugging">Debugging</h2>
+      <p>If <code>selectOption()</code> throws "option not found," verify the exact <code>value</code> attribute or label text via DevTools — a common surprise is a select's visible label text differing slightly from what's expected (extra whitespace, different casing) even when the value attribute would have matched.</p>
+
+      <h2 id="best-practices">Best Practices</h2>
+      <ul>
+        <li>Prefer <code>value</code> or <code>label</code> over <code>index</code> — reserve index-based selection for cases with no stable value/label to key off, such as auto-generated options.</li>
+        <li>For custom (non-native) dropdown components, don't reach for <code>selectOption()</code> at all — use <code>click()</code>/<code>press()</code> matching how the component actually behaves.</li>
+      </ul>
+
+      <h2 id="practice-exercise">Practice Exercise</h2>
+      <p>Given a native multi-select with options "Red," "Green," "Blue," "Yellow," write a test that selects "Green" and "Yellow" only, and asserts "Red" and "Blue" remain unselected.</p>
+
+      <h2 id="summary">Summary</h2>
+      <p><code>selectOption()</code> operates on native <code>&lt;select&gt;</code> elements by value, label, or index, sidestepping the unreliable process of clicking through a browser-rendered dropdown. It doesn't work on custom-built dropdown components, which need ordinary click/keyboard interaction instead.</p>
+
+      <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why can't you just click() a native &lt;select&gt; dropdown's option the way you would with a custom dropdown component?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Many browsers render a native select's open dropdown as an OS-level UI element outside the regular web page DOM, so it isn't reliably clickable through ordinary DOM-based automation. <code>selectOption()</code> avoids this entirely by setting the select element's value directly and dispatching the appropriate change event, which is both more reliable and closer to what actually needs to be verified — the resulting value, not the visual act of opening a dropdown.</div>
+</details>
+<details class="faq-item">
+<summary>Why can't you just click() a native &lt;select&gt;'s open option list the way you would a custom dropdown?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Many browsers render the open state as an OS-level UI outside the normal page DOM, so it isn't reliably clickable through DOM automation.</div>
+</details>
+<details class="faq-item">
+<summary>What are the three ways to select an option with selectOption()?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">By value, by label, or by index — value and label are preferred since they're more meaningful and stable than position.</div>
+</details>
+<details class="faq-item">
+<summary>Does selectOption() work on a custom, non-native combobox component?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">No — it only works on real &lt;select&gt; elements; custom dropdowns need a click-then-click pattern instead.</div>
+</details>
+<details class="faq-item">
+<summary>What happens if you try to select a disabled &lt;option&gt;?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">selectOption() throws, correctly reflecting that a real user couldn't select it either.</div>
+</details>
+</div>
+</article>
+</body></html>

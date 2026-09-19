@@ -1,0 +1,132 @@
+<!doctype html>
+<html><head>
+<title>RestAssured Status Code Validation: Why It&#x27;s Always Your First Assertion</title>
+<meta name="description" content="How to validate HTTP status codes in RestAssured, why it should almost always be your first assertion, and how to handle a range of acceptable codes." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/status-code-validation.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Status Code Validation</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="response-validation-assertions.html">Response Validation overview</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>given()
+    .when()
+        .get("/users/2")
+    .then()
+        .statusCode(200);</code></pre>
+<p><code>.statusCode(200)</code> asserts the exact numeric status code returned by the server. It's the single most important line in most API tests, because the status code tells you which of four broad outcomes happened (2xx success, 3xx redirect, 4xx client error, 5xx server error — from Chapter 1) before you've examined a single byte of the body.</p>
+
+<h2 id="why-it-should-almost-always-be-your-first-assertion">Why it should almost always be your first assertion</h2>
+<p>A test that only checks body content while skipping the status code can pass against a response that's technically an error but happens to have a body shape that coincidentally satisfies your body assertions — an empty object, a null field that happens to match a lenient matcher. Checking status first eliminates that entire category of false positive before it can happen.</p>
+
+<h2 id="basic-example">Basic Example</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>given().when().get("/users/2").then().statusCode(200);
+given().when().post("/users").then().statusCode(201);
+given().when().delete("/users/2").then().statusCode(204);
+given().when().get("/users/99999").then().statusCode(404);</code></pre>
+
+<h2 id="validating-a-range-of-acceptable-codes">Validating a Range of Acceptable Codes</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import static org.hamcrest.Matchers.*;
+
+.then()
+    .statusCode(anyOf(is(200), is(304)));  // either a fresh 200 or a cached 304 is fine
+
+.then()
+    .statusCode(both(greaterThanOrEqualTo(200)).and(lessThan(300))); // "any 2xx"</code></pre>
+<p>Sometimes an endpoint's exact success code isn't guaranteed to be stable (a caching layer might correctly return 304 instead of 200), or you're deliberately testing "did this succeed at all" rather than one specific code. Hamcrest's composable matchers handle both cases without resorting to manual if/else logic.</p>
+
+<h2 id="real-world-example-testing-both-the-success-and-failure-path">Real-World Example — Testing Both the Success and Failure Path</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void getExistingUserReturns200() {
+    given().pathParam("id", 2).when().get("/users/{id}").then().statusCode(200);
+}
+
+@Test
+void getNonExistentUserReturns404() {
+    given().pathParam("id", 99999).when().get("/users/{id}").then().statusCode(404);
+}</code></pre>
+<p>Testing the failure path explicitly, not just the happy path, is what actually proves your API's error handling works — a suite that only ever hits 200 responses has never verified what happens when something legitimately goes wrong.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Only checking the body, never the status — an error response with a
+// coincidentally matching body shape would pass this test
+.then().body("message", notNullValue());
+
+// ✅ Status first, then body
+.then().statusCode(200).body("message", notNullValue());</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Skipping status code validation entirely</strong> when a test is primarily about body content — always include it anyway.</li>
+  <li><strong>Using <code>.statusCode(200)</code> for an endpoint that correctly returns 201 or 204</strong> — check what a well-behaved implementation of that specific operation should return (Chapter 1's method table), not just what "worked" loosely means.</li>
+  <li><strong>Hardcoding one exact code for an endpoint with legitimately variable success responses</strong> (a caching layer, a redirect) instead of using a range matcher.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>3xx redirects</strong> — RestAssured follows redirects by default; if you specifically need to assert on the redirect response itself (not what it redirects to), disable redirect-following via <code>.redirects().follow(false)</code>.</li>
+  <li><strong>APIs that return 200 even for logical errors</strong> (a poorly designed API putting error info only in the body, with a 200 status regardless) — you'll need to validate the body's own error indicator in addition to status, since status alone won't catch it here.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a status code assertion fails, the RestAssured failure message shows both the expected and actual code — but also check the response body via <code>.log().ifValidationFails()</code>, since an unexpected 400 or 500 usually comes with a message explaining exactly what went wrong.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Assert status code first, before any body/header assertions, as a matter of habit.</li>
+  <li>Test both success and realistic failure status codes for every endpoint you cover.</li>
+  <li>Use range/composite matchers only when an endpoint's success code is genuinely variable — default to an exact code otherwise, since it's the more precise assertion.</li>
+</ul>
+
+<h2 id="the-status-line-beyond-just-the-number">The Status Line — Beyond Just the Number</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>.then()
+    .statusLine(containsString("200 OK"));
+
+// Or read it directly from a plain Response, no assertion
+Response response = given().when().get("/users/2");
+System.out.println(response.getStatusLine()); // "HTTP/1.1 200 OK"</code></pre>
+<p><code>statusLine()</code> validates the full status line, including the human-readable reason phrase ("OK", "Not Found") alongside the numeric code. This is rarely necessary for typical tests — the numeric code alone is almost always sufficient and more stable to assert against — but it's occasionally useful when an API's exact reason phrase is itself part of what you're verifying, or when debugging a response where the numeric code alone doesn't tell the full story.</p>
+
+<h2 id="reading-the-status-code-without-asserting">Reading the Status Code Without Asserting</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Response response = given().when().get("/users/2");
+int code = response.getStatusCode();
+
+if (code == 429) {
+    // Handle rate limiting specifically — retry logic, backoff, etc.
+} else {
+    assertThat(code, equalTo(200));
+}</code></pre>
+<p>Sometimes you need the status code for branching logic before deciding what to assert — a common case being deliberately handling a 429 Too Many Requests differently from a genuine failure. <code>response.getStatusCode()</code> gives you the raw integer without going through <code>.then()</code> at all, which is the extraction-not-validation pattern covered fully in the Validate vs. Extract page later in this chapter.</p>
+
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Write four tests against a public test API: a successful GET (200), a successful POST (201), a DELETE (204), and a GET against a non-existent resource (404) — confirming you know which status code each operation should realistically produce before writing the assertion.</p>
+
+<h2 id="summary">Summary</h2>
+<p>Status code validation is the fastest, most reliable first signal in any API test — it tells you which broad outcome occurred before you've examined the body at all. Default to exact-code assertions, reserve range matchers for genuinely variable success codes, and always test realistic failure paths alongside the happy path.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why should status code validation almost always come before body validation in a test?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The status code tells you which broad category of outcome occurred — success, client error, server error — independent of body content. A test that only checks the body can produce a false positive against an error response whose body shape happens to satisfy the assertions; checking status first eliminates that risk immediately.</div>
+</details>
+<details class="faq-item">
+<summary>When would you use a composite matcher like anyOf(is(200), is(304)) instead of an exact status code?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">When an endpoint's success code is genuinely variable — a caching layer correctly returning 304 instead of 200 — rather than an exact code being the wrong expectation.</div>
+</details>
+<details class="faq-item">
+<summary>What does .statusLine() check that .statusCode() alone doesn't?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The full status line including the human-readable reason phrase (like 'OK' or 'Not Found'), not just the numeric code — rarely necessary, but occasionally relevant when the reason phrase itself matters.</div>
+</details>
+<details class="faq-item">
+<summary>Why extract a status code via response.getStatusCode() instead of asserting it directly sometimes?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">When you need it for branching logic before deciding what to assert — like handling a 429 differently from a genuine failure — this is extraction, not validation, from the same distinction covered in the JsonPath chapter.</div>
+</details>
+<details class="faq-item">
+<summary>Should every test explicitly test a realistic failure status code, not just success?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Yes — testing only the happy path never verifies the API's error handling actually works; realistic failure paths deserve their own explicit tests.</div>
+</details>
+</div>
+</article>
+</body></html>

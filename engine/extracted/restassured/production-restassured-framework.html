@@ -1,0 +1,302 @@
+<!doctype html>
+<html><head>
+<title>Building a Production-Style RestAssured Framework: The Complete Walkthrough</title>
+<meta name="description" content="A capstone walkthrough building a complete, realistic e-commerce API automation framework with RestAssured and Java — assembling every concept from this course into one working project." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/production-restassured-framework.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Building the Framework</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> Every previous chapter — this is the capstone that assembles them all.</p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>This chapter doesn't introduce new APIs. It's a complete, progressive walkthrough of a small but genuinely production-style framework, built for a realistic e-commerce application — browsing products, placing an order, processing payment, checking order history — showing exactly how every earlier chapter's piece fits into one working whole.</p>
+
+<h2 id="why-it-s-important">Why It's Important</h2>
+<p>Knowing each individual technique — specs, builders, token management, parallel-safe design — is different from knowing how they compose into a single coherent project. This capstone is the missing piece: seeing the whole shape at once, built up one deliberate step at a time.</p>
+
+<h2 id="the-domain">The Domain</h2>
+<p>An e-commerce API: user registration and login, product browsing, order creation, payment processing, and order history. Enough surface area to exercise authentication, CRUD chaining, negative testing, and framework architecture meaningfully, without being an unwieldy example.</p>
+
+<h2 id="step-1-project-setup">Step 1 — Project Setup</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>mvn archetype:generate -DgroupId=com.example.ecommerce -DartifactId=ecommerce-api-tests</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>&lt;!-- pom.xml --&gt;
+&lt;dependencies&gt;
+    &lt;dependency&gt;
+        &lt;groupId&gt;io.rest-assured&lt;/groupId&gt;
+        &lt;artifactId&gt;rest-assured&lt;/artifactId&gt;
+        &lt;version&gt;5.5.0&lt;/version&gt;
+        &lt;scope&gt;test&lt;/scope&gt;
+    &lt;/dependency&gt;
+    &lt;dependency&gt;
+        &lt;groupId&gt;org.junit.jupiter&lt;/groupId&gt;
+        &lt;artifactId&gt;junit-jupiter&lt;/artifactId&gt;
+        &lt;version&gt;5.11.0&lt;/version&gt;
+        &lt;scope&gt;test&lt;/scope&gt;
+    &lt;/dependency&gt;
+    &lt;dependency&gt;
+        &lt;groupId&gt;io.rest-assured&lt;/groupId&gt;
+        &lt;artifactId&gt;json-schema-validator&lt;/artifactId&gt;
+        &lt;version&gt;5.5.0&lt;/version&gt;
+        &lt;scope&gt;test&lt;/scope&gt;
+    &lt;/dependency&gt;
+&lt;/dependencies&gt;</code></pre>
+
+<h2 id="step-2-project-structure">Step 2 — Project Structure</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>src/
+├── main/java/com/example/ecommerce/
+│   ├── config/EnvConfig.java
+│   ├── clients/{UserClient, ProductClient, OrderClient, PaymentClient}.java
+│   ├── models/{User, Product, Order, Payment}.java
+│   ├── specs/SpecFactory.java
+│   ├── auth/TokenManager.java
+│   └── constants/ApiConstants.java
+└── test/java/com/example/ecommerce/
+    ├── tests/{auth, products, orders, payments}/
+    ├── data/{UserBuilder, OrderBuilder}.java
+    └── assertions/ErrorAssertions.java</code></pre>
+<p>Exactly the structure from Chapter 13 — every folder maps to a concern, populated with real files for this specific application.</p>
+
+<h2 id="step-3-configuration">Step 3 — Configuration</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// config/EnvConfig.java
+public class EnvConfig {
+    public static String baseUrl() {
+        return System.getenv().getOrDefault("API_BASE_URL", "https://ecommerce-qa.example.com");
+    }
+}</code></pre>
+
+<h2 id="step-4-models">Step 4 — Models</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// models/User.java
+public class User {
+    private String name;
+    private String email;
+    private String password;
+    // no-arg constructor, parameterized constructor, getters/setters
+}
+
+// models/Order.java
+public class Order {
+    private String id;
+    private String status;
+    private List&lt;LineItem&gt; items;
+    private Double total;
+}</code></pre>
+
+<h2 id="step-5-authentication-amp-token-management">Step 5 — Authentication &amp; Token Management</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// auth/TokenManager.java
+public class TokenManager {
+    private static volatile String cachedToken;
+    private static long expiresAtMillis;
+
+    public static synchronized String getToken() {
+        if (cachedToken == null || System.currentTimeMillis() &gt; expiresAtMillis) {
+            Response response = given()
+                .baseUri(EnvConfig.baseUrl())
+                .body(Map.of("email", System.getenv("TEST_USER_EMAIL"),
+                              "password", System.getenv("TEST_USER_PASSWORD")))
+                .when().post("/auth/login");
+            cachedToken = response.jsonPath().getString("token");
+            expiresAtMillis = System.currentTimeMillis() + 3_600_000 - 5000;
+        }
+        return cachedToken;
+    }
+}</code></pre>
+<p>The expiration-aware, thread-safe token manager from Chapter 6 and Chapter 14, given its permanent home.</p>
+
+<h2 id="step-6-specifications">Step 6 — Specifications</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// specs/SpecFactory.java
+public class SpecFactory {
+    public static RequestSpecification authenticated() {
+        return new RequestSpecBuilder()
+            .setBaseUri(EnvConfig.baseUrl())
+            .setContentType(ContentType.JSON)
+            .addHeader("Authorization", "Bearer " + TokenManager.getToken())
+            .build();
+    }
+    public static RequestSpecification unauthenticated() {
+        return new RequestSpecBuilder()
+            .setBaseUri(EnvConfig.baseUrl())
+            .setContentType(ContentType.JSON)
+            .build();
+    }
+}</code></pre>
+
+<h2 id="step-7-api-clients">Step 7 — API Clients</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// clients/OrderClient.java
+public class OrderClient {
+    private final RequestSpecification spec;
+    public OrderClient(RequestSpecification spec) { this.spec = spec; }
+
+    public Response create(Order order) {
+        return given().spec(spec).body(order).when().post("/orders");
+    }
+    public Response getById(String id) {
+        return given().spec(spec).pathParam("id", id).when().get("/orders/{id}");
+    }
+    public Response cancel(String id) {
+        return given().spec(spec).pathParam("id", id).when().put("/orders/{id}/cancel");
+    }
+}
+
+// clients/PaymentClient.java
+public class PaymentClient {
+    private final RequestSpecification spec;
+    public PaymentClient(RequestSpecification spec) { this.spec = spec; }
+
+    public Response process(String orderId, Payment payment) {
+        return given().spec(spec).pathParam("orderId", orderId).body(payment)
+            .when().post("/orders/{orderId}/payment");
+    }
+}</code></pre>
+
+<h2 id="step-8-test-data-builders">Step 8 — Test Data Builders</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// data/OrderBuilder.java
+public class OrderBuilder {
+    private List&lt;LineItem&gt; items = List.of(new LineItem("Default Product", 1));
+
+    public static OrderBuilder anOrder() { return new OrderBuilder(); }
+    public OrderBuilder withItems(List&lt;LineItem&gt; items) { this.items = items; return this; }
+    public Order build() { return new Order(items); }
+}</code></pre>
+
+<h2 id="step-9-a-positive-test-the-full-order-to-payment-chain">Step 9 — A Positive Test: The Full Order-to-Payment Chain</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// tests/orders/OrderCheckoutTest.java
+@Test
+void completeCheckoutFlowSucceeds() {
+    OrderClient orderClient = new OrderClient(SpecFactory.authenticated());
+    PaymentClient paymentClient = new PaymentClient(SpecFactory.authenticated());
+
+    // Create — extract — verify (Chapter 7's full CRUD chain pattern)
+    String orderId = orderClient.create(OrderBuilder.anOrder().build())
+        .then().statusCode(201).extract().path("id");
+
+    orderClient.getById(orderId).then().statusCode(200).body("status", equalTo("pending"));
+
+    // Process payment for this order
+    Payment payment = new Payment("4242424242424242", "12/28", "123");
+    paymentClient.process(orderId, payment)
+        .then().statusCode(200).body("status", equalTo("succeeded"));
+
+    // Verify the order status updated as a result
+    orderClient.getById(orderId).then().statusCode(200).body("status", equalTo("confirmed"));
+}</code></pre>
+<p>Every piece traces back to a specific earlier chapter: the client layer (Chapter 13) built on a shared spec (Chapter 9) using cached authentication (Chapter 6), a data builder (Chapter 10), and a chained create→verify→pay→verify sequence (Chapter 7) with thorough response validation throughout (Chapter 4).</p>
+
+<h2 id="step-10-negative-tests-the-failure-modes-that-matter">Step 10 — Negative Tests: The Failure Modes That Matter</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// tests/orders/OrderNegativeTest.java
+@Test
+void creatingAnOrderWithNoItemsIsRejected() {
+    OrderClient client = new OrderClient(SpecFactory.authenticated());
+    Order emptyOrder = OrderBuilder.anOrder().withItems(List.of()).build();
+
+    client.create(emptyOrder).then().statusCode(400)
+        .body("code", equalTo("VALIDATION_ERROR"));
+}
+
+@Test
+void payingForAnotherUsersOrderIsForbidden() {
+    OrderClient ownerClient = new OrderClient(SpecFactory.authenticated());
+    String orderId = ownerClient.create(OrderBuilder.anOrder().build())
+        .then().statusCode(201).extract().path("id");
+
+    PaymentClient otherUserPaymentClient = new PaymentClient(
+        SpecFactory.forRole("otherUser")); // Chapter 6's role-scoped spec
+    otherUserPaymentClient.process(orderId, new Payment("4242424242424242", "12/28", "123"))
+        .then().statusCode(403);
+}
+
+@Test
+void invalidCardNumberIsRejected() {
+    OrderClient orderClient = new OrderClient(SpecFactory.authenticated());
+    PaymentClient paymentClient = new PaymentClient(SpecFactory.authenticated());
+    String orderId = orderClient.create(OrderBuilder.anOrder().build())
+        .then().extract().path("id");
+
+    paymentClient.process(orderId, new Payment("0000000000000000", "12/28", "123"))
+        .then().statusCode(422).body("code", equalTo("PAYMENT_DECLINED"));
+}</code></pre>
+<p>Straight from Chapter 12's principle: for a real checkout flow, negative scenarios (empty order, unauthorized payment attempt, declined card) meaningfully outnumber the single happy path — and the unauthorized-payment test specifically exercises the exact kind of security gap that's invisible to happy-path testing alone.</p>
+
+<h2 id="step-11-schema-validation-across-the-api">Step 11 — Schema Validation Across the API</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@ParameterizedTest
+@MethodSource("endpointsWithSchemas")
+void everyResponseMatchesItsSchema(String endpoint, String schema) {
+    given().spec(SpecFactory.authenticated()).when().get(endpoint)
+        .then().statusCode(200).body(matchesJsonSchemaInClasspath(schema));
+}
+
+static Stream&lt;Arguments&gt; endpointsWithSchemas() {
+    return Stream.of(
+        Arguments.of("/products", "product-list-schema.json"),
+        Arguments.of("/orders", "order-list-schema.json")
+    );
+}</code></pre>
+<p>The Chapter 11 contract-testing pattern, sweeping schema validation across every major endpoint as its own fast, broad check.</p>
+
+<h2 id="step-12-ci-cd">Step 12 — CI/CD</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># .github/workflows/api-tests.yml
+name: E-Commerce API Tests
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { java-version: '21', distribution: 'temurin', cache: 'maven' }
+      - run: mvn -B test
+        env:
+          API_BASE_URL: ${{ secrets.QA_BASE_URL }}
+          TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
+          TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with: { name: surefire-reports, path: target/surefire-reports/ }</code></pre>
+
+<h2 id="what-makes-this-production-style-not-just-a-working-script">What Makes This "Production-Style," Not Just a Working Script</h2>
+<ul>
+  <li><strong>No hardcoded URLs or credentials anywhere</strong> — everything environment-driven, per Chapters 2 and 10.</li>
+  <li><strong>Authentication centralized in one thread-safe manager</strong> — a scheme change touches one file, not every test (Chapter 13's separation-of-concerns payoff, made concrete).</li>
+  <li><strong>Negative tests genuinely outnumber positive ones</strong> for the checkout flow — including a security-relevant authorization test, not just format validation.</li>
+  <li><strong>Schema validation runs broadly across the API</strong> as a fast contract-regression check, separate from deep functional assertions.</li>
+  <li><strong>The suite is parallel-safe</strong> — no static mutable state, dynamically unique test data throughout.</li>
+  <li><strong>CI failure produces a diagnosable artifact</strong>, not just a red X.</li>
+</ul>
+
+<h2 id="common-mistakes-at-this-scale">Common Mistakes at This Scale</h2>
+<ul>
+  <li><strong>Skipping the client/spec layers</strong> "since the project is still small" — this is exactly the debt that makes a growing suite painful; introduce it from the start, it costs little.</li>
+  <li><strong>Testing payment success without testing payment failure</strong> — a declined card, an invalid card number, and an unauthorized payment attempt are all genuinely distinct, each worth its own test.</li>
+  <li><strong>Letting test-created orders accumulate</strong> in a shared QA environment without any cleanup strategy (Chapter 10's layered cleanup approach).</li>
+</ul>
+
+<h2 id="where-to-go-from-here">Where to Go From Here</h2>
+<p>This framework is intentionally small enough to hold in your head — a real production suite grows the same structure outward: more clients, more models, more negative scenarios per endpoint, a dedicated contract-testing CI stage running schema validation separately from the full functional suite, and probably Allure reporting once the team's reporting needs outgrow raw JUnit XML. None of that requires new concepts beyond this course — it's the same pieces, more of them, composed the same way.</p>
+
+<h2 id="summary">Summary</h2>
+<p>A production-style RestAssured framework is not a single advanced technique — it's the disciplined composition of everything covered in this course: REST fundamentals and request construction for reliable interaction, response validation and JsonPath for thorough verification, authentication and token management for secure and efficient access, API chaining for realistic workflows, test data management for safe and repeatable data, negative testing for genuine coverage of what actually goes wrong, layered architecture for maintainability at scale, and parallel-safe CI/CD for fast, automated, trustworthy feedback on every push. Every piece traces back to a specific earlier chapter; the skill this capstone teaches is fitting them together.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>What separates a "framework" from a folder of individual RestAssured test classes?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A framework has consistent, reusable structure — shared specs instead of per-test setup duplication, a client layer instead of repeated inline request construction, centralized and thread-safe authentication instead of ad-hoc token handling scattered across tests, and environment-driven configuration instead of hardcoded values. A folder of individual test classes might each work in isolation, but every new test re-solves problems (authentication, request setup, data generation) that a framework solves once and makes available everywhere — which is what actually lets a test suite scale to hundreds of tests, run safely in parallel, and survive real infrastructure changes without becoming unmaintainable.</div>
+</details>
+<details class="faq-item">
+<summary>What actually separates a 'framework' from a folder of individual RestAssured test classes?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Consistent, reusable structure — shared specs instead of per-test setup duplication, a client layer instead of repeated inline requests, centralized thread-safe authentication instead of ad-hoc token handling scattered across tests.</div>
+</details>
+<details class="faq-item">
+<summary>Why does the capstone's checkout flow have more negative tests than positive ones?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Directly applying Chapter 12's principle — there are genuinely more distinct ways for a checkout to go wrong (empty order, unauthorized payment, declined card) than there are ways for it to go right, each deserving its own explicit test.</div>
+</details>
+<details class="faq-item">
+<summary>Why does the unauthorized-payment test in the capstone matter more than it might first appear?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It exercises exactly the kind of security gap that's invisible to happy-path testing alone — a missing permission check would never surface if the suite only ever tested the legitimate order owner's flow.</div>
+</details>
+<details class="faq-item">
+<summary>What would 'growing' this capstone framework for a real, larger product typically involve?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">More clients, more models, more negative scenarios per endpoint, a dedicated contract-testing CI stage, and probably richer reporting (Allure) once the team's needs outgrow JUnit's default XML — the same pieces, more of them, composed the same way.</div>
+</details>
+</div>
+</article>
+</body></html>

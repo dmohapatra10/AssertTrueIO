@@ -1,0 +1,182 @@
+<!doctype html>
+<html><head>
+<title>Debugging with Observability Data: Standing Data vs. One-Off Evidence Gathering</title>
+<meta name="description" content="How this chapter&#x27;s continuously-collected traces let an investigation start from existing history, rather than Chapter 8&#x27;s ad-hoc evidence gathering for one specific failure." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/debugging-with-observability-data.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Debugging with Observability Data</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="dashboards-for-qa-automation.html">Dashboards for QA Automation</a></p>
+<article class="content">
+<h2 id="what-is-this-and-how-it-differs-from-chapter-8">What is this, and how it differs from Chapter 8</h2>
+<p>Chapter 8's Root Cause Analysis gathered evidence AD HOC, for ONE specific failure — capturing a fresh screenshot, pulling logs for that one timestamp. This page is about a genuinely different starting point: the evidence already exists, continuously, because of everything this chapter's earlier pages built. Debugging here means QUERYING standing history, not gathering fresh evidence.</p>
+
+<h2 id="a-genuine-investigation-starting-from-existing-history">A Genuine Investigation Starting From Existing History</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A team notices the "unexplained REPEATS" flag from THIS
+chapter's DASHBOARD (2 runs, past 7 DAYS). Chapter 8's
+APPROACH would gather FRESH evidence for ONE of THESE runs.
+THIS page's approach QUERIES what's ALREADY there, ACROSS
+BOTH:
+
+def investigate_repeat_pattern(traces_db):
+    flagged_runs = traces_db.query(
+        "is_repeat_of_previous_step = true"
+    )
+    # BOTH runs, ALREADY captured, with FULL reasoning text,
+    # per this CHAPTER'S own Structured Logging and TRACING
+    # pages — NOTHING new needs to be GATHERED
+    for run in flagged_runs:
+        print(f"Run {run['run_id']}, step {run['step']}: "
+              f"{run['reasoning']}")
+
+# OUTPUT, from data that ALREADY existed:
+# Run run-88213, step 4: "The previous click may not have
+#   registered; attempting again."
+# Run run-91847, step 7: "The previous click may not have
+#   registered; attempting again."</code></pre>
+
+<h2 id="the-genuine-finding-this-standing-data-reveals">The Genuine Finding This Standing Data Reveals</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>BOTH flagged RUNS show the IDENTICAL reasoning TEXT — a
+GENUINE, real PATTERN, immediately VISIBLE because the DATA
+was ALREADY there to COMPARE. Chapter 8's AD HOC approach,
+investigating ONE failure at a TIME, would have NEEDED to
+independently GATHER and then MANUALLY compare TWO separate
+investigations to NOTICE this SAME pattern — with STANDING,
+QUERYABLE data, the COMPARISON is IMMEDIATE.</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why does this page's investigation start with a database QUERY rather than Chapter 8's own opening step — reading a fresh stack trace? Chapter 8 was designed for a situation where the evidence didn't yet exist and had to be gathered specifically for that one failure. This chapter's entire earlier content — structured logging, tracing, monitoring — exists specifically to ensure the evidence ALREADY exists, continuously, before any specific investigation begins. The genuinely different starting point isn't a stylistic choice; it's a direct consequence of the infrastructure this chapter built.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Treating every debugging session as needing Chapter 8's full ad-hoc evidence-gathering process, even when this chapter's standing observability data already contains everything needed. Querying existing history is genuinely faster and can reveal cross-run patterns Chapter 8's single-failure focus would miss entirely.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>When observability data is available, a genuinely useful first debugging step is checking whether the SAME pattern has occurred before, across the full standing history — not just investigating the current instance in isolation. This is often what reveals whether something is a one-off or a genuine, recurring issue.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Query standing observability data as a debugging starting point when it's available, rather than defaulting to Chapter 8's ad-hoc evidence gathering.</li>
+  <li>Look for cross-run patterns in existing history, since standing data makes this kind of comparison immediate rather than requiring separate, manual investigations.</li>
+  <li>Reserve Chapter 8's full evidence-gathering process for situations where standing data genuinely doesn't cover what's needed.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Debugging with standing observability data starts from queryable, already-captured history, genuinely different from Chapter 8's ad-hoc, per-failure evidence gathering.</li>
+  <li>This difference is a direct consequence of this chapter's earlier infrastructure — structured logging and tracing exist specifically to make evidence already available.</li>
+  <li>Standing data makes cross-run pattern comparison immediate, revealing findings Chapter 8's single-failure focus would need multiple separate investigations to notice.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Write a query (following this page's <code>investigate_repeat_pattern</code> pattern) that would search standing trace data for runs where <code>step_count_zscore</code> exceeded 2 (this chapter's own statistical outlier threshold from the Alerting page) and returned their <code>initial_plan</code> field — describing what pattern across multiple such runs might be worth investigating.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A teammate says "we already have Chapter 8's failure-analysis techniques, why does this chapter need its own debugging page?" How would you explain the genuine difference?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Chapter 8's techniques ASSUME evidence needs to be GATHERED for ONE specific failure; THIS page's technique ASSUMES evidence is ALREADY standing, CONTINUOUSLY collected — a GENUINELY different starting POINT that changes HOW an investigation PROCEEDS, not just WHAT tools it USES.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Chapter 8's genuine STARTING point:
+"A failure JUST happened — I need to GATHER a stack TRACE, a
+  SCREENSHOT, server LOGS, SPECIFICALLY for THIS instance,
+  RIGHT NOW" — AD HOC, per-FAILURE evidence COLLECTION.
+
+THIS page's genuinely DIFFERENT starting point:
+"THIS chapter's EARLIER pages ALREADY ensured this DATA
+  exists, CONTINUOUSLY, for EVERY run — I can QUERY across
+  MANY runs IMMEDIATELY, WITHOUT gathering ANYTHING NEW."</code></pre>
+<p>These AREN'T competing APPROACHES to the SAME problem — THEY'RE suited to GENUINELY different SITUATIONS (evidence NOT yet GATHERED vs. evidence ALREADY standing), and a MATURE practice USES whichever ACTUALLY fits the SITUATION at HAND, EXACTLY why THIS page EXISTS as ITS own, distinct TECHNIQUE.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page argue standing data makes CROSS-run pattern COMPARISON "IMMEDIATE," rather than JUST somewhat FASTER than Chapter 8's approach?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Chapter 8's APPROACH would REQUIRE separately GATHERING and then MANUALLY comparing evidence FROM multiple INDEPENDENT investigations to NOTICE a cross-RUN pattern — STANDING, structured DATA makes this a SINGLE query, GENUINELY eliminating an ENTIRE, separate step, not JUST speeding IT up.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What Chapter 8's APPROACH would REQUIRE to notice THIS SAME
+pattern:
+INVESTIGATE run-88213 FULLY (gather TRACE, screenshot, LOGS).
+  SEPARATELY investigate run-91847 FULLY. THEN manually
+  COMPARE the TWO investigations' findings to NOTICE they
+  share IDENTICAL reasoning TEXT — MULTIPLE, SEQUENTIAL steps.
+
+What THIS page's approach ACHIEVES in ONE step:
+A SINGLE database QUERY (is_repeat_of_previous_step = TRUE)
+  returns BOTH runs SIMULTANEOUSLY, with THEIR reasoning
+  TEXT ALREADY available for DIRECT comparison — the PATTERN
+  is VISIBLE IMMEDIATELY, in ONE step, not AFTER multiple
+  SEPARATE investigations.</code></pre>
+<p>This is a GENUINELY qualitative, not JUST quantitative, DIFFERENCE — it's NOT that STANDING data makes the SAME multi-step PROCESS faster; it COLLAPSES what WOULD be SEVERAL separate STEPS into ONE, IMMEDIATE query, EXACTLY why "IMMEDIATE" is the ACCURATE word HERE, not MERELY "faster."</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why THIS page's approach GENUINELY depends on EVERY earlier page in THIS chapter having ALREADY been implemented, RATHER than being a STANDALONE technique.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>THE query in THIS page's EXAMPLE ONLY works BECAUSE the is_repeat_of_previous_step FIELD (Structured LOGGING) and FULL reasoning TEXT (Tracing) were ALREADY being CAPTURED, CONTINUOUSLY, for EVERY run — WITHOUT that PRIOR infrastructure, THERE would be NOTHING to QUERY.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What THIS page's investigate_repeat_pattern QUERY GENUINELY
+relies ON:
+traces_db.query("is_repeat_of_previous_step = TRUE") ONLY
+  WORKS because THIS specific FIELD was ALREADY being
+  COMPUTED and STORED at LOGGING time, per THIS chapter's
+  OWN Structured Logging PAGE — WITHOUT that PRIOR design
+  CHOICE, this FIELD simply WOULDN'T exist to QUERY.
+
+What this REVEALS about THIS page's TRUE dependency:
+THIS page ISN'T a STANDALONE debugging TECHNIQUE — it's the
+  PAYOFF of EVERY earlier page's INFRASTRUCTURE investment
+  (structured LOGGING, continuous TRACING, system-HEALTH
+  monitoring) FINALLY being PUT to USE for a REAL,
+  practical INVESTIGATION.</code></pre>
+<p>This is EXACTLY why THIS page comes LAST among the DATA-collection pages in THIS chapter, RIGHT before the CLOSING best-PRACTICES page — it GENUINELY depends on the CHAPTER'S entire EARLIER arc, demonstrating WHY that EARLIER infrastructure investment GENUINELY pays OFF in practice.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might it STILL be necessary to REACH for Chapter 8's AD HOC techniques EVEN after THIS chapter's OBSERVABILITY infrastructure is FULLY in place?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>STANDING data CAPTURES what THIS chapter's OWN design ANTICIPATED as WORTH recording — a GENUINELY novel investigation QUESTION, not COVERED by ANY existing structured FIELD, would STILL require Chapter 8's AD HOC, fresh-evidence-GATHERING approach.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What STANDING data GENUINELY can'T answer:
+IF a team NEEDS to investigate SOMETHING this CHAPTER'S
+  structured LOGGING never anticipated CAPTURING (SAY, the
+  EXACT DOM structure at a SPECIFIC moment, WHICH Chapter
+  8's screenshot-CAPTURE technique provides but THIS
+  chapter's STRUCTURED fields DON'T), NO amount of QUERYING
+  existing DATA can PROVIDE that — it SIMPLY wasn't
+  CAPTURED.
+
+Why Chapter 8's AD HOC approach REMAINS necessary FOR this
+CASE:
+GATHERING FRESH, SPECIFIC evidence (a NEW screenshot, a NEW
+  trace) REMAINS the ONLY way to ANSWER a QUESTION standing
+  data WASN'T designed to COVER — EXACTLY the SAME
+  "documentation is NEVER complete" honest LIMITATION THIS
+  course has NAMED repeatedly (Chapter 10's OWN spec-driven
+  VS. exploratory DISTINCTION is a DIRECT parallel).</code></pre>
+<p>This is a GENUINELY important, HONEST limitation WORTH naming — THIS page's approach is POWERFUL for QUESTIONS the STANDING data was DESIGNED to answer, but Chapter 8's AD HOC, fresh-evidence approach REMAINS necessary for GENUINELY novel questions NO existing structured FIELD anticipated, EXACTLY mirroring Chapter 10's OWN spec-driven-VS-exploratory COMPLEMENTARY relationship.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you EXTEND this page's approach to COMBINE standing DATA with Chapter 8's AD HOC investigation, RATHER than treating THEM as fully SEPARATE alternatives?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A GENUINELY powerful COMBINED workflow uses STANDING data FIRST to IDENTIFY which RUNS are WORTH deeper investigation, THEN applies Chapter 8's AD HOC techniques SPECIFICALLY to THOSE identified runs, RATHER than choosing ONE approach EXCLUSIVELY.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def investigate_with_combined_approach(traces_db, run_id):
+    # STEP 1: use STANDING data to CONFIRM this is PART of a
+    # genuine, RECURRING pattern (THIS page's approach)
+    similar_runs = traces_db.query(
+        f"reasoning LIKE '%previous click may not have registered%'"
+    )
+    if len(similar_runs) &gt;= 2:
+        print(f"Confirmed recurring pattern across "
+              f"{len(similar_runs)} runs — worth deeper "
+              f"investigation.")
+
+        # STEP 2: NOW apply Chapter 8's AD HOC, fresh-evidence
+        # gathering to ONE representative RUN, to understand
+        # the ROOT CAUSE behind the CONFIRMED pattern
+        return gather_fresh_evidence_for_run(run_id)  # Chapter
+            # 8's OWN screenshot, trace, and LOG gathering
+    return "Isolated instance — standing data alone may suffice."</code></pre>
+<p>This GENUINELY combines BOTH chapters' STRENGTHS — STANDING data (THIS page) EFFICIENTLY confirms WHETHER something is a GENUINE, recurring PATTERN worth DEEPER attention, WHILE Chapter 8's AD HOC techniques PROVIDE the DEEPER, root-CAUSE evidence STANDING data alone WASN'T designed to CAPTURE — EXACTLY the KIND of complementary, NOT competing, relationship THIS chapter's EARLIER pages have CONSISTENTLY argued for BETWEEN new and EXISTING techniques.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

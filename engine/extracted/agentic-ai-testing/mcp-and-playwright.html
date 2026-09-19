@@ -1,0 +1,203 @@
+<!doctype html>
+<html><head>
+<title>MCP + Playwright: Exposing Chapter 5&#x27;s Browser Tools Through MCP</title>
+<meta name="description" content="Wrapping Chapter 5&#x27;s find_and_click and related capabilities as genuine MCP tools, and the one real complication browser automation adds that the earlier examples didn&#x27;t have." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/mcp-and-playwright.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>MCP + Playwright</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="building-a-qa-mcp-server.html">Building a QA MCP Server</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Chapter 5's browser tools were genuinely reliable — <code>find_and_click</code>'s multi-strategy fallback, <code>get_page_summary</code>'s trimmed structure. This page wraps them as real MCP tools, and confronts one genuine complication this chapter's earlier, simpler examples didn't have: a live browser page that needs to persist across multiple tool calls.</p>
+
+<h2 id="the-genuine-complication-shared-persistent-browser-state">The Genuine Complication — Shared, Persistent Browser State</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Earlier tools in this chapter (get_page_title, check_status_code)
+were STATELESS — each call was independent, needing nothing
+from a PREVIOUS call. Browser tools are GENUINELY different: a
+click needs to happen on the SAME page a PREVIOUS navigation
+opened, not a fresh page each time.
+
+def get_browser_page():
+    # A module-level Playwright instance, GENUINELY shared
+    # across tool calls within this server's lifetime — the
+    # SAME real complication Chapter 3's QAAgent handled by
+    # keeping ONE page object alive across its WHOLE run loop
+    global _shared_page
+    if _shared_page is None:
+        from playwright.sync_api import sync_playwright
+        playwright = sync_playwright().start()
+        browser = playwright.chromium.launch()
+        _shared_page = browser.new_page()
+    return _shared_page</code></pre>
+
+<h2 id="chapter-5-s-tools-wrapped-as-mcp">Chapter 5's Tools, Wrapped as MCP</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@mcp.tool()
+def navigate_to(url: str) -> str:
+    """Navigates the shared browser page to the given URL."""
+    page = get_browser_page()
+    page.goto(url)
+    return f"Navigated to {url}"
+
+@mcp.tool()
+def find_and_click(role: str, name: str) -> str:
+    """Clicks an element matching the given ARIA role and
+    accessible name, using Chapter 5's multi-strategy fallback
+    (role+name, then text, then aria-label)."""
+    page = get_browser_page()
+    # ... reuses Chapter 5's ACTUAL find_and_click implementation ...
+    return find_and_click_impl(page, role, name)
+
+@mcp.resource("shopeasy://browser/current-page-summary")
+def get_current_page_summary() -> str:
+    """A trimmed summary of the CURRENT browser page's
+    interactive elements, using Chapter 5's own get_page_summary
+    approach."""
+    page = get_browser_page()
+    return get_page_summary_impl(page)</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why does this page make <code>get_current_page_summary</code> a resource rather than a tool, even though it involves real computation (trimming the page structure)? Applying the previous page's "ten times in a row" test: calling it repeatedly doesn't change anything about the page — it's a pure, read-only reflection of current state, genuinely more like a resource than an action. The trimming computation is real but cheap, and the result is deterministic given the current page state — it fits the resource category's spirit even though it's not simply reading a static file.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Treating each browser-related MCP tool as independent and stateless, the way earlier, simpler tools in this chapter were. Browser automation genuinely needs shared, persistent state across calls — a navigate, then a click, then a read all need to operate on the SAME live page, not a fresh one each time.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>Reusing Chapter 5's actual, already-tested implementation functions (rather than rewriting the logic inside the MCP tool wrappers) is genuinely the right approach — the MCP layer should be a thin wrapper exposing existing, proven capabilities, not a place to reimplement browser automation logic from scratch.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Maintain shared, persistent browser state across tool calls within a server's lifetime, rather than treating each call as independent.</li>
+  <li>Reuse existing, proven implementation logic from earlier chapters as the actual work behind MCP tool wrappers.</li>
+  <li>Apply the tool-vs-resource test from the previous page even to browser capabilities that involve real, if cheap, computation.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Browser automation tools genuinely need shared, persistent state across MCP calls, unlike the simpler, stateless tools earlier in this chapter.</li>
+  <li>MCP tool wrappers should reuse Chapter 5's actual, proven implementation logic, not reimplement browser automation from scratch.</li>
+  <li>A page summary is genuinely closer to a resource than a tool, despite involving real computation, since repeated calls don't change anything and results reflect current, read-only state.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Add a <code>fill_field</code> MCP tool to this page's server, following the same pattern as <code>find_and_click</code>, and explain why it also needs to use the shared <code>get_browser_page()</code> function rather than creating its own independent browser instance.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A teammate writes each browser tool to launch its own fresh browser instance, arguing this keeps each tool "cleanly independent." What real problem would this create?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A fresh browser per tool call means <code>navigate_to</code> and a SUBSEQUENT <code>find_and_click</code> would operate on TWO ENTIRELY DIFFERENT browser instances — the click would have NOTHING to click, since the PAGE it needs to interact with was NEVER actually navigated in ITS OWN, separate browser.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What "EACH tool launches its OWN browser" would GENUINELY
+break:
+navigate_to("https://shopeasy.example.com/login") opens a
+  FRESH browser, navigates it, then IMMEDIATELY closes or
+  ABANDONS it. find_and_click(role="button", name="Log In")
+  THEN launches a COMPLETELY DIFFERENT, BLANK fresh browser —
+  there's NO login PAGE loaded in THIS new instance AT ALL,
+  and the CLICK would FAIL immediately.
+
+Why SHARED state (THIS page's actual approach) is GENUINELY
+necessary:
+Browser AUTOMATION is INHERENTLY STATEFUL — a SEQUENCE of
+  actions needs to happen on the SAME live PAGE, exactly WHY
+  this page's get_browser_page() MAINTAINS one SHARED instance
+  ACROSS calls, rather than TREATING each tool as GENUINELY
+  independent.</code></pre>
+<p>The teammate's INSTINCT toward INDEPENDENCE is REASONABLE in GENERAL (per the EARLIER, STATELESS tools in this CHAPTER), but browser AUTOMATION SPECIFICALLY breaks that ASSUMPTION — exactly WHY this page CALLS OUT this COMPLICATION explicitly, rather than ASSUMING it CARRIES OVER UNCHANGED from EARLIER examples.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page connect its shared-browser-state solution back to Chapter 3's QAAgent, rather than treating it as a new problem unique to MCP?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Chapter 3's <code>QAAgent</code> ALREADY solved EXACTLY this SAME problem — keeping ONE page OBJECT alive ACROSS its ENTIRE run LOOP, rather than CREATING a fresh PAGE for EACH action — this page's SOLUTION is the SAME underlying APPROACH, just APPLIED at the MCP SERVER level instead of WITHIN a SINGLE agent's OWN code.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Chapter 3's ORIGINAL solution (WITHIN one agent):
+QAAgent.run() creates ONE page OBJECT at the START, and EVERY
+  SUBSEQUENT action WITHIN that SAME run OPERATES on that SAME,
+  SHARED page — EXACTLY the persistence THIS page's browser
+  tools ALSO need.
+
+THIS page's solution (AT the MCP SERVER level):
+get_browser_page() MAINTAINS the SAME kind of SHARED, PERSISTENT
+  page OBJECT — just SCOPED to the SERVER'S OWN lifetime rather
+  than a SINGLE agent RUN'S lifetime, SOLVING the IDENTICAL
+  UNDERLYING problem (SEQUENTIAL actions NEED a SHARED, LIVE
+  page) with the SAME CONCEPTUAL approach.</code></pre>
+<p>This is EXACTLY why this page FRAMES the complication as FAMILIAR rather than NOVEL — the UNDERLYING problem (STATEFUL browser AUTOMATION needs PERSISTENT state ACROSS actions) is IDENTICAL to WHAT Chapter 3 ALREADY solved; MCP just MOVES WHERE that STATE genuinely LIVES, not WHETHER it's NEEDED at ALL.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why get_current_page_summary is classified as a resource DESPITE involving real computation (trimming page structure), connecting to the previous page's tool-vs-resource test.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Applying the PREVIOUS page's "TEN times in a ROW" test DIRECTLY: calling THIS repeatedly doesn't CHANGE anything about the PAGE itself, and the RESULT is a DETERMINISTIC reflection of CURRENT state — GENUINELY closer to a READ than an ACTION, even though it involves SOME real COMPUTATION.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Applying the test DIRECTLY:
+"If I called get_current_page_summary TEN times in a ROW,
+  WOULD anything BAD happen?" — NO: EACH call would JUST
+  return the SAME (or an UPDATED, if the page GENUINELY
+  changed) SUMMARY, with NO side effects, NO REAL cost beyond
+  the TRIMMING computation ITSELF, and NO risk of CAUSING
+  something to GO wrong.
+
+Why "involves REAL computation" DOESN'T disqualify it from
+being a RESOURCE:
+The PREVIOUS page's DISTINCTION was NEVER about "does THIS
+  involve ANY computation AT ALL" — it was SPECIFICALLY about
+  "does REPEATED calling carry GENUINE cost or RISK." TRIMMING
+  a page's STRUCTURE is CHEAP, DETERMINISTIC, and SAFE to
+  REPEAT — fitting the RESOURCE category's SPIRIT EVEN though
+  it's NOT a SIMPLE, STATIC file READ like the EARLIER
+  return-POLICY example.</code></pre>
+<p>This is a GENUINELY useful, NUANCED application of the PREVIOUS page's test — the DISTINCTION isn't "ZERO computation vs. SOME computation," it's SPECIFICALLY about SAFETY and REPEATABILITY of REPEATED calls, and get_current_page_summary GENUINELY satisfies THAT standard DESPITE not being a TRIVIAL, STATIC lookup.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might reusing Chapter 5's ACTUAL implementation functions (rather than rewriting THEIR logic) be MORE important for browser tools SPECIFICALLY than for the SIMPLER tools EARLIER in this chapter?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Chapter 5's browser tools embed GENUINE, HARD-WON reliability lessons (the MULTI-strategy locator FALLBACK, specifically) — REWRITING this logic FROM SCRATCH risks LOSING those SPECIFIC, ALREADY-solved reliability PROBLEMS, a MUCH higher-STAKES mistake than REWRITING a SIMPLE status-code CHECK.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why the EARLIER, SIMPLER tools (get_page_title,
+check_status_code) carry LOWER rewrite RISK:
+These involve RELATIVELY straightforward LOGIC — a SIMPLE
+  HTTP request, a REGEX match. REWRITING them CORRECTLY is
+  GENUINELY easy, with LITTLE RISK of REINTRODUCING a
+  PREVIOUSLY-solved PROBLEM.
+
+Why REWRITING find_and_click's LOGIC would carry MUCH HIGHER
+risk:
+Chapter 5's ACTUAL implementation embeds a SPECIFIC, DELIBERATE
+  multi-STRATEGY fallback SEQUENCE (role+name, THEN text, THEN
+  aria-LABEL) — this EXISTS specifically BECAUSE the SIMPLER,
+  single-STRATEGY approach GENUINELY failed in PRACTICE.
+  REWRITING this from SCRATCH, WITHOUT that SAME hard-WON
+  context, RISKS ACCIDENTALLY REINTRODUCING the EXACT reliability
+  PROBLEMS Chapter 5 ALREADY solved.</code></pre>
+<p>This is a GENUINELY important, PRACTICAL point about REUSE specifically for BROWSER automation — the VALUE of REUSING Chapter 5's ACTUAL, PROVEN code is HIGHER here PRECISELY because THAT code embeds SPECIFIC, NON-obvious reliability LESSONS that would be GENUINELY easy to ACCIDENTALLY lose through a WELL-INTENTIONED but NAIVE rewrite.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you extend this page's shared-browser-state approach to handle MULTIPLE, CONCURRENT clients connecting to the SAME MCP server, each needing their OWN, INDEPENDENT browser session?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A GENUINELY correct solution needs to move FROM a SINGLE, GLOBAL shared PAGE to a PER-SESSION page, KEYED by SOME identifier that DISTINGUISHES which CLIENT'S request is CURRENTLY being HANDLED.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>_session_pages = {}  # keyed by session ID, NOT a single global
+
+def get_browser_page(session_id: str):
+    if session_id not in _session_pages:
+        from playwright.sync_api import sync_playwright
+        playwright = sync_playwright().start()
+        browser = playwright.chromium.launch()
+        _session_pages[session_id] = browser.new_page()
+    return _session_pages[session_id]
+
+@mcp.tool()
+def navigate_to(url: str, session_id: str) -&gt; str:
+    """Navigates THIS session's browser page to the given URL.
+    session_id should be a STABLE identifier for the CURRENT
+    client connection."""
+    page = get_browser_page(session_id)
+    page.goto(url)
+    return f"Navigated to {url}"</code></pre>
+<p>This directly ADDRESSES a GENUINE limitation of THIS page's ORIGINAL, SIMPLIFIED single-GLOBAL-page approach — WITHOUT session ISOLATION, TWO CONCURRENT clients would GENUINELY INTERFERE with EACH other's browser STATE, ONE client's navigate_to POTENTIALLY DISRUPTING ANOTHER'S in-PROGRESS task. MOVING to PER-session state PREVENTS this INTERFERENCE, a GENUINELY important CONSIDERATION for ANY MCP server EXPECTED to serve MULTIPLE, INDEPENDENT clients SIMULTANEOUSLY rather than JUST the SINGLE-client SCENARIO this page's SIMPLER example ASSUMED.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

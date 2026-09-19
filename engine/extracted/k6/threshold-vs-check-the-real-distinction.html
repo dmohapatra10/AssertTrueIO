@@ -1,0 +1,135 @@
+<!doctype html>
+<html><head>
+<title>Threshold vs. Check in k6: The Real Distinction</title>
+<meta name="description" content="Why check() and thresholds aren&#x27;t interchangeable — one verifies per-request correctness without stopping the test, the other is the actual automated pass/fail gate for the whole run." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/threshold-vs-check-the-real-distinction.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Threshold vs. Check: The Real Distinction</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="threshold-syntax-and-types.html">Threshold Syntax & Types</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Both <code>check()</code> and thresholds involve pass/fail language, and it's genuinely common to conflate them. They serve completely different purposes, working at different levels — this page draws the line precisely.</p>
+
+<h2 id="check-per-request-never-stops-the-test">check() — Per-Request, Never Stops the Test</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>check(response, {
+  'status is 200': (r) => r.status === 200,
+});</code></pre>
+<p>As covered in Chapter 3: a <code>check()</code> evaluates one specific response, records whether it passed or failed, and the script keeps running regardless — a failed check never stops the test, it's just tallied. A check answers: "did this individual request behave correctly?"</p>
+
+<h2 id="thresholds-whole-test-the-actual-pass-fail-gate">Thresholds — Whole-Test, the Actual Pass/Fail Gate</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export const options = {
+  thresholds: {
+    checks: ['rate>0.99'],
+  },
+};</code></pre>
+<p>A threshold evaluates an aggregate metric across the entire test run, and its result (passed or failed) is what determines the test's overall exit status — the actual signal a CI/CD pipeline acts on. A threshold answers: "across the whole test, was performance and correctness acceptable overall?"</p>
+
+<h2 id="the-relationship-checks-feed-into-thresholds">The Relationship — Checks Feed Into Thresholds</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Individual checks:  check(r1, {...})  check(r2, {...})  check(r3, {...}) ...
+                            ↓                 ↓                 ↓
+Aggregated into:              the built-in "checks" metric (a pass rate)
+                                        ↓
+Thresholded by:              thresholds: { checks: ['rate>0.99'] }</code></pre>
+<p>This is the actual connection between the two: every individual <code>check()</code> call contributes to k6's built-in <code>checks</code> metric, and a threshold on that metric is what turns "most individual checks passed" into an enforced, whole-test requirement. Checks are the raw data; a threshold on <code>checks</code> is the aggregate judgment.</p>
+
+<h2 id="detailed-example-what-each-one-actually-controls">Detailed Example — What Each One Actually Controls</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export default function () {
+  const response = http.post(orderUrl, orderPayload);
+
+  // check(): per-request. Records pass/fail. Script continues either way.
+  check(response, {
+    'order created': (r) => r.status === 201,
+    'correct total': (r) => r.json('total') === expectedTotal,
+  });
+}
+
+export const options = {
+  // threshold: whole-test. Determines final pass/fail exit status.
+  thresholds: {
+    checks: ['rate>0.98'],           // at least 98% of ALL checks, across the whole run, must pass
+    http_req_duration: ['p(95)&lt;500'], // p95 across the whole run must be under 500ms
+  },
+};</code></pre>
+<p>The individual <code>check()</code> calls run thousands of times, once per request, never halting anything. The threshold is evaluated exactly once, at a whole-test level, and its outcome is the one that determines whether the test run as a whole "passed."</p>
+
+<h2 id="real-world-example-why-you-need-both-not-just-one">Real-World Example — Why You Need Both, Not Just One</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>❌ Only checks, no threshold:
+   Individual pass/fail is recorded, but nothing ever determines whether
+   the AGGREGATE result was acceptable — no automated CI/CD signal at all.
+
+❌ Only a threshold on http_req_duration, no checks:
+   Speed is enforced, but nothing verifies individual responses are
+   actually functionally correct — exactly the "fast but wrong" gap
+   from the previous chapter.
+
+✅ Both together:
+   checks verify individual correctness; a threshold on the checks metric
+   (plus response-time thresholds) turns the aggregate result into an
+   automated, enforceable pass/fail gate.</code></pre>
+<p>Neither one alone does the complete job — checks without a threshold produce data nobody automatically acts on; a threshold without checks enforces speed while remaining blind to correctness. They're complementary, not substitutes for each other.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Treating checks as if they were the test's pass/fail mechanism
+check(response, { 'ok': (r) => r.status === 200 }); // no threshold anywhere
+// The test "passes" regardless of how many checks actually failed —
+// nothing is actually gating on this data.
+
+// ✅ Checks feeding an explicit threshold that actually gates the test
+check(response, { 'ok': (r) => r.status === 200 });
+export const options = { thresholds: { checks: ['rate>0.99'] } };</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Assuming a script full of <code>check()</code> calls automatically fails the test if checks fail</strong> — without a corresponding threshold, check failures are recorded but never gate anything.</li>
+  <li><strong>Defining thresholds but never using <code>check()</code> at all</strong> — leaves speed enforced but functional correctness completely unverified.</li>
+  <li><strong>Confusing "check failed" with "test failed"</strong> in conversation or documentation — these are genuinely different events, and conflating them leads to real confusion about what a test result actually means.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>A script with checks but a threshold on a completely unrelated metric</strong> — technically valid, but the checks' data is being recorded without ever influencing the test's actual pass/fail outcome, which may not be the intended design.</li>
+  <li><strong>A very low check pass-rate threshold</strong> (like <code>rate&gt;0.5</code>) — technically valid syntax, but worth questioning whether that's a genuinely intentional, meaningful bar, or an accidentally lenient one that would let a lot of real failures still "pass."</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a test "passes" despite an obviously high number of failed checks appearing in the summary, check whether a threshold was actually defined on the <code>checks</code> metric — without one, no amount of individual check failures affects the test's overall pass/fail status, which is often not what someone assumed when writing the checks in the first place.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Always pair meaningful <code>check()</code> calls with a corresponding threshold on the <code>checks</code> metric — checks without a threshold produce data nobody automatically acts on.</li>
+  <li>Be precise in language and documentation: "a check failed" and "the test failed" are different events with different implications.</li>
+  <li>Review any custom pass-rate threshold on <code>checks</code> for whether it represents a genuinely intentional bar, not an accidentally lenient default.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Given a script with three different <code>check()</code> calls per iteration but no threshold defined anywhere in <code>options</code>, explain precisely what happens to the test's exit status if every single check fails on every single iteration, and what needs to be added to make that scenario actually fail the test.</p>
+
+<h2 id="summary">Summary</h2>
+<p><code>check()</code> operates per-request, recording pass/fail without ever stopping the test — it's data collection. A threshold operates on an aggregate metric across the whole test run, and its result is the actual pass/fail signal a CI/CD pipeline acts on — it's the gate. They're connected (individual checks feed the built-in <code>checks</code> metric, which a threshold can then gate on) but not interchangeable, and a real test needs both: checks to verify correctness, and thresholds to turn that verification into an enforced requirement.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>If every check() in a script fails, does the test automatically fail?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">No — not unless a threshold is explicitly defined on the checks metric (or another metric affected by the failures). check() failures are recorded as data, but a script's execution continues regardless, and the test's overall exit status is determined entirely by whatever thresholds were configured, not by check() results directly.</div>
+</details>
+<details class="faq-item">
+<summary>How does an individual check() call actually connect to a threshold?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Every check() call across the whole test contributes to k6's built-in checks metric, which tracks the overall pass rate. A threshold defined on that checks metric (like checks: ['rate>0.99']) is what turns the aggregate of many individual check results into an enforced, whole-test pass/fail requirement — checks generate the raw data, and a threshold judges it in aggregate.</div>
+</details>
+<details class="faq-item">
+<summary>Why would a test with thresholds but zero check() calls still be missing something important?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Thresholds without any checks can enforce things like response time and error rate, but have no mechanism to verify that individual responses actually contain correct data — this is exactly the "fast but functionally wrong" gap covered previously. Checks are what verify per-request correctness; without them, a threshold-only test remains blind to that entire category of problem.</div>
+</details>
+<details class="faq-item">
+<summary>What's the practical difference between "a check failed" and "the test failed" as two separate statements?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">"A check failed" describes a single per-request event recorded during execution — it doesn't by itself determine anything about the test's outcome. "The test failed" describes the aggregate result of threshold evaluation at the end of the run — the actual exit status a CI/CD pipeline would see. A check failing doesn't automatically mean the test failed, and a test can fail due to a threshold violation even when many individual checks passed, depending on exactly which threshold was violated and why.</div>
+</details>
+<details class="faq-item">
+<summary>Why might a team write extensive check() logic but still find their CI pipeline never actually fails a build over performance regressions?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">This is a common, genuine gap — if no threshold was ever defined on the checks metric (or on any other relevant metric), check failures are recorded and visible in the summary output, but nothing about them actually influences the test's exit code, which is what a CI pipeline checks to decide whether to fail a build. The fix is adding an explicit threshold on the checks metric (and any other metric that matters), turning the already-collected check data into something the pipeline can actually act on.</div>
+</details>
+</div>
+</article>
+</body></html>

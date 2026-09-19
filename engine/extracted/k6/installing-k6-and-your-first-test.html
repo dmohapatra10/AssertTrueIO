@@ -1,0 +1,172 @@
+<!doctype html>
+<html><head>
+<title>Installing k6 &amp; Writing Your First Performance Test</title>
+<meta name="description" content="Installing k6, understanding a k6 project&#x27;s structure, JavaScript/TypeScript considerations, and a real first test explained line by line." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/installing-k6-and-your-first-test.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Installing k6 &amp; Your First Test</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="what-is-k6-and-how-it-compares.html">What is k6? Architecture & Tool Comparison</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>This page gets k6 running on your machine and walks through a genuinely complete first test, line by line — the goal is a working test you actually understand, not just one you copy-pasted.</p>
+
+<h2 id="installation">Installation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># macOS (Homebrew)
+brew install k6
+
+# Windows (Chocolatey)
+choco install k6
+
+# Linux (Debian/Ubuntu)
+sudo gpg -k
+sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+sudo apt-get update
+sudo apt-get install k6
+
+# Verify installation
+k6 version</code></pre>
+<p>k6 ships as a single, standalone binary — no runtime dependency to install separately (it doesn't need Node.js installed, despite scripts being written in JavaScript), which keeps setup genuinely simple across platforms.</p>
+
+<h2 id="javascript-typescript-considerations">JavaScript/TypeScript Considerations</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// This works fine — k6 supports modern JavaScript syntax
+import http from 'k6/http';
+export default function () {
+  const response = http.get('https://test-api.example.com');
+}
+
+// TypeScript requires a build step — k6 doesn't execute .ts files directly
+// Common approach: write in TypeScript, compile to JavaScript with a bundler
+// (like webpack or esbuild) before running with k6</code></pre>
+<p>k6 natively executes JavaScript, not TypeScript — if your team prefers TypeScript for its type safety, you'll need a compilation step in your workflow (most commonly via a bundler) that produces plain JavaScript k6 can actually run. This is a real, practical setup decision worth making early, not something to discover partway through building a larger test suite.</p>
+
+<h2 id="project-structure">Project Structure</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>k6-tests/
+├── scripts/
+│   └── smoke-test.js
+├── package.json          (optional, if using npm packages/bundling)
+└── README.md</code></pre>
+<p>A single k6 script can be genuinely just one file to start — there's no mandatory project scaffolding the way some frameworks require. Chapter 11 (Framework Architecture) is where this simple starting structure grows into something built for a real, maintained test suite; don't over-structure a project before you actually need to.</p>
+
+<h2 id="your-first-test-explained-line-by-line">Your First Test, Explained Line by Line</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import http from 'k6/http';
+import { sleep } from 'k6';
+
+export default function () {
+  http.get('https://test-api.example.com/products');
+  sleep(1);
+}</code></pre>
+<ul>
+  <li><code>import http from 'k6/http'</code> — k6's built-in HTTP module, giving you <code>get()</code>, <code>post()</code>, and the rest of the HTTP verbs (covered fully in Chapter 5).</li>
+  <li><code>import { sleep } from 'k6'</code> — a pause function, simulating the natural gap a real user takes between actions (reading a page before clicking the next thing).</li>
+  <li><code>export default function () { ... }</code> — this is the actual test logic — the code every virtual user repeatedly executes, once per iteration. This specific function is what Chapter 2's next page (the test lifecycle) calls the "VU code."</li>
+  <li><code>http.get(...)</code> — sends a real HTTP GET request to the target URL and returns a response object (not used further in this minimal example, but this is exactly what later chapters build on for validation).</li>
+  <li><code>sleep(1)</code> — pauses for 1 second before the function completes and (depending on configuration) potentially runs again.</li>
+</ul>
+
+<h2 id="running-the-test">Running the Test</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>$ k6 run script.js
+
+     execution: local
+        script: script.js
+
+     scenarios: (100.00%) 1 scenario, 1 max VUs, 10s max duration
+              * default: 1 iterations for each of 1 VUs
+
+  █ TOTAL RESULTS
+
+    HTTP
+    http_req_duration.......: avg=210ms min=210ms med=210ms max=210ms p(90)=210ms p(95)=210ms
+    http_reqs...............: 1    0.99/s
+
+    EXECUTION
+    iteration_duration......: avg=1.21s min=1.21s med=1.21s max=1.21s p(90)=1.21s p(95)=1.21s
+    iterations..............: 1    0.99/s</code></pre>
+<p><code>k6 run</code> is the core command that executes a script — with no additional options, it defaults to a single virtual user running the default function exactly once, which is exactly what this output shows. The metrics reported here (<code>http_req_duration</code>, <code>iterations</code>) are the same core measurements from Chapter 1, now produced by a real tool instead of discussed in the abstract.</p>
+
+<h2 id="detailed-example-running-with-more-than-one-iteration">Detailed Example — Running With More Than One Iteration</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>$ k6 run --iterations 5 --vus 1 script.js</code></pre>
+<p>This runs the same test five times sequentially with one virtual user — a useful sanity check before scaling up to real concurrent load (which Chapter 4 covers properly), confirming the script itself behaves correctly and consistently across repeated runs before you start reasoning about it under genuine load.</p>
+
+<h2 id="real-world-example-a-slightly-more-realistic-first-test">Real-World Example — A Slightly More Realistic First Test</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import http from 'k6/http';
+import { check, sleep } from 'k6';
+
+export default function () {
+  const response = http.get('https://test-api.example.com/products');
+
+  check(response, {
+    'status is 200': (r) => r.status === 200,
+  });
+
+  sleep(1);
+}</code></pre>
+<p>Adding <code>check()</code> (covered fully in Chapter 3) turns this from "a request that happens" into "a request that's actually being verified" — confirming the response was genuinely successful, not just that a request was sent. Even a first test benefits from this small addition, since a script that only sends requests without checking anything can silently run against a completely broken endpoint without ever reporting a problem.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ A "test" with no verification at all
+export default function () {
+  http.get('https://test-api.example.com/products'); // succeeds or fails silently
+}
+
+// ✅ A test that actually confirms something
+export default function () {
+  const response = http.get('https://test-api.example.com/products');
+  check(response, { 'status is 200': (r) => r.status === 200 });
+}</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Writing TypeScript and expecting k6 to run it directly</strong> — k6 executes JavaScript; TypeScript needs a compilation step first.</li>
+  <li><strong>Treating a "test" with no <code>check()</code> calls as meaningful</strong> — a script that only sends requests without verifying anything can run against a broken endpoint indefinitely without ever reporting a failure.</li>
+  <li><strong>Jumping straight to high concurrency</strong> before confirming the script itself works correctly at low, simple settings (like <code>--vus 1 --iterations 1</code>) first.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Testing an endpoint that requires authentication</strong> — a first test against a protected endpoint will simply fail with a 401/403 until authentication is added (covered fully in Chapter 9); don't assume the test itself is broken.</li>
+  <li><strong>Running k6 in an environment with restricted outbound network access</strong> — k6 needs to reach the target system directly; a corporate proxy or firewall can silently prevent this in ways that look like a script problem but aren't.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If <code>k6 run</code> produces no HTTP metrics at all, check whether the request actually succeeded at the network level first — a DNS failure, a connection refusal, or a firewall block can prevent a request from ever completing, which shows up very differently in the output than a script or logic error would.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Start with a minimal script (<code>--vus 1 --iterations 1</code>) to confirm correctness before scaling up to real load.</li>
+  <li>Include at least one <code>check()</code> in every test, even a simple one — a test with zero verification isn't really testing anything.</li>
+  <li>Decide on your JavaScript vs. TypeScript workflow early, before a larger test suite makes that decision more disruptive to change.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Install k6, write a script that sends a GET request to a public test API of your choice, add a <code>check()</code> confirming the status code is 200, and run it with <code>k6 run --vus 1 --iterations 3</code> — then read the output and identify which metric corresponds to which part of the request cycle.</p>
+
+<h2 id="summary">Summary</h2>
+<p>k6 installs as a single standalone binary and executes plain JavaScript directly (TypeScript needs a compilation step). A minimal test is genuinely just a few lines — an HTTP call, an optional check, an optional sleep — run via <code>k6 run</code>. Starting simple (one VU, one iteration) and confirming correctness before scaling up to real concurrency is the right sequence, not the reverse.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why can't you run a .ts file directly with k6 run?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">k6 natively executes JavaScript, not TypeScript — there's no built-in TypeScript compilation step inside k6 itself. A team wanting to write tests in TypeScript needs a separate build step (typically using a bundler like webpack or esbuild) that compiles TypeScript down to plain JavaScript before k6 ever sees the file.</div>
+</details>
+<details class="faq-item">
+<summary>Why does a k6 script with no check() calls still technically "run successfully" even against a broken endpoint?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Without a check(), the script is only sending requests, not verifying anything about the responses — k6 will report that requests were sent and how long they took, but it has no instruction to flag whether the response was actually correct. A request that returns a 500 error still "completes" from k6's execution perspective; only an explicit check() call turns that into a meaningful pass/fail signal.</div>
+</details>
+<details class="faq-item">
+<summary>Why is it good practice to run a new k6 script with --vus 1 --iterations 1 before scaling up to real load?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">This confirms the script itself is logically correct — hitting the right URL, handling the response properly, passing its checks — under the simplest possible conditions. If a script has a bug, it's far easier to diagnose with one virtual user running once than debugging the same issue while genuine concurrent load is also happening, which adds noise and complexity to any investigation.</div>
+</details>
+<details class="faq-item">
+<summary>Why doesn't k6 require Node.js to be installed, even though test scripts are written in JavaScript?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">k6 ships as a single, standalone binary with its own embedded JavaScript engine (goja) built into the Go executable — it doesn't rely on Node.js or any external JavaScript runtime to execute your script. This is exactly why k6 installation is a single binary install with no separate runtime dependency, unlike many JavaScript-based tools that assume Node.js is already present.</div>
+</details>
+<details class="faq-item">
+<summary>A first test against a protected API endpoint fails immediately. What should you check before assuming the script itself is broken?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Check whether the endpoint requires authentication first — a request with no credentials against a protected endpoint will correctly fail with a 401 or 403, which is the API behaving correctly, not a bug in the test script. Authentication is covered separately in a later chapter; a basic first test against a protected resource is expected to fail exactly this way until credentials are added.</div>
+</details>
+</div>
+</article>
+</body></html>

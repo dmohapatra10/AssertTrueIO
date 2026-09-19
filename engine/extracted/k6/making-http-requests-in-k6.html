@@ -1,0 +1,172 @@
+<!doctype html>
+<html><head>
+<title>Making HTTP Requests in k6: GET, POST, PUT, PATCH, DELETE</title>
+<meta name="description" content="Every HTTP method k6 supports, plus headers, query parameters, request bodies, and JSON handling — building a realistic request from the ground up." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/making-http-requests-in-k6.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Making HTTP Requests: GET, POST, PUT, PATCH, DELETE</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="k6-scripting-fundamentals.html">k6 Scripting Fundamentals overview</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>k6's <code>http</code> module gives you one method per HTTP verb — this page covers all five you'll actually use, plus everything needed to shape a realistic request: headers, query parameters, path values, and a request body.</p>
+
+<h2 id="the-five-http-methods">The Five HTTP Methods</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import http from 'k6/http';
+
+http.get('https://test-api.example.com/products');
+http.post('https://test-api.example.com/orders', JSON.stringify({ item: 'Widget' }));
+http.put('https://test-api.example.com/orders/500', JSON.stringify({ status: 'confirmed' }));
+http.patch('https://test-api.example.com/orders/500', JSON.stringify({ status: 'shipped' }));
+http.del('https://test-api.example.com/orders/500');</code></pre>
+<p>Notice <code>http.del()</code>, not <code>http.delete()</code> — <code>delete</code> is a reserved word in JavaScript, so k6's API uses <code>del</code> specifically to avoid the conflict. This is a genuinely common early mistake, since every other method matches its HTTP verb name exactly.</p>
+
+<h2 id="request-parameters-headers">Request Parameters — Headers</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const params = {
+  headers: {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${token}`,
+  },
+};
+
+http.get('https://test-api.example.com/profile', params);</code></pre>
+<p>Every k6 HTTP method accepts an optional params object as its final argument, where headers (among other things) get configured. <code>Content-Type</code> matters specifically whenever you're sending a body — without it, some APIs won't correctly interpret what you've sent, even if the body itself is perfectly valid JSON.</p>
+
+<h2 id="query-parameters">Query Parameters</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Query parameters are just part of the URL string itself in k6 —
+// there's no separate .queryParam() method the way some other tools provide
+http.get('https://test-api.example.com/products?category=electronics&page=2');
+
+// Building the URL dynamically
+const category = 'electronics';
+const page = 2;
+http.get(`https://test-api.example.com/products?category=${category}&page=${page}`);</code></pre>
+<p>Unlike some other testing tools, k6 doesn't have a dedicated query-parameter-building method — you construct the full URL string yourself, typically with a template literal. This is simple but means you're responsible for correct URL encoding if a value might contain special characters.</p>
+
+<h2 id="request-bodies-and-json-handling">Request Bodies and JSON Handling</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const payload = JSON.stringify({
+  item: 'Wireless Mouse',
+  quantity: 2,
+});
+
+const params = {
+  headers: { 'Content-Type': 'application/json' },
+};
+
+http.post('https://test-api.example.com/orders', payload, params);</code></pre>
+<p>k6 doesn't automatically serialize a JavaScript object into JSON for you — you call <code>JSON.stringify()</code> explicitly, and the request body must be a string (or specific supported types), never a raw object passed directly. Forgetting <code>JSON.stringify()</code> is a common early mistake that produces a body like <code>"[object Object]"</code> instead of actual JSON.</p>
+
+<h2 id="reading-a-json-response">Reading a JSON Response</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const response = http.get('https://test-api.example.com/products/500');
+const product = response.json(); // parses the response body as JSON
+
+console.log(product.name); // access fields normally, like any JS object
+
+// Or extract just one field directly
+const productName = response.json('name');</code></pre>
+<p><code>response.json()</code> parses the raw response body into a usable JavaScript object — calling it with no arguments returns the whole parsed body; calling it with a field name (as a string) extracts just that one value directly, which is convenient for the common case of needing just one specific field from a larger response.</p>
+
+<h2 id="detailed-example-a-realistic-post-with-headers-and-a-verified-response">Detailed Example — A Realistic POST With Headers and a Verified Response</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import http from 'k6/http';
+import { check } from 'k6';
+
+export default function () {
+  const payload = JSON.stringify({ item: 'Keyboard', quantity: 1 });
+  const params = {
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer test-token-123',
+    },
+  };
+
+  const response = http.post('https://test-api.example.com/orders', payload, params);
+
+  check(response, {
+    'status is 201': (r) => r.status === 201,
+    'order has an id': (r) => r.json('id') !== undefined,
+  });
+}</code></pre>
+<p>This is a genuinely complete, realistic request — proper headers, a correctly serialized body, and verification of both the status code and a specific field in the response — the shape nearly every real k6 test request actually takes.</p>
+
+<h2 id="real-world-example-a-full-workflow-across-multiple-methods">Real-World Example — A Full Workflow Across Multiple Methods</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export default function () {
+  // Create
+  const createResp = http.post('https://test-api.example.com/orders',
+    JSON.stringify({ item: 'Monitor', quantity: 1 }),
+    { headers: { 'Content-Type': 'application/json' } });
+  const orderId = createResp.json('id');
+
+  // Read
+  http.get(`https://test-api.example.com/orders/${orderId}`);
+
+  // Update
+  http.patch(`https://test-api.example.com/orders/${orderId}`,
+    JSON.stringify({ status: 'confirmed' }),
+    { headers: { 'Content-Type': 'application/json' } });
+
+  // Delete
+  http.del(`https://test-api.example.com/orders/${orderId}`);
+}</code></pre>
+<p>This mirrors a realistic user journey — create, read, update, delete — chained together using a value (<code>orderId</code>) extracted from an earlier response, which is exactly the pattern Chapter 8 (Test Data & Correlation) builds on much more deeply.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Passing a raw object instead of a JSON string
+http.post(url, { item: 'Widget' }); // sends "[object Object]" as the body — broken
+
+// ✅ Explicitly serializing to JSON
+http.post(url, JSON.stringify({ item: 'Widget' }), { headers: { 'Content-Type': 'application/json' } });</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Calling <code>http.delete()</code> instead of <code>http.del()</code></strong> — <code>delete</code> is a reserved JavaScript keyword, so k6 uses <code>del</code> specifically to avoid the conflict.</li>
+  <li><strong>Forgetting <code>JSON.stringify()</code> on a request body</strong> — passing a raw object produces a broken, non-JSON body.</li>
+  <li><strong>Forgetting the <code>Content-Type: application/json</code> header</strong> on requests with a JSON body — some APIs won't correctly parse the body without it, even if the body itself is valid JSON.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Sending a non-JSON body</strong> (form-encoded data, plain text) — the <code>Content-Type</code> header needs to match the actual format being sent, not just default to JSON out of habit.</li>
+  <li><strong>Query parameter values containing special characters</strong> — since k6 doesn't URL-encode for you automatically the way a dedicated query-parameter method might, values with spaces or reserved characters need explicit encoding (via <code>encodeURIComponent()</code>) before being inserted into the URL string.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a POST or PUT request fails with a parsing error on the server side, check first whether the body was actually serialized with <code>JSON.stringify()</code> and whether the <code>Content-Type</code> header was set correctly — this combination accounts for a large fraction of "why is my request being rejected" confusion in early k6 scripts.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Always explicitly serialize request bodies with <code>JSON.stringify()</code> — k6 never does this automatically.</li>
+  <li>Set <code>Content-Type</code> explicitly whenever sending a body, matching the actual format being sent.</li>
+  <li>Use <code>encodeURIComponent()</code> for any query parameter value that might contain special characters.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Write a script that creates a resource via POST with a JSON body and proper headers, extracts its generated ID from the response, then uses that ID to GET, PATCH, and finally DELETE the same resource — chaining all four requests together in one script.</p>
+
+<h2 id="summary">Summary</h2>
+<p>k6's <code>http</code> module provides one method per HTTP verb (<code>get</code>, <code>post</code>, <code>put</code>, <code>patch</code>, and <code>del</code> — not <code>delete</code>), each accepting an optional params object for headers. Request bodies must be explicitly serialized with <code>JSON.stringify()</code>, and query parameters are built directly into the URL string rather than through a dedicated method — together, these building blocks are what every realistic k6 request is constructed from.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why does k6 use http.del() instead of http.delete()?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">delete is a reserved keyword in JavaScript (used for deleting object properties), so it can't be used directly as a method name in the way get, post, put, and patch can. k6's API uses del specifically to avoid that language-level conflict, while every other HTTP method matches its verb name exactly.</div>
+</details>
+<details class="faq-item">
+<summary>Why does passing a plain JavaScript object directly as a POST body fail?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">k6 doesn't automatically serialize objects into JSON — the request body must be a string (or another specific supported type). Passing a raw object results in it being coerced into the string "[object Object]", which is not valid JSON and will be rejected or misinterpreted by the receiving API. JSON.stringify() must be called explicitly to produce a genuinely valid JSON body.</div>
+</details>
+<details class="faq-item">
+<summary>How does k6 handle query parameters differently from a tool with a dedicated queryParam() method?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">k6 has no separate query-parameter-building method — query parameters are simply part of the URL string itself, typically constructed with a template literal. This means you're responsible for correctly encoding any special characters in a query value yourself (using encodeURIComponent()), rather than relying on a dedicated method to handle that automatically.</div>
+</details>
+<details class="faq-item">
+<summary>Why is setting the Content-Type header important even when the request body is correctly formatted JSON?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The Content-Type header tells the receiving server how to interpret the body — without it correctly set to application/json, some servers won't attempt to parse the body as JSON at all, treating it as plain text or rejecting it outright, even though the actual content is valid, correctly formatted JSON.</div>
+</details>
+<details class="faq-item">
+<summary>What does response.json('fieldName') do differently from response.json()?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">response.json() with no arguments parses and returns the entire response body as a JavaScript object. Passing a field name string, like response.json('id'), parses the body and returns just that one specific field's value directly, which is a convenient shortcut when you only need one piece of data from a larger response rather than the whole object.</div>
+</details>
+</div>
+</article>
+</body></html>

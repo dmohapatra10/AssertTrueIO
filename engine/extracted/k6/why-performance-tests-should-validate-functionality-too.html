@@ -1,0 +1,122 @@
+<!doctype html>
+<html><head>
+<title>Why Performance Tests Should Validate Functionality Too</title>
+<meta name="description" content="Why measuring speed alone isn&#x27;t enough — a genuinely useful performance test verifies correctness at load, catching bugs that only appear under concurrency, not just slowness." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/why-performance-tests-should-validate-functionality-too.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Why Performance Tests Should Validate Functionality Too</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="cookies-in-performance-tests.html">Cookies in Performance Tests</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Chapter 1 drew a conceptual line between functional testing and performance testing. This page is about why that line is real but shouldn't be absolute — a performance test that only measures speed, while completely ignoring correctness, is measuring something less useful than it appears to be.</p>
+
+<h2 id="revisiting-the-distinction-from-the-start-of-this-course">Revisiting the Distinction From the Start of This Course</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Functional test:  "Does POST /orders correctly create an order?"
+Performance test: "Does POST /orders still respond correctly and quickly
+                    when 500 people are creating orders at the same time?"</code></pre>
+<p>Notice the word "correctly" appears in both. A performance test that drops it — that only asks "does POST /orders respond quickly under load," with no interest in whether the response is actually right — has quietly narrowed its own scope in a way that can hide real, serious problems.</p>
+
+<h2 id="bugs-that-only-appear-under-concurrency">Bugs That Only Appear Under Concurrency</h2>
+<p>Some bugs are genuinely invisible outside of load — a race condition where two simultaneous requests both read a value before either writes an update, resulting in one update silently overwriting the other; a connection pool that occasionally hands out a connection still holding another request's leftover state; a cache that serves slightly stale data specifically when write and read requests overlap in time. None of these show up in a single, isolated functional test — they require genuine concurrency to manifest, which is exactly what a performance test, and only a performance test, actually generates.</p>
+
+<h2 id="detailed-example-a-race-condition-only-load-reveals">Detailed Example — A Race Condition Only Load Reveals</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Scenario: An inventory system decrements stock on each order.
+
+Single functional test (1 request): stock correctly goes from 10 to 9. ✅ Passes.
+
+Performance test (50 concurrent requests, no functional checks):
+  All 50 requests return 200 OK. Response times look fine. ✅ "Passes."
+
+Performance test (50 concurrent requests, WITH a functional check
+verifying final stock count):
+  Expected: stock at 0 after 50 orders against 10 items (should reject the rest)
+  Actual:   stock shows -12 — a race condition let too many orders succeed
+  ❌ FAILS — a real, serious bug, invisible without the functional check</code></pre>
+<p>The version of this test with no functional verification would have shipped a genuinely broken inventory system, reporting nothing but healthy response times the entire time. This is not a hypothetical — race conditions exactly like this are a real, common category of production bug that specifically requires concurrent load to surface.</p>
+
+<h2 id="real-world-example-applying-this-to-the-workflow-from-earlier">Real-World Example — Applying This to the Workflow From Earlier</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>function getOrder(token, orderId, expectedProductId) {
+  const response = http.get(`https://api.example.com/orders/${orderId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  check(response, {
+    'order retrieved': (r) => r.status === 200,
+    'order has correct product': (r) => r.json('productId') === expectedProductId,
+  });
+}</code></pre>
+<p>That second check — verifying the retrieved order actually matches what was ordered — is a direct application of this principle. Under load, with many virtual users creating orders concurrently, a system with an ID-mapping bug or a race condition could easily start returning the wrong order for a given ID, something a status-code-only check would never catch, but which real users would experience as a genuinely broken checkout.</p>
+
+<h2 id="how-much-functional-validation-is-actually-appropriate">How Much Functional Validation Is Actually Appropriate</h2>
+<p>This doesn't mean every performance test needs the exhaustive validation depth of a full functional test suite — that would work against a performance test's other goal (generating meaningful load efficiently, without excessive per-request overhead). The right balance: verify the specific things that would indicate a genuine correctness problem under load — a status code, a critical field matching what was expected, a count or total reflecting the right state — without re-validating every minor detail an already-existing functional suite already covers thoroughly.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ A performance test that only measures speed, blind to correctness
+export default function () {
+  http.post(ordersUrl, orderPayload); // no check at all
+}
+
+// ✅ A performance test that measures speed AND catches concurrency-specific bugs
+export default function () {
+  const response = http.post(ordersUrl, orderPayload);
+  check(response, {
+    'order created successfully': (r) => r.status === 201,
+    'order has expected quantity': (r) => r.json('quantity') === 1,
+  });
+}</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Treating "fast" and "correct" as interchangeable</strong> — a system can be genuinely fast while silently returning wrong data under concurrent load.</li>
+  <li><strong>Adding zero functional checks</strong> to a performance test, on the assumption that correctness is "someone else's job" (the functional test suite's) — missing that concurrency-specific bugs are only ever visible under real load in the first place.</li>
+  <li><strong>Over-validating every field</strong> in a performance test, adding unnecessary overhead that competes with the test's actual goal of generating meaningful load efficiently.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>A functional check itself adding meaningful overhead at very high VU counts</strong> — for extremely high-throughput scenarios, even lightweight JavaScript-side validation can add up; worth being deliberate about which checks earn their place versus checking everything by default.</li>
+  <li><strong>A bug that only manifests at a specific, narrow concurrency level</strong> — not at low load, not at extremely high load, but somewhere in between (a connection pool sized to handle most levels but with a gap at one specific range) — this is exactly why running load at multiple different levels, not just one, can matter for genuinely thorough testing.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a performance test consistently shows healthy response times but production reports data-integrity issues under real traffic, check whether the performance test includes any functional validation at all — a purely speed-focused test structurally cannot catch a correctness bug, regardless of how much load it generates.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Include functional checks in every performance test targeting a specific, meaningful indicator of correctness — not an exhaustive re-validation of everything a functional suite already covers.</li>
+  <li>Pay particular attention to any operation involving shared, mutable state (inventory counts, account balances, anything decremented or incremented) — this is where concurrency-specific bugs concentrate.</li>
+  <li>Treat a performance test that reports healthy speed but skips correctness as giving you half the picture, not the whole one.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>For a hypothetical "transfer funds between accounts" API, identify what functional check(s) a performance test should include beyond a simple status-code check, and explain what specific concurrency-related bug those checks would be positioned to catch that a single-request functional test never could.</p>
+
+<h2 id="summary">Summary</h2>
+<p>A performance test that measures only speed, with no functional validation, is structurally blind to an entire category of real, serious bugs — race conditions and concurrency-specific data-integrity problems that only manifest under genuine load, never in a single isolated functional test. The right amount of validation isn't "none" (blind to correctness) or "exhaustive" (competing with the test's actual load-generation goal) — it's targeted checks on the specific things that would reveal a genuine correctness problem under concurrent load, which is exactly the discipline the workflow example earlier in this chapter was built around.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why can a system be genuinely fast under load while still having a serious, undetected bug?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Response time only measures how quickly the system responds, not whether the response is actually correct. A race condition or concurrency-specific data-integrity bug can allow the system to respond quickly to every request while silently corrupting shared state (like an inventory count going negative) — the speed metrics stay healthy throughout, because nothing about a race condition inherently slows down individual requests.</div>
+</details>
+<details class="faq-item">
+<summary>What kind of bug is specifically invisible to a single-request functional test but visible under concurrent load?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Race conditions — situations where two or more simultaneous operations interact in a way that produces an incorrect result, like two concurrent requests both reading a value before either writes an update, causing one update to silently overwrite the other. A single functional test, by definition, never has two requests happening simultaneously, so it structurally cannot trigger or reveal this class of bug — only genuine concurrent load can.</div>
+</details>
+<details class="faq-item">
+<summary>Why shouldn't a performance test try to replicate the full depth of an existing functional test suite's validation?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Exhaustively validating every minor field or detail adds real overhead to each iteration, which competes with a performance test's other core goal — generating meaningful load efficiently. The right approach targets specific checks likely to reveal a genuine correctness problem under load (particularly around shared, mutable state), leaving broader, exhaustive correctness validation to the functional test suite that's already designed for that job.</div>
+</details>
+<details class="faq-item">
+<summary>Why is shared, mutable state (like an inventory count or account balance) a particularly important place to add functional checks in a performance test?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Operations that read and modify shared state are exactly where race conditions concentrate — two concurrent requests both incrementing or decrementing the same value can interact incorrectly in ways that don't occur when each request operates on entirely independent data. Performance tests are uniquely positioned to catch this specific category of bug, since only genuine concurrent load can trigger the interaction in the first place.</div>
+</details>
+<details class="faq-item">
+<summary>If a performance test's functional checks pass but production later reports a data-integrity issue under real traffic, what would that suggest about the test?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It could suggest the test's checks weren't actually targeting the right correctness indicator, or that the tested concurrency level didn't reach whatever specific load level triggers the bug in production — some race conditions only manifest at particular concurrency levels rather than uniformly at any load. It's a signal to revisit both what's being checked and whether the test's load levels genuinely represent the range production traffic actually reaches.</div>
+</details>
+</div>
+</article>
+</body></html>

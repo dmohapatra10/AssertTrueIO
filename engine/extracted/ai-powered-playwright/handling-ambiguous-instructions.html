@@ -1,0 +1,103 @@
+<!doctype html>
+<html><head>
+<title>Handling Ambiguous Instructions</title>
+<meta name="description" content="What &#x27;select a product&#x27; genuinely means when three real products come back — making the choice honestly and visibly, never silently." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/handling-ambiguous-instructions.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Handling Ambiguous Instructions</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="browser-interaction.html">Browser Interaction</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Why "select a product" is genuinely ambiguous, not just informally worded</li>
+  <li>Making an honest, disclosed choice rather than a silent, hidden one</li>
+  <li>Recording the reasoning behind an ambiguous choice for later review</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>The previous page's observation returned three real products for "Laptop." The instruction says "select a product" — singular, with no criteria given. This page is about handling that honestly: making a reasonable choice, and making it visible, rather than either failing or silently picking one with no record of why.</p>
+
+<h2 id="step-by-step-implementation">Step-by-Step Implementation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/resolve-ambiguity.ts
+import { askClaude } from './ai-client';
+import { PageObservation } from './observe-page';
+
+export interface ResolvedChoice {
+  chosenValue: string;
+  reasoning: string;
+  wasAmbiguous: boolean;
+}
+
+export async function resolveAmbiguousStep(
+  stepDescription: string, observation: PageObservation
+): Promise&lt;ResolvedChoice&gt; {
+  const prompt = `Step: "${stepDescription}"
+Real options currently visible: ${JSON.stringify(observation.visibleProductNames)}
+
+This step doesn't specify WHICH option to choose. Make a
+reasonable choice (the FIRST result is a reasonable default
+for an ambiguous "select a product" instruction) and explain
+your reasoning honestly in one sentence.
+
+Respond with ONLY valid JSON:
+{"chosenValue": string, "reasoning": string}`;
+
+  const raw = await askClaude(prompt);
+  const parsed = JSON.parse(raw);
+  if (!observation.visibleProductNames.includes(parsed.chosenValue)) {
+    throw new Error(
+      `Chosen value "${parsed.chosenValue}" wasn't among the ` +
+      `real, observed options — refusing to proceed.`
+    );
+  }
+  return {
+    chosenValue: parsed.chosenValue,
+    reasoning: parsed.reasoning,
+    wasAmbiguous: true,
+  };
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p>Two things matter beyond the happy path. First, the choice is checked against <code>observation.visibleProductNames</code> — the real, previously-observed list — before being trusted, the same "never invent, always verify against reality" discipline this tutorial has used since Chapter 3. Second, <code>reasoning</code> is captured and returned, not discarded — this is what turns a hidden guess into an honest, auditable decision.</p>
+
+<h2 id="example-resolving-shopsmart-s-product-selection">Example — Resolving ShopSmart's Product Selection</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const choice = await resolveAmbiguousStep(
+  'Select a product from the search results', observation
+);
+
+// A REAL, honest resolution:
+// {
+//   chosenValue: "ProBook 15 Laptop",
+//   reasoning: "The instruction didn't specify criteria, so I
+//     selected the first result, a common, reasonable default
+//     for an unspecified 'select a product' instruction.",
+//   wasAmbiguous: true
+// }</code></pre>
+
+<h2 id="why-it-matters">Why It Matters</h2>
+<p>Imagine this test fails a week later because ShopSmart's search now returns results in a different order. With <code>reasoning</code> recorded and logged, whoever investigates immediately sees that "select a product" was always resolved as "pick the first result" — a genuine, useful clue, not a mystery. Without it, this same failure would look like ShopSmart itself broke, when the real cause is that an ambiguous instruction resolved differently.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Picking an option silently, with no recorded reasoning.</strong> This turns a reasonable, defensible choice into an invisible one — exactly the kind of thing that makes a later failure genuinely confusing to investigate.</li>
+  <li><strong>Treating every ambiguous instruction the same way, always picking "the first result."</strong> This page's default is reasonable for product selection specifically — a different ambiguous step might warrant a genuinely different, explicit default.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Always verify a resolved, ambiguous choice against the real, observed options before proceeding — never trust it blindly.</li>
+  <li>Log <code>reasoning</code> somewhere genuinely visible — Chapter 15's observability chapter covers exactly why this kind of record matters at scale.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Identify a genuinely ambiguous instruction from your own testing work — something with no explicit selection criteria. Write a resolution function following this page's pattern, and decide, deliberately, what a reasonable default choice should be and why.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>An ambiguous instruction needs a real, honest choice — not a failure, and not a silent, unrecorded guess.</li>
+  <li>Verifying a resolved choice against real, observed options before proceeding is the same discipline this tutorial has applied to every AI output since Chapter 3.</li>
+  <li>Recording the reasoning behind an ambiguous choice turns a later failure into something investigable, rather than a genuine mystery.</li>
+</ul>
+</article>
+</body></html>

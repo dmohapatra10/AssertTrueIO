@@ -1,0 +1,121 @@
+<!doctype html>
+<html><head>
+<title>Environment-Specific Test Data in RestAssured</title>
+<meta name="description" content="How to manage test data that correctly varies between local, QA, staging, and production environments, without hardcoding environment-specific values into test logic." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/environment-specific-test-data.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Environment-Specific Test Data</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="generating-data-with-faker.html">Generating Data with Faker</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Not all test data can be freely generated — some tests need to reference data that already exists in a specific environment: a pre-seeded admin account, a known product catalog entry, reference data that's genuinely different between local, QA, staging, and production. This page is about managing that correctly, without hardcoding environment-specific values directly into test logic.</p>
+
+<h2 id="the-problem">The Problem</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Hardcoded, environment-specific — only correct against ONE environment
+given().pathParam("id", "prod-catalog-item-4471").when().get("/products/{id}")
+    .then().statusCode(200);</code></pre>
+<p>This ID might be a real, valid product in production, but meaningless (or belonging to entirely different data) in QA or staging. A test hardcoding it only works against whichever single environment it happened to be written against — exactly the environment-coupling problem the base-URI configuration from Chapter 2 already solved for URLs, now showing up again for data.</p>
+
+<h2 id="the-fix-environment-specific-configuration-files">The Fix — Environment-Specific Configuration Files</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># test-data-qa.properties
+seed.admin.email=admin@qa.example.com
+seed.product.catalog.id=qa-catalog-item-001
+
+# test-data-staging.properties
+seed.admin.email=admin@staging.example.com
+seed.product.catalog.id=staging-catalog-item-001</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Properties props = new Properties();
+String env = System.getProperty("test.env", "qa");
+props.load(new FileInputStream("test-data-" + env + ".properties"));
+
+String seedProductId = props.getProperty("seed.product.catalog.id");
+given().pathParam("id", seedProductId).when().get("/products/{id}").then().statusCode(200);</code></pre>
+<p>This mirrors the environment strategy from Chapter 2 exactly, applied to test data instead of just the base URI — a properties file (or environment variables, or a config class) per environment, selected at runtime based on which environment the suite is actually running against.</p>
+
+<h2 id="detailed-example-combining-generated-and-reference-data">Detailed Example — Combining Generated and Reference Data</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void newOrderReferencesAnExistingSeedProduct() {
+    String seedProductId = EnvConfig.get("seed.product.catalog.id"); // environment-specific reference data
+
+    Order order = OrderBuilder.anOrder()
+        .withProductId(seedProductId)              // references known-existing data
+        .forCustomer(uniqueCustomerId())            // freshly generated, from earlier in this chapter
+        .build();
+
+    given().body(order).when().post("/orders").then().statusCode(201);
+}</code></pre>
+<p>Most real tests actually need a mix: some data generated fresh (the customer, in this example — no reason it needs to pre-exist), and some data that must reference something the environment already has seeded (a real product in the catalog). Conflating the two — trying to generate a product ID freshly when the API expects a reference to real, existing catalog data — produces a confusing failure that looks like a bug but is really a test data design mismatch.</p>
+
+<h2 id="real-world-example-a-seed-data-verification-test">Real-World Example — A Seed Data Verification Test</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void requiredSeedDataExistsInThisEnvironment() {
+    String seedProductId = EnvConfig.get("seed.product.catalog.id");
+
+    given().pathParam("id", seedProductId).when().get("/products/{id}")
+        .then().statusCode(200); // fails FAST and CLEARLY if seed data is missing
+}</code></pre>
+<p>A dedicated test that specifically verifies expected seed data actually exists is worth having in a suite that depends on it — without one, a missing seed record surfaces as a confusing failure in some unrelated later test that happened to reference it, rather than a clear, immediately diagnosable "seed data is missing" signal.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ A hardcoded ID that only happens to exist in the environment the test was written against
+given().pathParam("id", "12345").when().get("/products/{id}").then().statusCode(200);
+
+// ✅ Read the environment-appropriate reference from configuration
+String seedId = EnvConfig.get("seed.product.catalog.id");
+given().pathParam("id", seedId).when().get("/products/{id}").then().statusCode(200);</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Hardcoding environment-specific reference IDs directly in test code</strong> — the environment-data equivalent of hardcoding a base URL, and just as fragile across environments.</li>
+  <li><strong>Trying to freshly generate data that actually needs to reference pre-existing seed data</strong> — produces confusing failures when the API correctly rejects a reference to something that was never actually seeded.</li>
+  <li><strong>Not having a dedicated test verifying seed data exists</strong> — missing seed data then surfaces as a confusing failure somewhere else entirely, rather than a clear, immediate signal.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Seed data that needs to be created, not just referenced</strong>, before a suite runs at all — this is often handled by a setup script or a dedicated <code>@BeforeAll</code> at the suite level, ensuring required reference data exists before any test that depends on it runs.</li>
+  <li><strong>Environments where seed data legitimately differs in content, not just ID</strong> (different product names, different prices) — avoid asserting on specific seed data content in generic tests; assert on structure/behavior instead, and reserve content-specific assertions for tests deliberately scoped to one environment's known data.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a test fails with a 404 against what should be valid reference data, confirm first which environment the suite is actually running against, and whether the seed data it depends on genuinely exists there — a missing environment variable silently defaulting to the wrong environment's configuration is a common, easy-to-miss root cause.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Store environment-specific reference data in configuration (properties files, environment variables), never hardcoded in test logic.</li>
+  <li>Clearly distinguish, in your own test design, between data that should be freshly generated versus data that must reference existing seed data.</li>
+  <li>Maintain a dedicated test verifying critical seed data actually exists in whichever environment the suite runs against.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Design a small environment-configuration setup (properties files or an equivalent) for two hypothetical environments, each with a different seed admin email and a different seed product ID, and write a test that correctly reads and uses the right value depending on which environment it's configured to run against.</p>
+
+<h2 id="summary">Summary</h2>
+<p>Environment-specific test data — reference IDs, seed accounts, pre-existing catalog entries — needs the same environment-driven configuration treatment as base URIs from Chapter 2, read from properties files or environment variables rather than hardcoded. The key distinction to keep clear in test design: which data should be freshly generated (safe to create anywhere) versus which data must reference something the environment has already seeded (environment-specific by nature).</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why can't you simply generate fresh, unique reference data (like a product ID) the same way you'd generate a fresh email address?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A freshly generated email address doesn't need to reference anything that already exists — the API creates a new user record from it. A product ID, by contrast, is typically expected to reference an <em>existing</em> catalog entry — the API is checking "does this product exist," not creating one from the ID you provide. Generating a fresh, never-before-seen product ID and expecting the API to accept it as valid would fail, correctly, since that product genuinely doesn't exist. This is exactly why reference-style data needs to come from environment-specific seed configuration rather than dynamic generation — it has to match something the environment actually has.</div>
+</details>
+<details class="faq-item">
+<summary>Why can't you freshly generate a product ID the way you'd generate a fresh email address?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A product ID typically needs to reference an EXISTING catalog entry — the API checks 'does this exist,' not 'create one from this ID' — a freshly generated, never-seen ID would correctly fail as nonexistent.</div>
+</details>
+<details class="faq-item">
+<summary>What's the practical difference between data that should be generated versus data that must be referenced?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Generated data (a new user's email) doesn't need to pre-exist anywhere; referenced data (a seed admin account, a catalog product) must match something the specific environment already has seeded.</div>
+</details>
+<details class="faq-item">
+<summary>Why is a dedicated test verifying seed data exists worth having in a suite that depends on it?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Without one, missing seed data surfaces as a confusing failure in some unrelated later test that happened to reference it, rather than a clear, immediately diagnosable signal.</div>
+</details>
+<details class="faq-item">
+<summary>Why mirror the base-URI environment strategy from Chapter 2 for test data specifically?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The same coupling problem applies — a hardcoded reference ID only works against the one environment it was written against, exactly like a hardcoded base URL would.</div>
+</details>
+</div>
+</article>
+</body></html>

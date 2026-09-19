@@ -1,0 +1,207 @@
+<!doctype html>
+<html><head>
+<title>Detecting Failure Patterns: The Deterministic Math Behind Spotting Flakiness</title>
+<meta name="description" content="Real, deterministic queries over historical test data that confirm genuine flakiness — pass rate under stable conditions, and why this step needs no AI reasoning at all." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/detecting-failure-patterns.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Detecting Failure Patterns</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="historical-test-data.html">Historical Test Data</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>With genuine historical data (previous page) recorded, detecting the actual pattern is ordinary, deterministic code — no AI reasoning genuinely needed yet. This page is that code; the next page is about where reasoning adds value beyond it.</p>
+
+<h2 id="computing-genuine-flakiness-from-real-history">Computing Genuine Flakiness From Real History</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def detect_flaky_tests(historical_runs):
+    from collections import defaultdict
+    by_test = defaultdict(list)
+    for run in historical_runs:
+        by_test[run["test_name"]].append(run)
+
+    flaky_candidates = []
+    for test_name, runs in by_test.items():
+        # Only compare runs where CODE and ENVIRONMENT genuinely
+        # match — directly implementing the definition from
+        # What is a Flaky Test?
+        by_commit_env = defaultdict(list)
+        for run in runs:
+            key = (run["commit_hash"], run["environment"])
+            by_commit_env[key].append(run)
+
+        for (commit, env), same_condition_runs in by_commit_env.items():
+            if len(same_condition_runs) &lt; 5:
+                continue  # too few genuinely comparable runs to conclude anything
+            results = [r["result"] for r in same_condition_runs]
+            fail_rate = results.count("fail") / len(results)
+            if 0 &lt; fail_rate &lt; 1:
+                flaky_candidates.append({
+                    "test_name": test_name,
+                    "commit": commit,
+                    "environment": env,
+                    "runs": len(same_condition_runs),
+                    "fail_rate": fail_rate,
+                })
+    return flaky_candidates</code></pre>
+
+<h2 id="why-this-specific-grouping-matters">Why This Specific Grouping Matters</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Notice the grouping is BY (commit_hash, environment) FIRST,
+NOT just by test name alone. This is directly, deliberately
+implementing the What is a Flaky Test? page's definition in
+code:
+
+❌ Grouping by test name ALONE would WRONGLY include runs
+   across DIFFERENT commits and environments — exactly the
+   "code changed" and "environment changed" confounds that
+   page warned against.
+
+✅ Grouping by (test, commit, environment) TOGETHER ensures
+   every comparison is GENUINELY apples-to-apples — only
+   comparing runs where code and environment are CONFIRMED
+   identical, matching this chapter's own definition exactly.</code></pre>
+
+<h2 id="applying-this-to-the-cart-total-test">Applying This to the Cart-Total Test</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># Given this chapter's earlier example run data:
+Test: "cart total updates after adding an item"
+Commit: a3f9c21, Environment: staging
+Runs: 20, Fails: 4
+fail_rate = 4 / 20 = 0.2
+
+0 &lt; 0.2 &lt; 1  →  GENUINELY flagged as a flaky candidate,
+with the SAME commit and environment confirmed across all 20
+runs — exactly the evidence needed to support this chapter's
+earlier claim that this test "passes roughly 80% of the time."</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why does this function require at least 5 same-condition runs (<code>len(same_condition_runs) &lt; 5: continue</code>) before drawing any conclusion, rather than flagging flakiness from just 2 runs? A single fail-then-pass pair under genuinely identical conditions is technically consistent with flakiness — but it's also consistent with an extremely rare, one-off fluke unrelated to any real, recurring issue. Requiring a genuinely reasonable sample size before concluding anything reduces the chance of flagging something as "flaky" based on statistical noise from too small a sample, exactly the same reasoning behind needing a meaningful sample size before trusting any statistical pattern.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Grouping historical runs by test name alone when checking for flakiness, without also grouping by commit and environment. This silently reintroduces exactly the confounds the definition explicitly excludes — a test that failed under old, buggy code and passed after a genuine fix would incorrectly show up as "flaky" under this looser grouping.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>This entire detection function is genuinely deterministic — no LLM call anywhere in it. This is deliberate: computing a pass rate from grouped historical data is exact arithmetic, exactly the kind of check that belongs to ordinary code, not AI reasoning, following the same exact-vs-fuzzy principle from Chapter 5 onward.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Group historical runs by test, commit, and environment together before computing any fail rate — never by test name alone.</li>
+  <li>Require a genuinely reasonable minimum sample size before concluding flakiness, to avoid drawing conclusions from statistical noise.</li>
+  <li>Keep pattern detection itself as deterministic, ordinary code — this step needs no AI reasoning at all.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Detecting a genuine flakiness pattern from historical data is ordinary, deterministic computation, directly implementing the earlier pages' definition in code.</li>
+  <li>Grouping by test, commit, and environment together — not test name alone — is what makes this detection genuinely match the actual definition of flakiness.</li>
+  <li>A minimum sample size requirement protects against flagging genuine statistical noise as if it were a real, meaningful pattern.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Trace through this page's <code>detect_flaky_tests</code> function by hand for a hypothetical test with 8 runs under one commit/environment combination (3 fails, 5 passes) and 3 runs under a different commit/environment combination (0 fails) — determine what the function would output and why the second group doesn't contribute a flaky candidate entry.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A teammate simplifies this page's function by grouping only by test_name, arguing "it's simpler and still catches flaky tests." What real problem does this simplification introduce?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This reintroduces exactly the confounds the What is a Flaky Test? page's definition was designed to exclude — a test could show a nonzero fail rate purely because of a genuine fix or environment change between runs, not genuine flakiness at all.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A CONCRETE false positive this simplification would produce:
+Test X failed consistently under commit A (a real, now-fixed
+  bug), then passes consistently under commit B (after the fix
+  was merged). Grouped ONLY by test_name: 10 runs, 5 fails,
+  5 passes → fail_rate = 0.5 → INCORRECTLY flagged as flaky.
+
+What GROUPING BY COMMIT TOO would correctly show instead:
+Commit A: 5 runs, 5 fails (fail_rate = 1.0 — CONSISTENT
+  failure, not flaky, a genuine bug that got fixed)
+Commit B: 5 runs, 0 fails (fail_rate = 0.0 — CONSISTENT
+  success, also not flaky)
+NEITHER group shows 0 &lt; fail_rate &lt; 1 — correctly NOT
+  flagged as flaky at all.</code></pre>
+<p>The teammate's simplification isn't just "less thorough" — it produces a genuinely INCORRECT result for this realistic scenario, exactly the kind of confound this page's more careful grouping is specifically designed to avoid.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page's function use a hard cutoff of 5 runs rather than, say, requiring 2 or 3?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>The specific number 5 is a reasonable, practical threshold rather than a mathematically precise one — the underlying principle (avoid concluding flakiness from too small a sample) matters more than this exact value, though a larger minimum does genuinely reduce false positives from small-sample noise.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why 2-3 runs would be GENUINELY riskier:
+With only 2 runs, a fail_rate of EITHER 0.5 (1 fail, 1 pass)
+  is the ONLY possible non-zero, non-one outcome — meaning
+  ANY single inconsistent pair, however rare or coincidental,
+  would immediately trigger a "flaky" flag, with essentially
+  NO protection against a genuine one-off fluke.
+
+Why a LARGER minimum (like 5, or even more) is more
+statistically reasonable:
+More runs under IDENTICAL conditions make a genuinely
+  ONE-OFF, rare event less likely to dominate the computed
+  fail rate — a single fluke among 5+ runs has LESS influence
+  on the overall rate than the same fluke among just 2.</code></pre>
+<p>The exact number 5 isn't a rigorously derived statistical threshold in this simplified example — it's a REASONABLE, practical choice reflecting the genuine principle that more samples produce more reliable conclusions, and a real production system might reasonably tune this threshold based on its own actual data volume and tolerance for false positives.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why this page insists pattern detection needs "no AI reasoning at all," connecting this to a principle established much earlier in this course.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This directly applies the exact-vs-fuzzy distinction from Chapter 5's AI Assertions page — computing a fail rate from grouped historical data is a simple, deterministic arithmetic operation with exactly one correct answer, requiring zero genuine judgment.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What THIS function computes — pure, EXACT arithmetic:
+fail_rate = count of 'fail' results / total count — this has
+  EXACTLY one correct numeric answer for any given set of
+  runs, with ZERO ambiguity or need for reasoning about what
+  "correct" means in context.
+
+Why reaching for AI here would be GENUINELY wasteful:
+Adding an LLM call to compute what's fundamentally a COUNTING
+  and DIVISION operation would add real, unnecessary cost and
+  potential inconsistency to a calculation that deterministic
+  code already performs perfectly, reliably, and essentially
+  for free — exactly the "don't use fuzzy reasoning where
+  exact checking suffices" mistake this course has warned
+  against since Chapter 5.</code></pre>
+<p>This is a deliberate, important design choice worth recognizing explicitly — not every part of an "AI-powered" workflow should actually involve AI; using deterministic code where it genuinely suffices, and reserving AI reasoning specifically for where judgment is genuinely needed (the next page), is itself a mature, well-calibrated design practice.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might a test with a fail_rate of exactly 1.0 (every single run failed under a given commit/environment) NOT be flagged by this page's function, and is this the correct behavior?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>The function's condition <code>0 &lt; fail_rate &lt; 1</code> deliberately excludes both extremes — and this is genuinely correct behavior, since a test failing 100% of the time under identical conditions isn't flaky at all; it's a CONSISTENT, real failure, exactly Chapter 8's application-defect or test-defect category, not flakiness.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why fail_rate = 1.0 correctly does NOT indicate flakiness:
+CONSISTENT failure under IDENTICAL conditions means the test
+  reliably, predictably fails EVERY time — this is a genuine,
+  real bug (or test defect) worth Chapter 8's diagnostic
+  process, but it's NOT "genuinely inconsistent results" per
+  this chapter's OWN definition of flakiness at all.
+
+Why fail_rate = 0.0 is similarly correctly excluded:
+CONSISTENT success is simply... a test working correctly,
+  genuinely nothing to flag at all.</code></pre>
+<p>This is exactly correct behavior, and a good, concrete illustration of why the function's condition matters — flakiness is SPECIFICALLY about inconsistency, not about failure rate in either direction; a consistently-failing test needs Chapter 8's diagnostic tools, not this chapter's flakiness-detection process, and the function correctly routes it away from being mislabeled.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you extend this page's function to also flag a test as "worth investigating for test-order dependency" specifically, using the preceding_test field from the previous page's data format?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A genuinely useful extension would, for each flaky candidate, further group its failing runs by their <code>preceding_test</code> value and check whether failures cluster disproportionately around one specific preceding test.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def check_test_order_correlation(same_condition_runs):
+    from collections import Counter
+    failing_runs = [r for r in same_condition_runs if r["result"] == "fail"]
+    passing_runs = [r for r in same_condition_runs if r["result"] == "pass"]
+
+    fail_preceding = Counter(r["preceding_test"] for r in failing_runs)
+    pass_preceding = Counter(r["preceding_test"] for r in passing_runs)
+
+    for preceding, fail_count in fail_preceding.items():
+        # a preceding test appearing ONLY (or mostly) among
+        # FAILURES, rarely among passes, is worth flagging
+        pass_count = pass_preceding.get(preceding, 0)
+        if fail_count &gt;= 3 and pass_count == 0:
+            return (f"Possible test-order dependency: failures "
+                    f"correlate strongly with '{preceding}' "
+                    f"running immediately before ({fail_count} "
+                    f"fails, 0 passes, when preceded by this test).")
+    return "No strong test-order correlation detected."</code></pre>
+<p>This directly builds on the previous page's deliberate inclusion of <code>preceding_test</code> in the historical record, turning that specific field into a genuine, checkable signal for one of the Why Tests Become Flaky page's four causes — exactly the kind of concrete, evidence-based investigation this chapter has been building toward throughout its earlier pages.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

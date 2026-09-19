@@ -1,0 +1,192 @@
+<!doctype html>
+<html><head>
+<title>Translating a Business Requirement into a Real k6 Workload</title>
+<meta name="description" content="The actual skill this chapter builds toward — reading a real business requirement and deriving a correct k6 workload configuration from it, step by step, not by guessing." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/translating-requirements-into-workloads.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Translating a Business Requirement into a Workload</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="scenarios-multiple-workloads.html">Scenarios: Multiple Workloads in One Test</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Every earlier page in this chapter covered a piece of syntax. This page is about the actual skill all of that syntax serves — reading a real, often vague business requirement and deriving a specific, correct k6 configuration from it, deliberately, rather than picking numbers that merely sound plausible.</p>
+
+<h2 id="the-requirement-from-chapter-1-revisited">The Requirement From Chapter 1, Revisited</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>"The application should support 5,000 users during peak traffic, with 95% of
+ checkout requests completing within 2 seconds."</code></pre>
+<p>Chapter 1 broke this down conceptually — concurrency target, specific workflow, percentile, response-time threshold. This page turns that conceptual breakdown into an actual, runnable k6 configuration.</p>
+
+<h2 id="step-1-identify-what-kind-of-load-this-actually-describes">Step 1 — Identify What Kind of Load This Actually Describes</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>"5,000 users" → this is a CONCURRENCY statement, not a throughput statement
+              → points toward a VU-based executor, not an arrival-rate one
+
+"during peak traffic" → this is EXPECTED, realistic load → a LOAD test (Chapter 1),
+                         not a stress test looking for an unknown ceiling</code></pre>
+<p>Before writing any configuration, correctly classifying the requirement — concurrency vs. throughput, load vs. stress — determines which entire family of tools (from earlier in this chapter) is even appropriate to reach for.</p>
+
+<h2 id="step-2-model-realistic-arrival-not-an-instant-jump">Step 2 — Model Realistic Arrival, Not an Instant Jump</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>5,000 users don't all arrive in the same literal instant — model a realistic
+ramp toward that peak, sustained for a meaningful period, then ramped down.</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export const options = {
+  scenarios: {
+    peak_traffic: {
+      executor: 'ramping-vus',
+      startVUs: 0,
+      stages: [
+        { duration: '5m', target: 5000 },  // ramp to peak
+        { duration: '15m', target: 5000 }, // sustained peak
+        { duration: '5m', target: 0 },     // ramp down
+      ],
+      exec: 'checkoutFlow',
+    },
+  },
+};</code></pre>
+
+<h2 id="step-3-model-the-specific-workflow-not-just-any-request">Step 3 — Model the Specific Workflow, Not Just Any Request</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export function checkoutFlow() {
+  group('Checkout', function () {
+    const response = http.post('https://api.example.com/checkout',
+      JSON.stringify({ cartId: 'cart-123', paymentMethod: 'card' }),
+      { headers: { 'Content-Type': 'application/json' } });
+
+    check(response, {
+      'checkout succeeded': (r) => r.status === 200,
+    });
+  });
+  sleep(1);
+}</code></pre>
+<p>The requirement specifically names checkout, not "any endpoint" — the test needs to actually exercise that specific workflow, not a generic or unrelated request that happens to be easy to script.</p>
+
+<h2 id="step-4-encode-the-percentile-threshold-preview-of-chapter-7">Step 4 — Encode the Percentile Threshold (Preview of Chapter 7)</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export const options = {
+  scenarios: { /* ...as above... */ },
+  thresholds: {
+    http_req_duration: ['p(95)&lt;2000'], // the actual requirement, made enforceable
+  },
+};</code></pre>
+<p>This is where the requirement's specific percentile and response-time target become an actual, automated pass/fail condition — not just a number the team eyeballs after the fact. Chapter 7 covers thresholds in full depth; this is a preview showing exactly how directly a well-read requirement maps onto real threshold syntax.</p>
+
+<h2 id="detailed-example-the-complete-translation-end-to-end">Detailed Example — The Complete Translation, End to End</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import http from 'k6/http';
+import { check, sleep, group } from 'k6';
+
+export const options = {
+  scenarios: {
+    peak_checkout_traffic: {
+      executor: 'ramping-vus',
+      startVUs: 0,
+      stages: [
+        { duration: '5m', target: 5000 },
+        { duration: '15m', target: 5000 },
+        { duration: '5m', target: 0 },
+      ],
+      exec: 'checkoutFlow',
+    },
+  },
+  thresholds: {
+    http_req_duration: ['p(95)&lt;2000'],
+    http_req_failed: ['rate&lt;0.01'],
+  },
+};
+
+export function checkoutFlow() {
+  group('Checkout', function () {
+    const response = http.post('https://api.example.com/checkout',
+      JSON.stringify({ cartId: 'cart-123', paymentMethod: 'card' }),
+      { headers: { 'Content-Type': 'application/json' } });
+    check(response, { 'checkout succeeded': (r) => r.status === 200 });
+  });
+  sleep(1);
+}</code></pre>
+<p>Every single line here traces back to a specific part of the original one-sentence requirement — the concurrency target, the realistic ramp, the specific workflow, and the percentile-based pass/fail criteria. This is the actual outcome workload modeling is meant to produce: not "a k6 test," but a test that genuinely represents what the business actually asked for.</p>
+
+<h2 id="real-world-example-a-requirement-that-s-actually-about-throughput-not-concurrency">Real-World Example — A Requirement That's Actually About Throughput, Not Concurrency</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>"The payment API must sustain 150 transactions per second during a sale event."</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// This is a THROUGHPUT requirement — use an arrival-rate executor, not VU-based
+export const options = {
+  scenarios: {
+    sale_event: {
+      executor: 'ramping-arrival-rate',
+      startRate: 10,
+      timeUnit: '1s',
+      preAllocatedVUs: 100,
+      maxVUs: 400,
+      stages: [
+        { duration: '3m', target: 150 },
+        { duration: '10m', target: 150 },
+        { duration: '3m', target: 0 },
+      ],
+    },
+  },
+  thresholds: {
+    http_req_failed: ['rate&lt;0.02'],
+  },
+};</code></pre>
+<p>The wording here — "sustain 150 transactions per second" — is a throughput statement, not a concurrency statement, correctly calling for an arrival-rate executor rather than the VU-based approach used for the earlier checkout example. Reading requirements carefully enough to catch this distinction is exactly the skill this whole chapter has been building toward.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Guessing at a configuration without connecting it to the actual requirement
+export const options = { vus: 1000, duration: '10m' }; // "sounds like a lot"
+
+// ✅ A configuration deliberately derived from each specific part of the requirement
+export const options = {
+  scenarios: { /* concurrency target, realistic ramp, specific workflow */ },
+  thresholds: { /* the actual percentile and error-rate criteria named in the requirement */ },
+};</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Picking a VU count that sounds proportionally large</strong> without deriving it from the requirement's actual stated number.</li>
+  <li><strong>Missing whether a requirement is really about concurrency or throughput</strong> — leading to the wrong family of executor entirely.</li>
+  <li><strong>Testing a generic endpoint instead of the specific workflow the requirement actually names</strong> — technically running "a test," but not one that answers the real question being asked.</li>
+  <li><strong>Leaving the percentile/threshold criteria as an afterthought</strong>, checked manually after the fact, instead of encoding it directly as an automated threshold.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>A requirement with no explicit ramp behavior specified</strong> — "support 5,000 users at peak" doesn't say how fast users arrive; modeling a reasonable, realistic ramp based on the type of traffic event (a gradual daily peak vs. a flash-sale-style surge) is a judgment call worth making deliberately, not arbitrarily.</li>
+  <li><strong>A requirement combining both a concurrency AND a throughput target</strong> in the same sentence — this may call for scenarios (from the previous page) modeling both dimensions together, rather than forcing the whole requirement into a single executor type.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a test's results don't seem to actually answer the business question that prompted it, go back to the original requirement and check whether each of its specific parts — concurrency/throughput, workflow, percentile, threshold — is genuinely represented in the configuration; a common root cause is one of these being silently dropped or approximated away during translation.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Explicitly classify a requirement as concurrency-based or throughput-based before choosing an executor family.</li>
+  <li>Model the specific workflow the requirement actually names, not a generic, easier-to-script substitute.</li>
+  <li>Encode percentile and error-rate criteria as real thresholds, not something checked manually after the test runs.</li>
+  <li>Make ramp behavior a deliberate choice based on the nature of the traffic event, not an arbitrary default.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Translate this requirement into a complete k6 configuration: "During a product launch, the API should handle a ramp to 300 requests per second within 3 minutes, sustain that rate for 20 minutes, with 99% of requests completing within 800ms and an error rate under 0.5%." Identify which executor family this calls for, and write the corresponding <code>options</code> object including thresholds.</p>
+
+<h2 id="summary">Summary</h2>
+<p>Translating a business requirement into a real k6 workload means classifying it correctly (concurrency vs. throughput, load vs. stress), modeling realistic arrival rather than an instant jump, exercising the specific workflow actually named, and encoding the requirement's percentile and error criteria as genuine, automated thresholds — not eyeballed after the fact. This is the actual skill every piece of syntax in this chapter has been in service of, and it's what separates a test that happens to run from a test that genuinely verifies what the business actually asked for.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Given "the system should support 5,000 concurrent users," why does the word "concurrent" matter for choosing an executor?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">"Concurrent users" is fundamentally a statement about how many users are active at once — a concurrency requirement — which points toward a VU-based executor (constant-vus or ramping-vus) rather than an arrival-rate executor, which is designed for throughput requirements instead. Misreading this distinction leads to testing the wrong dimension of the system's behavior entirely.</div>
+</details>
+<details class="faq-item">
+<summary>Why should a business requirement's percentile and error-rate criteria be encoded as k6 thresholds rather than checked manually after a test run?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Encoding them as thresholds turns the requirement into an automated, repeatable pass/fail signal that doesn't depend on someone remembering to manually check the right numbers after every run — this is essential for running the same test consistently in CI/CD, and it removes the risk of a human eyeballing results and missing a genuine violation of the requirement.</div>
+</details>
+<details class="faq-item">
+<summary>Why is it important to test the specific workflow a requirement names, rather than a generic, easier-to-script endpoint?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A requirement about checkout performance specifically is asking a question about that particular workflow's behavior under load — testing a different, easier endpoint instead technically produces "a test," but it doesn't actually answer the question that was asked. Performance characteristics vary significantly between different endpoints, so a passing result on the wrong endpoint provides false confidence about the one that actually matters.</div>
+</details>
+<details class="faq-item">
+<summary>How would you distinguish whether a given requirement calls for a load test or a stress test during translation?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Language describing expected, realistic conditions — "during peak traffic," "typical usage," a number the business already anticipates — points toward a load test, confirming a known requirement. Language about finding a limit or an unknown breaking point — "how much can we handle before failure," "what's our ceiling" — points toward a stress test instead. Reading which of these two intents a requirement actually expresses determines the right test design from the very start.</div>
+</details>
+<details class="faq-item">
+<summary>Why might a single business requirement sometimes call for using scenarios rather than one executor?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Some requirements genuinely describe multiple distinct traffic dimensions at once — for instance, a concurrency target for browsing users combined with a separate throughput target for an API integration. Forcing this into a single executor and workload would misrepresent one dimension or the other; scenarios let each distinct part of the requirement be modeled with the executor that's actually appropriate for it, combined into one coherent test.</div>
+</details>
+</div>
+</article>
+</body></html>

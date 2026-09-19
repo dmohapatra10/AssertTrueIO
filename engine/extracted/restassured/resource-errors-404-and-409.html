@@ -1,0 +1,141 @@
+<!doctype html>
+<html><head>
+<title>RestAssured Resource Errors: 404 Not Found &amp; 409 Conflict</title>
+<meta name="description" content="Testing invalid resource IDs and duplicate data conflicts in RestAssured — 404 and 409 status codes, and the subtle edge cases each one has." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/resource-errors-404-and-409.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Resource Errors: 404 &amp; 409</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="authentication-and-authorization-errors.html">Authentication & Authorization Errors</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>These two codes cover a genuinely different category of failure from validation or auth errors — the request itself is perfectly well-formed and properly authenticated, but the specific resource it's asking about either doesn't exist (404) or conflicts with something that already does (409).</p>
+
+<h2 id="404-invalid-or-non-existent-id">404 — Invalid or Non-Existent ID</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void requestingNonExistentResourceReturns404() {
+    given()
+        .pathParam("id", "99999999") // an ID that (almost certainly) doesn't exist
+    .when()
+        .get("/users/{id}")
+    .then()
+        .statusCode(404);
+}</code></pre>
+
+<h2 id="404-malformed-id-a-distinct-sub-case">404 — Malformed ID (A Distinct Sub-Case)</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void malformedIdFormatReturns404OrBadRequest() {
+    given()
+        .pathParam("id", "not-a-valid-id-format")
+    .when()
+        .get("/users/{id}")
+    .then()
+        .statusCode(anyOf(is(404), is(400))); // APIs vary in how they handle this
+}</code></pre>
+<p>Worth being precise about which is which: a numeric ID that's syntactically valid but doesn't correspond to any real record is unambiguously a 404. An ID that's structurally wrong (a string where a UUID is expected, for instance) is more ambiguous — some APIs treat it as "not found" (404), others as "bad request" (400), and it's worth confirming which your specific API actually does rather than assuming.</p>
+
+<h2 id="409-duplicate-data">409 — Duplicate Data</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void creatingDuplicateEmailReturns409() {
+    String sharedEmail = "duplicate-" + UUID.randomUUID() + "@example.com";
+
+    given().body(Map.of("email", sharedEmail, "name", "First")).when().post("/users")
+        .then().statusCode(201);
+
+    given().body(Map.of("email", sharedEmail, "name", "Second")).when().post("/users")
+        .then().statusCode(409);
+}</code></pre>
+<p>This is the exact pattern from Chapter 10's Static vs. Dynamic Test Data page, revisited here specifically as a negative test — the shared email needs to be dynamically generated (to avoid colliding with a previous test run) while still being deliberately reused within this one test (to trigger the actual conflict being tested).</p>
+
+<h2 id="detailed-example-testing-an-update-that-creates-a-conflict">Detailed Example — Testing an Update That Creates a Conflict</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void updatingToAnAlreadyTakenEmailReturns409() {
+    String existingEmail = createAUserAndReturnTheirEmail();
+    String userIdToUpdate = createAnotherUserAndReturnTheirId();
+
+    given()
+        .pathParam("id", userIdToUpdate)
+        .body(Map.of("email", existingEmail)) // trying to take an email that's already someone else's
+    .when()
+        .patch("/users/{id}")
+    .then()
+        .statusCode(409);
+}</code></pre>
+<p>Duplicate conflicts aren't limited to creation — an update that would result in a conflict (two users ending up with the same unique field) needs the same rejection, and it's a genuinely distinct code path from the creation-time check, worth testing separately rather than assuming the same validation automatically applies to updates too.</p>
+
+<h2 id="real-world-example-combining-resource-errors-with-cleanup">Real-World Example — Combining Resource Errors With Cleanup</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void deletedResourceReturns404OnSubsequentAccess() {
+    String orderId = createATestOrderAndReturnItsId();
+
+    given().pathParam("id", orderId).when().delete("/orders/{id}").then().statusCode(204);
+
+    // The Chapter 7 pattern, revisited as an explicit negative test in its own right
+    given().pathParam("id", orderId).when().get("/orders/{id}")
+        .then().statusCode(404);
+}</code></pre>
+<p>This is the same "verify deletion" step from Chapter 7's full CRUD chain — worth recognizing that it's <em>also</em> a legitimate negative test in its own right (confirming 404 is correctly returned for a resource that genuinely doesn't exist anymore), not just a chain-completeness check.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Using a fixed, hardcoded "non-existent" ID that might accidentally
+// exist in some environments (or stop existing, breaking the test's assumption)
+given().pathParam("id", "1").when().get("/users/{id}").then().statusCode(404);
+
+// ✅ Using an ID virtually guaranteed not to exist, or one you KNOW was just deleted
+given().pathParam("id", "999999999").when().get("/users/{id}").then().statusCode(404);
+// or, more robustly: create then delete a resource, then check 404 against ITS specific ID</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Using a low, "probably safe" ID like 1 or 2</strong> to test 404, when that ID might legitimately exist in some environments — a genuinely-deleted resource's own ID is a more reliable way to guarantee non-existence.</li>
+  <li><strong>Only testing duplicate detection on creation</strong>, never on update — these can be genuinely separate code paths with independently possible bugs.</li>
+  <li><strong>Assuming malformed IDs always produce 404</strong> — some APIs correctly return 400 for a structurally invalid ID instead; verify rather than assume.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Soft-deleted resources</strong> (from Chapter 3's DELETE page) — a soft-deleted resource might still return 200 from a direct GET, which is correct for that API's design, not a 404 bug; know which delete semantics your API uses before writing this assertion.</li>
+  <li><strong>Case-sensitivity in duplicate detection</strong> — does the API treat <code>John@Example.com</code> and <code>john@example.com</code> as duplicates? Worth testing explicitly if case-insensitive uniqueness is part of the API's actual contract.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a 404 test unexpectedly returns 200, confirm the "non-existent" ID you're using genuinely doesn't exist in whatever environment the test is running against — a hardcoded low ID is the most common cause of this specific false failure.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Use a resource you know was just deleted (rather than a guessed "probably safe" ID) for the most reliable 404 test.</li>
+  <li>Test duplicate detection on both creation and update, as potentially separate code paths.</li>
+  <li>Verify whether your specific API returns 404 or 400 for malformed (not just non-existent) IDs, rather than assuming.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Write a test that creates a resource, deletes it, and confirms a 404 on subsequent access using that specific resource's own ID (not a guessed "safe" ID) — then write a second test confirming that updating one resource to take another resource's unique field value correctly triggers a 409.</p>
+
+<h2 id="summary">Summary</h2>
+<p>404 and 409 cover requests that are well-formed and properly authenticated but fail because of the specific resource's state — it doesn't exist, or it conflicts with something that does. The most reliable way to test 404 is against a resource you know was just deleted, not a guessed "probably safe" ID, and duplicate-conflict testing deserves coverage on both creation and update, since they're often genuinely separate code paths.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why is using a hardcoded ID like "1" to test a 404 response considered unreliable?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A low, hardcoded ID like 1 might legitimately correspond to a real record in some environments — a seed admin account, an early test fixture — which would make the test fail with an unexpected 200 instead of the intended 404, not because of a real bug but because the test's underlying assumption (that ID 1 doesn't exist) was wrong for that particular environment. A more reliable approach is to use an ID you can actually guarantee doesn't exist — either a very large, essentially-impossible-to-collide-with number, or better, the ID of a resource the test itself just created and deleted, which is verifiably non-existent at that point.</div>
+</details>
+<details class="faq-item">
+<summary>Why is using a hardcoded ID like '1' to test 404 considered unreliable?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">That ID might legitimately exist in some environments (a seed account), making the test fail with an unexpected 200 for reasons unrelated to any real bug — an ID you know was just deleted is a more reliable non-existence guarantee.</div>
+</details>
+<details class="faq-item">
+<summary>Why might a malformed ID (wrong format, not just non-existent) produce 400 instead of 404?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">APIs vary in how they handle this — some treat a structurally invalid ID as 'not found,' others as 'bad request'; worth confirming which your specific API actually does rather than assuming universally.</div>
+</details>
+<details class="faq-item">
+<summary>Why test duplicate detection on UPDATE, not just creation?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">These can be genuinely separate code paths — an update that would create a conflict (taking another record's unique field) needs its own explicit test, since the creation-time check might not automatically apply to updates.</div>
+</details>
+<details class="faq-item">
+<summary>What's a reliable way to guarantee a 404 test's ID is genuinely non-existent?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Create a resource, delete it, then test against ITS specific ID — verifiably non-existent at that point, rather than guessing at a 'probably safe' number.</div>
+</details>
+</div>
+</article>
+</body></html>

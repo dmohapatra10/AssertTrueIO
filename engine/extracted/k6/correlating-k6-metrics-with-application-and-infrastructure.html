@@ -1,0 +1,128 @@
+<!doctype html>
+<html><head>
+<title>Correlating k6 Metrics With Application &amp; Infrastructure Metrics to Find the Real Bottleneck</title>
+<meta name="description" content="How to go from &#x27;k6 says checkout is slow&#x27; to an actual root cause — correlating k6 results with application CPU/memory, database performance, and infrastructure metrics." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/correlating-k6-metrics-with-application-and-infrastructure.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Correlating k6 Metrics With Application &amp; Infrastructure Metrics</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="sending-k6-metrics-to-grafana-and-dashboards.html">Sending k6 Metrics to Grafana & External Dashboards</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>k6 can tell you a request was slow. It cannot, by itself, tell you why — that requires looking at what the application and infrastructure were actually doing at that same moment. This page covers making that connection deliberately.</p>
+
+<h2 id="the-correlation-chain">The Correlation Chain</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>k6 metrics          →    Application metrics    →    Infrastructure metrics    →    Bottleneck
+http_req_duration          service-level CPU,           database CPU, disk I/O,        the specific,
+spikes for checkout        memory, thread pool           network saturation,            actionable
+requests specifically      usage during that              connection pool                root cause
+                            same window                     exhaustion</code></pre>
+<p>Each step narrows the investigation — k6 identifies <em>when</em> and <em>which requests</em> were slow; application metrics narrow it to <em>which service or component</em>; infrastructure metrics narrow it to the <em>specific resource</em> actually constrained.</p>
+
+<h2 id="what-to-look-at-application-metrics">What to Look At: Application Metrics</h2>
+<ul>
+  <li><strong>CPU usage</strong> — is the application service itself pegged, unable to process requests fast enough?</li>
+  <li><strong>Memory usage</strong> — is the service approaching a memory limit, potentially triggering garbage collection pauses or swapping?</li>
+  <li><strong>Thread pool / connection pool saturation</strong> — is the service waiting on an internal resource limit, queuing requests rather than actually processing them slowly?</li>
+  <li><strong>Application logs</strong> — do error or warning logs cluster around the same time window k6 reported degraded performance?</li>
+</ul>
+
+<h2 id="what-to-look-at-infrastructure-metrics">What to Look At: Infrastructure Metrics</h2>
+<ul>
+  <li><strong>Database CPU and query performance</strong> — is a specific query becoming slow specifically under concurrent load (a classic, common real bottleneck)?</li>
+  <li><strong>Disk I/O</strong> — is the database or application server waiting on disk reads/writes?</li>
+  <li><strong>Network saturation</strong> — distinct from the load generator's own network limits (Chapter 12) — is the target infrastructure's own network capacity constrained?</li>
+</ul>
+
+<h2 id="detailed-example-walking-the-full-chain-to-a-real-root-cause">Detailed Example — Walking the Full Chain to a Real Root Cause</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Step 1 (k6): http_req_duration for /checkout spikes specifically
+             between minutes 12-15 of the test, while /products and
+             /search stay fast throughout.
+
+Step 2 (Application): the checkout service's own CPU metrics, viewed
+             for that same time window, show a spike to 95% CPU,
+             while the products and search services stay under 30%.
+
+Step 3 (Infrastructure): the database's slow-query log, for that same
+             window, shows one specific query — the inventory-check
+             query the checkout flow runs — taking 8x longer than
+             its normal baseline.
+
+Root cause: the inventory-check query lacks an index that becomes
+             necessary specifically under concurrent checkout load,
+             causing a full table scan that saturates database CPU,
+             which cascades into checkout service CPU, which shows
+             up in k6 as elevated http_req_duration for checkout only.</code></pre>
+<p>This is what "finding the bottleneck" actually looks like in practice — not a single tool's output, but a chain of correlated evidence across three genuinely different systems, each narrowing the investigation until it reaches something concrete and fixable (a missing database index).</p>
+
+<h2 id="real-world-example-why-time-alignment-matters">Real-World Example — Why Time Alignment Matters</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>❌ Comparing k6's overall test summary against a full day of application
+   monitoring data — too broad a window to draw any real correlation
+
+✅ Comparing k6's minute-by-minute dashboard (from the previous page)
+   against application/infrastructure metrics for that SAME specific
+   time window — precise enough to actually correlate cause and effect</code></pre>
+<p>This is exactly why the time-series dashboard from the previous page matters beyond just visualization — correlating k6 data against application and infrastructure metrics requires comparing the same specific time windows, which a single final aggregate number cannot support.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Concluding "checkout is slow" from k6 alone and guessing at a fix
+// without checking what the application or database were actually doing
+
+// ✅ Walking the full chain: k6 identifies WHEN/WHAT, application
+// metrics narrow WHICH SERVICE, infrastructure metrics narrow to
+// the SPECIFIC RESOURCE actually constrained</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Stopping the investigation at k6's own metrics</strong> — "checkout is slow" is an observation, not a root cause; the correlation chain is what turns it into something actionable.</li>
+  <li><strong>Comparing metrics across mismatched time windows</strong> — a broad daily view can't correlate with a specific 10-minute performance spike; alignment needs to be precise.</li>
+  <li><strong>Guessing at a fix without confirming the actual bottleneck</strong> through correlation — optimizing the wrong layer (application code, when the real issue is a missing database index) wastes real effort.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>A bottleneck that shifts between different layers under different load levels</strong> — the application might be the constraint at moderate load, while the database becomes the constraint only once load crosses some higher threshold; correlation may need to be repeated at different points in a ramping test, not just once.</li>
+  <li><strong>Limited access to application or infrastructure monitoring</strong> — if you genuinely can't access the target system's own metrics, correlation is limited to what k6 itself can observe (Chapter 6's connecting/waiting/receiving breakdown), which still narrows things somewhat, just not as precisely.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If k6 reports a specific endpoint consistently slow under load, the next step is always the same: pull up that same specific time window in the application's own monitoring, then the infrastructure's — never guess at a fix before walking at least that much of the chain.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Always correlate a k6 finding against application and infrastructure metrics for the exact same time window before concluding anything about the root cause.</li>
+  <li>Use k6's per-endpoint or per-tag breakdown (Chapter 10) to narrow which specific request pattern is actually implicated, before searching broadly through application logs.</li>
+  <li>Treat "the system is slow" as the start of an investigation, not the end of one.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Given a k6 result showing elevated <code>http_req_duration</code> specifically for a "search" endpoint starting at the 20-minute mark of a 30-minute test, describe the specific application and infrastructure metrics you'd check next, and for what exact time window.</p>
+
+<h2 id="summary">Summary</h2>
+<p>k6 metrics identify when and which requests were slow; application metrics narrow that to which specific service or component; infrastructure metrics narrow it further to the specific constrained resource — together forming a correlation chain that turns "the system is slow" into an actual, actionable root cause. This only works with precise time alignment across all three sources, which is exactly why the time-series dashboard from the previous page matters beyond simple visualization.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why can't k6 alone tell you the actual root cause of a slow endpoint?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">k6 only observes the request/response cycle from the outside — it can tell you a request took a long time, but it has no visibility into what was happening inside the application or its infrastructure that caused that delay. Finding the actual root cause requires correlating k6's observation with the application's own metrics (CPU, memory) and the infrastructure's (database performance, disk I/O) for that same time window.</div>
+</details>
+<details class="faq-item">
+<summary>Why does correlating k6 data against a full day of application monitoring produce a weaker result than correlating against a precise, matching time window?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A broad time window contains far too much unrelated activity to draw a meaningful cause-and-effect connection — a spike in application CPU sometime during a full day could correspond to countless things unrelated to the specific performance issue k6 observed. Comparing the exact same narrow time window (the specific minutes k6 showed degraded performance) is what makes the correlation genuinely meaningful rather than coincidental.</div>
+</details>
+<details class="faq-item">
+<summary>In the worked example on this page, why did the investigation move from k6, to application CPU, to a database slow-query log, rather than stopping earlier?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Each step only narrowed the investigation, without yet identifying something concrete and fixable — k6 identified which endpoint and when, application CPU identified which service was struggling, but neither alone explained WHY. Only the database slow-query log revealed the actual, fixable root cause (a missing index causing a full table scan), which is why the correlation chain needed to continue until it reached something genuinely actionable.</div>
+</details>
+<details class="faq-item">
+<summary>Why might the actual bottleneck shift from the application layer to the database layer as load increases during a single ramping test?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Different components can have different genuine capacity ceilings — an application service might handle moderate load comfortably while a specific database query only becomes measurably slow once concurrent load crosses some threshold that triggers resource contention (like the missing-index scenario). This means correlation may need to be performed at multiple points during a ramping test, not just once, since the actual constrained layer can change as load increases.</div>
+</details>
+<details class="faq-item">
+<summary>Why is guessing at a fix without completing the correlation chain a genuine risk, not just an inefficiency?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Optimizing the wrong layer — application code, for instance, when the real bottleneck is a missing database index — wastes real engineering effort and can leave the actual problem completely unaddressed, potentially still surfacing in production despite the "fix." Without confirming the genuine root cause through correlation, a team can spend real time and confidence on a change that doesn't actually solve the problem the test revealed.</div>
+</details>
+</div>
+</article>
+</body></html>

@@ -1,0 +1,227 @@
+<!doctype html>
+<html><head>
+<title>Tool Calling in Practice: Wiring Up Real Browser Tools</title>
+<meta name="description" content="Real, working Playwright-backed tools an agent can call, how the LLM&#x27;s structured tool-use output gets parsed and executed, and the full round trip in actual code." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/tool-calling-in-practice.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Tool Calling in Practice</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="creating-agent-instructions.html">Creating Agent Instructions</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Chapter 2's Tools page covered the concept; this page writes the real tools this specific agent will use, backed by genuine Playwright calls — turning the LLM's structured tool-use output into actual browser actions.</p>
+
+<h2 id="defining-real-tools">Defining Real Tools</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># tools.py
+from playwright.sync_api import Page
+
+def click_element(page: Page, role: str, name: str):
+    page.get_by_role(role, name=name).click()
+    return f"Clicked element with role='{role}', name='{name}'"
+
+def fill_field(page: Page, label: str, value: str):
+    page.get_by_label(label).fill(value)
+    return f"Filled field labeled '{label}'"
+
+def get_page_text(page: Page):
+    return page.inner_text("body")
+
+def get_current_url(page: Page):
+    return page.url</code></pre>
+<p>Genuinely ordinary Playwright code — nothing AI-specific about these functions themselves. This matches Chapter 2's own point directly: tools are typically reliable, deterministic code, not LLM-powered.</p>
+
+<h2 id="describing-tools-to-the-llm">Describing Tools to the LLM</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># These descriptions are what the LLM actually sees — it never
+# sees the Python code above, only this structured description
+
+TOOL_DEFINITIONS = [
+    {
+        "name": "click_element",
+        "description": "Clicks a visible element identified by its accessible role and name.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "role": {"type": "string", "description": "ARIA role, e.g. 'button'"},
+                "name": {"type": "string", "description": "Accessible name/label text"}
+            },
+            "required": ["role", "name"]
+        }
+    },
+    {
+        "name": "fill_field",
+        "description": "Types text into a visible, editable form field identified by its label.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "label": {"type": "string"},
+                "value": {"type": "string"}
+            },
+            "required": ["label", "value"]
+        }
+    },
+    {
+        "name": "get_page_text",
+        "description": "Returns the visible text content of the current page.",
+        "input_schema": {"type": "object", "properties": {}}
+    }
+]</code></pre>
+
+<h2 id="the-full-round-trip-in-real-code">The Full Round Trip, in Real Code</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># agent.py — extending think() to actually call tools
+
+def think_and_act(self, prompt, page):
+    response = self.client.messages.create(
+        model=self.model,
+        max_tokens=1024,
+        system=self.instructions,
+        messages=[{"role": "user", "content": prompt}],
+        tools=TOOL_DEFINITIONS
+    )
+
+    for block in response.content:
+        if block.type == "tool_use":
+            result = self.execute_tool(block.name, block.input, page)
+            return result   # the REAL result of the REAL action
+
+    return response.content[0].text   # no tool call — plain text reply
+
+def execute_tool(self, tool_name, tool_input, page):
+    if tool_name == "click_element":
+        return click_element(page, **tool_input)
+    elif tool_name == "fill_field":
+        return fill_field(page, **tool_input)
+    elif tool_name == "get_page_text":
+        return get_page_text(page)
+    else:
+        return f"Unknown tool: {tool_name}"</code></pre>
+<p>This is exactly Chapter 2's round trip, now real: the LLM's response can include a structured <code>tool_use</code> block naming a specific tool and its parameters; <code>execute_tool</code> looks up which real Python function that corresponds to and actually calls it against the real, live browser page.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why does <code>execute_tool</code> use an explicit if/elif chain naming each specific tool, rather than something more dynamic like directly calling a function with a matching name? An explicit chain means every single tool the agent could possibly execute is visible in one place, in code you wrote and reviewed — a dynamic approach (like calling any function whose name happens to match) would mean the LLM's output could potentially invoke ANY function reachable by that mechanism, not just the specific, reviewed tools you actually intended to expose. This is a small, concrete example of the tool-scoping safety principle from Chapter 2 showing up directly in real implementation code.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Writing tool descriptions that don't match what the actual Python function does, or omitting genuinely required parameters from the schema. The LLM has no way to inspect your actual code — it relies entirely on the description and schema to know how to call a tool correctly, exactly as Chapter 2's LLM page explained.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>Have each tool function return a clear, human-readable string describing what actually happened (as this page's examples do), not just <code>True</code>/<code>None</code>. This string becomes the agent's next observation — a vague or missing return value gives the reasoner genuinely less to work with on its next decision.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Keep the tool-execution dispatch explicit and reviewable, rather than dynamically invoking whatever the LLM names.</li>
+  <li>Write tool descriptions and schemas that accurately, completely reflect what the underlying function actually does and needs.</li>
+  <li>Return clear, descriptive results from every tool call — this becomes the agent's next real observation.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Real tools are ordinary, deterministic Playwright code — the LLM never executes them directly, only requests them through structured tool-use output.</li>
+  <li>An explicit dispatch mechanism (naming each allowed tool specifically) keeps the agent's real capabilities exactly matching what you intended and reviewed.</li>
+  <li>What a tool returns becomes the agent's next observation — clear, descriptive results genuinely matter for the reasoning that follows.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Add a fourth tool, <code>get_current_url</code> (the Python function is already shown on this page), to both <code>TOOL_DEFINITIONS</code> and <code>execute_tool</code> — writing the tool definition's description and schema yourself, matching the style of this page's other examples.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A tool's description says it "clicks a button," but the underlying function actually works for any clickable element, not just buttons specifically. What real problem could this mismatch cause?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>The LLM relies entirely on the description to decide WHEN a tool is appropriate to use — an inaccurate description could cause it to avoid using a genuinely capable tool for a valid case (a link, not literally a button), or to misunderstand what kind of element it should actually be targeting.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Real, concrete consequence:
+Agent needs to click a LINK (not literally a button element)
+  to proceed. If it takes the description "clicks a button"
+  literally, it might incorrectly conclude this tool doesn't
+  apply here, and either fail to find a way to proceed, or
+  attempt something less reliable instead — when the tool
+  would have genuinely worked fine the whole time.
+
+The fix: match the description to the ACTUAL underlying
+  behavior — "clicks a visible element identified by its
+  accessible role and name" (this page's real description)
+  correctly signals it works for buttons, links, or any role,
+  not just buttons specifically.</code></pre>
+<p>This is a direct, concrete illustration of Chapter 2's LLM page point: the description isn't just documentation for humans — it's genuinely load-bearing information the LLM uses to decide its actual behavior.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page's execute_tool function return an "Unknown tool" message for an unrecognized tool name, rather than raising an exception that crashes the program?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A crash would stop the entire agent run over a single unexpected tool name, while a graceful, informative return value lets the agent's own loop (covered on the next page) continue — potentially even letting the reasoner see the error and adjust its next decision.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Crashing on an unknown tool name:
+An entire test run — potentially having made real, useful
+  progress already — is completely lost over one unexpected
+  or malformed tool call, with no chance for the agent (or a
+  human reviewing the run) to understand what happened or
+  recover gracefully.
+
+Returning a clear error message instead:
+"Unknown tool: some_unexpected_name" becomes the next
+  OBSERVATION fed back to the reasoner — which might genuinely
+  help it recognize something went wrong and adjust, or at
+  minimum leaves a clear, diagnosable trace of exactly what
+  happened, rather than an abrupt crash with no context.</code></pre>
+<p>This connects to a broader theme worth noting: an agent's tool layer benefits from being resilient to unexpected situations, since the whole point of an agentic system is handling genuinely unanticipated cases gracefully, not crashing the moment something doesn't match expectations exactly.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why the Python functions in tools.py (click_element, fill_field, etc.) contain no AI or LLM-related code at all, and why that's a deliberate design choice, not an oversight.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This directly reflects Chapter 2's Anatomy page distinction — tools are meant to be the reliable, deterministic "doing" layer, while the "thinking" (deciding WHEN and WHY to call a tool) is deliberately kept in the agent's reasoning layer, not mixed into the tool implementations themselves.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What tools.py's functions actually do:
+Ordinary Playwright automation — the EXACT same kind of code
+  taught in this site's own Playwright track, with zero
+  awareness of prompts, LLM responses, or reasoning at all.
+
+Why keeping this separation matters practically:
+These same tool functions could be tested, debugged, and
+  verified using completely ordinary testing techniques — no
+  LLM needed at all to confirm click_element() genuinely
+  clicks the right element. The "does this tool WORK correctly"
+  question and the "did the AGENT decide to use it correctly"
+  question become two separate, independently answerable
+  questions, rather than tangled together.</code></pre>
+<p>This separation is exactly what makes an agent's behavior genuinely debuggable — a failure can be isolated to either "the reasoning made a bad decision" or "a tool itself has a bug," rather than requiring you to untangle both concerns simultaneously.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might get_page_text return the ENTIRE page's visible text, rather than the LLM requesting only the specific part of the page it currently cares about?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This is a genuine, real trade-off this page's simple version doesn't fully solve — full-page text is simpler to implement but risks the same "excess irrelevant detail" problem Chapter 2's Reasoning page warned about, while a more targeted tool would be more complex to build but give the reasoner more focused context.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>This page's simple version (full page text):
+Easy to implement — one Playwright call, works everywhere.
+  Risk: on a genuinely complex page, this could include a lot
+  of irrelevant content (navigation menus, footers, unrelated
+  sections), diluting what the reasoner actually needs to
+  focus on for its current decision.
+
+A more sophisticated alternative (not built in this chapter):
+A tool that accepts a specific region or selector, returning
+  only the relevant portion — genuinely more precise, but
+  requires the reasoner to already have SOME idea what part
+  of the page it needs, which isn't always true, especially
+  early in a task before much has been observed yet.</code></pre>
+<p>This chapter deliberately starts with the simpler version — full-page text — as a genuinely reasonable starting point, while flagging (as this question does) that more sophisticated, targeted observation tools are a real, legitimate area for improvement in a more mature agent.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you add a genuine safety guardrail (from Chapter 2's categories) directly into this page's tool-calling code, concretely?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A genuinely concrete example: adding an action-level guardrail inside execute_tool itself, checking a click's target before actually executing it, connecting Chapter 2's guardrail categories directly to this page's real code.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def execute_tool(self, tool_name, tool_input, page):
+    if tool_name == "click_element":
+        # ACTION-LEVEL GUARDRAIL, checked before executing:
+        risky_terms = ["delete", "remove", "confirm order", "pay"]
+        if any(term in tool_input.get("name", "").lower()
+               for term in risky_terms):
+            return (f"BLOCKED: '{tool_input['name']}' matches a "
+                     "restricted action — requires human approval "
+                     "before proceeding.")
+        return click_element(page, **tool_input)
+    # ... other tools unchanged</code></pre>
+<p>This is a direct, working implementation of Chapter 2's action-level guardrail category — checked at the exact moment an action is about to execute, regardless of what the reasoning decided, exactly matching that page's own description of how action-level guardrails function in practice.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

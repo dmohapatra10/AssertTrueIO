@@ -1,0 +1,86 @@
+<!doctype html>
+<html><head>
+<title>Browser and Tool Permissions</title>
+<meta name="description" content="Real Playwright browser context permissions, combined with Chapter 15&#x27;s MCP tool allowlists, into one deliberately minimal permission set for an autonomous agent." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/browser-and-tool-permissions.html" />
+</head><body>
+<p class="difficulty">Advanced</p>
+<h1>Browser and Tool Permissions</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="credential-exposure-and-sensitive-test-data.html">Credential Exposure and Sensitive Test Data</a></p>
+<article class="content">
+<h2>What You'll Learn</h2>
+<ul>
+  <li>Restricting Playwright's own real browser context permissions</li>
+  <li>Combining browser-level and MCP tool-level restriction into one coherent picture</li>
+  <li>Why an autonomous agent needs tighter defaults than a human-driven browsing session</li>
+</ul>
+
+<h2>Introduction — Two Genuinely Different Permission Layers</h2>
+<p>Chapter 15 covered MCP tool allowlists — which tools a client can call. This page adds a real, different layer underneath: what the actual browser itself is allowed to do, regardless of which tool invokes it.</p>
+
+<h2>Step-by-Step Implementation — Real Browser Context Permissions</h2>
+<pre><code>// src/agent-browser-context.ts
+import { chromium } from '@playwright/test';
+
+export async function createRestrictedAgentContext() {
+  const browser = await chromium.launch();
+  const context = await browser.newContext({
+    // NEVER grant these to an AUTONOMOUS agent's context —
+    // an agent has no GENUINE reason to need them, and each
+    // one is a REAL, meaningful capability if misused
+    permissions: [],
+    geolocation: undefined,
+    // Block the browser from EVER downloading a file to disk
+    acceptDownloads: false,
+  });
+  return context;
+}</code></pre>
+
+<h2>Code Explanation</h2>
+<p>An empty <code>permissions</code> array means the browser context never grants camera, microphone, or location access — capabilities a real human user might reasonably click "allow" for, but that an autonomous agent has no genuine task-driven reason to ever need. <code>acceptDownloads: false</code> closes a real, concrete risk: an agent that could download and potentially execute a file introduces a much larger, different category of danger than one confined to browsing and clicking.</p>
+
+<h2>Why It Matters — Combining With Chapter 15's Tool Layer</h2>
+<pre><code>BROWSER-level restriction (THIS page): what the BROWSER
+  ITSELF can technically DO, regardless of tool
+
+TOOL-level restriction (Chapter 15): which TOOLS a specific
+  CLIENT is allowed to CALL at all
+
+BOTH matter — a client authorized to call click_element STILL
+  shouldn'T be clicking through a GEOLOCATION permission
+  prompt the BROWSER context should never have SHOWN in the
+  first PLACE</code></pre>
+
+<h2>Example — A Real, Minimal Permission Set for ShopSmart's Exploration Agent</h2>
+<pre><code>// Chapter 15's tool allowlist (WHICH tools):
+const explorationAgentTools = ['navigate', 'click_element',
+  'fill_field', 'read_page', 'screenshot'];
+
+// THIS page's browser context (WHAT the browser can DO):
+const context = await createRestrictedAgentContext();
+// NO camera, NO microphone, NO location, NO file downloads —
+// REGARDLESS of which of the ALLOWED tools gets called</code></pre>
+
+<h2>Common Mistakes</h2>
+<ul>
+  <li><strong>Relying on Chapter 15's tool allowlist alone, assuming it's sufficient.</strong> A tool being permitted doesn't mean the underlying browser should have every possible capability available — this page's browser-level restriction is a genuinely separate, necessary layer.</li>
+  <li><strong>Granting broad permissions "in case a future test needs them."</strong> Least privilege, the same principle Chapter 15 applied to tools, applies here too — grant specific permissions only when a specific, real task genuinely requires them.</li>
+</ul>
+
+<h2>Best Practices</h2>
+<ul>
+  <li>Start every agent's browser context with zero permissions and no download capability — add exceptions only for specific, justified real needs.</li>
+  <li>Think of browser-level and tool-level restriction as two independent, both-necessary layers, never a substitute for each other.</li>
+</ul>
+
+<h2>Hands-On Exercise</h2>
+<p>Review your own agent's browser context configuration, if you've built one from earlier chapters. Confirm it doesn't grant any permission your agent's actual objectives never genuinely need, applying this page's minimal-by-default approach.</p>
+
+<h2>Key Takeaways</h2>
+<ul>
+  <li>Browser context permissions and MCP tool allowlists are two genuinely different, independent restriction layers — both matter, neither substitutes for the other.</li>
+  <li>An autonomous agent has no genuine task-driven need for capabilities like camera, geolocation, or file downloads that a human user's browser session might reasonably use.</li>
+  <li>Starting from zero permissions and adding only justified exceptions is the same least-privilege discipline Chapter 15 established, now applied to the browser itself.</li>
+</ul>
+</article>
+</body></html>

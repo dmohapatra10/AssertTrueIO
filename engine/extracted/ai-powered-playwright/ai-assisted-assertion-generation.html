@@ -1,0 +1,75 @@
+<!doctype html>
+<html><head>
+<title>AI-Assisted Assertion Generation</title>
+<meta name="description" content="Using AI to write deterministic assertion code from a plain description of expected behavior — Role 1 from this chapter&#x27;s overview, still fully exact once written." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/ai-assisted-assertion-generation.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>AI-Assisted Assertion Generation</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="traditional-playwright-assertions.html">Traditional Playwright Assertions</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Using AI to write real, deterministic assertion code from a plain description</li>
+  <li>Why this is Role 1 from this chapter's overview — the AI's job ends the moment the code is written</li>
+  <li>Generating expected results as concrete values, not vague descriptions</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>This page is about AI helping write an assertion — not judging anything at runtime. Once the code below is generated, it's exactly as deterministic as anything from the previous page. This distinction matters enough that it's worth stating plainly before the code: nothing here becomes fuzzy just because AI helped write it.</p>
+
+<h2 id="step-by-step-implementation">Step-by-Step Implementation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/generate-assertion.ts
+import { askClaude } from './ai-client';
+
+export async function generateAssertionCode(
+  expectedBehavior: string, pageContext: string
+): Promise&lt;string&gt; {
+  const prompt = `Expected behavior: "${expectedBehavior}"
+Real, known page structure: ${pageContext}
+
+Generate ONE Playwright assertion using Chapter 7's traditional
+methods (toBeVisible, toHaveText, toHaveURL, toHaveCount,
+toBeDisabled) that verifies this EXACTLY. Use ONLY elements
+from the real structure given — never invent a selector.
+
+Respond with ONLY the assertion code, nothing else.`;
+
+  return askClaude(prompt);
+}</code></pre>
+
+<h2 id="example-generating-shopsmart-s-order-confirmation-assertion">Example — Generating ShopSmart's Order Confirmation Assertion</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const code = await generateAssertionCode(
+  'After checkout completes, the page shows an Order Confirmed heading',
+  "Order confirmation page: heading (getByRole('heading', { name: 'Order Confirmed' }))"
+);
+
+// Real output:
+// "await expect(page.getByRole('heading', { name: 'Order Confirmed' })).toBeVisible();"</code></pre>
+
+<h2 id="why-it-matters-what-makes-this-genuinely-safe">Why It Matters — What Makes This Genuinely Safe</h2>
+<p>The generated line above is checked into a real test file, reviewed by a human the same way any generated code from Chapter 3 was, and from that point on, it behaves exactly like a hand-written assertion — auto-retrying, exact, deterministic. The AI's involvement was entirely at authoring time. This is precisely why Role 1 carries meaningfully less risk than Role 2: once written and reviewed, there's no ongoing AI judgment happening every time the test runs.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Skipping Chapter 3's validation discipline because "it's just an assertion."</strong> Generated assertion code deserves the same syntax and locator-existence checks as any other generated Playwright code.</li>
+  <li><strong>Confusing this page's approach with Role 2.</strong> Nothing here runs AI judgment at test-execution time — that's a genuinely different, later page in this chapter.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Review generated assertion code the same way you'd review any generated Playwright code, using Chapter 3's validation functions before trusting it.</li>
+  <li>Keep the expected behavior description specific and concrete — a vague description produces an assertion that might check the wrong thing entirely.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Write plain-language expected behaviors for three ShopSmart checks — the cart icon showing a count after adding an item, a disabled submit button during processing, and a redirect URL after login. Generate assertion code for each and validate every one against Chapter 3's syntax and locator checks.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>AI-assisted assertion generation produces exactly the same kind of deterministic code Chapter 7's opening page covered — the process of writing it changed, not what it becomes once written.</li>
+  <li>This is Role 1 from this chapter's overview — genuinely lower risk than runtime AI judgment, since nothing ongoing depends on the model once the code is reviewed.</li>
+  <li>Generated assertion code still deserves Chapter 3's full validation discipline before being trusted.</li>
+</ul>
+</article>
+</body></html>

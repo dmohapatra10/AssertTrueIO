@@ -1,0 +1,161 @@
+<!doctype html>
+<html><head>
+<title>Nested Objects &amp; List POJOs in RestAssured</title>
+<meta name="description" content="How to model nested JSON objects, arrays of objects, and optional/nullable fields as Java POJOs for realistic, non-flat API payloads." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/nested-and-list-pojos.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Nested Objects &amp; List POJOs</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="object-mapper-configuration.html">ObjectMapper Configuration</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Real API payloads are rarely flat. This page covers modeling the structures every non-trivial API actually has: objects nested inside objects, arrays of objects, and fields that are legitimately optional or nullable.</p>
+
+<h2 id="nested-objects-one-pojo-referencing-another">Nested Objects — One POJO Referencing Another</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>{
+  "id": 101,
+  "name": "John",
+  "address": {
+    "city": "Delhi",
+    "zip": "110001"
+  }
+}</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>public class Address {
+    private String city;
+    private String zip;
+    // no-arg constructor + getters/setters
+}
+
+public class User {
+    private int id;
+    private String name;
+    private Address address; // ← a nested POJO, not a flat field
+    // no-arg constructor + getters/setters
+}</code></pre>
+<p>Model nesting exactly as it appears in the JSON — a nested object becomes a field whose <em>type</em> is another POJO, not an attempt to flatten everything into one giant class. Jackson deserializes the nested structure recursively without any extra configuration: <code>address.city</code> in the JSON naturally becomes <code>user.getAddress().getCity()</code> in Java.</p>
+
+<h2 id="arrays-of-objects-lists-of-a-pojo-type">Arrays of Objects — Lists of a POJO Type</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>{
+  "id": 500,
+  "items": [
+    { "productName": "Widget", "quantity": 2 },
+    { "productName": "Gadget", "quantity": 1 }
+  ]
+}</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>public class LineItem {
+    private String productName;
+    private int quantity;
+}
+
+public class Order {
+    private int id;
+    private List&lt;LineItem&gt; items; // an array of objects becomes a List of a POJO type
+}
+
+Order order = response.as(Order.class);
+int totalItems = order.getItems().stream().mapToInt(LineItem::getQuantity).sum();</code></pre>
+<p>Once deserialized, <code>order.getItems()</code> is a genuine Java <code>List&lt;LineItem&gt;</code> — every stream/collection operation you'd use on any other Java list works here, which is exactly the payoff mentioned in the Deserialization page for choosing POJOs over raw JsonPath when working with array data.</p>
+
+<h2 id="optional-and-nullable-fields">Optional and Nullable Fields</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>public class Order {
+    private String id;
+    private String status;
+    private String cancelledAt; // null unless actually cancelled — document this
+    private List&lt;String&gt; tags;  // per this API, always a list, never null (possibly empty)
+}</code></pre>
+<p>Java has no built-in distinction between "this field is always present" and "this field might be null" beyond primitive types (which can't be null at all) versus object types (which can). The practical approach: use boxed/object types (<code>String</code>, <code>Integer</code>, not <code>int</code>) for anything that might be null or absent, and document the actual contract — as shown here — since the type system alone won't communicate it.</p>
+
+<h2 id="real-world-example-a-realistically-nested-e-commerce-order">Real-World Example — A Realistically Nested E-Commerce Order</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>public class Customer {
+    private String name;
+    private String email;
+}
+
+public class LineItem {
+    private String productName;
+    private int quantity;
+    private double unitPrice;
+}
+
+public class Order {
+    private String id;
+    private String status;
+    private Customer customer;       // nested object
+    private List&lt;LineItem&gt; items;    // array of objects
+    private Double discountPercent;  // nullable — boxed Double, not primitive double
+}
+
+Order order = given().pathParam("id", orderId).when().get("/orders/{id}")
+    .then().statusCode(200).extract().as(Order.class);
+
+assertThat(order.getCustomer().getEmail(), containsString("@"));
+assertThat(order.getItems(), hasSize(greaterThan(0)));
+double total = order.getItems().stream()
+    .mapToDouble(item -&gt; item.getQuantity() * item.getUnitPrice())
+    .sum();</code></pre>
+<p>This is the realistic shape a production e-commerce order test would take — nested customer info, a list of line items, and a nullable discount field — modeled as three small, focused POJOs rather than one sprawling flat class trying to represent everything at once.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Flattening nested data with manual JsonPath into loosely-typed local variables
+String customerName = response.jsonPath().getString("customer.name");
+List&lt;String&gt; productNames = response.jsonPath().getList("items.productName");
+// repeated per field, no real object to pass around afterward
+
+// ✅ One deserialization call, a fully-typed nested object graph
+Order order = response.as(Order.class);
+String customerName = order.getCustomer().getName();</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Flattening nested JSON into one giant POJO</strong> instead of modeling it as genuinely nested classes — loses the structural clarity the JSON itself already has.</li>
+  <li><strong>Using primitive types (<code>int</code>, <code>double</code>) for fields that can legitimately be null</strong> — a primitive can't hold null, so a missing field either throws during deserialization or silently defaults to 0, which can mask a real data problem.</li>
+  <li><strong>Not distinguishing "empty list" from "null list"</strong> in test assertions when the API's actual contract matters — check what the specific API guarantees rather than assuming.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Deeply nested structures (three or more levels)</strong> — model each level as its own small POJO rather than one large nested inline structure; it stays far more readable and testable.</li>
+  <li><strong>A field that can be either a single object or an array depending on context</strong> (some inconsistent APIs do this) — this needs a custom deserializer; it's a genuine API design smell worth flagging rather than an ordinary case to model cleanly.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a nested field deserializes as null unexpectedly, confirm the nested POJO itself has a no-arg constructor — the same requirement from the POJO Design page applies independently to every nested class, not just the top-level one.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Model nested JSON structure with genuinely nested POJOs — one class per meaningful sub-object, matching the JSON's own shape.</li>
+  <li>Use boxed types, not primitives, for any field that can legitimately be null or absent.</li>
+  <li>Keep each POJO focused on one part of the structure rather than one sprawling class trying to represent an entire complex response.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Model a "Blog Post" API response with a nested "Author" object and a list of nested "Comment" objects (each with an author name and text). Deserialize a sample response and write an assertion using Java streams that confirms every comment has non-empty text.</p>
+
+<h2 id="summary">Summary</h2>
+<p>Nested JSON objects become nested POJOs (a field whose type is another class); arrays of objects become <code>List&lt;POJO&gt;</code> fields. Model structure the way the JSON actually has it rather than flattening everything, use boxed types for nullable fields, and document each field's real nullability contract — the type system alone won't communicate it for you.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why should a nullable numeric field be typed as Double rather than double in a response POJO?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Java's primitive <code>double</code> cannot represent null at all — it always has some numeric value, defaulting to 0.0 if never set. If the API's response can legitimately omit or null that field, deserializing into a primitive either throws an error or silently produces a misleading 0.0 that looks like real data. The boxed <code>Double</code> type can genuinely be null, correctly representing "this field wasn't present" as distinct from "this field was present and equal to zero."</div>
+</details>
+<details class="faq-item">
+<summary>How does a nested JSON object translate into a POJO?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">As a field whose TYPE is another POJO class, not a flattened field — Jackson deserializes the nested structure recursively without needing extra configuration.</div>
+</details>
+<details class="faq-item">
+<summary>Why type a nullable numeric field as Double instead of double?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A primitive double can never be null — it defaults to 0.0, which can misleadingly look like real data; a boxed Double can genuinely represent null, correctly distinguishing 'absent' from 'present and zero'.</div>
+</details>
+<details class="faq-item">
+<summary>What does a List&lt;LineItem&gt; field give you once deserialized that raw JsonPath extraction doesn't as naturally?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Every ordinary Java stream/collection operation becomes available directly — filtering, summing, mapping — on a genuinely typed list, not just a generic extracted collection.</div>
+</details>
+<details class="faq-item">
+<summary>Why is one large flat POJO usually worse than several small nested ones for a complex response?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It loses the structural clarity the JSON itself already has — modeling nesting explicitly, one focused class per meaningful sub-object, keeps the POJO structure matching the data's actual shape.</div>
+</details>
+</div>
+</article>
+</body></html>

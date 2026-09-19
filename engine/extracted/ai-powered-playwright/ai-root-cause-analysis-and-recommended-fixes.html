@@ -1,0 +1,114 @@
+<!doctype html>
+<html><head>
+<title>AI Root Cause Analysis and Recommended Fixes</title>
+<meta name="description" content="Turning a trace-grounded classification into a specific, concrete fix recommendation for each of Chapter 12&#x27;s five recurring causes — not a generic &#x27;add a wait.&#x27;" />
+<link rel="canonical" href="https://asserttrue.io/TRACK/ai-root-cause-analysis-and-recommended-fixes.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>AI Root Cause Analysis and Recommended Fixes</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="ai-flaky-test-classification-and-scoring.html">AI Flaky Test Classification and Scoring</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Turning a classified cause into a specific, concrete fix recommendation</li>
+  <li>Why the right fix genuinely differs by cause, not a one-size-fits-all "add a wait"</li>
+  <li>Connecting this chapter's output to Chapter 11's self-healing pipeline</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>The previous page produced a trace-grounded classification — genuinely useful, but still a diagnosis without a prescription. This page turns each of Chapter 12's five recurring causes into a real, cause-appropriate recommendation, not a generic suggestion that happens to work for one category and not the others.</p>
+
+<h2 id="why-it-matters-the-right-fix-genuinely-differs-by-cause">Why It Matters — The Right Fix Genuinely Differs by Cause</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>race-condition        → an EXPLICIT wait for a SPECIFIC
+                          condition, not an arbitrary DELAY
+animation-timing         → wait for the ELEMENT to be STABLE
+                            (Playwright'S OWN actionability
+                            check), not just VISIBLE
+network-variance           → a LONGER, more REALISTIC timeout
+                              for THIS specific request, not a
+                              blanket INCREASE everywhere
+test-order-dependence        → explicit SETUP/teardown, making
+                                the test GENUINELY independent
+shared-state                    → isolated test DATA per test,
+                                   Chapter 8'S OWN generation
+                                   techniques APPLIED here</code></pre>
+
+<h2 id="step-by-step-implementation">Step-by-Step Implementation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/recommend-flaky-fix.ts
+import { askClaude } from './ai-client';
+import { FlakyClassification } from './diff-flaky-traces';
+
+export interface FlakyFixRecommendation {
+  recommendation: string;
+  exampleCode: string;
+}
+
+const CAUSE_SPECIFIC_GUIDANCE: Record&lt;string, string&gt; = {
+  'race-condition': 'Recommend an explicit wait for a specific condition (like waitForResponse or a specific locator state), never an arbitrary sleep.',
+  'animation-timing': 'Recommend waiting for the element to be stable, using Playwright\\'s own actionability checks.',
+  'network-variance': 'Recommend a longer, specific timeout for this exact request, not a blanket increase.',
+  'test-order-dependence': 'Recommend explicit setup/teardown making the test independently runnable.',
+  'shared-state': 'Recommend isolated, per-test data generation, referencing Chapter 8\\'s techniques.',
+};
+
+export async function recommendFix(
+  classification: FlakyClassification, testCode: string
+): Promise&lt;FlakyFixRecommendation&gt; {
+  const guidance = CAUSE_SPECIFIC_GUIDANCE[classification.cause];
+
+  const prompt = `Flaky cause: ${classification.cause}
+Reasoning: ${classification.reasoning}
+Cause-specific guidance: ${guidance}
+Current test code: ${testCode}
+
+Recommend a SPECIFIC fix following the guidance above. Include
+a short code example showing the change.
+
+Respond with ONLY valid JSON:
+{"recommendation": string, "exampleCode": string}`;
+
+  const raw = await askClaude(prompt);
+  return JSON.parse(raw);
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p><code>CAUSE_SPECIFIC_GUIDANCE</code> is the real, deliberate mechanism that prevents a generic, one-size-fits-all recommendation. Without it, a model asked simply "fix this flaky test" tends to suggest the same, familiar pattern — usually some kind of wait or retry — regardless of whether that's actually the right fix for this specific cause.</p>
+
+<h2 id="example-a-real-cause-appropriate-recommendation">Example — A Real, Cause-Appropriate Recommendation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const recommendation = await recommendFix(classification, checkoutTestCode);
+
+// For the NETWORK-VARIANCE classification from THIS chapter's
+// previous page:
+// {
+//   recommendation: "The discount-validation API occasionally
+//     takes over 2 seconds. Increase the timeout specifically
+//     for this request, rather than the test's overall timeout.",
+//   exampleCode: "await page.waitForResponse(\n  (res) =&gt; res.url().includes('/api/discount/validate'),\n  { timeout: 5000 }\n);"
+// }</code></pre>
+
+<h2 id="why-it-matters-connecting-to-chapter-11">Why It Matters — Connecting to Chapter 11</h2>
+<p>This recommendation, once accepted, is exactly the kind of change Chapter 11's self-healing pipeline can turn into a real candidate patch — generated, validated in isolation, checked for regressions, and opened as a draft PR for human review. Nothing about this chapter's output bypasses that pipeline's safeguards; it feeds directly into them.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Asking for a fix without providing the cause-specific guidance.</strong> This is exactly what produces the generic "add a wait" recommendation regardless of the actual underlying cause.</li>
+  <li><strong>Applying a network-variance fix (longer timeout) to a genuine race condition.</strong> A longer timeout might mask a race condition intermittently without fixing it — the cause-specific guidance exists to prevent exactly this kind of mismatched fix.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Always route a recommendation through cause-specific guidance — never ask for a generic fix to "flakiness" as an undifferentiated category.</li>
+  <li>Feed this chapter's recommendations into Chapter 11's self-healing pipeline, rather than applying them directly without validation.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Using the classification from this chapter's previous exercise, run this page's <code>recommendFix</code> function. Confirm the recommendation genuinely matches the cause-specific guidance for that category, not a generic suggestion that happens to be phrased convincingly.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>The right fix for flakiness genuinely differs by cause — a single, generic recommendation approach misses this real distinction.</li>
+  <li>Cause-specific guidance, provided explicitly in the prompt, is what prevents a model from defaulting to a familiar but potentially wrong suggestion.</li>
+  <li>This chapter's recommendations are designed to feed directly into Chapter 11's self-healing pipeline, not bypass its validation and approval safeguards.</li>
+</ul>
+</article>
+</body></html>

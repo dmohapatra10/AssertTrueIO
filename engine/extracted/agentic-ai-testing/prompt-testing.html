@@ -1,0 +1,193 @@
+<!doctype html>
+<html><head>
+<title>Prompt Testing: Treating a Prompt as Something With Real, Testable Behavior</title>
+<meta name="description" content="Why a system prompt deserves its own genuine test suite, catching prompt regressions the same way code regressions get caught, with a real, worked example." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/prompt-testing.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Prompt Testing</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="why-llm-applications-are-different.html">Why LLM Applications Are Different</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>The shopping assistant's actual behavior is genuinely shaped by its system prompt — exactly Chapter 2's Creating Agent Instructions page, now the thing being TESTED rather than something you write once and trust. A prompt change is a real code change, and it deserves a real regression suite.</p>
+
+<h2 id="a-genuine-prompt-regression">A Genuine Prompt Regression</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>ORIGINAL system prompt:
+  "You are ShopEasy's shopping assistant. Answer questions
+  about products and policies accurately, using only
+  information from the provided product catalog and policy
+  documents. If you don't know something, say so clearly."
+
+A WELL-INTENTIONED edit, meant to make responses "friendlier":
+  "You are ShopEasy's shopping assistant. Answer questions
+  about products and policies in a warm, helpful, enthusiastic
+  tone, using only information from the provided product
+  catalog and policy documents. If you don't know something,
+  say so clearly."
+
+This SOUNDS like a harmless tone tweak. But run the SAME test
+questions against BOTH prompts, and a genuine regression
+appears: the "enthusiastic" version starts confidently
+GUESSING at compatibility details for questions it should be
+saying "I don't know" to, apparently prioritizing sounding
+helpful over the ORIGINAL prompt's explicit accuracy
+instruction.</code></pre>
+
+<h2 id="a-genuine-prompt-test-suite">A Genuine Prompt Test Suite</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>PROMPT_TEST_CASES = [
+    {
+        "question": "What's your return policy for electronics?",
+        "check": "mentions the actual 30-day window from the policy doc",
+    },
+    {
+        "question": "Does the Ergo Wireless Mouse work with a toaster?",
+        "check": "says it doesn't know, or clarifies this doesn't make sense — does NOT confidently answer",
+    },
+    {
+        "question": "What's your policy on returning food items?",
+        "check": "says it doesn't know, since ShopEasy doesn't sell food — does NOT fabricate a policy",
+    },
+]
+
+def test_prompt_version(system_prompt, test_cases, client):
+    results = []
+    for case in test_cases:
+        response = client.messages.create(
+            model="claude-sonnet-4-6", max_tokens=300,
+            system=system_prompt,
+            messages=[{"role": "user", "content": case["question"]}]
+        )
+        results.append({"question": case["question"],
+                         "response": response.content[0].text,
+                         "check": case["check"]})
+    return results  # each result reviewed against its check —
+                       # covered fully on this chapter's next page</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might the second, "toaster compatibility" test case be specifically valuable for catching the kind of regression this page's example describes? A question with an obviously nonsensical premise is a genuinely strong test of whether a prompt prioritizes honesty over appearing helpful — a prompt that's been subtly pushed toward "always sound confident and helpful" is likely to fabricate SOME kind of answer here, while a prompt that genuinely prioritizes accuracy should recognize the question doesn't make sense and say so, making this a sensitive, early-warning test case for exactly the failure mode this page's example prompt edit introduced.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Treating a prompt edit as a low-risk, purely cosmetic change because it "just" adjusts tone or wording, without running it against a genuine regression suite first. This page's own example shows a seemingly harmless tone tweak producing a real, meaningful behavioral regression — prompts genuinely deserve the same change discipline as code.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>Keep a prompt test suite's questions deliberately varied — some with clear, checkable correct answers, some that should trigger "I don't know," and some (like the toaster example) that are deliberately nonsensical — a suite that only tests clean, answerable questions won't catch a regression toward overconfidence.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Treat every prompt edit as a genuine code change requiring regression testing, regardless of how small or purely stylistic it seems.</li>
+  <li>Include deliberately unanswerable or nonsensical questions in a prompt test suite specifically to catch overconfidence regressions.</li>
+  <li>Run the exact same test suite against both the old and new prompt versions before deploying a change, comparing results directly.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>A system prompt is a genuine artifact with real, testable behavior — prompt edits deserve the same regression discipline as code changes.</li>
+  <li>A seemingly harmless tone or wording change can produce a real, meaningful behavioral regression, exactly this page's own worked example.</li>
+  <li>A genuinely useful prompt test suite includes deliberately unanswerable questions specifically to catch a drift toward overconfidence.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Write two additional prompt test cases for the shopping assistant — one testing a genuinely answerable product question, and one deliberately designed (following this page's toaster example) to reveal whether a prompt edit has pushed the assistant toward fabricating confident-sounding answers it shouldn't give.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A team merges a prompt change described as "just improved the tone" without running it against any test suite, reasoning that tone changes are low-risk. Using this page's example, explain what real risk this skips checking for.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This page's own example shows exactly this risk materializing — a tone-focused edit ("warm, helpful, enthusiastic") produced a genuine accuracy regression, since instructing a model to sound MORE enthusiastic can genuinely shift its balance between sounding helpful and admitting uncertainty.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why "just a tone change" is GENUINELY risky, not just
+theoretically:
+The ORIGINAL prompt explicitly instructed accuracy AND
+  honesty about not knowing things. ADDING "enthusiastic" as a
+  goal doesn't REMOVE those instructions, but it can shift the
+  model's IMPLICIT prioritization when the two goals conflict
+  — exactly what this page's example demonstrates concretely,
+  not hypothetically.
+
+What running the TEST SUITE would have caught, BEFORE merging:
+The toaster-compatibility test case (or similar) would likely
+  have REVEALED the new prompt confidently guessing rather
+  than admitting uncertainty — a CONCRETE, catchable signal
+  the "just a tone tweak" framing completely missed by not
+  testing at all.</code></pre>
+<p>The lesson: "this seems like a small change" is exactly the kind of assumption a genuine regression suite exists to verify, not replace — the SAME discipline this course has applied to code changes throughout applies directly to prompt changes too.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page specifically recommend running the SAME test suite against BOTH the old and new prompt versions, rather than just checking the new version against the test cases' checks?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Running both versions side by side reveals genuine REGRESSIONS — behavior that changed for the worse — not just whether the new version happens to pass some absolute bar; a direct comparison is a genuinely stronger signal than checking the new version in isolation.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Checking the NEW version ALONE, against the check criteria:
+Might reveal the new version FAILS "does NOT confidently
+  answer" for the toaster case — useful, but doesn't tell you
+  whether this is a REGRESSION or whether the OLD version had
+  the SAME issue all along.
+
+Running BOTH versions and COMPARING (this page's actual
+approach):
+If the OLD version correctly said "I don't know" and the NEW
+  version confidently guesses, this is UNAMBIGUOUSLY a
+  regression CAUSED by the prompt change — a much stronger,
+  more actionable finding than checking the new version's
+  absolute behavior alone.</code></pre>
+<p>This mirrors the exact same principle from earlier testing disciplines in this course — comparing a NEW state against a KNOWN-GOOD baseline (here, the previous prompt version) is generally more diagnostic than checking the new state against an abstract standard in isolation, since it directly attributes any change to the specific edit being evaluated.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why a question with a genuinely nonsensical premise (like mouse-toaster compatibility) is described as "sensitive" for catching overconfidence regressions specifically.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A nonsensical question creates a genuinely stark choice for the model — there's no plausible, correct factual answer to give, so ANY confident-sounding response is unambiguously evidence of overconfidence, with no room for a legitimate, correct answer to muddy the signal.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why a NORMAL, answerable question is a WEAKER test for THIS
+specific risk:
+"What's your return policy for electronics?" HAS a genuine
+  correct answer — a model could confidently answer CORRECTLY
+  here, meaning confident-sounding output ISN'T automatically
+  evidence of a problem for THIS particular question.
+
+Why the NONSENSICAL question is a STRONGER, more SENSITIVE
+test:
+There's NO legitimate, confident, correct answer to "is this
+  mouse compatible with a toaster" — so if the model DOES
+  answer confidently, that response can ONLY be evidence of
+  overconfidence, since there's no alternative, correct
+  explanation for confident output on a question like this.</code></pre>
+<p>This is a genuinely clever, deliberate test-design technique — constructing a question where the "wrong" behavior (confident answering) is the ONLY thing that could explain a certain kind of response, making the test maximally sensitive to exactly the failure mode it's designed to catch.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might it be a mistake to ONLY include deliberately nonsensical or unanswerable questions in a prompt test suite, without also including genuinely answerable ones?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A suite testing ONLY for appropriate uncertainty would miss the opposite, equally real failure mode — a prompt that's become TOO cautious, refusing to answer things it genuinely, confidently should know, which is just as real a regression as overconfidence.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What a suite with ONLY unanswerable questions would MISS:
+A prompt edit that makes the assistant EXCESSIVELY hedgy —
+  refusing to confidently state the ACTUAL, KNOWN 30-day
+  return policy, adding unnecessary uncertainty ("I believe it
+  MIGHT be around 30 days, but you should double-check") to
+  something it GENUINELY, RELIABLY knows from the provided
+  policy document. This is ALSO a real regression — just in
+  the OPPOSITE direction from overconfidence.
+
+Why BOTH kinds of test cases genuinely matter:
+This page's OWN test suite example correctly includes BOTH —
+  the return-policy question (should confidently, correctly
+  answer) AND the toaster question (should NOT confidently
+  answer) — covering BOTH failure directions, not just one.</code></pre>
+<p>This is exactly why this page's actual example suite balances both kinds of cases — testing only ONE direction (over-caution OR overconfidence) leaves the OTHER direction's regressions completely uncaught, and a genuinely robust prompt test suite needs to guard against both.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you design a prompt test suite specifically to catch a regression where a prompt change causes the assistant to answer questions about a COMPETITOR'S products as if they were ShopEasy's own?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A genuinely targeted test case would ask directly about a product ShopEasy doesn't sell, checking specifically that the assistant correctly declines to answer rather than fabricating information about it.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>PROMPT_TEST_CASES.append({
+    "question": "Do you carry the Sony WH-1000XM5 headphones?",
+    "check": "correctly states this product is NOT in ShopEasy's "
+             "catalog, does NOT fabricate details about it as if "
+             "it were a genuine ShopEasy product",
+})</code></pre>
+<p>This follows the exact same DESIGN PRINCIPLE as this page's toaster example — constructing a question where the ONLY correct behavior is admitting the assistant doesn't have this information, making ANY confident, detailed answer about the product unambiguous evidence of the SPECIFIC regression being tested for (fabricating information about products outside ShopEasy's actual catalog), exactly the kind of deliberately-designed, maximally-sensitive test case this page's approach specifically encourages building for each distinct risk a team wants to guard against.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

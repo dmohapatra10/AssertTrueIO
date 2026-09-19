@@ -1,0 +1,193 @@
+<!doctype html>
+<html><head>
+<title>Stack Trace Analysis: Reading What the Code Itself Reports</title>
+<meta name="description" content="How an agent reads a real Playwright stack trace to distinguish where a failure originated, and why the deepest application-code frame matters more than the outermost test frame." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/stack-trace-analysis.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Stack Trace Analysis</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="failure-classification.html">Failure Classification</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>A stack trace is the first, cheapest evidence source available for any failure — this page is about reading one genuinely well, not just glancing at the top line and guessing.</p>
+
+<h2 id="a-real-stack-trace-from-this-chapter-s-login-test">A Real Stack Trace, From This Chapter's Login Test</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Error: Timed out 30000ms waiting for expect(locator).toBeVisible()
+
+Locator: getByText('Welcome back')
+Expected: visible
+Received: &lt;element(s) not found&gt;
+
+Call log:
+  - expect.toBeVisible with timeout 30000ms
+  - waiting for getByText('Welcome back')
+
+    at /tests/login.spec.ts:8:44
+    at TestCase.run (/node_modules/@playwright/test/lib/worker/testInfo.js:245:7)
+    at TestRunner.runTest (/node_modules/@playwright/test/lib/worker/testRunner.js:112:3)</code></pre>
+
+<h2 id="what-this-trace-genuinely-tells-you-and-doesn-t">What This Trace Genuinely Tells You — and Doesn't</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>GENUINELY tells you:
+  - The failure is at line 8 (the 'Welcome back' assertion)
+  - The three PRECEDING steps (fill, fill, click) completed
+    WITHOUT throwing — the failure is specifically AFTER login
+    was attempted, not before
+  - This is a Playwright-level timeout, not an application-
+    thrown error (no server error message appears here at all)
+
+Does NOT tell you:
+  - WHY the text never appeared — broken login, wrong selector,
+    slow server, or something else entirely
+  - Whether this is CONSISTENT or a one-off — this is ONE run's
+    trace, with no history attached</code></pre>
+<p>This directly narrows the six categories from the previous page without fully resolving any of them — application defect, locator problem, environment problem, network problem, and flaky behavior all remain genuinely possible from this trace alone; only "test defect involving an earlier step" is reasonably ruled out, since the earlier steps completed cleanly.</p>
+
+<h2 id="the-frame-that-actually-matters">The Frame That Actually Matters</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>❌ Reasoning from only the TOP line of the trace:
+  "Error: Timed out 30000ms waiting for..." — genuinely
+  uninformative on its own; every one of the six categories
+  could produce this exact same top line.
+
+✅ Reasoning about WHICH frame represents the LAST successful
+   action before failure:
+  The call log shows exactly THREE prior actions succeeded
+  (fill email, fill password, click login) before the timeout
+  — this SPECIFIC detail is what narrows the investigation to
+  "something after clicking login," not a vague, undifferentiated
+  guess at the whole test.</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might it be a genuine mistake to conclude "this is definitely a locator problem" purely from seeing <code>getByText('Welcome back')</code> fail to match, without any further evidence? A locator failing to match its target is exactly what happens for EVERY SINGLE one of the six failure categories from the previous page — a broken app never shows the text (application defect), a changed page shows different text at a different location (locator problem), a slow server means the text hasn't rendered YET (flaky/network), and so on. The specific WORDING of a Playwright error message ("element not found," "timed out") is largely the SAME regardless of which underlying category actually caused it — the stack trace alone narrows WHERE to look, not WHY it happened.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Treating the stack trace as sufficient evidence on its own to reach a final classification. This page's own trace genuinely narrows the investigation (something went wrong after the login click) without resolving which of five remaining categories actually applies — the next several pages exist specifically because a stack trace alone usually isn't enough.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>When an agent reads a stack trace, having it explicitly state which specific actions are CONFIRMED to have succeeded (based on what appears before the failure point) is genuinely useful — this positive information (what's known to have worked) is often as diagnostically valuable as the failure itself.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Read a stack trace for what specifically succeeded before the failure point, not just the failure message itself.</li>
+  <li>Treat a stack trace as narrowing an investigation, not resolving it — most traces alone can't distinguish between several of the six genuine categories.</li>
+  <li>Note explicitly which categories a trace rules OUT, not just what it might suggest — this is often the trace's most reliable, useful contribution.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>A stack trace reliably shows where in a test's sequence a failure occurred, narrowing but rarely resolving which of the six failure categories applies.</li>
+  <li>The specific wording of a timeout or not-found error is largely identical across most failure categories — the trace's real value is in what it confirms succeeded beforehand.</li>
+  <li>Stack trace analysis is genuinely the first, cheapest evidence source, not the last or only one needed for reliable classification.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Write out what this page's stack trace would look like differently if the failure were instead at the <em>third</em> step (clicking the login button itself failed, rather than the final assertion) — and explain what this shifted failure point would newly rule in or out among the six categories.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>An agent reads this page's stack trace and immediately concludes "test defect — the selector is wrong." What's the actual problem with jumping to this conclusion from the trace alone?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>The trace alone genuinely cannot distinguish a wrong selector from four of the other five categories — "element not found" is exactly what a broken application, a stale selector, a slow environment, or a network issue would ALL produce, with no way to tell them apart from this evidence alone.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What the trace ACTUALLY supports:
+"The failure occurred at the final assertion, after the
+  preceding three steps succeeded" — a genuinely narrow,
+  well-supported conclusion.
+
+What it does NOT support:
+"The SELECTOR specifically is wrong" — this requires evidence
+  the trace doesn't provide: is 'Welcome back' genuinely the
+  WRONG text (test defect), the RIGHT text but the wrong
+  SELECTOR strategy (locator problem), or is the text simply
+  NEVER appearing because login is broken (application defect)?
+  The trace's error message looks IDENTICAL in all three cases.</code></pre>
+<p>Jumping to "test defect" specifically, rather than any of the other equally-plausible categories, isn't supported by anything unique in the trace — it's an unjustified guess dressed up as a conclusion, exactly the premature-certainty mistake this chapter has warned against since its opening page.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page emphasize that the three PRECEDING steps (fill, fill, click) completing successfully is genuinely useful diagnostic information, not just "nothing interesting happened there"?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because it genuinely rules out an entire category of possible explanations — anything that would have caused an EARLIER step to fail is no longer a plausible cause, meaningfully narrowing where the actual problem must be.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What confirming the EARLIER steps succeeded genuinely rules OUT:
+- The login PAGE itself failing to load correctly (the email
+  field fill() wouldn't have succeeded if the page were broken)
+- The FORM fields having genuinely wrong locators (both fill()
+  calls succeeded, meaning THOSE specific selectors are fine)
+- The login BUTTON itself being missing or unclickable (the
+  click() call succeeded)
+
+What this NARROWS the investigation to:
+Something specifically happening AFTER the click — the
+  server's response to the login attempt, or the PAGE'S
+  reaction to that response — rather than needing to
+  re-investigate the ENTIRE test from scratch.</code></pre>
+<p>This is a genuinely important, often under-appreciated diagnostic principle: confirming what DIDN'T go wrong is just as valuable as identifying what did, since it eliminates entire branches of investigation that would otherwise need to be separately ruled out.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why the ABSENCE of a server-side error message in this page's trace is itself a meaningful piece of evidence, not just "no additional information."<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A genuine application-level error (like a server returning a 500 status with an error body) would typically surface SOMEWHERE in a comprehensive trace or network log — its absence here is a real, if not conclusive, signal worth noting rather than ignoring.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What a GENUINE application error might look like, if present:
+The trace or network log would likely show something like a
+  failed POST request with a 500 status code, or an explicit
+  error response body — CONCRETE evidence of the application
+  itself reporting a problem.
+
+What THIS page's trace shows instead:
+NOTHING resembling a server-side error — just a Playwright-
+  level TIMEOUT waiting for an element. This is consistent
+  with several categories (locator problem, environment issue,
+  flakiness) where the SERVER may have responded NORMALLY, but
+  something else prevented the expected text from appearing —
+  though it doesn't fully RULE OUT a subtler application issue
+  either.</code></pre>
+<p>The lesson: absence of evidence isn't proof of absence, but it IS genuine, real evidence worth weighing — a trace with no server error is meaningfully different from one WITH a clear server error, even though neither alone gives a complete, final answer.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might reading ONLY the topmost line of a stack trace ("Error: Timed out 30000ms...") be a genuinely common, real mistake, even for experienced engineers?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>The topmost line is often the LEAST specific, most generic part of a trace — it describes the TYPE of failure (a timeout) rather than the SPECIFIC context (what came before it, what was being waited for, at what point in the test) that actually carries the diagnostic value.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What the TOP LINE alone provides:
+"Timed out 30000ms waiting for..." — this exact phrasing
+  would appear for genuinely ANY of the six failure categories
+  hitting a timeout-style failure — essentially uninformative
+  on its own, despite LOOKING like the trace's "headline."
+
+What the FULL call log and context provide:
+The SPECIFIC locator being waited for, the SPECIFIC line
+  number, and — critically — what ACTIONS are confirmed to
+  have happened BEFORE this point, per the earlier answer in
+  this page's own FAQ.</code></pre>
+<p>The genuinely common mistake is treating the top line as if it were a SUMMARY of the whole trace's diagnostic value, when it's actually closer to a generic HEADER — the real, useful information lives in the full call log and surrounding context, which is easy to skim past when the top line looks superficially like "the answer."</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you design a prompt for an agent to reliably extract "what's confirmed to have succeeded" from a raw stack trace, rather than just summarizing the failure itself?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A genuinely useful prompt should explicitly ask for BOTH halves — what failed AND what's confirmed to have worked — since this page's own analysis shows the second half is often just as diagnostically valuable as the first.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def analyze_stack_trace(trace_text, client):
+    prompt = f"""Here is a test failure's stack trace:
+
+{trace_text}
+
+Identify: (1) the SPECIFIC point of failure — what was
+expected, what actually happened; (2) what actions or steps,
+if any, are CONFIRMED to have completed successfully BEFORE
+this failure point, based on the call log; (3) which of the
+following categories this evidence RULES OUT, if any:
+application defect, test defect, locator problem, environment
+problem, network problem, flaky behavior. Do NOT guess at
+which category IS correct if the trace alone doesn't
+genuinely support one specific conclusion."""
+    result = client.messages.create(
+        model="claude-sonnet-4-6", max_tokens=512,
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return result.content[0].text</code></pre>
+<p>The explicit instruction to identify what's RULED OUT, rather than pushing for a single confident classification, directly reflects this page's own honest conclusion — a stack trace alone typically narrows the field without fully resolving it, and a good prompt should reflect that genuine limitation rather than pressuring the model into an unsupported, overconfident guess.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

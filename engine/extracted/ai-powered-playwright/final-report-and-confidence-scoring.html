@@ -1,0 +1,102 @@
+<!doctype html>
+<html><head>
+<title>Final Report and Confidence Scoring</title>
+<meta name="description" content="Stage six — assembling every real stage&#x27;s output into one honest report, using Chapter 14&#x27;s separate, considered confidence assessment rather than a bundled, overconfident guess." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/final-report-and-confidence-scoring.html" />
+</head><body>
+<p class="difficulty">Advanced</p>
+<h1>Final Report and Confidence Scoring</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="validating-fixes-and-re-running.html">Validating Fixes and Re-Running</a></p>
+<article class="content">
+<h2>What You'll Learn</h2>
+<ul>
+  <li>Assembling every earlier stage's real output into one complete, honest report</li>
+  <li>Using Chapter 14's separate confidence assessment, applied to this capstone's whole run</li>
+  <li>Why this final stage's honesty matters more than any single earlier stage's</li>
+</ul>
+
+<h2>Introduction</h2>
+<p>Every earlier stage in this capstone produced real, genuine output — a plan, evidence, a classification, a diagnosis, a confirmed resolution. This stage's job is the same one Chapter 9's own report page and Chapter 14's own Evaluator were built for: turning all of it into one complete, honest, human-readable account.</p>
+
+<h2>Step-by-Step Implementation</h2>
+<pre><code>// src/capstone-pipeline.ts (stage 6)
+import { generateMarkdownReport } from './generate-failure-report';
+import { anthropic } from './ai-client';
+
+export async function generateCapstoneReport(pipelineResults: {
+  plan: any; execution: any; evaluation: any; rootCause: any; revalidation: any;
+}) {
+  // CONFIDENCE, assessed as its OWN, SEPARATE step — Chapter
+  // 14'S own discipline, NOW applied to this CAPSTONE'S
+  // ENTIRE run, not just one AGENT'S single objective
+  const confidencePrompt = `Given this complete pipeline run:
+${JSON.stringify(pipelineResults)}
+
+Rate honest confidence (high, medium, low) that this represents
+a GENUINELY resolved issue, based ONLY on what the evidence
+ACTUALLY shows.`;
+  const confidenceResponse = await anthropic.messages.create({
+    model: 'claude-sonnet-4-6', max_tokens: 300,
+    messages: [{ role: 'user', content: confidencePrompt }],
+  });
+
+  return {
+    summary: 'ShopSmart checkout verification — discount code stacking bug',
+    ...pipelineResults,
+    confidence: confidenceResponse.content,
+  };
+}</code></pre>
+
+<h2>Code Explanation</h2>
+<p>Confidence is assessed only after every other stage's real output already exists — the exact same discipline Chapter 14's own Evaluator applied to a single agent's objective, now applied to this capstone's entire, multi-stage run. This ordering matters for the same reason it mattered in Chapter 14: an honest assessment needs the complete picture already in front of it.</p>
+
+<h2>Example — The Real, Complete Final Report</h2>
+<pre><code>## ShopSmart Checkout Verification
+
+**Objective:** Verify checkout completes correctly, including
+discount code handling, report anything unexpected.
+
+**Plan:** 3 systematic test cases generated (Ch4), all passed.
+
+**Exploration finding:** Applying the same discount code twice
+incorrectly stacks the discount (Ch13-style hypothesis).
+
+**Classification:** Application Defect (Ch9), high confidence.
+
+**Root cause:** Discount logic doesn't check for prior
+application before applying again (Ch9).
+
+**Resolution:** Development team applied a fix to
+discount-calculator.ts; re-running the original trigger
+confirms correct, single-application behavior (Ch11 pattern).
+
+**Confidence:** 🟢 High — the SAME action that ORIGINALLY
+revealed the bug now produces the CORRECT result, with clear,
+supporting evidence at every STAGE.</code></pre>
+
+<h2>Why It Matters — This Report Is the Real Payoff of the Whole Pipeline</h2>
+<p>Every earlier stage's careful, honest work culminates here — a human reading this report gets the complete, real story: what was checked, what was found, why it happened, what was done about it, and how confident this capstone genuinely is that it's actually resolved. Nothing in this report is invented; every line traces to a real, earlier stage's genuine output.</p>
+
+<h2>Common Mistakes</h2>
+<ul>
+  <li><strong>Assessing confidence before the revalidation stage completes.</strong> A confidence rating made before knowing whether the fix actually worked would be assessing the wrong, incomplete picture — this stage deliberately runs last.</li>
+  <li><strong>Omitting the specific, real evidence behind each claim.</strong> A report that just says "fixed" loses exactly the traceability this capstone's earlier stages worked to establish.</li>
+</ul>
+
+<h2>Best Practices</h2>
+<ul>
+  <li>Assess confidence only after every other stage's real output is complete, following Chapter 14's own established ordering.</li>
+  <li>Keep every claim in the final report traceable to a specific, real earlier stage — never summarize away the evidence trail.</li>
+</ul>
+
+<h2>Hands-On Exercise</h2>
+<p>Run this page's <code>generateCapstoneReport</code> function against the accumulated real output from this chapter's earlier stages. Review the resulting report as if you were a developer seeing this bug for the first time — confirm it genuinely tells the complete, honest story.</p>
+
+<h2>Key Takeaways</h2>
+<ul>
+  <li>This final report assembles every earlier stage's real output into one complete, human-readable account, with nothing invented.</li>
+  <li>Confidence assessment runs last and separately, the same discipline Chapter 14 established for a single agent, now applied to this capstone's entire multi-stage run.</li>
+  <li>This report is the genuine payoff of the whole pipeline — every earlier stage's careful work culminates in one honest, traceable account.</li>
+</ul>
+</article>
+</body></html>

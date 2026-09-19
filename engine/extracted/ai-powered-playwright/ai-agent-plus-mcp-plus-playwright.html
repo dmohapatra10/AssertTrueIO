@@ -1,0 +1,106 @@
+<!doctype html>
+<html><head>
+<title>AI Agent + MCP + Playwright</title>
+<meta name="description" content="Rewiring Chapter 14&#x27;s agent to call tools via MCP instead of directly — and confirming concretely how little of its actual reasoning logic needs to change." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/ai-agent-plus-mcp-plus-playwright.html" />
+</head><body>
+<p class="difficulty">Advanced</p>
+<h1>AI Agent + MCP + Playwright</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="creating-playwright-tools.html">Creating Playwright Tools</a></p>
+<article class="content">
+<h2>What You'll Learn</h2>
+<ul>
+  <li>Rewiring Chapter 14's agent to call tools through the MCP client instead of directly</li>
+  <li>Confirming concretely how little of the agent's actual reasoning needs to change</li>
+  <li>Running the complete, MCP-powered agent end to end against a real objective</li>
+</ul>
+
+<h2>Introduction</h2>
+<p>Every earlier page in this chapter built one real piece — server, client, tools. This page connects them to Chapter 14's actual agent, and confirms directly what changes and what doesn't.</p>
+
+<h2>Step-by-Step Implementation — The Rewired Execution Layer</h2>
+<pre><code>// src/agent-execute-via-mcp.ts
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+
+export async function executeAgentToolViaMcp(
+  toolName: string, toolInput: any, client: Client
+): Promise&lt;string&gt; {
+  const result = await client.callTool({ name: toolName, arguments: toolInput });
+  const textBlock = result.content.find((c: any) =&gt; c.type === 'text');
+  return textBlock?.text ?? '';
+}</code></pre>
+
+<h2>Code Explanation</h2>
+<p>Compare this against Chapter 14's original <code>executeAgentTool</code> — same input, same conceptual output, genuinely different only in how the call actually reaches the tool. Everything upstream of this function — the Planner choosing what to do, the Evaluator deciding if the objective is met — never needs to know this change happened at all.</p>
+
+<h2>Step-by-Step Implementation — The One Real Change in the Main Loop</h2>
+<pre><code>// src/playwright-agent-mcp.ts (Chapter 14's runPlaywrightAgent, rewired)
+import { connectToPlaywrightServer } from './mcp-client';
+import { executeAgentToolViaMcp } from './agent-execute-via-mcp';
+// ... all OTHER Chapter 14 imports UNCHANGED
+
+export async function runPlaywrightAgentViaMcp(objective: string) {
+  const client = await connectToPlaywrightServer();
+  let state = createInitialState(objective);
+  const limits = { maxSteps: 30, maxDepthFromStart: 4, maxDurationMs: 5 * 60 * 1000 };
+
+  while (true) {
+    const toolCall = await planNextStep(state); // UNCHANGED
+
+    const guard = guardToolCall(toolCall.name, toolCall.input, ''); // UNCHANGED
+    if (!guard.allowed) {
+      return { outcome: 'blocked-by-guardrail' as const, reason: guard.reason };
+    }
+
+    if (toolCall.name === 'report_objective_complete') { // UNCHANGED
+      const evaluation = await evaluateProgress(state);
+      if (evaluation.objectiveLikelyMet) return { outcome: 'success' as const, evaluation };
+    }
+
+    try {
+      // THE ONE REAL CHANGE — executeAgentTool → executeAgentToolViaMcp
+      const result = await executeAgentToolViaMcp(toolCall.name, toolCall.input, client);
+      recordObservation(state, toolCall.id, result); // UNCHANGED
+    } catch (error: any) {
+      // Recovery, limits — ALL UNCHANGED from Chapter 14
+    }
+    state.stepCount++;
+  }
+}</code></pre>
+
+<h2>Why It Matters — Confirming the Real Result</h2>
+<p>Exactly one function call changed — <code>executeAgentTool</code> became <code>executeAgentToolViaMcp</code>. Planning, guardrails, evaluation, observation recording, recovery, and limits are all completely untouched. This confirms Chapter 15's opening claim concretely: MCP is a genuinely different way of reaching the same tools, not a different way of reasoning about when to use them.</p>
+
+<h2>Example — Running the Complete, MCP-Powered Agent</h2>
+<pre><code>const result = await runPlaywrightAgentViaMcp(
+  'Verify checkout completes correctly, and report anything unexpected.'
+);
+
+// The SAME kind of result Chapter 14'S agent PRODUCED — the
+// AGENT'S reasoning is IDENTICAL; only HOW it reached the
+// browser CHANGED, entirely BEHIND the scenes
+console.log(result);</code></pre>
+
+<h2>Common Mistakes</h2>
+<ul>
+  <li><strong>Rewriting the Planner or Evaluator to accommodate MCP.</strong> This page's whole point is that neither needs to change at all — if you find yourself modifying them, something's gone wrong with the rewiring.</li>
+  <li><strong>Passing the MCP client into functions that never needed it before.</strong> Only the execution layer needs the client — threading it further than that adds unnecessary coupling.</li>
+</ul>
+
+<h2>Best Practices</h2>
+<ul>
+  <li>Isolate the MCP-specific change to the execution layer alone, exactly as this page's code does — resist the urge to touch anything upstream.</li>
+  <li>Keep a working, direct (non-MCP) version of the agent available, the way Chapter 14 left it — useful for local testing without a running server.</li>
+</ul>
+
+<h2>Hands-On Exercise</h2>
+<p>Run both versions — Chapter 14's direct agent and this page's MCP-powered rewiring — against the same real objective. Confirm they produce genuinely equivalent results, differing only in how each tool call physically reaches the browser.</p>
+
+<h2>Key Takeaways</h2>
+<ul>
+  <li>Rewiring an agent to use MCP requires changing exactly one function — the execution layer — while planning, evaluation, guardrails, and recovery stay completely untouched.</li>
+  <li>This concretely confirms MCP is a different access mechanism for the same tools, not a different reasoning architecture.</li>
+  <li>Keeping the MCP-specific change isolated to one layer is what makes this rewiring safe and easy to verify.</li>
+</ul>
+</article>
+</body></html>

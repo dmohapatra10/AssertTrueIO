@@ -1,0 +1,165 @@
+<!doctype html>
+<html><head>
+<title>RestAssured Custom Logging &amp; Filters: Integrating Real Logging Frameworks</title>
+<meta name="description" content="How to use RestAssured&#x27;s Filter interface for project-wide logging, and integrate with SLF4J/Logback instead of raw console output for CI-friendly, structured logs." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/custom-logging-and-filters.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Custom Logging &amp; Filters</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="conditional-logging.html">Conditional Logging</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>RestAssured.filters(new RequestLoggingFilter(), new ResponseLoggingFilter());
+
+// Now EVERY request/response in the project logs automatically —
+// no need to add .log() calls to individual tests at all
+given().when().get("/users/2").then().statusCode(200);</code></pre>
+<p>Everything covered so far has been per-test — adding <code>.log()</code> to individual chains. A <strong>Filter</strong> is RestAssured's mechanism for applying logic to every request/response in the project automatically, configured once globally rather than repeated per test.</p>
+
+<h2 id="why-it-s-important">Why it's important</h2>
+<p>Repeating <code>.log().ifValidationFails()</code> in every single test, while better than nothing, is still a small piece of boilerplate multiplied across a large suite. A globally configured filter applies the same behavior everywhere at once — and, more importantly, opens the door to real logging frameworks instead of raw console output, which matters once test output needs to integrate with CI log aggregation, structured logging, or a team's existing logging conventions.</p>
+
+<h2 id="built-in-filters">Built-In Filters</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>RestAssured.filters(
+    new RequestLoggingFilter(),
+    new ResponseLoggingFilter()
+);</code></pre>
+<p>These two built-in filters log every request and every response for every test in the project, unconditionally — genuinely useful during initial framework setup or focused debugging sessions, but exactly as noisy in CI as <code>.log().all()</code> would be per-test, just applied globally instead. For most real projects, a custom filter with conditional logic (shown next) is the more practical long-term choice.</p>
+
+<h2 id="writing-a-custom-filter">Writing a Custom Filter</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>public class ConditionalLoggingFilter implements Filter {
+    @Override
+    public Response filter(FilterableRequestSpecification requestSpec,
+                            FilterableResponseSpecification responseSpec,
+                            FilterContext ctx) {
+        Response response = ctx.next(requestSpec, responseSpec);
+
+        if (response.getStatusCode() &gt;= 400) {
+            System.out.println("FAILED REQUEST: " + requestSpec.getMethod() + " " + requestSpec.getURI());
+            System.out.println("RESPONSE: " + response.getBody().asPrettyString());
+        }
+
+        return response;
+    }
+}
+
+// Register it once, globally:
+RestAssured.filters(new ConditionalLoggingFilter());</code></pre>
+<p>A custom <code>Filter</code> intercepts every request/response pair, letting you apply exactly the logic you want — here, logging only when the status code indicates a real problem, applied automatically across the whole project with zero per-test <code>.log()</code> calls needed at all.</p>
+
+<h2 id="integrating-with-slf4j-logback-instead-of-system-out">Integrating with SLF4J/Logback Instead of System.out</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>public class Slf4jLoggingFilter implements Filter {
+    private static final Logger logger = LoggerFactory.getLogger(Slf4jLoggingFilter.class);
+
+    @Override
+    public Response filter(FilterableRequestSpecification requestSpec,
+                            FilterableResponseSpecification responseSpec,
+                            FilterContext ctx) {
+        Response response = ctx.next(requestSpec, responseSpec);
+
+        if (response.getStatusCode() &gt;= 400) {
+            logger.warn("API call failed: {} {} -&gt; {}",
+                requestSpec.getMethod(), requestSpec.getURI(), response.getStatusCode());
+        } else {
+            logger.debug("API call succeeded: {} {} -&gt; {}",
+                requestSpec.getMethod(), requestSpec.getURI(), response.getStatusCode());
+        }
+
+        return response;
+    }
+}</code></pre>
+<p>Raw <code>System.out.println()</code> output — everything shown on the earlier three pages — works fine for local debugging but doesn't integrate with a real project's logging infrastructure: log levels, structured output, log aggregation in CI, correlation with the rest of the application's logs. Routing RestAssured's logging through SLF4J (the standard Java logging facade) instead means API test logs behave exactly like every other log statement in the project — respecting configured log levels, formats, and destinations.</p>
+
+<h2 id="real-world-example-a-production-style-logging-filter">Real-World Example — A Production-Style Logging Filter</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>public class ApiTestLoggingFilter implements Filter {
+    private static final Logger logger = LoggerFactory.getLogger("api-tests");
+
+    @Override
+    public Response filter(FilterableRequestSpecification req,
+                            FilterableResponseSpecification res,
+                            FilterContext ctx) {
+        long start = System.currentTimeMillis();
+        Response response = ctx.next(req, res);
+        long durationMs = System.currentTimeMillis() - start;
+
+        String outcome = response.getStatusCode() &lt; 400 ? "OK" : "FAILED";
+        logger.info("[{}] {} {} -&gt; {} ({}ms)",
+            outcome, req.getMethod(), req.getURI(), response.getStatusCode(), durationMs);
+
+        if (response.getStatusCode() &gt;= 400) {
+            logger.debug("Failure body: {}", response.getBody().asPrettyString());
+        }
+
+        return response;
+    }
+}
+
+// Registered once, in a shared base test class's @BeforeAll:
+RestAssured.filters(new ApiTestLoggingFilter());</code></pre>
+<p>This single filter now gives every test in the project a consistent one-line summary log (method, URL, outcome, timing) for every API call, with full response detail only for actual failures — a genuinely useful, CI-friendly logging strategy applied automatically, without any individual test needing to think about logging at all.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Repeating .log().ifValidationFails() in every single test file,
+// with no consistent, project-wide logging strategy beyond that
+.then().log().ifValidationFails().statusCode(200);
+// ...repeated identically across hundreds of test methods
+
+// ✅ One filter, registered once, applied automatically everywhere
+RestAssured.filters(new ApiTestLoggingFilter());
+// every test in the project now gets consistent logging with zero repetition</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Using the unconditional built-in <code>RequestLoggingFilter</code>/<code>ResponseLoggingFilter</code> in CI</strong> without realizing they log absolutely everything, unconditionally — just as noisy as <code>.log().all()</code> per test, applied project-wide.</li>
+  <li><strong>Sticking with raw <code>System.out.println()</code> output</strong> once a project has real logging infrastructure already in place — misses the chance to integrate cleanly with existing log levels and aggregation.</li>
+  <li><strong>Writing a custom filter with expensive logic</strong> (heavy string formatting, external calls) that runs on every single request regardless of outcome — filters run for every test, so their overhead compounds across a large suite.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Multiple filters registered at once</strong> — they run in registration order, each able to inspect (and even short-circuit) the request/response chain; be deliberate about ordering if you have more than one.</li>
+  <li><strong>Filters and per-test <code>.log()</code> calls combined</strong> — both can coexist, but consider whether a per-test <code>.log()</code> call is still necessary once a project-wide filter already covers the same need.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a custom filter doesn't seem to be firing, confirm it's actually registered via <code>RestAssured.filters(...)</code> before any test runs — typically in a shared <code>@BeforeAll</code>, not scattered inconsistently across individual test classes.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Prefer a custom, conditional filter over the unconditional built-in ones for anything beyond initial setup or focused debugging.</li>
+  <li>Route logging through a real framework (SLF4J/Logback) once a project has existing logging infrastructure to integrate with.</li>
+  <li>Register filters once, globally, in a shared base test class — not per individual test file.</li>
+  <li>Keep filter logic lightweight, since it runs on every single request across the whole suite.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Write a custom <code>Filter</code> that logs a one-line summary (method, URL, status code) for every request via SLF4J at INFO level, and additionally logs the full response body at DEBUG level specifically when the status code is 500 or higher. Register it globally and confirm it fires correctly across several different tests without any per-test logging code.</p>
+
+<h2 id="summary">Summary</h2>
+<p>RestAssured's <code>Filter</code> interface applies logging (or any other cross-cutting logic) to every request in a project automatically, registered once rather than repeated per test. Custom filters with conditional logic, routed through a real logging framework like SLF4J rather than raw console output, are what a mature production test framework actually uses — the natural endpoint of everything this chapter has built toward.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why would a real production test framework prefer a custom Filter with SLF4J logging over scattering .log().ifValidationFails() calls across every individual test?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A per-test <code>.log()</code> call is boilerplate repeated across every test file, easy to forget in a new test and inconsistent if different authors make different choices. A global filter applies identical, consistent logging behavior across the entire project automatically, with zero repetition. Routing that logging through SLF4J instead of raw console output additionally means test logs integrate properly with the project's actual logging infrastructure — respecting configured log levels, formats, and destinations — rather than producing raw console text that doesn't fit into a team's broader logging and monitoring setup.</div>
+</details>
+<details class="faq-item">
+<summary>What does RestAssured's Filter interface let you do that per-test .log() calls can't?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Apply logic to EVERY request/response in a project automatically, configured once globally rather than repeated per test — the project-wide equivalent of what conditional logging does per-test.</div>
+</details>
+<details class="faq-item">
+<summary>Why might a mature project route logging through SLF4J instead of raw System.out?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Raw console output doesn't integrate with a project's existing logging infrastructure — log levels, structured formatting, CI log aggregation; SLF4J-based logging behaves exactly like every other log statement in the project.</div>
+</details>
+<details class="faq-item">
+<summary>What's the risk of the built-in RequestLoggingFilter/ResponseLoggingFilter in CI?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">They log absolutely everything, unconditionally — just as noisy as .log().all() per test, applied project-wide instead of per-request.</div>
+</details>
+<details class="faq-item">
+<summary>Why should custom filter logic stay lightweight?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A filter runs for every single request across the whole suite, so any expensive logic inside it (heavy formatting, external calls) has its overhead compound significantly at scale.</div>
+</details>
+</div>
+</article>
+</body></html>

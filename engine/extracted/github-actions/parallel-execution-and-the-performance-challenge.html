@@ -1,0 +1,101 @@
+<!doctype html>
+<html><head>
+<title>Parallel Execution in GitHub Actions: Cutting a 30-Minute Pipeline to 10</title>
+<meta name="description" content="A real performance challenge — reducing a 30-minute sequential test pipeline to roughly 10 minutes using matrix-based sharding, without cutting a single test." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/parallel-execution-and-the-performance-challenge.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Parallel Execution &amp; the Performance Challenge</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="matrix-configuration-include-exclude-and-fine-tuning.html">Matrix Configuration: include, exclude & Fine-Tuning</a></p>
+<article class="content">
+<h2 id="the-challenge">🏆 The Challenge</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>ShopEasy's test suite: 500 tests, running sequentially, takes 30 minutes.
+
+Goal: get this down to roughly 10 minutes, WITHOUT cutting any actual tests.</code></pre>
+<p>This is a genuinely common, real problem — and the solution isn't "write fewer tests" or "buy a faster machine." It's splitting the same 500 tests across multiple runners that execute simultaneously.</p>
+
+<h2 id="the-core-idea-sharding">The Core Idea — Sharding</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>500 tests ÷ 5 runners = 100 tests per runner, all running AT THE SAME TIME
+
+Sequential: 500 tests × (average time per test) = 30 minutes total
+Sharded (5-way): 100 tests × (average time per test) = ~6 minutes per runner,
+                  all happening simultaneously</code></pre>
+<p>The total <em>work</em> is identical — same 500 tests, same total test-time. What changes is that five runners do it simultaneously instead of one runner doing it alone, in sequence.</p>
+
+<h2 id="implementing-this-with-a-matrix">Implementing This With a Matrix</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm ci
+      - run: npx playwright test --shard=${{ matrix.shard }}/5</code></pre>
+<p>Five matrix combinations, each running one-fifth of the total test suite, all in parallel. This is exactly the mechanism Playwright's own test runner supports natively via <code>--shard</code> — this site's Playwright track covers sharding in its own dedicated depth: <a href="../playwright/github-actions-cicd.html">Playwright with GitHub Actions: A Complete CI/CD Pipeline</a>.</p>
+
+<h2 id="detailed-example-the-actual-time-math">Detailed Example — The Actual Time Math</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Before (sequential):
+  1 runner × 500 tests × 3.6 seconds/test avg = 30 minutes
+
+After (5-way sharded):
+  5 runners × 100 tests × 3.6 seconds/test avg = 6 minutes per runner,
+  all running simultaneously = ~6 minutes total (plus a small amount
+  of fixed overhead per runner — checkout, dependency install, etc.)</code></pre>
+<p>Six minutes, not the target ten — meaning ShopEasy's team could even use fewer shards (perhaps 3, landing closer to 10 minutes) if minimizing runner cost matters as much as minimizing wall-clock time. The real lesson: parallelization genuinely trades additional concurrent runners for a shorter total wall-clock time, and the right number of shards depends on your specific goals.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why doesn't sharding produce a perfectly linear speedup — why isn't 5 shards exactly 5× faster? Every runner has some fixed overhead regardless of how many tests it actually runs — checking out the repository, installing dependencies, starting up. With more shards, this fixed cost gets paid more times overall (once per shard) rather than once total, meaning the actual speedup is real and significant, but not perfectly proportional to the number of shards.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Assuming more shards is always strictly better. Beyond a certain point, the fixed per-runner overhead (checkout, setup, dependency install) starts to dominate — splitting 500 tests across 50 shards means each shard runs only 10 tests but still pays the full setup cost, which can genuinely make the pipeline slower in total runner-minutes, even if wall-clock time keeps decreasing slightly.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>Beyond Playwright's built-in <code>--shard</code> flag, many other test runners (Jest, pytest with plugins, and others) support similar sharding or parallel-splitting mechanisms — the matrix pattern shown here is genuinely reusable across different testing tools, not specific to Playwright.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Choose a shard count that balances real wall-clock time savings against per-runner fixed overhead and total CI cost.</li>
+  <li>Use <code>fail-fast: false</code> for a sharded test matrix — a failure in one shard shouldn't hide results from the other, unrelated shards.</li>
+  <li>Measure the actual before-and-after time, rather than assuming a specific shard count will hit a target — the real numbers depend on your specific test suite's characteristics.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Sharding splits the same total test suite across multiple runners executing simultaneously, without cutting any actual tests.</li>
+  <li>Speedup is real but not perfectly linear — fixed per-runner overhead means diminishing returns beyond a certain shard count.</li>
+  <li>A matrix with a <code>shard</code> dimension, combined with a test runner's native sharding support, is the standard way to implement this.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>For a test suite of 1,000 tests averaging 2 seconds each, currently running sequentially, calculate the approximate total time with 4-way sharding versus 8-way sharding, and explain in your own words why 8-way isn't simply half of 4-way's time.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why does sharding a test suite across multiple runners reduce total wall-clock time without cutting any actual tests?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Sharding splits the same total set of tests across multiple runners that execute simultaneously, rather than reducing how many tests actually run. The total test-time work stays identical, but because multiple runners are doing portions of that work at the same time instead of one runner doing all of it sequentially, the real-world elapsed time to get a complete result is significantly shorter.</div>
+</details>
+<details class="faq-item">
+<summary>Why doesn't doubling the number of shards produce exactly half the total pipeline time?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Each runner carries some fixed overhead regardless of how many tests it actually executes — checking out the repository, installing dependencies, starting up. Adding more shards means this fixed cost is paid more times in total (once per shard), so while wall-clock time does decrease with more shards, it doesn't decrease in perfect linear proportion to the shard count.</div>
+</details>
+<details class="faq-item">
+<summary>Why might splitting 500 tests across 50 shards actually be counterproductive compared to a more moderate shard count?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">With 50 shards, each one only runs about 10 tests but still pays the full fixed setup cost (checkout, dependency installation) that every runner incurs regardless of its actual test count. Beyond a certain point, this fixed overhead dominates the total resource usage, potentially increasing overall CI cost in total runner-minutes even as wall-clock time continues to decrease only marginally.</div>
+</details>
+<details class="faq-item">
+<summary>Why should a sharded test matrix typically use fail-fast: false rather than the default fail-fast: true?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Each shard runs a genuinely different, unrelated portion of the overall test suite — a failure in one shard says nothing about whether the other shards' tests actually passed or failed. With the default fail-fast: true, one shard failing would cancel the others before they finish, hiding results that have nothing to do with the actual failure and that the team would still want visibility into.</div>
+</details>
+<details class="faq-item">
+<summary>Why is the matrix-based sharding pattern shown here described as reusable beyond just Playwright specifically?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The underlying mechanism — a matrix dimension representing a shard number, passed into the test runner's own native parallel-execution support — is a general pattern that many test runners implement in their own way, not something unique to Playwright's specific --shard flag. The same GitHub Actions matrix approach applies regardless of which specific test runner's own sharding or splitting feature is actually being invoked.</div>
+</details>
+</div>
+</article>
+</body></html>

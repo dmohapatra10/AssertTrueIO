@@ -1,0 +1,208 @@
+<!doctype html>
+<html><head>
+<title>Connecting MCP and CI/CD: Making It Reusable and Pipeline-Native</title>
+<meta name="description" content="Wrapping Layers 0 through 3 as an MCP server, then wiring the whole system into ShopEasy&#x27;s pipeline with Chapter 14&#x27;s own selection, triage, and retry logic." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/connecting-mcp-and-cicd.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Connecting MCP and CI/CD</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="extending-to-autonomous-and-llm-testing.html">Extending to Autonomous API, LLM, and Agent Testing</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Layer 4 wraps everything built so far as a genuine MCP server, exactly Chapter 13's own approach. Layer 5 wires that server into ShopEasy's actual pipeline, using Chapter 14's selection, triage, and retry logic unmodified. This page is where the capstone stops being "an agent you run" and becomes "infrastructure a team actually uses."</p>
+
+<h2 id="wrapping-everything-as-an-mcp-server">Wrapping Everything as an MCP Server</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># Chapter 13's OWN FastMCP pattern, now exposing the ENTIRE
+# capstone system — every layer built so far, through ONE
+# standardized interface
+mcp = FastMCP("shopeasy-capstone-qa-server")
+
+@mcp.tool()
+def run_capstone_verification(objective: str) -> dict:
+    """Runs the full capstone QA agent — multi-surface testing,
+    failure classification, flaky detection — against the given
+    objective, and returns a complete, classified report."""
+    report = capstone_agent.run(get_shopeasy_page(), objective)
+    if not report["success"]:
+        report["classification"] = classify_capstone_failure(report, client)
+    return report
+
+@mcp.resource("shopeasy://qa/known-flaky-tests")
+def get_known_flaky_tests() -> list:
+    """Chapter 9's own flaky-test list, exposed as a resource —
+    cheap, safe to read repeatedly, per Chapter 13's own
+    tool-vs-resource distinction."""
+    return load_known_flaky_tests()</code></pre>
+
+<h2 id="chapter-14-s-logic-consuming-the-mcp-server">Chapter 14's Logic, Consuming the MCP Server</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># The PIPELINE calls the MCP server'S tools DIRECTLY — Chapter
+# 14'S OWN selection, triage, and retry logic is COMPLETELY
+# unmodified, just now OPERATING against an MCP-wrapped system
+# instead of a DIRECT, in-process agent CALL
+
+selected_objectives = select_relevant_tests(
+    changed_files=get_commit_diff(), test_coverage_map=coverage_data)
+
+for objective in prioritize_tests(selected_objectives, historical_data):
+    result = mcp_client.call_tool(
+        "run_capstone_verification", {"objective": objective})
+    if not result["success"]:
+        triage = triage_pipeline_failures([result], known_flaky_tests, client)
+        if should_retry(result, client)["retry"]:
+            result = mcp_client.call_tool(
+                "run_capstone_verification", {"objective": objective})</code></pre>
+
+<h2 id="why-this-connection-is-genuinely-the-pivot-point">Why This Connection Is Genuinely the Pivot Point</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>EVERYTHING before THIS page was a SYSTEM one ENGINEER could
+RUN directly. THIS page's MCP wrapping is WHAT makes it
+GENUINELY usable BY a pipeline, BY other TEAMS, BY future
+agents NOBODY has written YET — exactly Chapter 13'S OWN
+"standardized VERSION of something you ALREADY built"
+argument, now APPLIED to the FULL, assembled capstone SYSTEM
+rather than a SINGLE tool.</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why does <code>run_capstone_verification</code> return the classification inline, computed within the tool itself, rather than exposing classification as a genuinely separate MCP tool a client would call afterward? This is a real design choice worth examining: keeping classification inside means every caller automatically gets a classified result without needing to know to ask for it — genuinely convenient. The tradeoff, following Chapter 13's own tool-vs-resource reasoning, is that this couples two capabilities (running a test, classifying a failure) into one tool call rather than two independently reusable ones. Either design is defensible; the choice should be made deliberately, not by default.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Treating MCP wrapping as the final step of the capstone, rather than recognizing it as the point where the system genuinely transitions from "something one engineer runs" to "infrastructure other people and systems depend on." This shift carries real implications — Chapter 16's access control and audit trail requirements become genuinely necessary starting exactly here, not as an afterthought.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>Before wiring this MCP server into a real, live pipeline, running Chapter 13's own isolated-tool-testing verification — calling <code>run_capstone_verification</code> directly, without the pipeline, and confirming it behaves correctly — is a genuinely useful sanity check before adding the additional complexity of CI/CD integration on top.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Wrap the assembled system as an MCP server using Chapter 13's exact pattern, making it genuinely reusable beyond one engineer's direct use.</li>
+  <li>Make design choices about tool coupling (like classification-inline vs. separate) deliberately, using Chapter 13's tool-vs-resource reasoning, not by default.</li>
+  <li>Verify the MCP server works in isolation before wiring it into a live pipeline, following Chapter 13's own incremental testing discipline.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Layer 4 wraps the entire assembled system as a genuine, standardized MCP server, exactly Chapter 13's approach applied at system scale.</li>
+  <li>Layer 5 wires this server into ShopEasy's pipeline using Chapter 14's selection, triage, and retry logic completely unmodified.</li>
+  <li>This connection point is where the capstone genuinely transitions from a personal tool to shared infrastructure, making Chapter 16's access and audit requirements newly, concretely relevant.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Redesign this page's <code>run_capstone_verification</code> tool to separate classification into its own, independent MCP tool (rather than computing it inline), and explain what genuine tradeoff this alternative design makes compared to this page's original approach.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A teammate says "MCP wrapping is just a technical formality — it doesn't change anything meaningful about the system." Using this page's own reasoning, what's genuinely wrong with this view?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>THIS page is EXPLICIT that MCP wrapping GENUINELY changes WHO can use the SYSTEM and HOW — TRANSFORMING it FROM something ONE engineer RUNS directly INTO shared INFRASTRUCTURE, WITH real, GENUINE implications for ACCESS control and ACCOUNTABILITY THAT didn'T exist BEFORE.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What GENUINELY changes, per THIS page'S OWN argument:
+BEFORE MCP wrapping, THIS system was CALLED directly, BY
+  ONE engineer, IN one PROCESS — access CONTROL and AUDIT
+  concerns (Chapter 16) were GENUINELY less pressing, since
+  THERE was essentially ONE, known USER.
+
+What GENUINELY changes AFTER MCP wrapping:
+ANY MCP-compliant CLIENT — a CI/CD pipeline, ANOTHER team'S
+  agent, a FUTURE tool NOBODY has WRITTEN yet — can NOW
+  connect and CALL run_capstone_verification, GENUINELY
+  requiring Chapter 16'S access-CONTROL and audit-TRAIL
+  considerations in a WAY that simply WASN'T necessary
+  before.</code></pre>
+<p>The TEAMMATE'S "just a TECHNICAL formality" view MISSES this GENUINE, real SHIFT — MCP wrapping ISN'T merely a PROTOCOL detail, it'S the POINT where THIS capstone'S OWN system GENUINELY becomes SHARED, multi-CLIENT infrastructure, WITH all the REAL implications THAT carries.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does THIS page treat the CHOICE of WHETHER to compute classification INLINE (versus AS a separate TOOL) as a GENUINELY deliberate DESIGN decision, RATHER than an OBVIOUS default?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>THIS directly APPLIES Chapter 13'S OWN tool-vs-RESOURCE reasoning — COUPLING two CAPABILITIES into ONE tool call HAS a genuine TRADEOFF (convenience VERSUS independent REUSABILITY) that Chapter 13 ALREADY established DESERVES deliberate CONSIDERATION, not AUTOMATIC choice.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why INLINE classification is GENUINELY convenient:
+EVERY caller of run_capstone_verification AUTOMATICALLY
+  gets a CLASSIFIED result — NO need to REMEMBER to call a
+  SEPARATE tool AFTERWARD, REDUCING the CHANCE a caller
+  FORGETS this STEP.
+
+Why SEPARATE classification would be GENUINELY more
+REUSABLE:
+A CLIENT that ONLY wants to RUN a test WITHOUT PAYING the
+  classification COST (perhaps DURING a QUICK, exploratory
+  check) COULDN'T avoid THAT cost if CLASSIFICATION is
+  ALWAYS bundled IN — a SEPARATE tool would LET callers
+  CHOOSE whether they GENUINELY need CLASSIFICATION for
+  their SPECIFIC use case.</code></pre>
+<p>This is a GENUINELY real design TRADEOFF, not a TRIVIAL implementation DETAIL — EXACTLY why THIS page frames it as a DELIBERATE choice REQUIRING Chapter 13'S OWN established REASONING, rather than an OBVIOUS, default DECISION either WAY would represent.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why THIS page describes ITSELF as "GENUINELY the pivot POINT" of the ENTIRE capstone, RATHER than JUST another INCREMENTAL layer LIKE the ones BEFORE it.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>EVERY previous LAYER (0 through 3) EXTENDED what ONE engineer COULD do with the SYSTEM DIRECTLY — THIS layer is GENUINELY qualitatively different, TRANSFORMING the system'S FUNDAMENTAL relationship to ITS users, from a PERSONAL tool to SHARED, multi-CLIENT infrastructure.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why LAYERS 0-3 were GENUINELY incremental, not
+TRANSFORMATIVE:
+EACH earlier LAYER (core AGENT, multi-SURFACE testing,
+  FAILURE intelligence, DEEPER capability) EXTENDED what the
+  SAME, SINGLE engineer COULD accomplish CALLING the SYSTEM
+  DIRECTLY — MORE capability, but the SAME fundamental
+  USAGE pattern.
+
+Why THIS layer is GENUINELY qualitatively DIFFERENT:
+MCP wrapping DOESN'T just ADD capability — it CHANGES WHO
+  can ACCESS the system AT all, INTRODUCING genuinely NEW
+  considerations (Chapter 16'S access CONTROL, Chapter 14'S
+  pipeline INTEGRATION) that SIMPLY didn'T apply WHEN the
+  system was a PERSONAL, directly-CALLED tool.</code></pre>
+<p>This is a GENUINELY meaningful DISTINCTION worth RECOGNIZING — NOT every LAYER in a SYSTEM'S architecture REPRESENTS the SAME KIND of change, and THIS page'S "PIVOT point" framing CORRECTLY identifies THAT this SPECIFIC transition (personal TOOL to SHARED infrastructure) is GENUINELY more SIGNIFICANT than the PURELY additive layers THAT came before it.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might it be a MISTAKE to assume Chapter 14'S retry LOGIC (should_retry) needs ANY modification to WORK correctly AGAINST an MCP-wrapped SYSTEM, rather than a DIRECT, in-process AGENT?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Chapter 14'S should_RETRY function OPERATES on a FAILURE'S classification — a GENUINELY abstract, STRUCTURED result that'S COMPLETELY unaware of HOW that RESULT was originally OBTAINED, meaning it WORKS identically REGARDLESS of WHETHER the classification CAME from a DIRECT function call or an MCP TOOL response.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why should_RETRY genuinely doesn'T CARE about the
+UNDERLYING transport MECHANISM:
+Chapter 14'S function TAKES a failure OBJECT (WITH its
+  classification ALREADY determined) and REASONS about
+  WHETHER to retry — it NEVER references HOW that failure
+  or CLASSIFICATION was OBTAINED, MAKING it GENUINELY
+  agnostic to WHETHER the underlying CALL was DIRECT
+  in-process EXECUTION or an MCP tool CALL.
+
+Why THIS confirms Chapter 13'S OWN "reasoning LOOP stays
+unchanged" finding, now APPLIED to RETRY logic
+SPECIFICALLY:
+JUST as Chapter 13 CONFIRMED the AGENT'S reasoning LOOP
+  needed almost NO changes when MCP WAS added, THIS page'S
+  reuse of should_RETRY unchanged CONFIRMS the SAME
+  principle EXTENDS to Chapter 14'S OWN, LATER-built
+  capability TOO.</code></pre>
+<p>This is a GENUINELY useful, REASSURING confirmation — the SAME architectural PRINCIPLE (well-DESIGNED, ABSTRACTION-respecting FUNCTIONS remain STABLE across TRANSPORT-mechanism changes) CONTINUES to HOLD, now DEMONSTRATED for a THIRD, INDEPENDENT capability (Chapter 14'S RETRY logic) BEYOND just the CORE reasoning LOOP Chapter 13 ORIGINALLY verified.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you DESIGN a genuine TEST to VERIFY that WIRING Chapter 14'S logic THROUGH the MCP layer (RATHER than DIRECT, in-process CALLS) produces IDENTICAL behavior to WHAT Chapter 14 ORIGINALLY demonstrated?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A GENUINELY rigorous test RUNS the SAME failure SCENARIO through BOTH the DIRECT, in-process PATH (Chapter 14'S ORIGINAL approach) and the MCP-wrapped PATH (THIS page'S approach), CONFIRMING BOTH produce the IDENTICAL retry DECISION.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def verify_mcp_wiring_preserves_chapter14_behavior(
+        test_failure_scenario, client, mcp_client):
+    """Confirms Chapter 14's retry logic produces identical
+    decisions whether called directly or through the MCP
+    wrapping this page introduces."""
+    direct_result = should_retry(test_failure_scenario, client)
+
+    mcp_wrapped_result = mcp_client.call_tool(
+        "run_capstone_verification",
+        {"objective": test_failure_scenario["objective"]}
+    )
+    mcp_retry_decision = should_retry(
+        classify_capstone_failure(mcp_wrapped_result, client), client)
+
+    return {
+        "behavior_preserved": (
+            direct_result["retry"] == mcp_retry_decision["retry"]
+        ),
+        "direct_decision": direct_result,
+        "mcp_decision": mcp_retry_decision,
+    }</code></pre>
+<p>This DIRECTLY applies THIS entire CAPSTONE'S own RECURRING verification PATTERN (CONFIRMED explicitly for the REASONING loop in Chapter 13, and REASONED about ABOVE for RETRY logic SPECIFICALLY) as an ACTUAL, EMPIRICAL test — RATHER than TRUSTING the ARGUMENT that Chapter 14'S function is GENUINELY transport-AGNOSTIC, THIS test PROVIDES CONCRETE evidence CONFIRMING it, EXACTLY the SAME evidence-based DISCIPLINE this ENTIRE capstone has MODELED at EVERY prior LAYER.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

@@ -1,0 +1,154 @@
+<!doctype html>
+<html><head>
+<title>RestAssured PUT Requests: Full Resource Replacement</title>
+<meta name="description" content="A deep guide to PUT requests in RestAssured — full-resource replacement semantics, idempotence, and the exact bug caused by sending a partial payload." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/put-requests.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>PUT Requests</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="post-requests.html">POST Requests</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>given()
+    .contentType(ContentType.JSON)
+    .pathParam("id", orderId)
+    .body(fullOrderPayload)
+.when()
+    .put("/orders/{id}")
+.then()
+    .statusCode(200);</code></pre>
+<p>PUT conventionally replaces the <em>entire</em> resource with what you send — not a partial update. This distinguishes it sharply from PATCH (the next page), and getting this wrong is one of the most common real API bugs.</p>
+
+<h2 id="why-it-s-important">Why it's important</h2>
+<p>Sending a partial payload to a strict PUT endpoint is a genuinely common source of confusing data loss — fields you didn't include can silently get reset to empty or default values, a bug that looks like "half my update didn't work" rather than "I used the wrong HTTP method with the wrong payload."</p>
+
+<h2 id="basic-example">Basic Example</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>OrderRequest fullOrder = new OrderRequest("Wireless Mouse", 3, "confirmed");
+
+given()
+    .contentType(ContentType.JSON)
+    .pathParam("id", orderId)
+    .body(fullOrder) // includes EVERY field, even ones that aren't changing
+.when()
+    .put("/orders/{id}")
+.then()
+    .statusCode(200);</code></pre>
+
+<h2 id="detailed-example-the-bug-a-partial-put-payload-causes">Detailed Example — The Bug a Partial PUT Payload Causes</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void demonstratesDataLossFromPartialPutPayload() {
+    Response created = given()
+        .body(new OrderRequest("Keyboard", 1, "pending", "Happy Birthday!"))
+        .when().post("/orders");
+    String id = created.jsonPath().getString("id");
+
+    // ❌ Sending PUT with only the field being changed — on a strict PUT
+    // implementation, this can wipe out the gift note and other omitted fields
+    Map&lt;String, Object&gt; partialPayload = new HashMap&lt;&gt;();
+    partialPayload.put("quantity", 2);
+    given().pathParam("id", id).body(partialPayload).when().put("/orders/{id}");
+
+    Response fetched = given().pathParam("id", id).when().get("/orders/{id}");
+    // On a strict PUT implementation, this assertion FAILS —
+    // giftNote got reset to null, even though we never intended to change it
+    fetched.then().body("giftNote", equalTo("Happy Birthday!"));
+}</code></pre>
+<p>This isn't hypothetical — it's the single most common real bug this method produces. Testing the <em>omitted-field</em> behavior explicitly, not just the field you intentionally changed, is what actually catches it.</p>
+
+<h2 id="idempotence-what-it-actually-means-for-testing">Idempotence — What It Actually Means for Testing</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void puttingTheSamePayloadTwiceProducesTheSameResult() {
+    OrderRequest payload = new OrderRequest("Keyboard", 2, "confirmed");
+
+    Response first = given().pathParam("id", orderId).body(payload).when().put("/orders/{id}");
+    Response second = given().pathParam("id", orderId).body(payload).when().put("/orders/{id}");
+
+    assertThat(first.jsonPath().getString("quantity"), equalTo(second.jsonPath().getString("quantity")));
+    // Both calls produce the identical end state — this is what idempotent actually means
+}</code></pre>
+<p>PUT is idempotent by HTTP convention — sending the exact same PUT request twice should produce the same end state as sending it once. This is genuinely testable, not just a theoretical property: calling PUT with the same payload twice in a row and confirming the resulting state is identical both times is a legitimate, useful test.</p>
+
+<h2 id="real-world-example-full-update-with-verification">Real-World Example — Full Update With Verification</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void putReplacesEntireResourceCorrectly() {
+    OrderRequest updated = new OrderRequest("Wireless Mouse", 5, "confirmed");
+
+    given()
+        .contentType(ContentType.JSON)
+        .pathParam("id", orderId)
+        .body(updated)
+    .when()
+        .put("/orders/{id}")
+    .then()
+        .statusCode(200)
+        .body("quantity", equalTo(5))
+        .body("status", equalTo("confirmed"));
+
+    // Follow-up GET confirms the change actually persisted, not just that
+    // the PUT response echoed it back correctly
+    given().pathParam("id", orderId).when().get("/orders/{id}")
+        .then().body("quantity", equalTo(5));
+}</code></pre>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Using PUT with a partial payload, risking silent data loss on omitted fields
+given().pathParam("id", id).body(Map.of("quantity", 3)).when().put("/orders/{id}");
+
+// ✅ Include the FULL current resource state, or use PATCH instead (next page)
+given().pathParam("id", id).body(fullOrderWithAllFields).when().put("/orders/{id}");</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Using PUT with a partial payload</strong> against an API that implements strict full-replacement semantics — the most common bug this method produces.</li>
+  <li><strong>Only asserting the changed field, never the unchanged ones</strong> — this misses exactly the "did this silently reset other fields" bug PUT testing needs to catch.</li>
+  <li><strong>Not checking whether an API's PUT actually follows strict convention</strong> before assuming — some APIs implement PUT more leniently than the spec technically describes; verify against real behavior, not just assumption.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>APIs that treat PUT as upsert</strong> (create if the resource doesn't exist, replace if it does) — a real, documented pattern for some APIs; verify whether yours does this before assuming PUT only ever operates on existing resources.</li>
+  <li><strong>PUT against a resource that doesn't exist</strong> — depending on the API's upsert behavior, this either creates it (200/201) or fails with 404; know which your API does.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a field you didn't intend to change shows up as null/empty after a PUT, check whether you sent a partial payload against a strict-replacement endpoint — this is the single most common root cause, and either including the full resource or switching to PATCH resolves it.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Confirm an endpoint's actual PUT semantics (full replacement vs. lenient partial) from documentation rather than assuming.</li>
+  <li>Always include the full current resource state in a PUT payload unless you've confirmed the API tolerates partial ones.</li>
+  <li>Test both the changed and deliberately-unchanged fields after a PUT, to catch silent data loss.</li>
+  <li>Consider a genuine idempotence test — the same PUT payload sent twice — for endpoints where that property matters.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Create a resource with three distinct fields, then PUT an update changing only one field but including all three in the payload — assert all three fields have the expected values afterward, confirming nothing was accidentally lost.</p>
+
+<h2 id="summary">Summary</h2>
+<p>PUT conventionally replaces a resource wholesale and is idempotent by design. The most common real bug is sending a partial payload against a strict-replacement API, silently resetting omitted fields — testing both the changed and deliberately-unchanged fields on every PUT test is what catches this.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A test sends a PUT request with only the fields being changed, and afterward a field that wasn't included comes back empty. What happened?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The API's PUT endpoint implements full-replacement semantics — it treats the request body as the complete new state of the resource, so any field not included gets reset to empty or default. The fix is either to include the full current resource in the PUT payload, or to switch that specific request to PATCH, which is designed to update only the fields actually provided.</div>
+</details>
+<details class="faq-item">
+<summary>What's the single most common real bug PUT causes?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Sending a partial payload to a strict full-replacement PUT endpoint, silently resetting any omitted fields to empty or default values.</div>
+</details>
+<details class="faq-item">
+<summary>Why does a genuine idempotence test for PUT send the SAME payload twice?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Idempotent means repeating the exact same request produces the same end state as doing it once — sending identical payloads twice and confirming identical results is what actually verifies that property, not just a functional assumption.</div>
+</details>
+<details class="faq-item">
+<summary>Why should a PUT test assert on unchanged fields, not just the changed one?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Confirming the changed field updated correctly proves nothing about whether OTHER fields were silently reset — asserting deliberately-unchanged fields is what actually catches the data-loss bug PUT is prone to.</div>
+</details>
+<details class="faq-item">
+<summary>What's the 'upsert' pattern some APIs implement for PUT?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Some APIs treat PUT as create-if-missing, replace-if-exists — worth verifying whether your specific API does this before assuming PUT only ever operates on resources that already exist.</div>
+</details>
+</div>
+</article>
+</body></html>

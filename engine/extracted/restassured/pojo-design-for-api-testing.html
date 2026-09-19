@@ -1,0 +1,140 @@
+<!doctype html>
+<html><head>
+<title>POJO Design for API Testing with RestAssured</title>
+<meta name="description" content="How to design POJOs specifically for API test automation — constructors, builders, and why test POJOs differ from production model classes." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/pojo-design-for-api-testing.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>POJO Design for API Testing</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="json-serialization-deserialization.html">JSON, Serialization & Deserialization overview</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>A POJO (Plain Old Java Object) used for API testing is a class that mirrors a JSON payload's shape — one field per JSON field, with the getters/setters (or a builder) that let RestAssured serialize it to JSON, or deserialize a response into it.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>public class User {
+    private String name;
+    private String email;
+
+    public User() {} // no-arg constructor — required for deserialization
+
+    public User(String name, String email) {
+        this.name = name;
+        this.email = email;
+    }
+
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
+    public String getEmail() { return email; }
+    public void setEmail(String email) { this.email = email; }
+}</code></pre>
+
+<h2 id="why-it-s-important">Why it's important</h2>
+<p>Test POJOs solve a specific, narrow problem: turning "I need to send/receive this JSON shape" into type-safe, refactor-safe Java code. They're not meant to carry business logic — that distinction from production domain models matters and is covered later on this page.</p>
+
+<h2 id="the-no-arg-constructor-requirement">The No-Arg Constructor Requirement</h2>
+<p>Jackson (and most JSON libraries) need a no-argument constructor to deserialize JSON into an object — it creates an empty instance first, then populates fields one by one via setters (or reflection). Forgetting this constructor when you've added a custom parameterized one is a common, confusing error: serialization (Java → JSON) works fine, but deserialization (JSON → Java) fails with an opaque exception.</p>
+
+<h2 id="builder-pattern-for-readable-test-data">Builder Pattern for Readable Test Data</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>public class User {
+    private String name;
+    private String email;
+    private String role;
+
+    public static class Builder {
+        private User user = new User();
+        public Builder name(String name) { user.name = name; return this; }
+        public Builder email(String email) { user.email = email; return this; }
+        public Builder role(String role) { user.role = role; return this; }
+        public User build() { return user; }
+    }
+}
+
+User admin = new User.Builder()
+    .name("Admin User")
+    .email("admin@example.com")
+    .role("ADMIN")
+    .build();</code></pre>
+<p>For a POJO with many fields, a constructor call like <code>new User("Admin User", "admin@example.com", "ADMIN", true, null, ...)</code> becomes unreadable — you can't tell what each positional argument means without checking the class definition. A builder makes every field's purpose explicit at the call site, which matters enormously once test data setup shows up dozens of times across a suite. Chapter 9 (Test Data Management) builds directly on this pattern.</p>
+
+<h2 id="records-a-modern-alternative-for-immutable-pojos">Records — A Modern Alternative for Immutable POJOs</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>public record User(String name, String email, String role) {}
+
+User user = new User("John", "john@example.com", "USER");
+String name = user.name(); // no "get" prefix — records generate accessor methods differently</code></pre>
+<p>Java records (available since Java 16) are a genuinely good fit for simple, immutable request/response models — they eliminate the getter/setter/constructor boilerplate entirely. The tradeoff: no-arg constructors aren't naturally available on records, which can complicate deserialization with some JSON library configurations. For straightforward flat payloads, records are increasingly the modern default; for anything requiring the no-arg constructor + setter pattern JSON libraries traditionally expect, a conventional POJO or Lombok-generated class remains the safer choice.</p>
+
+<h2 id="test-pojos-vs-production-domain-models">Test POJOs vs. Production Domain Models</h2>
+<p>It's tempting to reuse your application's actual production model classes for test payloads — after all, they already exist. Resist this where possible: production models often carry validation annotations, database mapping annotations, or business logic that has nothing to do with what a test needs, and coupling your test suite to production code means an unrelated internal refactor can break your tests. A test POJO's only job is representing the wire format — keep it that thin.</p>
+
+<h2 id="real-world-example-a-response-pojo-with-optional-fields">Real-World Example — A Response POJO with Optional Fields</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>public class OrderResponse {
+    private String id;
+    private String status;
+    private String cancelledAt; // null unless the order was actually cancelled
+    private List&lt;String&gt; tags; // may be an empty list, never null, per this API's contract
+
+    // constructors, getters, setters
+}</code></pre>
+<p>Documenting which fields can legitimately be null (via a comment, as here, or more formally) is worth doing directly in the POJO — it's exactly the information a teammate needs before writing an assertion against that field, and it's easy to forget once you're a few tests removed from having read the actual API documentation.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Reusing a production entity class, tightly coupling tests to internal app structure
+given().body(productionUserEntity).when().post("/users");
+
+// ✅ A thin, test-owned POJO representing only the wire format
+given().body(new UserRequest("John", "john@example.com")).when().post("/users");</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Forgetting the no-arg constructor</strong> once a custom parameterized constructor is added — breaks deserialization with a confusing error.</li>
+  <li><strong>Reusing production domain models directly</strong> in test code, coupling the test suite to internal application structure it shouldn't need to know about.</li>
+  <li><strong>Cramming too many optional fields into one flat POJO</strong> without documenting which are genuinely optional — leads to confusing null-related test failures later.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Fields the API adds over time</strong> that your POJO doesn't know about — by default, most configurations ignore unknown JSON fields during deserialization rather than failing (covered in the ObjectMapper Configuration page), which is usually the behavior you want.</li>
+  <li><strong>Fields with reserved Java keywords as their JSON name</strong> (a field literally named <code>class</code>) — needs a <code>@JsonProperty</code> annotation to map a differently-named Java field to that JSON key.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If deserialization fails with an exception mentioning "no suitable constructor" or similar, check for a missing no-arg constructor first — it's the most common root cause of this specific failure category.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Keep test POJOs thin — wire format only, no business logic, no validation annotations borrowed from production code.</li>
+  <li>Use a builder (or records, for simple immutable cases) once a POJO has more than three or four fields.</li>
+  <li>Always include a no-arg constructor unless you're confident deserialization will never be needed for that specific class.</li>
+  <li>Document which fields can legitimately be null or absent, directly in the class.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Design a POJO for a "Product" resource with fields for name, price, category, and an optional discount percentage. Add a builder, and write a test that creates a product using it, then fetches it back and asserts the returned values match.</p>
+
+<h2 id="summary">Summary</h2>
+<p>A well-designed test POJO mirrors a JSON payload's wire format, includes a no-arg constructor for deserialization, and stays deliberately separate from production domain models. Builders (or records for simple cases) make test data construction readable once a POJO grows past a handful of fields — a small investment that pays off directly once you reach Test Data Management.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why does a POJO need a no-arg constructor for RestAssured/Jackson to deserialize a response into it?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Jackson's default deserialization strategy creates an empty instance of the class first, then populates its fields one at a time (via setters or reflection) based on the JSON being parsed. Without a no-arg constructor, Jackson has no way to create that initial empty instance, and deserialization fails — even though serialization (an already-populated object going out as JSON) works fine regardless, since it doesn't need to construct anything.</div>
+</details>
+<details class="faq-item">
+<summary>Why does a POJO need a no-arg constructor specifically for deserialization to work?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Jackson creates an empty instance first, then populates fields one at a time — without a no-arg constructor, there's no way to create that initial empty instance, so deserialization fails even though serialization works fine.</div>
+</details>
+<details class="faq-item">
+<summary>When does a builder pattern start earning its keep over a plain constructor?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Once a POJO has more than three or four fields — a long positional constructor call becomes unreadable, since you can't tell what each argument means without checking the class definition.</div>
+</details>
+<details class="faq-item">
+<summary>What's the tradeoff of using Java records instead of a conventional POJO?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Records eliminate boilerplate for simple immutable models, but lack a natural no-arg constructor, which can complicate deserialization with some JSON library configurations that expect the traditional constructor-plus-setter pattern.</div>
+</details>
+<details class="faq-item">
+<summary>Why should a test POJO document which fields can legitimately be null?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It's exactly the information a teammate needs before writing an assertion against that field — easy to forget once you're a few tests removed from having read the actual API documentation.</div>
+</details>
+</div>
+</article>
+</body></html>

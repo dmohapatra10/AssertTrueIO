@@ -1,0 +1,170 @@
+<!doctype html>
+<html><head>
+<title>Building a Realistic End-to-End k6 Workflow: Login, Browse, Order, Verify</title>
+<meta name="description" content="A complete, realistic k6 workflow chaining login, product browsing, order creation, and order verification — with data correctly flowing between every step." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/building-a-realistic-end-to-end-workflow.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Building a Realistic End-to-End Workflow</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="http-api-performance-testing.html">HTTP/API Performance Testing overview</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>This page builds one complete, realistic workflow — login, browse products, place an order, then verify it — with each step's output feeding correctly into the next. This is the actual shape most real k6 workflow tests take, not an isolated single request.</p>
+
+<h2 id="step-1-login-and-extract-a-token">Step 1 — Login and Extract a Token</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import http from 'k6/http';
+import { check, sleep, group } from 'k6';
+
+function login() {
+  const response = http.post('https://api.example.com/login',
+    JSON.stringify({ username: 'testuser', password: 'secret' }),
+    { headers: { 'Content-Type': 'application/json' } });
+
+  check(response, { 'login succeeded': (r) => r.status === 200 });
+  return response.json('token');
+}</code></pre>
+<p>The token extracted here is what makes every following step possible — this is the same <code>response.json('fieldName')</code> pattern from Chapter 3, now genuinely load-bearing for the rest of the workflow rather than just a demonstration.</p>
+
+<h2 id="step-2-get-products-authenticated">Step 2 — Get Products, Authenticated</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>function getProducts(token) {
+  const response = http.get('https://api.example.com/products', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  check(response, {
+    'products loaded': (r) => r.status === 200,
+    'at least one product returned': (r) => r.json().length > 0,
+  });
+
+  return response.json()[0].id; // pick the first product for this workflow
+}</code></pre>
+<p>Notice the second check here — <code>at least one product returned</code> — this is functional validation, not just a status code check. A products endpoint that returns 200 with an empty array is technically "successful" by status code alone, but functionally broken for anyone trying to actually shop.</p>
+
+<h2 id="step-3-create-an-order">Step 3 — Create an Order</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>function createOrder(token, productId) {
+  const response = http.post('https://api.example.com/orders',
+    JSON.stringify({ productId, quantity: 1 }),
+    { headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      } });
+
+  check(response, { 'order created': (r) => r.status === 201 });
+  return response.json('id');
+}</code></pre>
+
+<h2 id="step-4-get-the-order-and-verify-it">Step 4 — Get the Order and Verify It</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>function getOrder(token, orderId, expectedProductId) {
+  const response = http.get(`https://api.example.com/orders/${orderId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  check(response, {
+    'order retrieved': (r) => r.status === 200,
+    'order has correct product': (r) => r.json('productId') === expectedProductId,
+  });
+}</code></pre>
+<p>This final check is the whole point of the workflow being connected rather than isolated — it verifies that the order retrieved actually matches what was ordered in step 3, catching a class of bug (data corruption, a race condition, a mismatched ID somewhere in the chain) that four separate, disconnected single-endpoint tests would never be positioned to catch.</p>
+
+<h2 id="detailed-example-the-complete-workflow-assembled">Detailed Example — The Complete Workflow, Assembled</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export default function () {
+  group('Complete Purchase Journey', function () {
+    const token = login();
+    sleep(1);
+
+    const productId = getProducts(token);
+    sleep(2);
+
+    const orderId = createOrder(token, productId);
+    sleep(1);
+
+    getOrder(token, orderId, productId);
+  });
+}</code></pre>
+<p>This reads as a genuine narrative — log in, browse, order, verify — with realistic pacing between steps and every piece of data flowing correctly from where it was produced to where it's needed. This is the actual target shape for a realistic k6 performance test, not the single-request examples used to introduce individual concepts earlier.</p>
+
+<h2 id="real-world-example-what-this-catches-that-isolated-tests-miss">Real-World Example — What This Catches That Isolated Tests Miss</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Isolated tests (each endpoint tested alone):
+  ✅ Login works
+  ✅ Get Products works
+  ✅ Create Order works
+  ✅ Get Order works
+  → All four pass. Ship it?
+
+Chained workflow test:
+  ❌ "order has correct product" FAILS — the order retrieved shows a different
+     product than what was actually ordered
+  → A real bug, invisible to any of the four isolated tests</code></pre>
+<p>This is a genuine, realistic scenario — perhaps a caching bug, a race condition under concurrent load, or an ID mapping issue that only manifests when data actually flows between real, dependent operations. Four passing isolated tests provide false confidence that a connected workflow test would have caught immediately.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Four completely disconnected requests, no data flowing between them
+export default function () {
+  http.post(loginUrl, credentials);
+  http.get(productsUrl);
+  http.post(ordersUrl, hardcodedOrderPayload);
+  http.get(someHardcodedOrderUrl);
+}
+
+// ✅ A genuinely connected workflow, each step depending on real prior output
+export default function () {
+  const token = login();
+  const productId = getProducts(token);
+  const orderId = createOrder(token, productId);
+  getOrder(token, orderId, productId);
+}</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Hardcoding IDs instead of extracting them from real responses</strong> — defeats the purpose of a connected workflow, since the "chain" isn't actually testing real data flow.</li>
+  <li><strong>Skipping functional checks at intermediate steps</strong> — checking only the final step's correctness misses exactly where in a multi-step chain a problem actually originated.</li>
+  <li><strong>No realistic pacing between steps</strong> — a workflow with no <code>sleep()</code> between login, browse, and purchase doesn't represent how a real user actually moves through these steps.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>A step failing partway through the workflow</strong> — if <code>login()</code> fails and returns no usable token, every subsequent step will also fail, cascading from one root cause; worth checking the very first step's check results first when a whole workflow looks broken.</li>
+  <li><strong>Data extracted from one step being subtly wrong in a way that doesn't cause an immediate failure</strong> — like extracting the wrong field name that happens to also exist on the response — this is exactly why the final verification step (checking the retrieved order matches what was ordered) matters.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a chained workflow test fails partway through, check the earliest failing step first, not the one that happened to fail loudest — a login failure early in the chain can cascade into confusing-looking failures several steps later that have nothing to do with those later steps' own logic.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Extract real values from real responses at every step — never hardcode IDs a chained workflow is supposed to be deriving dynamically.</li>
+  <li>Include functional checks at every step, not just the final one — this pinpoints exactly where in the chain a problem originates.</li>
+  <li>Use realistic pacing (<code>sleep()</code>) between steps to represent genuine user behavior, not an unrealistic burst.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Extend the four-step workflow on this page with a fifth step — canceling the order and verifying its status changed to "cancelled" — extracting and passing all necessary data (token, order ID) from the existing chain.</p>
+
+<h2 id="summary">Summary</h2>
+<p>A realistic k6 workflow chains multiple dependent requests together — login, browse, order, verify — with real data extracted from each response and passed into the next request, not hardcoded values. Checking correctness at every step, not just the final one, is what lets a connected workflow catch integration-level bugs that four isolated, disconnected tests would never be positioned to find.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why might four individually passing endpoint tests still miss a real bug that a chained workflow test catches?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Testing endpoints in isolation only confirms each one works correctly given its own inputs — it says nothing about whether data flowing from one operation to the next is handled correctly. A bug that only appears when real data genuinely flows between connected operations (a caching issue, a race condition, an ID mapping problem) is invisible to isolated tests by design, since none of them ever actually exercise that connection.</div>
+</details>
+<details class="faq-item">
+<summary>Why is hardcoding an order ID in a "chained" workflow test actually a mistake?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It defeats the actual purpose of chaining — the value of a connected workflow is verifying that data genuinely produced by one step is correctly usable by the next. Hardcoding a value instead of extracting it from a real response means the test isn't actually testing that data flow at all; it just looks superficially connected while not verifying anything about how the steps genuinely relate.</div>
+</details>
+<details class="faq-item">
+<summary>Why should functional checks appear at every step of a workflow, not just the final one?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Checking only the final step tells you the workflow eventually produced a wrong result, but not where in the chain the problem actually originated — was it the login, the product selection, or the order creation itself? Checking every step pinpoints the actual source of a failure immediately, rather than requiring separate investigation to trace a final-step failure back through several earlier steps.</div>
+</details>
+<details class="faq-item">
+<summary>If a multi-step workflow test fails, why should you investigate the earliest failing step first?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Since later steps typically depend on data produced by earlier ones, a failure early in the chain (like a failed login) can cascade into confusing, seemingly unrelated failures in every subsequent step — none of which are actually caused by those later steps' own logic. Starting the investigation at the earliest failure avoids wasting time debugging downstream symptoms of an upstream root cause.</div>
+</details>
+<details class="faq-item">
+<summary>Why does realistic pacing (sleep between steps) matter in a multi-step workflow, beyond what was already covered for a single request?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A real user doesn't move instantly from logging in, to browsing, to purchasing — there's genuine time spent reading, deciding, and navigating between each step. A workflow with no pacing between steps compresses an entire realistic user journey into an unnaturally rapid burst, which distorts the load pattern the system actually experiences compared to how real users genuinely move through the same journey.</div>
+</details>
+</div>
+</article>
+</body></html>

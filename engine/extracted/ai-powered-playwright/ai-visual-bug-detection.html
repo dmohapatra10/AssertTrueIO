@@ -1,0 +1,109 @@
+<!doctype html>
+<html><head>
+<title>AI Visual Bug Detection</title>
+<meta name="description" content="Checking a single, real screenshot for specific, named categories of visual bugs — overlapping elements, cut-off text, broken images — without any prior baseline at all." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/ai-visual-bug-detection.html" />
+</head><body>
+<p class="difficulty">Advanced</p>
+<h1>AI Visual Bug Detection</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="detecting-unexpected-ui-changes.html">Detecting Unexpected UI Changes</a></p>
+<article class="content">
+<h2>What You'll Learn</h2>
+<ul>
+  <li>Checking one screenshot for specific bug categories, without any prior baseline</li>
+  <li>Why naming concrete categories produces more useful results than a vague "find bugs" prompt</li>
+  <li>A real, structured bug report from a single image</li>
+</ul>
+
+<h2>Introduction — No Baseline Needed</h2>
+<p>Every earlier page in this chapter compared something — a page against a requirement, or two screenshots against each other. This page checks a single screenshot on its own, for genuine visual problems that would be wrong regardless of what any baseline says.</p>
+
+<h2>Step-by-Step Implementation</h2>
+<pre><code>// src/detect-visual-bugs.ts
+import { anthropic } from './ai-client';
+
+export type VisualBugCategory =
+  | 'overlapping-elements' | 'cut-off-text' | 'broken-image'
+  | 'misaligned-layout' | 'unreadable-contrast' | 'none';
+
+export interface VisualBugReport {
+  bugsFound: { category: VisualBugCategory; description: string; location: string }[];
+}
+
+export async function detectVisualBugs(
+  base64Image: string
+): Promise&lt;VisualBugReport&gt; {
+  const response = await anthropic.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 600,
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'image', source: { type: 'base64', media_type: 'image/png', data: base64Image } },
+        { type: 'text', text: `Examine this screenshot for
+GENUINE visual bugs in these specific categories: overlapping
+elements, cut-off or truncated text, broken or missing images,
+misaligned layout, unreadable text contrast. Only report
+something you can point to CONCRETELY — do not guess.
+
+Respond with ONLY valid JSON:
+{"bugsFound": [{"category": string, "description": string,
+"location": string}]}` },
+      ],
+    }],
+  });
+
+  const textBlock = response.content.find((b) =&gt; b.type === 'text');
+  return JSON.parse((textBlock as any).text);
+}</code></pre>
+
+<h2>Code Explanation</h2>
+<p>The five named categories are doing real work here — a vague "find any bugs" prompt tends to produce vague, unfocused results, while these specific categories give the model concrete things to actually look for. <code>'none'</code> as a valid category matters too: an empty <code>bugsFound</code> array is a genuine, honest result when a screenshot has no visual bugs, not something to force output around.</p>
+
+<h2>Example — A Real, Structured Bug Report</h2>
+<pre><code>const report = await detectVisualBugs(screenshotBase64);
+
+// {
+//   bugsFound: [
+//     {
+//       category: "cut-off-text",
+//       description: "The product description text is truncated
+//         mid-sentence, ending in '...ideal for profession' with
+//         no visible way to read the rest",
+//       location: "Product details panel, below the price"
+//     },
+//     {
+//       category: "overlapping-elements",
+//       description: "The 'Free Shipping' badge overlaps the
+//         top-right corner of the product image",
+//       location: "Top-right of the product image"
+//     }
+//   ]
+// }</code></pre>
+
+<h2>Why It Matters — Genuinely Different From Every Earlier Page</h2>
+<p>This check needs no requirement to validate against and no prior screenshot to compare with — it's looking for problems that would be genuinely wrong on any page, in any context. This makes it a useful, standalone check to run against any screenshot, including ones from Chapter 13's exploratory testing, where no specific requirement or baseline exists yet at all.</p>
+
+<h2>Common Mistakes</h2>
+<ul>
+  <li><strong>Using a vague, open-ended "find any bugs" prompt instead of named categories.</strong> This page's whole point is that concrete categories produce concrete, useful findings — vagueness produces vague, less actionable output.</li>
+  <li><strong>Treating every report entry as equally certain.</strong> "Do not guess" in the prompt helps, but this check still benefits from a human confirming a flagged bug is real before treating it as confirmed — the next page addresses this honestly.</li>
+</ul>
+
+<h2>Best Practices</h2>
+<ul>
+  <li>Name specific, concrete bug categories in the prompt rather than asking generically for problems.</li>
+  <li>Run this check on screenshots without a natural baseline — exploratory testing, new pages, first-time visual checks — where the previous pages' comparative approaches don't apply.</li>
+</ul>
+
+<h2>Hands-On Exercise</h2>
+<p>Deliberately introduce one real visual bug into a test page — truncate some text with a tight CSS overflow rule, or overlap two elements with absolute positioning. Run this page's function against a screenshot of it and confirm the report correctly identifies and locates the bug.</p>
+
+<h2>Key Takeaways</h2>
+<ul>
+  <li>This check needs no baseline or stated requirement — it looks for problems that would be genuinely wrong in any context.</li>
+  <li>Naming specific, concrete bug categories in the prompt produces meaningfully more useful results than an open-ended request.</li>
+  <li>This is a natural fit for screenshots with no existing baseline, including Chapter 13's exploratory testing output.</li>
+</ul>
+</article>
+</body></html>

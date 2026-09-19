@@ -1,0 +1,103 @@
+<!doctype html>
+<html><head>
+<title>Mapping Actions to Playwright</title>
+<meta name="description" content="Turning a structured PlannedAction into a genuine Playwright call — deterministic, table-driven mapping, not another AI generation step." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/mapping-actions-to-playwright.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Mapping Actions to Playwright</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="ai-action-planning.html">AI Action Planning</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Turning the previous page's <code>PlannedAction</code> into a genuine Playwright call</li>
+  <li>Why this mapping step is deterministic code, not another AI call</li>
+  <li>Applying Chapter 2's core rule — exact answer versus judgment call — to this exact decision</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>A <code>PlannedAction</code> like <code>{ actionType: "click", target: "Log In button" }</code> is structured, but it's still not Playwright code. This page closes that gap — and does it deterministically, not with another AI call, which is a deliberate, important design choice this page explains.</p>
+
+<h2 id="step-by-step-implementation">Step-by-Step Implementation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/map-to-playwright.ts
+import { Page, Locator } from '@playwright/test';
+import { PlannedAction } from './plan-action';
+
+export interface LocatorMap {
+  [target: string]: (page: Page) => Locator;
+}
+
+export const SHOPSMART_LOCATORS: LocatorMap = {
+  'Email field': (page) => page.getByLabel('Email'),
+  'Password field': (page) => page.getByLabel('Password'),
+  'Log In button': (page) => page.getByRole('button', { name: 'Log In' }),
+  'Search box': (page) => page.getByPlaceholder('Search products...'),
+  'Cart total': (page) => page.getByTestId('cart-total'),
+};
+
+export async function executeAction(
+  action: PlannedAction, page: Page
+): Promise&lt;void&gt; {
+  const locatorFn = SHOPSMART_LOCATORS[action.target];
+  if (!locatorFn) {
+    throw new Error(
+      `No known locator for target: "${action.target}". ` +
+      `Refusing to guess — add it to SHOPSMART_LOCATORS first.`
+    );
+  }
+  const locator = locatorFn(page);
+
+  switch (action.actionType) {
+    case 'navigate':
+      await page.goto(action.target);
+      break;
+    case 'fill':
+      await locator.fill(action.value ?? '');
+      break;
+    case 'click':
+      await locator.click();
+      break;
+    case 'assert':
+      await locator.waitFor({ state: 'visible' });
+      break;
+  }
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p>This is deliberately plain TypeScript — a lookup table and a switch statement, no AI call anywhere in this function. That's the whole point of this page: mapping a known, constrained <code>actionType</code> to a real Playwright method is an exact, deterministic operation with one genuinely correct answer per input, exactly Chapter 2's own rule for when a deterministic check is the right tool, not AI reasoning.</p>
+
+<h2 id="why-it-matters-refusing-to-guess">Why It Matters — Refusing to Guess</h2>
+<p>Notice <code>executeAction</code> throws immediately if <code>action.target</code> isn't in <code>SHOPSMART_LOCATORS</code>, rather than falling back to some invented selector. This mirrors Chapter 3's system prompt instruction to "never invent a selector" — but enforced here in actual, deterministic code, not just requested of the model. A missing locator becomes a clear, immediate error, not a silent, wrong guess.</p>
+
+<h2 id="expected-result">Expected Result</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const action = {
+  stepOrder: 1, actionType: 'fill' as const,
+  target: 'Email field', value: 'test@shopsmart.example.com',
+};
+await executeAction(action, page);
+// The real email field on the real, current page gets filled —
+// no AI call happened in this specific function at all</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Asking AI to generate the Playwright call for each action.</strong> Once <code>actionType</code> and <code>target</code> are known and constrained, the mapping to a Playwright call has exactly one correct answer — reaching for AI here adds cost, latency, and risk for zero genuine benefit.</li>
+  <li><strong>Silently falling back to a generic selector when the target isn't in the map.</strong> This page's explicit, thrown error is what keeps a missing locator visible and fixable, rather than producing a confusing runtime failure deep inside Playwright.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Keep the mapping from structured action to Playwright call as plain, deterministic code — no AI call belongs in this specific step.</li>
+  <li>Fail loudly and immediately on an unknown target, the same defensive discipline Chapter 3 established for missing configuration.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Extend <code>SHOPSMART_LOCATORS</code> with entries for ShopSmart's cart page (add-to-cart button, cart icon, quantity field). Then write a <code>PlannedAction</code> for each and confirm <code>executeAction</code> maps it correctly, without any AI call happening in that function.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Mapping a structured action to a real Playwright call is a deterministic operation with one correct answer — plain code, not another AI call.</li>
+  <li>This directly applies Chapter 2's core rule: AI belongs where genuine judgment is needed, and this specific mapping step doesn't need it.</li>
+  <li>Refusing to guess at an unknown target, with a clear thrown error, keeps failures visible rather than silently wrong.</li>
+</ul>
+</article>
+</body></html>

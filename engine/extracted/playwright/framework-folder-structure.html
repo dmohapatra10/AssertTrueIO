@@ -1,0 +1,177 @@
+<!doctype html>
+<html><head>
+<title>Playwright Framework Folder Structure: Organizing a Real Test Suite</title>
+<meta name="description" content="A practical folder structure for a Playwright automation framework — tests, pages, components, fixtures, api, utils, test-data, and config — and what belongs in each." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/framework-folder-structure.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Framework Folder Structure</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="page-object-model.html">Page Object Model</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+  <p>Every pattern in this course — locators, fixtures, page objects, API testing, mocking — needs a home in an actual project layout as a suite grows past a handful of files. This chapter is that layout: a folder structure that scales, and the responsibility each folder holds.</p>
+
+  <h2 id="why-it-s-important">Why it's important</h2>
+  <p>A suite with no consistent structure becomes hard to navigate as it grows — new tests get placed inconsistently, page objects and fixtures duplicate each other, and onboarding a new engineer takes longer than it should. A clear, consistent layout solves all of this cheaply, as long as it's adopted early.</p>
+
+  <h2 id="the-structure">The Structure</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>playwright-framework/
+├── tests/              # test files (*.spec.ts) — organized by feature area
+│   ├── auth/
+│   ├── checkout/
+│   └── orders/
+├── pages/              # Page Object Model classes
+│   ├── base-page.ts
+│   ├── login-page.ts
+│   └── checkout-page.ts
+├── components/         # reusable UI component objects (nav bar, modal, etc.)
+│   └── nav-bar.ts
+├── fixtures/           # custom fixtures — page objects, auth, test data
+│   └── index.ts
+├── api/                # API client helpers, separate from UI page objects
+│   └── orders-api.ts
+├── test-data/           # static fixture files (sample CSVs, images, JSON)
+│   └── sample-resume.pdf
+├── utils/               # small shared helper functions (formatting, random data)
+│   └── generate-email.ts
+├── types/                # shared TypeScript types/interfaces
+│   └── order.ts
+├── config/               # environment-specific config files (.env.qa, .env.staging)
+├── setup/                 # global setup scripts (auth, seeding)
+│   └── global.setup.ts
+└── playwright.config.ts</code></pre>
+
+  <h2 id="what-belongs-where">What Belongs Where</h2>
+  <table>
+    <thead><tr><th>Folder</th><th>Responsibility</th></tr></thead>
+    <tbody>
+      <tr><td><code>tests/</code></td><td>Test files only — no locators, no business logic, calls page objects/fixtures</td></tr>
+      <tr><td><code>pages/</code></td><td>Locators and actions for a specific page — no assertions (Page Objects chapter)</td></tr>
+      <tr><td><code>components/</code></td><td>Shared UI pieces reused across multiple pages</td></tr>
+      <tr><td><code>fixtures/</code></td><td>Custom fixtures composing page objects, auth, and other setup (Fixtures chapter)</td></tr>
+      <tr><td><code>api/</code></td><td>API client helpers, kept separate from UI page objects even when used together</td></tr>
+      <tr><td><code>test-data/</code></td><td>Static files a test needs — not generated code</td></tr>
+      <tr><td><code>utils/</code></td><td>Small, pure helper functions with no Playwright dependency</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="basic-example-a-feature-organized-test-file">Basic Example — A Feature-Organized Test File</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// tests/checkout/checkout-payment.spec.ts
+import { test, expect } from '../../fixtures';
+
+test.describe('checkout payment', () =&gt; {
+  test('completes with a valid card', async ({ page, checkoutPage }) =&gt; {
+    await checkoutPage.goto();
+    await checkoutPage.fillShippingDetails({ /* ... */ });
+    await checkoutPage.fillPayment({ cardNumber: '4242 4242 4242 4242' });
+    await checkoutPage.submit();
+
+    await expect(page.getByText('Order confirmed')).toBeVisible();
+  });
+});</code></pre>
+  <p>Organizing <code>tests/</code> by feature area (not by test type or page) tends to scale best — it mirrors how a team actually thinks about the product and makes it obvious where a new test for a given feature belongs.</p>
+
+  <h2 id="detailed-example-centralized-fixture-composition">Detailed Example — Centralized Fixture Composition</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// fixtures/index.ts — the ONE place that wires everything together
+import { test as base } from '@playwright/test';
+import { LoginPage } from '../pages/login-page';
+import { CheckoutPage } from '../pages/checkout-page';
+import { OrdersApi } from '../api/orders-api';
+
+type Fixtures = {
+  loginPage: LoginPage;
+  checkoutPage: CheckoutPage;
+  ordersApi: OrdersApi;
+};
+
+export const test = base.extend&lt;Fixtures&gt;({
+  loginPage: async ({ page }, use) =&gt; { await use(new LoginPage(page)); },
+  checkoutPage: async ({ page }, use) =&gt; { await use(new CheckoutPage(page)); },
+  ordersApi: async ({ request }, use) =&gt; { await use(new OrdersApi(request)); },
+});
+export { expect } from '@playwright/test';</code></pre>
+  <p>Every test file imports <code>test</code>/<code>expect</code> from this one <code>fixtures/index.ts</code> instead of directly from <code>@playwright/test</code> — the single choke point that makes every custom fixture available everywhere consistently.</p>
+
+  <h2 id="real-world-example-combining-api-and-page-objects">Real-World Example — Combining API and Page Objects</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// tests/orders/order-cancellation.spec.ts
+import { test, expect } from '../../fixtures';
+
+test('customer can cancel a pending order', async ({ page, ordersApi }) =&gt; {
+  const order = await ordersApi.create({ item: 'Wireless Mouse', quantity: 1 });
+
+  await page.goto(`/orders/${order.id}`);
+  await page.getByRole('button', { name: 'Cancel order' }).click();
+
+  await expect(page.getByText('Order cancelled')).toBeVisible();
+});</code></pre>
+  <p>This is the API Testing chapter's setup pattern, made concrete within the folder structure — <code>ordersApi</code> lives in <code>api/</code>, is exposed as a fixture, and the test combines it with direct UI interaction without needing a full page object for a page this simple.</p>
+
+  <h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Flat structure — everything in one tests/ folder, no separation
+tests/
+  login.spec.ts
+  login-page-helpers.ts   // mixed in with actual tests
+  checkout.spec.ts
+  random-utils.ts
+
+// ✅ Clear separation by responsibility
+tests/checkout/checkout-payment.spec.ts
+pages/checkout-page.ts
+utils/generate-email.ts</code></pre>
+
+  <h2 id="common-mistakes">Common Mistakes</h2>
+  <ul>
+    <li><strong>Mixing helper code directly into the <code>tests/</code> folder</strong> instead of separating it into <code>pages/</code>, <code>utils/</code>, or <code>api/</code> — makes it unclear at a glance what's a test versus supporting code.</li>
+    <li><strong>Organizing <code>tests/</code> by test type</strong> (a <code>smoke/</code> folder, a <code>regression/</code> folder) instead of by feature — this scatters related tests for one feature across multiple folders; use project-level <code>testMatch</code>/tags for that distinction instead (Projects & Environments chapter).</li>
+    <li><strong>No centralized fixture file</strong> — every test file importing <code>@playwright/test</code> directly and manually instantiating page objects, duplicating the wiring that a single <code>fixtures/index.ts</code> should handle once.</li>
+    <li><strong>Putting API client code inside <code>pages/</code></strong> — keep API helpers separate, even when a test uses both together, since they serve different purposes and often have different maintainers in larger teams.</li>
+  </ul>
+
+  <h2 id="edge-cases">Edge Cases</h2>
+  <ul>
+    <li><strong>Monorepos with multiple apps under test</strong> — consider a <code>pages/</code>/<code>tests/</code> subfolder per app rather than merging everything into one flat structure, especially once app-specific page objects start colliding in name.</li>
+    <li><strong>Very small projects</strong> — a handful of tests may not need the full structure; introduce folders as genuine need arises rather than scaffolding all of them from day one for a two-test project.</li>
+  </ul>
+
+  <h2 id="debugging">Debugging</h2>
+  <p>If it's unclear where a piece of new code belongs, ask: does it interact with the DOM (→ <code>pages/</code> or <code>components/</code>), does it make an HTTP call (→ <code>api/</code>), is it pure logic with no Playwright dependency (→ <code>utils/</code>), or does it wire fixtures together (→ <code>fixtures/</code>)? Nearly everything falls cleanly into one of these.</p>
+
+  <h2 id="best-practices">Best Practices</h2>
+  <ul>
+    <li>Organize <code>tests/</code> by feature area, matching how the product itself is structured.</li>
+    <li>Centralize all custom fixtures in one file that every test imports <code>test</code>/<code>expect</code> from.</li>
+    <li>Keep API helpers, page objects, and pure utilities in clearly separate folders, even when a single test combines all three.</li>
+    <li>Introduce structure incrementally as a project genuinely grows, rather than over-scaffolding a small suite.</li>
+  </ul>
+
+  <h2 id="practice-exercise">Practice Exercise</h2>
+  <p>Sketch a folder structure for a project with three feature areas (auth, checkout, admin), each needing its own page objects and at least one API helper, with a single centralized fixtures file wiring everything together.</p>
+
+  <h2 id="summary">Summary</h2>
+  <p>A scalable Playwright framework separates tests (organized by feature), page objects, reusable components, fixtures (the central wiring point), API helpers, and pure utilities into distinct folders — each with one clear responsibility. This structure is what makes every pattern from earlier chapters (POM, fixtures, API testing) actually compose cleanly as a suite grows from a handful of files into a real framework.</p>
+
+  <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why keep API client helpers in a separate api/ folder instead of inside the pages/ folder, even for tests that use both together?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Page objects and API helpers serve different purposes — one drives browser interaction, the other makes direct HTTP calls with no DOM involved at all. Keeping them separate makes each folder's responsibility unambiguous, avoids page objects accumulating unrelated HTTP logic, and scales better in larger teams where UI and API testing concerns are sometimes owned by different people.</div>
+</details>
+<details class="faq-item">
+<summary>Why organize the tests/ folder by feature area rather than by test type (smoke/regression)?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It mirrors how the team thinks about the product and makes it obvious where a new test for a given feature belongs; type-based splitting is better handled via project tags.</div>
+</details>
+<details class="faq-item">
+<summary>Why keep API client helpers in a separate api/ folder instead of inside pages/?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">They serve different purposes — one drives browser interaction, the other makes direct HTTP calls with no DOM involved — keeping them separate keeps responsibilities unambiguous.</div>
+</details>
+<details class="faq-item">
+<summary>What's the point of a single centralized fixtures/index.ts file?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Every test file imports test/expect from one place, so all custom fixtures are consistently available without each file wiring its own page objects manually.</div>
+</details>
+<details class="faq-item">
+<summary>Should a two-test project scaffold the full framework folder structure on day one?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Not necessarily — introduce folders as genuine need arises rather than over-scaffolding a project that doesn't need that much structure yet.</div>
+</details>
+</div>
+</article>
+</body></html>

@@ -1,0 +1,207 @@
+<!doctype html>
+<html><head>
+<title>AI-Driven Navigation: From Natural Language to Browser Actions</title>
+<meta name="description" content="How an agent turns a loose natural-language goal into a genuine browsing path, why this is closer to planning than improvisation, and real code for a multi-step navigation flow." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/ai-driven-navigation.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>AI-Driven Navigation</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="connecting-an-ai-agent-with-playwright.html">Connecting an AI Agent with Playwright</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>"Find a wireless mouse under $30 with good stock availability" is a genuine, natural-language goal — this page covers how that loose instruction becomes an actual sequence of real browser actions, using exactly Chapter 2's planning-then-reasoning pattern, not pure moment-to-moment improvisation.</p>
+
+<h2 id="a-real-navigation-trace">A Real Navigation Trace</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>GOAL: "Find a wireless mouse under $30 with good stock
+availability."
+
+REASONER's rough plan (Chapter 2's Agent Planning, in action):
+  1. Search for "wireless mouse"
+  2. Review results for ones under $30
+  3. Check stock status of qualifying results
+  4. Identify one that's genuinely in stock
+
+Step 1: search(query="wireless mouse")
+  → "Searched for 'wireless mouse'"
+
+Step 2: get_search_results()
+  → [{"name": "Wireless Mouse Pro", "price": "$34.99", "in_stock": true},
+     {"name": "Basic Wireless Mouse", "price": "$18.99", "in_stock": false},
+     {"name": "Ergo Wireless Mouse", "price": "$27.50", "in_stock": true}]
+
+Step 3: REASONING over structured results (no new tool call
+  needed — this is genuine reasoning over data already in hand):
+  "Filtering for under $30: 'Basic Wireless Mouse' ($18.99) and
+  'Ergo Wireless Mouse' ($27.50) qualify. Of these, 'Basic
+  Wireless Mouse' is out of stock. 'Ergo Wireless Mouse' is
+  genuinely in stock and meets both criteria."
+
+RESULT: "Ergo Wireless Mouse" identified — no further browser
+action needed, since the goal was to FIND a match, not
+necessarily purchase it.</code></pre>
+
+<h2 id="why-this-is-planning-not-pure-improvisation">Why This Is Planning, Not Pure Improvisation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>❌ Pure, step-by-step improvisation (no upfront plan at all):
+  Would require a full LLM reasoning call after EVERY single
+  tiny action, even ones that don't genuinely need independent
+  judgment — genuinely wasteful and slower than necessary.
+
+✅ This page's actual approach — a rough plan, THEN reasoning
+   within it (Chapter 2's real pattern):
+  The RESEARCH plan ("search, review, check stock, identify")
+  is decided largely upfront. Individual REASONING happens
+  where it's actually needed — interpreting search results,
+  applying the price/stock criteria — not for every trivial
+  mechanical step along the way.</code></pre>
+
+<h2 id="handling-navigation-that-doesn-t-go-as-planned">Handling Navigation That Doesn't Go as Planned</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What if step 2's search returns ZERO results at all?
+
+REASONER, encountering this genuinely unplanned situation:
+  "The search for 'wireless mouse' returned no results — this
+  wasn't anticipated by the original plan. Possible causes:
+  the exact phrase might not match ShopEasy's indexing, or
+  wireless mice may genuinely not be in stock currently. I'll
+  try a broader search term, 'mouse', before concluding no
+  match exists."
+
+This is exactly Chapter 2's Agent Planning re-planning
+capability, now shown in a genuine navigation context.</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might treating every single browser action as requiring an independent, full LLM reasoning call be genuinely wasteful, given this page's example? Steps like "read the structured search results and check which ones are under $30" are simple, mechanical comparisons the reasoner can do within a SINGLE reasoning pass, using data it already has — forcing a separate LLM call for each individual comparison would add real cost and latency without adding any genuine decision-making value, since nothing about "is $27.50 less than $30" requires fresh, real-time observation of the live page.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Writing an agent's rough navigation plan so specifically that it can't adapt when reality diverges even slightly — exactly Chapter 2's Agent Planning warning about overly rigid plans, now shown in a concrete browser-navigation context where "the exact search term didn't match" is a genuinely common, real occurrence.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>When a navigation goal involves genuine comparison or filtering logic (like "under $30"), it's often more efficient to fetch structured data ONCE via a tool call, then let the reasoner work through the comparison entirely within its own reasoning — rather than making a separate tool call for every individual filtering decision.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Let the reasoner produce a rough navigation plan upfront, reserving individual LLM reasoning calls for points that genuinely need fresh observation or judgment.</li>
+  <li>Build genuine re-planning into navigation, since real search terms and real page structures won't always match initial assumptions.</li>
+  <li>Fetch structured data once and reason over it directly, rather than making a separate tool call for every small filtering or comparison step.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>AI-driven navigation genuinely follows Chapter 2's plan-then-reason pattern — a rough upfront plan, with reasoning applied where real judgment is actually needed.</li>
+  <li>Not every mechanical step needs an independent LLM call — comparisons over data already in hand can happen within a single reasoning pass.</li>
+  <li>Genuine re-planning (trying a broader search term, for instance) is a real, expected part of navigation, not a failure state.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Trace through this page's exact pattern for the goal "find the cheapest in-stock product in the Electronics category" — writing out the rough plan, the tool calls you'd expect, and the reasoning step that applies the "cheapest" and "in-stock" criteria to the results.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A junior engineer's agent makes a separate LLM call to check the price of EACH individual search result one at a time, rather than reasoning over all of them together. What would you suggest, and why?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd suggest fetching all results in one structured call, then reasoning over the complete set in a single pass — exactly this page's approach — since checking each price individually adds real cost and latency without adding genuine decision-making value.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>The inefficient pattern (per-result LLM calls):
+For EACH of the 3 search results, a separate LLM call asking
+  "is this one under $30?" — genuinely wasteful, since this is
+  a SIMPLE numeric comparison the reasoner could do for ALL
+  three within one single reasoning pass, using data it
+  already has in hand.
+
+The efficient pattern (this page's actual approach):
+ONE call to get_search_results() returns all 3 results
+  structured. ONE subsequent reasoning step evaluates "which
+  of these are under $30 AND in stock" across the ENTIRE set
+  at once — genuinely equivalent decision quality, at a
+  fraction of the real cost and latency.</code></pre>
+<p>The general principle: reserve separate reasoning steps for points that genuinely need them (a new observation, a real decision point) — batching data retrieval and reasoning over the full set together, when the data doesn't change between individual comparisons, is a genuine, practical efficiency gain.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page's agent try a broader search term ("mouse" instead of "wireless mouse") rather than immediately reporting failure when the first search returns zero results?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because zero results could genuinely mean several different things — a real, correct absence of matching products, or simply a search-term mismatch — and immediately reporting failure without distinguishing between these would be a premature, potentially incorrect conclusion.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why immediately reporting failure would be premature:
+"No results for 'wireless mouse'" doesn't necessarily mean
+  ShopEasy has NO wireless mice in stock — it might mean the
+  SEARCH INDEXING doesn't exactly match that specific phrase
+  (perhaps products are tagged "cordless mouse" instead), a
+  genuinely different, more mundane explanation.
+
+Why trying a broader term first is more genuinely useful:
+If "mouse" (broader) DOES return results, this confirms the
+  issue was specifically the exact phrase, not a genuine
+  absence of matching products — a MORE ACCURATE, useful
+  finding than a premature "no wireless mice available" report
+  would have been.</code></pre>
+<p>This connects directly to Chapter 1's honest-limitations discussion — jumping to a confident conclusion without genuinely investigating alternative explanations first is exactly the kind of shallow, premature judgment a genuinely careful agent (and a careful human tester) should avoid.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why this page describes AI-driven navigation as "closer to planning than pure improvisation," connecting this explicitly to Chapter 2's concepts.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because the actual navigation process genuinely has a rough, upfront structure (Chapter 2's planning) rather than deciding literally everything moment-to-moment with zero prior direction (which would be pure improvisation) — the example trace on this page makes this concrete and visible.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What PURE improvisation would look like (NOT this page's
+approach):
+No upfront plan at all — the agent would need a full,
+  independent reasoning call just to decide "should I search
+  first, or browse categories first, or something else
+  entirely" — genuinely inefficient and unpredictable compared
+  to having SOME rough initial direction.
+
+What THIS page's approach actually looks like (planning-THEN-
+reasoning, per Chapter 2):
+A rough plan ("search, review, check stock, identify") is
+  decided largely upfront, based on the GOAL alone — exactly
+  matching Chapter 2's Agent Planning page's own definition of
+  planning. REASONING then fills in the specifics at each
+  step, using real, current observations — exactly matching
+  that same chapter's Agent Reasoning page.</code></pre>
+<p>This isn't a new concept invented for navigation specifically — it's a direct, concrete application of the EXACT distinction Chapter 2 already established, now shown operating in a real browser-navigation context rather than as an abstract diagram.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might an agent's rough navigation plan genuinely need to change if ShopEasy's search results page structure changed (e.g., results loading via infinite scroll instead of all at once)?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>The PLAN's actual content ("search, review, check stock, identify") stays genuinely valid at a high level — but the specific TOOLS available and how the reasoner uses them would need to account for the new loading behavior, connecting directly to the previous page's <code>scroll_to_bottom</code> tool.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What stays the SAME with the structural change:
+The rough plan itself — search, review results, check stock,
+  identify a match — remains genuinely valid regardless of
+  HOW results happen to load on the page.
+
+What genuinely NEEDS to adapt:
+The reasoner would need to recognize (from a fresh, current
+  observation) that only a PARTIAL set of results is initially
+  visible, and decide to call scroll_to_bottom() BEFORE trusting
+  get_search_results() to have the complete picture — exactly
+  the kind of real, current-observation-driven decision that
+  belongs in REASONING, not something the original rough plan
+  needed to have anticipated in advance.</code></pre>
+<p>This is a genuinely good illustration of why plans stay appropriately rough (Chapter 2's own argument) — a plan specifying exact mechanics upfront would have needed REWRITING for this structural change, while a rough, goal-oriented plan combined with real-time reasoning adapts naturally without needing to be rewritten at all.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you modify this page's example to handle a genuinely ambiguous goal, like "find a good mouse" (with no explicit price or stock criteria stated at all)?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This connects directly back to Chapter 2's Agent Instructions page — genuine ambiguity should be explicitly noted, not silently resolved by guessing at unstated criteria, and the agent's actual behavior should reflect this.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What a GOOD response to this ambiguous goal looks like:
+Rather than silently deciding "good" means "cheapest" or
+  "highest-rated" or "most in-stock" (all plausible but
+  genuinely DIFFERENT interpretations), a well-instructed
+  agent should EXPLICITLY surface this: "The goal 'a good
+  mouse' doesn't specify what makes it 'good' — price? Rating?
+  Stock availability? I found several wireless mice; without
+  more specific criteria, here's what's currently available:
+  [list], but I'd recommend clarifying what 'good' should
+  actually mean before treating any one choice as definitive."
+
+This directly applies Chapter 2's instructions guidance
+  ("note ambiguity explicitly rather than silently guessing")
+  to a concrete NAVIGATION scenario, rather than silently
+  picking one interpretation and presenting it as if it were
+  the obviously correct one.</code></pre>
+<p>This is a genuinely important pattern worth internalizing: an ambiguous GOAL should produce an agent response that surfaces the ambiguity, not one that silently resolves it and reports a confident-sounding but arbitrary result.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

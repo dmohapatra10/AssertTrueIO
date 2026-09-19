@@ -1,0 +1,118 @@
+<!doctype html>
+<html><head>
+<title>k6 Built-in HTTP Metrics Explained: http_req_duration, http_req_failed, and More</title>
+<meta name="description" content="Every core k6 metric explained precisely — http_req_duration and its sub-phases, http_req_failed, http_reqs, vus, vus_max, and iterations." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/built-in-http-metrics-explained.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Built-in HTTP Metrics Explained</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="checks-metrics-and-results.html">Checks, Metrics & Results overview</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>k6 automatically tracks a specific set of metrics for every HTTP request, with no configuration required. This page covers what each one precisely measures — not a vague "duration" and "requests," but a set of genuinely distinguishable measurements.</p>
+
+<h2 id="http-req-duration-and-its-component-phases">http_req_duration — And Its Component Phases</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>http_req_duration = http_req_connecting + http_req_waiting + http_req_receiving</code></pre>
+<ul>
+  <li><strong><code>http_req_connecting</code></strong> — time spent establishing the TCP connection itself.</li>
+  <li><strong><code>http_req_waiting</code></strong> — time spent waiting for the server to start responding, once the request was sent — often called "time to first byte." This is usually the phase most directly reflecting actual server-side processing time.</li>
+  <li><strong><code>http_req_receiving</code></strong> — time spent actually downloading the response body once it started arriving.</li>
+</ul>
+<p><code>http_req_duration</code> is the sum of these — the full request/response cycle. Breaking it into these component phases matters for diagnosis: a slow <code>http_req_connecting</code> points toward a network or connection-establishment problem, while a slow <code>http_req_waiting</code> points toward the server itself being slow to process the request — genuinely different problems needing genuinely different fixes.</p>
+
+<h2 id="http-req-failed-the-error-rate-metric">http_req_failed — The Error Rate Metric</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>http_req_failed: 0.42%  ✓ 2103   ✗ 9</code></pre>
+<p><code>http_req_failed</code> reports the percentage (and count) of requests k6 considers to have failed — by default, this means non-2xx/3xx status codes or requests that failed at the network level entirely (a timeout, a connection refused). This is the direct, built-in implementation of the "error rate" concept from Chapter 1, now as a real, reportable k6 metric.</p>
+
+<h2 id="http-reqs-raw-throughput">http_reqs — Raw Throughput</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>http_reqs: 2112   35.2/s</code></pre>
+<p><code>http_reqs</code> reports the total count of HTTP requests made, and the rate per second — this is k6's direct implementation of the "requests per second" concept from Chapter 1. Note this counts every individual HTTP request, which (as covered in Chapter 4) is not the same as the iteration count if a single iteration makes more than one request.</p>
+
+<h2 id="vus-and-vus-max">vus and vus_max</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>vus: 50   min=50   max=50</code></pre>
+<p><code>vus</code> reports the number of active virtual users at the point the summary was generated (or, in the min/max form, the range over the whole test); <code>vus_max</code> reports the maximum number of VUs the test was ever configured to reach — useful for confirming a ramping or arrival-rate test actually reached its intended peak, not just what it happened to be running at the final instant.</p>
+
+<h2 id="iterations">iterations</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>iterations: 2112   35.2/s</code></pre>
+<p><code>iterations</code> reports the total count of complete passes through the default function, and the rate per second — distinct from <code>http_reqs</code> whenever an iteration contains more than one HTTP request, exactly the distinction covered in Chapter 4.</p>
+
+<h2 id="detailed-example-reading-a-full-summary-correctly">Detailed Example — Reading a Full Summary Correctly</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>http_req_duration..............: avg=245ms min=89ms med=210ms max=3.2s p(90)=380ms p(95)=520ms
+  { expected_response:true }...: avg=240ms min=89ms med=208ms max=1.1s p(90)=375ms p(95)=510ms
+http_req_connecting.............: avg=12ms  min=1ms  med=8ms   max=180ms
+http_req_waiting.................: avg=225ms min=75ms med=195ms max=3.0s
+http_req_receiving...............: avg=8ms   min=2ms  med=6ms   max=95ms
+http_req_failed...................: 0.42%  ✓ 2103   ✗ 9
+http_reqs..........................: 2112   35.2/s
+iterations..........................: 2112   35.2/s
+vus...................................: 50     min=50   max=50</code></pre>
+<p>Reading this together: total request duration (245ms average) is dominated by <code>http_req_waiting</code> (225ms average) — meaning the time is overwhelmingly spent on the server actually processing the request, not on connection setup or downloading the response. Combined with a 0.42% failure rate and a max of 3.2 seconds against a median of 210ms, this points toward a small number of individually slow or failing requests, worth investigating specifically, rather than a uniformly slow system.</p>
+
+<h2 id="real-world-example-diagnosing-with-the-component-phases">Real-World Example — Diagnosing With the Component Phases</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>http_req_connecting: avg=380ms  ← unusually high
+http_req_waiting:    avg=45ms   ← fine
+http_req_receiving:  avg=5ms    ← fine</code></pre>
+<p>Here, nearly all the time is in <code>http_req_connecting</code>, not <code>http_req_waiting</code> — this points specifically toward a connection-establishment problem (DNS resolution, TCP handshake overhead, TLS negotiation, or possibly hitting a connection pool limit), not slow server-side processing. Optimizing application code here would be effort spent in the wrong place entirely; the component-phase breakdown is what makes that clear immediately rather than requiring separate investigation.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Only looking at the top-line http_req_duration number
+"avg=245ms" — fine, but doesn't say WHERE the time is actually going
+
+// ✅ Reading the component phases together for real diagnosis
+http_req_connecting=12ms, http_req_waiting=225ms, http_req_receiving=8ms
+→ time is dominated by server processing, not network setup</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Treating <code>http_req_duration</code> as an atomic, undifferentiated number</strong> — missing the diagnostic value of its three component phases.</li>
+  <li><strong>Confusing <code>iterations</code> with <code>http_reqs</code></strong> — these are only equal when every iteration makes exactly one request.</li>
+  <li><strong>Forgetting to check <code>vus_max</code> against the intended peak</strong> — a ramping test that never actually reached its configured target VU count would show this clearly, but only if you look.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>A high <code>http_req_receiving</code> specifically</strong> — usually points toward a large response body or a slow network on the download side, distinct from either connection setup or server processing time.</li>
+  <li><strong>Requests that fail before any response phase begins</strong> (a connection refused, a DNS failure) — these show up in <code>http_req_failed</code> but may not have meaningful values for the duration sub-metrics at all, since the request never got far enough to measure them.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If overall response time looks poor but it's unclear why, break it down into <code>http_req_connecting</code>, <code>http_req_waiting</code>, and <code>http_req_receiving</code> before investigating further — this single step usually narrows the problem to a specific layer (network setup, server processing, or response download) immediately.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Read <code>http_req_duration</code>'s component phases together, not just the top-line total, when actually diagnosing a problem.</li>
+  <li>Cross-check <code>vus_max</code> against your test's intended peak to confirm a ramping or arrival-rate test actually reached its target.</li>
+  <li>Remember <code>iterations</code> and <code>http_reqs</code> are only equal for single-request-per-iteration scripts — check your actual script before assuming otherwise.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Given a summary showing <code>http_req_connecting</code> averaging 5ms, <code>http_req_waiting</code> averaging 1,800ms, and <code>http_req_receiving</code> averaging 12ms, write a one-sentence diagnosis of where the actual problem most likely lies, and what kind of investigation should follow.</p>
+
+<h2 id="summary">Summary</h2>
+<p><code>http_req_duration</code> is the sum of three distinguishable phases — connecting, waiting, and receiving — each pointing toward a genuinely different layer of the system when something is slow. <code>http_req_failed</code> is k6's direct error-rate metric, <code>http_reqs</code> is raw throughput, and <code>vus</code>/<code>vus_max</code>/<code>iterations</code> round out the picture of exactly how much load was generated and sustained. Reading these together, not just the top-line duration average, is what turns a k6 summary into an actual diagnostic tool.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>What are the three phases that make up http_req_duration, and why does breaking them apart matter?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">http_req_duration is the sum of http_req_connecting (TCP connection setup), http_req_waiting (time waiting for the server to start responding, roughly server processing time), and http_req_receiving (time downloading the response body). Breaking these apart matters because each points toward a genuinely different layer of the system — a slow connecting phase suggests a network or connection-pool issue, while a slow waiting phase suggests the server itself is slow, requiring completely different investigation and fixes.</div>
+</details>
+<details class="faq-item">
+<summary>How does http_req_failed determine whether a request counts as failed?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">By default, http_req_failed considers a request failed if it returns a non-2xx/3xx status code, or if it fails at the network level entirely (a timeout, a connection refused, and similar). This is k6's direct, built-in implementation of the error rate concept — a request that returns quickly but with an error status still counts against this metric, since a fast failure is still a failure.</div>
+</details>
+<details class="faq-item">
+<summary>Why isn't iterations always equal to http_reqs?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">An iteration is one complete pass through the default function, which can contain any number of actual HTTP requests depending on what that function does. The two metrics are only equal when every iteration makes exactly one HTTP request — a script making three requests per iteration will show an http_reqs count three times higher than its iterations count.</div>
+</details>
+<details class="faq-item">
+<summary>Why would you check vus_max after running a ramping-vus test?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">vus_max reports the maximum number of virtual users the test was ever configured to reach — checking it confirms the test actually achieved its intended peak concurrency, rather than assuming it did just because the test completed without an explicit error. A ramping test that was interrupted, misconfigured, or hit some resource constraint might never have actually reached its intended target, and vus_max is the direct way to verify that.</div>
+</details>
+<details class="faq-item">
+<summary>If http_req_connecting shows an unusually high average while http_req_waiting and http_req_receiving both look normal, what does that suggest?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It suggests the problem lies specifically in establishing connections — possibly DNS resolution delays, TLS handshake overhead, or the system hitting a connection pool or concurrent-connection limit — rather than in how the server processes requests once connected or how large the responses are. This would redirect investigation toward network and connection-layer configuration rather than application code, which the waiting and receiving metrics would otherwise (correctly) implicate if they were the ones showing elevated values instead.</div>
+</details>
+</div>
+</article>
+</body></html>

@@ -1,0 +1,117 @@
+<!doctype html>
+<html><head>
+<title>Playwright Hard vs Soft Assertions: expect.soft() Explained</title>
+<meta name="description" content="The difference between Playwright&#x27;s hard assertions (which stop a test immediately) and soft assertions (which collect failures and continue), and when to use each." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/hard-vs-soft-assertions.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Hard vs. Soft Assertions</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="assertions.html">Assertions overview</a>, <a href="count-url-title-assertions.html">Count, URL & Title Assertions</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+  <p>Every assertion used so far is a <strong>hard assertion</strong> — the moment one fails, the test stops immediately; nothing after it runs. <code>expect.soft()</code> is the alternative: a failing soft assertion is recorded, but the test keeps executing, and all collected failures are reported together at the end.</p>
+
+  <h2 id="why-it-s-important">Why it's important</h2>
+  <p>Hard assertions are right most of the time — if a precondition fails, continuing usually just produces confusing downstream errors. But there's a real, common case where that's the wrong tradeoff: checking several independent, unrelated things on the same page, where you'd rather learn about all of them in one run than fix one, re-run, discover the next, and repeat.</p>
+
+  <h2 id="basic-example">Basic Example</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Hard assertion — stops here if it fails
+await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+
+// Soft assertion — records failure, test keeps running
+await expect.soft(page.getByTestId('welcome-message')).toContainText('Welcome back');
+await expect.soft(page.getByTestId('notification-count')).toBeVisible();
+await expect.soft(page.getByTestId('user-avatar')).toBeVisible();
+
+// Playwright Test automatically fails the test overall if ANY soft assertion failed,
+// but only after the test function finishes running</code></pre>
+
+  <h2 id="detailed-example-auditing-a-dashboard-s-widgets">Detailed Example — Auditing a Dashboard's Widgets</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('dashboard renders all expected widgets', async ({ page }) =&gt; {
+  await page.goto('/dashboard');
+
+  await expect.soft(page.getByTestId('widget-revenue')).toBeVisible();
+  await expect.soft(page.getByTestId('widget-users')).toBeVisible();
+  await expect.soft(page.getByTestId('widget-orders')).toBeVisible();
+  await expect.soft(page.getByTestId('widget-activity-feed')).toBeVisible();
+
+  // If widget-users is broken, this test still checks the other three
+  // and reports ALL failures together instead of stopping at the first
+});</code></pre>
+  <p>This is the canonical soft-assertion use case: several independent checks where a failure in one tells you nothing about the others, and you'd rather have a complete picture from a single test run.</p>
+
+  <h2 id="real-world-example-form-validation-messages">Real-World Example — Form Validation Messages</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('submitting an empty form shows all required-field errors', async ({ page }) =&gt; {
+  await page.goto('/signup');
+  await page.getByRole('button', { name: 'Create account' }).click();
+
+  await expect.soft(page.getByText('Name is required')).toBeVisible();
+  await expect.soft(page.getByText('Email is required')).toBeVisible();
+  await expect.soft(page.getByText('Password is required')).toBeVisible();
+});</code></pre>
+  <p>If only the email validation is broken, a hard-assertion version of this test would stop after the name check passes and never tell you about email or password — soft assertions surface all three results from one run.</p>
+
+  <h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Soft assertions for a sequential flow, where step 2 genuinely depends on step 1
+await expect.soft(page.getByRole('heading', { name: 'Checkout' })).toBeVisible();
+await expect.soft(page.getByTestId('order-total')).toHaveText('$64.98'); // meaningless if checkout never loaded
+
+// ✅ Hard assertion for the precondition, soft for independent details after it
+await expect(page.getByRole('heading', { name: 'Checkout' })).toBeVisible();
+await expect.soft(page.getByTestId('order-total')).toHaveText('$64.98');
+await expect.soft(page.getByTestId('shipping-estimate')).toBeVisible();</code></pre>
+
+  <h2 id="common-mistakes">Common Mistakes</h2>
+  <ul>
+    <li><strong>Using <code>expect.soft()</code> for assertions where a later one depends on an earlier one succeeding</strong> — if the page never loaded, every subsequent soft assertion failing is just noise, not useful information.</li>
+    <li><strong>Making every assertion in a suite soft "just in case"</strong> — this erodes the fail-fast benefit hard assertions provide for genuinely sequential logic, and makes failures harder to reason about overall.</li>
+    <li><strong>Forgetting that a test with soft-assertion failures still ultimately fails</strong> — soft doesn't mean optional, it means "keep gathering information before failing."</li>
+  </ul>
+
+  <h2 id="edge-cases">Edge Cases</h2>
+  <ul>
+    <li><strong>An action failing mid-test</strong> (not an assertion) — soft assertions don't change how actions behave; a click that times out still throws and stops the test regardless of surrounding soft assertions.</li>
+    <li><strong>Combining with <code>test.step()</code></strong> — grouping related soft assertions into a named step (Chapter 7 / Test Runner) makes the eventual failure report easier to read when several soft checks fail together.</li>
+  </ul>
+
+  <h2 id="debugging">Debugging</h2>
+  <p>When a test with soft assertions fails, the test report lists every failed soft assertion together, each with its own stack trace and diff — read through all of them before fixing anything, since later failures sometimes explain earlier ones.</p>
+
+  <h2 id="best-practices">Best Practices</h2>
+  <ul>
+    <li>Use hard assertions for preconditions — anything later steps genuinely depend on.</li>
+    <li>Use soft assertions for a batch of independent checks against the same already-confirmed-loaded page.</li>
+    <li>Don't mix philosophies within a single logical check — decide per assertion whether "stop here" or "note and continue" is the more useful behavior.</li>
+  </ul>
+
+  <h2 id="practice-exercise">Practice Exercise</h2>
+  <p>Write a test for a product page that hard-asserts the page loaded (heading visible), then soft-asserts on five independent pieces of content (price, availability, rating, image, add-to-cart button) — deliberately break one and observe that the test report still shows all five results.</p>
+
+  <h2 id="summary">Summary</h2>
+  <p>Hard assertions (the default <code>expect()</code>) stop a test immediately on failure — right for preconditions and sequential logic. Soft assertions (<code>expect.soft()</code>) record failures and let the test keep running, collecting a complete picture — right for batches of independent checks against a page already confirmed to have loaded correctly.</p>
+
+  <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why wouldn't you just make every assertion in your suite soft, to always get maximum information from a failing test?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Many assertions are preconditions for what follows — if a page never loaded, every subsequent soft assertion about its content fails too, but that's just noise restating the same root cause. Hard assertions fail fast exactly where that's useful, giving a single clear signal instead of a wall of failures that all trace back to one problem.</div>
+</details>
+<details class="faq-item">
+<summary>What's the core behavioral difference between expect() and expect.soft()?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A failing hard assertion stops the test immediately; a failing soft assertion is recorded but the test keeps running, with all failures reported together at the end.</div>
+</details>
+<details class="faq-item">
+<summary>When is expect.soft() the wrong choice?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">For a sequential flow where a later assertion genuinely depends on an earlier one succeeding — if the precondition failed, the later soft failures are just noise.</div>
+</details>
+<details class="faq-item">
+<summary>Does a test with only soft-assertion failures still count as failed overall?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Yes — soft doesn't mean optional; the test runner still marks it failed if any soft assertion failed, just after gathering all the results.</div>
+</details>
+<details class="faq-item">
+<summary>Give a good real-world use case for expect.soft().<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Auditing several independent widgets on an already-confirmed-loaded dashboard, where a failure in one shouldn't stop checking the others.</div>
+</details>
+</div>
+</article>
+</body></html>

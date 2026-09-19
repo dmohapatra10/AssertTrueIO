@@ -1,0 +1,204 @@
+<!doctype html>
+<html><head>
+<title>Root Cause Analysis: Combining Every Evidence Source Into One Diagnosis</title>
+<meta name="description" content="A complete, real diagnosis of this chapter&#x27;s login test failure — stack trace, screenshot, network trace, and server logs reasoned about together, resolving to a genuine classification." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/root-cause-analysis.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Root Cause Analysis</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="log-analysis.html">Log Analysis</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>This page is this chapter's synthesis — every evidence source from the previous four pages, reasoned about together, resolving this chapter's login test failure into one genuine, confident classification among the six categories.</p>
+
+<h2 id="the-complete-investigation-start-to-finish">The Complete Investigation, Start to Finish</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>FAILURE: 'user can log in with valid credentials' — timed out
+waiting for 'Welcome back' text.
+
+EVIDENCE 1 — Stack trace (Stack Trace Analysis page):
+  The three preceding steps (fill, fill, click) all succeeded.
+  The failure is specifically AFTER the login click.
+
+EVIDENCE 2 — Failure screenshot (previous page):
+  Page shows the login form STILL displayed, with visible text
+  'Invalid credentials' beneath the password field.
+
+EVIDENCE 3 — Network trace (previous page):
+  The POST /api/login request completed with a 401 status —
+  the server explicitly rejected the credentials.
+
+EVIDENCE 4 — Server logs (Log Analysis page):
+  [WARN] Authentication failed for user 4821: password hash
+  mismatch. [INFO] Last successful login: 14 days ago.
+
+REASONING, combining ALL FOUR sources:
+  "Every piece of evidence points the SAME direction: the
+  server explicitly rejected these specific credentials (401,
+  confirmed by the log's 'password hash mismatch'), the UI
+  correctly reflected this to the user (the screenshot's
+  visible error text), and nothing in the earlier steps
+  suggests a broken FEATURE — the form, fields, and button all
+  worked correctly. This is NOT an application defect. Given
+  the log's 'last successful login: 14 days ago' — this
+  strongly suggests the TEST'S stored password is simply
+  stale, likely changed or reset since it was last valid."
+
+CLASSIFICATION: Test defect (stale test credentials) —
+  specifically NOT application defect, locator problem,
+  environment problem, network problem, or flaky behavior.</code></pre>
+
+<h2 id="why-this-classification-is-genuinely-well-supported">Why This Classification Is Genuinely Well-Supported</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Every one of the FIVE OTHER categories is explicitly RULED OUT
+by SPECIFIC evidence, not just by elimination:
+
+Application defect — RULED OUT: the server correctly rejected
+  invalid credentials; that's CORRECT behavior, not a bug.
+Locator problem — RULED OUT: the form's own elements were all
+  found and interacted with correctly.
+Environment problem — RULED OUT: nothing suggests staging
+  itself was unhealthy; the rejection was credential-specific.
+Network problem — RULED OUT: the request completed normally
+  and returned a definitive, meaningful status code.
+Flaky behavior — RULED OUT: this isn't a timing issue; a stale
+  password would fail CONSISTENTLY, every single run, not
+  intermittently.</code></pre>
+<p>This is genuinely different from a guess — every alternative category has a specific, stated reason it doesn't fit, not just "the evidence seemed to point elsewhere."</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why does this page's reasoning explicitly state why each of the FIVE non-chosen categories is ruled out, rather than just stating the conclusion ("test defect — stale credentials")? Stating only the conclusion asks a human reviewer to trust the classification without being able to verify the reasoning behind it. Explicitly ruling out each alternative, with a specific reason, gives a reviewer something genuinely checkable — they can look at the SAME evidence and confirm (or push back on) each individual ruling-out, rather than simply trusting a bare final answer, exactly the same reviewability principle Chapter 4 established for generated test scenarios.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Stopping the investigation once a plausible classification emerges from the FIRST piece of evidence, without checking whether the remaining evidence sources genuinely corroborate it or reveal a more accurate alternative. This page's classification is well-supported specifically because all four evidence sources agree — a classification based on just one source, however plausible, is genuinely weaker.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>When evidence sources disagree rather than corroborate each other, that disagreement itself is a genuinely important finding worth reporting explicitly — forcing a confident single classification despite conflicting evidence would misrepresent a genuinely more uncertain, mixed situation as more settled than it actually is.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Combine all genuinely available evidence sources before reaching a final classification, not just the first plausible-seeming one.</li>
+  <li>State explicitly why each of the non-chosen categories is ruled out, not just the conclusion reached.</li>
+  <li>Report genuine disagreement between evidence sources honestly, rather than forcing an artificially confident single conclusion.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>A genuinely well-supported root cause diagnosis combines multiple evidence sources, with each alternative category explicitly ruled out by specific evidence, not just eliminated by convenience.</li>
+  <li>Corroboration across independent evidence sources (stack trace, screenshot, network trace, logs) produces meaningfully stronger confidence than any single source alone.</li>
+  <li>This chapter's entire progression — from a red test to a fully evidenced classification — is the concrete, worked answer to the opening page's question of what closes the gap between "it failed" and "here's what's actually wrong."</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Using this page's same four-evidence-source structure, work through a diagnosis for a DIFFERENT hypothetical version of this chapter's login test failure — where the screenshot shows a blank white page, the network trace shows the login request never completing at all, and the server logs show no corresponding entry — and determine which of the six categories this combination most strongly supports.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A reviewer looks at this page's diagnosis and asks "how do you know it's not flaky, since you only looked at one run?" How would you respond, using genuinely available evidence?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This is a genuinely fair question worth taking seriously — the page's own reasoning addresses it by pointing to the NATURE of the evidence, not just the single instance, but confirming with a repeat run would strengthen it further.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why the EVIDENCE ITSELF argues against flakiness:
+A stale password produces a CONSISTENT, DETERMINISTIC failure
+  — the server will reject the SAME wrong credentials every
+  single time, with no timing or randomness involved. This is
+  structurally DIFFERENT from a genuine race condition, which
+  would show INCONSISTENT results across identical runs.
+
+What would make this EVEN MORE confident:
+Actually RE-RUNNING the test once or twice more — per the
+  Failure Classification page's own flakiness-testing
+  technique — would directly confirm the failure repeats
+  CONSISTENTLY, providing DIRECT evidence against flakiness
+  rather than relying solely on the LOGICAL argument that a
+  credential mismatch should be deterministic.</code></pre>
+<p>The honest answer: the current evidence provides a strong LOGICAL argument against flakiness (credential checks are inherently deterministic), but an actual repeat run would make this even more solidly confirmed — a genuinely good addition to strengthen this page's classification further.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page's diagnosis treat "last successful login: 14 days ago" from the server log as genuinely significant, rather than just incidental detail?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This specific detail provides a genuine, concrete explanation for HOW the test's credentials became stale — connecting the abstract conclusion ("test defect, stale credentials") to a real, plausible sequence of events, rather than leaving the classification as an unexplained assertion.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Without this detail, the classification would be genuinely
+LESS well-supported:
+"Test defect — stale credentials" would be a REASONABLE
+  conclusion from the 401 and the 'password hash mismatch'
+  log entry alone, but WHY did they become stale? An
+  unexplained gap in the story.
+
+WITH the '14 days ago' detail:
+This suggests the test's STORED password was LAST valid two
+  weeks ago — consistent with a GENUINELY plausible scenario
+  (someone changed the test account's password during that
+  window, perhaps during unrelated account maintenance, without
+  updating the test's stored credentials) — turning an
+  otherwise-unexplained conclusion into a coherent, plausible
+  NARRATIVE a human reviewer can actually evaluate and act on.</code></pre>
+<p>This detail elevates the diagnosis from "here's what's wrong" to "here's what's wrong AND a plausible account of how it likely happened" — genuinely more useful for a human deciding how to actually fix the underlying issue (update the stored credential, and perhaps investigate why nobody was notified of the change).</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why "ruling out" a category needs to cite SPECIFIC evidence, rather than simply being the category the agent didn't happen to mention.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Simply not mentioning a category leaves genuine ambiguity about whether it was actually considered and rejected, or just overlooked entirely — citing specific evidence for each ruling-out demonstrates the alternative was genuinely evaluated, not silently skipped.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Weak, IMPLICIT ruling-out (NOT this page's approach):
+"Classification: test defect." — a reviewer has NO way to
+  know whether "locator problem" was genuinely CONSIDERED and
+  rejected, or simply never occurred to the agent at all.
+
+Strong, EXPLICIT ruling-out (this page's actual approach):
+"Locator problem — RULED OUT: the form's own elements were all
+  found and interacted with correctly." — this EXPLICITLY
+  demonstrates the category WAS considered, and states the
+  SPECIFIC evidence that rules it out, giving a reviewer
+  something concrete to verify or challenge.</code></pre>
+<p>This directly connects to Chapter 4's validation principle — "could you point to the specific evidence" turns an unverifiable claim into a checkable one, and applying this same standard to EVERY ruled-out alternative, not just the winning conclusion, is what makes this page's full diagnosis genuinely trustworthy rather than merely plausible-sounding.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would this page's diagnosis process need to change if the four evidence sources had genuinely CONFLICTED rather than corroborated each other?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Per this page's own "Quick Tip," genuine conflict between evidence sources should be reported explicitly as a real, important finding in its own right, rather than being resolved by simply picking whichever source seems most convenient or authoritative.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A hypothetical GENUINELY conflicting scenario:
+Screenshot shows 'Invalid credentials' (suggesting test
+  defect), but server logs show NO authentication warning at
+  ALL for that timestamp, and instead show a database
+  CONNECTION error (suggesting environment problem) — two
+  DIFFERENT evidence sources pointing toward GENUINELY
+  different conclusions.
+
+The HONEST response to this kind of conflict:
+"Evidence sources CONFLICT: the visible UI message suggests a
+  credential rejection, but server logs show no corresponding
+  authentication failure — instead showing a database
+  connectivity issue at the SAME timestamp. This inconsistency
+  itself is worth investigating — possibly the UI error message
+  is GENERIC/misleading, displayed for MULTIPLE underlying
+  causes rather than specifically credential failures. Cannot
+  confidently classify without resolving this conflict first."</code></pre>
+<p>This is exactly the honest-uncertainty principle this course has maintained since Chapter 1 — genuine, real conflict between evidence sources is itself valuable, actionable information, and forcing a confident single classification despite it would misrepresent a genuinely more complex, uncertain situation.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Looking back across this entire chapter, how does this page's four-source synthesis reflect the SAME underlying structure as Chapters 5, 6, and 7's own synthesis pages?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Every one of these chapters builds several distinct capabilities across its middle pages, then closes with (or in this chapter's case, culminates in) a page combining them all on one real, worked example — a consistent structural pattern across this course's major hands-on chapters.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Chapter 5's Autonomous Browser Testing:
+Combined navigation, locator selection, and both assertion
+  types into ONE real browser-testing run.
+
+Chapter 6's Autonomous API Testing:
+Combined exploration, request construction, and validation
+  into ONE real API-testing run.
+
+Chapter 7's Autonomous Performance Testing:
+Combined design, threshold construction, and analysis into
+  ONE real load-testing run.
+
+THIS chapter's Root Cause Analysis:
+Combines stack trace, screenshot, trace, and log analysis
+  into ONE real failure diagnosis.</code></pre>
+<p>This consistent pattern — build distinct capabilities individually, then demonstrate them genuinely working together on one real, complete example — reflects a deliberate teaching structure across this entire course, reinforcing that each individual skill (covered on its own dedicated page) is ultimately meant to combine with the others in real, practical use, not remain a standalone, isolated technique.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

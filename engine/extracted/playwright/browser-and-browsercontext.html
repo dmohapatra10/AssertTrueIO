@@ -1,0 +1,218 @@
+<!doctype html>
+<html><head>
+<title>Playwright Browser and BrowserContext API: Options and Configuration</title>
+<meta name="description" content="A practical guide to the Browser and BrowserContext APIs — launch options, context options like viewport and permissions, and storageState for session reuse." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/browser-and-browsercontext.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Chapter 9: Browser and BrowserContext</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="architecture.html">Playwright Architecture</a>, <a href="pages-and-navigation.html">Pages and Navigation</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Chapter 3 introduced Browser and BrowserContext conceptually. This chapter is the practical follow-up: the actual options you configure on each — launch options for the browser, and context options that control viewport, permissions, geolocation, cookies, and stored session state.</p>
+
+<h2 id="why-it-s-important">Why it's important</h2>
+<p>Most real test suites need at least a few of these options — a mobile viewport for responsive testing, geolocation for a location-aware feature, denied permissions to test a fallback UI, or reused login state so hundreds of tests don't each perform a fresh login. Knowing what's configurable here removes a lot of workarounds people otherwise reach for.</p>
+
+<h2 id="launching-a-browser">Launching a Browser</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import { chromium } from '@playwright/test';
+
+const browser = await chromium.launch({
+  headless: false,   // show the browser window
+  slowMo: 100,       // slow down each operation by 100ms, useful for debugging
+});</code></pre>
+<p>In most projects, though, you never call <code>launch()</code> yourself — the Test Runner manages the browser lifecycle for you based on <code>playwright.config.ts</code>, and these options are set there under each project's <code>use</code> block instead.</p>
+
+<h2 id="common-browsercontext-options">Common BrowserContext Options</h2>
+<table>
+  <thead><tr><th>Option</th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td><code>viewport</code></td><td>Simulated browser window size</td></tr>
+    <tr><td><code>userAgent</code></td><td>Override the reported user agent string</td></tr>
+    <tr><td><code>geolocation</code> / <code>permissions</code></td><td>Simulated GPS coordinates and granted browser permissions</td></tr>
+    <tr><td><code>locale</code> / <code>timezoneId</code></td><td>Simulated language and timezone</td></tr>
+    <tr><td><code>storageState</code></td><td>Preloaded cookies/localStorage — the basis for session reuse</td></tr>
+    <tr><td><code>colorScheme</code></td><td>Simulate light or dark mode preference</td></tr>
+  </tbody>
+</table>
+
+<h2 id="basic-example-mobile-geolocation-aware-context">Basic Example — Mobile, Geolocation-Aware Context</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const context = await browser.newContext({
+  viewport: { width: 390, height: 844 },
+  geolocation: { latitude: 51.5074, longitude: -0.1278 },
+  permissions: ['geolocation'],
+  locale: 'en-GB',
+});
+
+const page = await context.newPage();
+await page.goto('/nearby-stores');
+await expect(page.getByText('London')).toBeVisible();</code></pre>
+
+<h2 id="timezone">Timezone</h2>
+<p><code>timezoneId</code> is easy to overlook until a test needs to verify something that's genuinely timezone-sensitive — a "delivery by 6pm local time" message, a scheduling widget, or a timestamp displayed in the user's own timezone rather than UTC. Without setting it, contexts inherit whatever timezone the machine running the test happens to be in, which is exactly the kind of hidden, environment-dependent behavior that makes a test pass locally and fail (or vice versa) in CI.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const context = await browser.newContext({
+  timezoneId: 'America/New_York',
+});
+const page = await context.newPage();
+await page.goto('/schedule-delivery');
+
+// The app renders delivery slots in the context's local time —
+// this assertion is only meaningful because the timezone is pinned explicitly
+await expect(page.getByText('Delivery slot: 2:00 PM EST')).toBeVisible();</code></pre>
+<p>Use the standard IANA timezone database names (<code>'America/New_York'</code>, <code>'Europe/London'</code>, <code>'Asia/Kolkata'</code>) — the same identifiers JavaScript's own <code>Intl</code> API and most backend systems use, so there's no separate mapping to maintain. Pair <code>timezoneId</code> with <code>locale</code> when a feature depends on both (a date format <em>and</em> a local time), since they're independent settings that don't imply each other — setting <code>locale: 'en-GB'</code> does not also set the timezone to London.</p>
+
+<h2 id="detailed-example-reading-and-setting-cookies-directly">Detailed Example — Reading and Setting Cookies Directly</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Read all cookies in the current context
+const cookies = await context.cookies();
+console.log(cookies.find((c) =&gt; c.name === 'session_id'));
+
+// Set a cookie directly, bypassing the UI entirely — useful for seeding
+// state a test doesn't actually need to exercise
+await context.addCookies([{
+  name: 'feature_flag_new_checkout',
+  value: 'true',
+  domain: 'staging.example.com',
+  path: '/',
+}]);</code></pre>
+<p>Manipulating cookies and storage directly is a common technique for setting up preconditions a test doesn't care about testing itself — feature flags, consent banners already dismissed, A/B test bucketing — without spending time clicking through UI that isn't the point of the test.</p>
+
+<h2 id="local-storage-and-session-storage">Local Storage and Session Storage</h2>
+<p>Not every app stores state in cookies — many keep it in the browser's <code>localStorage</code> or <code>sessionStorage</code> instead (a JWT auth token, a "don't show this tip again" flag, a theme preference). These live per-origin, separately from cookies, and Playwright reads and writes them through the page's own JavaScript context rather than a dedicated context-level API like <code>cookies()</code>.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Read a value out of localStorage
+const theme = await page.evaluate(() =&gt; window.localStorage.getItem('theme'));
+
+// Set a value directly, bypassing the UI — e.g. pre-seed a dismissed announcement banner
+await page.addInitScript(() =&gt; {
+  window.localStorage.setItem('announcement_dismissed', 'true');
+});
+
+// sessionStorage works the same way, but the value only persists for that one tab's session
+await page.evaluate(() =&gt; window.sessionStorage.setItem('wizard_step', '2'));</code></pre>
+<p><code>page.addInitScript()</code> is the important detail here — it runs <em>before</em> the page's own scripts on every navigation in that page, which is what lets you seed a localStorage value the app will actually read on its very first load. Setting it via a plain <code>page.evaluate()</code> call after the page has already loaded works for values the app reads later, but is too late for anything the app checks during its initial render.</p>
+<p>This is also why <code>storageState</code> (below) captures more than just cookies: it snapshots each origin's <code>localStorage</code> alongside its cookies, which is exactly what's needed to correctly reproduce a session where auth lives in a token rather than a cookie.</p>
+
+<h2 id="testing-a-denied-permission-fallback">Testing a Denied-Permission Fallback</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const context = await browser.newContext({ permissions: [] }); // deny geolocation
+const page = await context.newPage();
+await page.goto('/nearby-stores');
+
+await expect(page.getByText('Enable location to see nearby stores')).toBeVisible();</code></pre>
+<p>This is easy to overlook but important: apps that request a browser permission almost always need a fallback UI for when it's denied, and that fallback is just as testable as the happy path — simply omit the permission instead of granting it.</p>
+
+<h2 id="real-world-example-persisting-login-with-storagestate">Real-World Example — Persisting Login with storageState</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Log in once, save the resulting session
+const context = await browser.newContext();
+const page = await context.newPage();
+await page.goto('/login');
+await page.getByLabel('Email').fill('user@example.com');
+await page.getByLabel('Password').fill('correct-horse-battery-staple');
+await page.getByRole('button', { name: 'Sign in' }).click();
+await context.storageState({ path: 'auth.json' });
+
+// Later tests: start already logged in
+const authedContext = await browser.newContext({ storageState: 'auth.json' });</code></pre>
+<p>This is normally wired into the Test Runner's project configuration rather than written by hand in every test file — covered in depth in the Authentication chapter.</p>
+
+<h2 id="multiple-contexts-for-multi-user-scenarios">Multiple Contexts for Multi-User Scenarios</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('two users can chat with each other', async ({ browser }) =&gt; {
+  const alice = await (await browser.newContext()).newPage();
+  const bob = await (await browser.newContext()).newPage();
+
+  await alice.goto('/chat');
+  await bob.goto('/chat');
+
+  await alice.getByLabel('Message').fill('Hi Bob!');
+  await alice.getByRole('button', { name: 'Send' }).click();
+
+  await expect(bob.getByText('Hi Bob!')).toBeVisible();
+});</code></pre>
+<p>Because each context is a fully isolated "profile," this genuinely simulates two separate browser sessions in one test — the deliberate, correct use of multiple contexts referenced back in Chapter 3.</p>
+
+<h2 id="multiple-pages-within-one-context">Multiple Pages Within One Context</h2>
+<p>Distinct from multiple <em>contexts</em> (different isolated users) is multiple <strong>pages within the same context</strong> — several open tabs that deliberately <em>do</em> share the same cookies and login session, exactly like a real person opening a second tab in the same browser window instead of a separate incognito session.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const context = await browser.newContext();
+
+const productPage = await context.newPage();
+await productPage.goto('/products/wireless-mouse');
+
+// Open a second tab in the SAME context — shares the same login session
+const cartPage = await context.newPage();
+await cartPage.goto('/cart');
+
+// Both pages see the same logged-in user, because they belong to one context
+await productPage.getByRole('button', { name: 'Add to cart' }).click();
+await cartPage.reload();
+await expect(cartPage.getByText('Wireless Mouse')).toBeVisible();</code></pre>
+<p>This is the mechanism underneath every "opens in a new tab" interaction a real user triggers — clicking a <code>target="_blank"</code> link, a "sign in with Google" popup — which is why <code>context.pages()</code> returns every currently open page in that context, and why capturing a newly opened tab (covered fully in the Multiple Tabs & Windows chapter) means listening for the context's <code>page</code> event rather than expecting a return value from the click itself.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>console.log(context.pages().length); // 2 — productPage and cartPage, both still open
+
+await cartPage.close(); // closing one page doesn't affect the context or its other pages
+console.log(context.pages().length); // 1</code></pre>
+<p>The distinction to keep straight: reach for a <strong>new context</strong> when you need genuinely separate identities (two different logged-in users, as in the chat example above); reach for a <strong>new page in the same context</strong> when you're modeling one user who simply has more than one tab open.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Setting viewport inline in every mobile-related test
+test('mobile menu opens', async ({ browser }) =&gt; {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  // ...
+});
+
+// ✅ Define a dedicated mobile project once in playwright.config.ts
+// projects: [{ name: 'Mobile Safari', use: { ...devices['iPhone 13'] } }]</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Calling <code>browser.launch()</code> manually</strong> inside tests that already run under the Test Runner, duplicating what the runner already manages via <code>playwright.config.ts</code>.</li>
+  <li><strong>Setting viewport per-test with inline code</strong> instead of defining a dedicated mobile project in the config, making mobile coverage inconsistent across the suite.</li>
+  <li><strong>Forgetting to grant a permission</strong> that a simulated capability (geolocation, notifications) depends on, then debugging the wrong layer when it silently fails.</li>
+  <li><strong>Not testing the denied-permission path</strong> — teams often only test the granted case, leaving the fallback UI uncovered.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Permissions that require a user gesture</strong> in real browsers (like clipboard access) — Playwright's <code>permissions</code> option pre-grants these for testing, bypassing the interactive prompt a real user would see.</li>
+  <li><strong>Contexts with expired <code>storageState</code></strong> — a saved session with an expired token will silently behave as logged-out; regenerate <code>auth.json</code> periodically or as part of CI setup rather than committing a long-lived static file.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a location- or permission-dependent feature isn't behaving as expected, check <code>context.cookies()</code>/<code>context.storageState()</code> directly in a debug session or via <code>--debug</code> mode to confirm the simulated values actually took effect, rather than assuming the option was applied correctly.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Configure context options (viewport, locale, permissions) at the project level in <code>playwright.config.ts</code> wherever they apply to a whole class of tests, not per-test.</li>
+  <li>Use <code>storageState</code> for any suite where more than a handful of tests require being logged in.</li>
+  <li>Only reach for manual <code>browser.newContext()</code> calls for scenarios that genuinely need multiple simultaneous contexts within one test — most tests should rely on the runner's built-in <code>page</code> fixture instead.</li>
+  <li>Test both the granted and denied paths for any feature that depends on a browser permission.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Write a test that creates two separate browser contexts representing two different users with different <code>storageState</code> files, and verifies one user can't see the other's private data on a shared dashboard URL.</p>
+
+<h2 id="summary">Summary</h2>
+<p>Browser launch options control the browser process itself; BrowserContext options control the isolated session within it — viewport, locale, permissions, cookies, and stored login state among them. Most of these belong in <code>playwright.config.ts</code> rather than scattered through individual tests, and <code>storageState</code> is the standard way to avoid repeating login across a whole suite.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Where should context options like viewport and locale typically be configured in a real project, and why?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">In <code>playwright.config.ts</code>, as part of a project's <code>use</code> block, rather than inline in individual tests. Centralizing them keeps every test in that project consistent automatically, and makes adding a new device/locale target (e.g., a mobile Safari project) a config change rather than an edit to every test file.</div>
+</details>
+<details class="faq-item">
+<summary>What's the difference between opening a new context versus a new page in the same context?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A new context is a genuinely separate identity with its own cookies/storage; a new page in the same context shares the session, like a second tab for the same logged-in user.</div>
+</details>
+<details class="faq-item">
+<summary>Why does page.addInitScript() matter for seeding localStorage?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It runs before the page's own scripts on every navigation, letting you seed a value the app reads during its very first render — a plain evaluate() after load would be too late.</div>
+</details>
+<details class="faq-item">
+<summary>Why is a database connection typically a worker-scoped fixture rather than test-scoped?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It's expensive to open and safe to share across tests in the same worker, unlike page-level state which genuinely needs per-test isolation.</div>
+</details>
+<details class="faq-item">
+<summary>What's a common mistake with browser permissions in tests?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Only testing the granted-permission path and never testing the denied-permission fallback UI, which most apps also need to handle correctly.</div>
+</details>
+</div>
+</article>
+</body></html>

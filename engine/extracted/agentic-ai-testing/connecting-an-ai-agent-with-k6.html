@@ -1,0 +1,192 @@
+<!doctype html>
+<html><head>
+<title>Connecting an AI Agent with K6: Tools for Running and Reading Load Tests</title>
+<meta name="description" content="Real tools an agent uses to run a K6 load test and read its summary output — genuinely different from Chapters 5 and 6&#x27;s tools, since the &#x27;action&#x27; is running a whole test, not one request." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/connecting-an-ai-agent-with-k6.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Connecting an AI Agent with K6</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="ai-and-k6.html">AI + K6 overview</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>An agent's K6 tools are genuinely different in shape from Chapters 5 and 6's tools — one "action" here means running an entire load test script, which takes real time and produces a rich, aggregate summary, not a single instant result.</p>
+
+<h2 id="a-genuinely-different-kind-of-tool">A Genuinely Different Kind of Tool</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># tools.py
+import subprocess, json
+
+def run_k6_test(script_path, summary_export_path="summary.json"):
+    result = subprocess.run(
+        ["k6", "run", "--summary-export", summary_export_path, script_path],
+        capture_output=True, text=True, timeout=300
+    )
+    with open(summary_export_path) as f:
+        summary = json.load(f)
+    return {
+        "exit_code": result.returncode,
+        "metrics": summary.get("metrics", {}),
+    }</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>TOOL_DEFINITIONS = [
+    {"name": "run_k6_test",
+     "description": "Runs a K6 load test script and returns its summary metrics (response times, error rate, throughput).",
+     "input_schema": {"type": "object",
+        "properties": {"script_path": {"type": "string"}},
+        "required": ["script_path"]}},
+]</code></pre>
+
+<h2 id="why-the-timeout-here-is-genuinely-different-from-chapter-6-s">Why the Timeout Here Is Genuinely Different From Chapter 6's</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Chapter 6's make_request timeout: 10 seconds — a SINGLE HTTP
+  request that should complete quickly, or something is
+  genuinely wrong.
+
+THIS page's run_k6_test timeout: 300 seconds (5 minutes) — an
+  ENTIRE load test, deliberately RUNNING for a real, sustained
+  period to genuinely simulate realistic load over time. A
+  short timeout here would cut off a test that's working
+  EXACTLY as intended, not stuck at all.</code></pre>
+<p>This is a genuinely important, real detail: Chapter 2's guardrail principle (set a genuine, sensible timeout) still applies, but "sensible" itself depends entirely on what a tool is actually meant to do — a load test's genuine, intended duration is measured in minutes, not seconds.</p>
+
+<h2 id="reading-a-real-k6-summary">Reading a Real K6 Summary</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># What summary.get("metrics", {}) actually contains — real,
+# structured performance data, genuinely analogous to Chapter
+# 6's structured JSON responses:
+
+{
+  "http_req_duration": {"avg": 245.3, "p(95)": 890.1, "max": 2340.0},
+  "http_req_failed": {"rate": 0.008},
+  "iterations": {"count": 4820},
+  "vus_max": {"value": 50}
+}</code></pre>
+<p>This is genuinely structured, directly usable data — the reasoner can work with these values without needing an extra parsing tool, exactly the same structural advantage Chapter 6 identified for JSON API responses, now shown applying to K6's own summary output.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might it be a genuine mistake to reuse Chapter 6's 10-second timeout for this chapter's <code>run_k6_test</code> tool, even though "shorter timeouts are generally safer" might seem like a reasonable default? A timeout that's too short for what a tool is genuinely, legitimately supposed to do doesn't add safety — it just breaks the tool's normal, correct operation. A load test that's deliberately running for several minutes to simulate sustained, realistic traffic isn't "stuck" at the 10-second mark; a timeout needs to reflect the tool's actual, intended behavior, not an arbitrarily short "safe-sounding" number applied without genuine consideration of what the tool actually does.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Setting every tool's timeout to the same generic value, without considering what each specific tool is actually supposed to do. Chapter 6's request timeout and this page's load-test timeout are both genuine, sensible guardrails — they're just sensible at very different actual durations, precisely because the underlying operations are genuinely different in kind.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>K6's <code>--summary-export</code> flag (used in this page's tool) is a genuinely reliable way to get STRUCTURED results programmatically, rather than parsing K6's human-readable console output — this mirrors the same "prefer structured data over parsed text" principle from Chapters 5 and 6, now applied to K6's own output format specifically.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Set each tool's timeout based on that specific tool's actual, genuine expected duration, not a generic, one-size-fits-all value.</li>
+  <li>Use a testing tool's structured export format (like K6's <code>--summary-export</code>) rather than parsing human-readable console output.</li>
+  <li>Recognize that "one action" can mean genuinely different things across different testing surfaces — a single request, or an entire multi-minute load test.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>K6 tools are shaped differently from earlier chapters' tools — one action means running a whole test over real time, not a single instant request.</li>
+  <li>A tool's timeout needs to reflect its own genuine, intended duration — reusing another tool's timeout value without consideration is a real, practical mistake.</li>
+  <li>K6's structured summary export provides the same reliable, parseable-data advantage Chapters 5 and 6 established for their own structured outputs.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Extend this page's <code>run_k6_test</code> tool to accept an optional <code>vus</code> (virtual users) and <code>duration</code> parameter, passed through to K6 as environment variables the script can read — and explain what a genuinely sensible default value for each might be for a first, cautious exploratory run.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A teammate copies Chapter 6's 10-second timeout directly into this chapter's run_k6_test tool "to be consistent." What real problem would this cause?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This would cause EVERY genuinely normal, correctly-running load test to fail with a timeout error — a 10-second limit is far shorter than any real load test's intended, legitimate duration, exactly the mistake this page's own "Common Mistake" section warns against.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What would happen with a 10-second timeout on a REAL K6 run:
+A load test deliberately designed to run for 2 minutes,
+  simulating realistic sustained traffic, would be forcibly
+  KILLED at the 10-second mark — not because anything is
+  wrong with the test or the application, but because the
+  TIMEOUT itself doesn't match what this tool is actually,
+  legitimately supposed to do.
+
+The correct fix — this page's actual approach:
+Set the timeout based on THIS tool's genuine expected duration
+  (300 seconds, reflecting a real load test's typical runtime),
+  not borrowed from a DIFFERENT tool (a single HTTP request)
+  with a completely different genuine, intended duration.</code></pre>
+<p>"Consistency" here would actually be a mistake — the genuinely correct principle isn't "use the same timeout everywhere," it's "use a timeout that reflects each specific tool's own real, intended behavior," which this page explicitly argues for.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page prefer K6's --summary-export flag over parsing K6's normal console output text?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This is the same structured-data-over-parsed-text principle from Chapters 5 and 6, now applied to K6 specifically — console output is formatted for human readability, not reliable machine parsing, while the export flag provides genuine, structured JSON.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>K6's console output (human-readable, NOT reliably parseable):
+     http_req_duration..............: avg=245.3ms  p(95)=890.1ms
+  Parsing this reliably requires understanding K6's SPECIFIC
+    text formatting, which could genuinely change between K6
+    versions, breaking any text-parsing logic built around it.
+
+K6's --summary-export JSON (structured, reliable):
+  {"http_req_duration": {"avg": 245.3, "p(95)": 890.1}}
+  Directly, reliably parseable — no fragile text-format
+    assumptions needed, exactly matching Chapter 5's own
+    argument for get_search_results() over raw page text.</code></pre>
+<p>This is a direct, concrete continuation of a principle this course has applied consistently — whenever a genuinely structured, reliable data source exists, prefer it over parsing text formatted primarily for human readability.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why "one action" meaning a multi-minute load test, rather than a single instant request, genuinely changes how this chapter's agent loop (from Chapter 3) needs to be thought about.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Chapter 3's <code>MAX_STEPS</code> guardrail counted individual reasoning steps, each assumed to be relatively quick — a single K6 run consuming ONE step but taking several minutes means the loop's overall WALL-CLOCK time can no longer be estimated simply by multiplying step count by a small per-step duration.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Chapter 3's original assumption (implicit):
+MAX_STEPS = 15, each step assumed to take a few SECONDS —
+  a genuinely reasonable assumption for browser clicks or API
+  calls, implying a full run completes in well under a minute.
+
+THIS chapter's reality:
+A SINGLE run_k6_test call could take up to 5 MINUTES (this
+  page's own timeout value) — meaning even a SHORT agent run
+  (say, 3 total steps, one of which runs a load test) could
+  genuinely take several minutes overall, a MEANINGFULLY
+  different time budget than Chapter 3's original assumption
+  implied, even though the STEP COUNT itself stayed low.</code></pre>
+<p>This is a genuinely useful, concrete realization: Chapter 2's loop-level guardrails (step count, but ALSO total elapsed time) become MORE important specifically in a context like this, where individual steps can legitimately vary enormously in duration — a pure step-count limit alone doesn't capture the real time budget as reliably as it did for Chapters 5 and 6's faster individual actions.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might it be reasonable for an agent's FIRST load test run on a new, unfamiliar system to use a deliberately SMALL load (few virtual users, short duration), rather than immediately testing at full expected scale?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This mirrors Chapter 1's incremental-trust principle directly — starting small on a genuinely unfamiliar system limits the real, potential impact of an unexpectedly poor result (like accidentally overwhelming a shared staging environment) before scaling up with more confidence.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why starting LARGE on an unfamiliar system is genuinely risky:
+If the agent's FIRST-EVER load test immediately simulates full
+  production-scale traffic against a system nobody has tested
+  this way before, a GENUINE problem (the staging environment
+  can't handle it, an unexpected cascading failure) could have
+  real, disruptive consequences — affecting other teams sharing
+  that same staging environment, for instance.
+
+Why starting SMALL is the more responsible approach:
+A cautious FIRST run (this page's "Try It Yourself" prompt
+  asks specifically about sensible DEFAULTS for exactly this
+  scenario) limits the blast radius of any genuinely
+  unexpected, real problem, while still providing REAL,
+  useful information about the system's basic behavior under
+  SOME load before committing to anything larger.</code></pre>
+<p>This is a direct, practical application of the same incremental-trust-building principle Chapter 1 established for adopting autonomous QA capabilities generally — now applied specifically to choosing a genuinely appropriate STARTING load level for an unfamiliar system.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you modify this page's run_k6_test tool to genuinely guard against an agent accidentally running a load test against a REAL production environment instead of staging?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This is exactly Chapter 2's scope guardrail category, applied concretely — the tool itself should structurally restrict which target environment a script can actually reach, rather than relying purely on the script's own content or the agent's own reasoning to avoid production.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def run_k6_test(script_path, summary_export_path="summary.json"):
+    with open(script_path) as f:
+        script_content = f.read()
+    # SCOPE GUARDRAIL — checked before ever running anything
+    if "shopeasy.example.com" in script_content and \
+       "staging.shopeasy.example.com" not in script_content:
+        return ("BLOCKED: script appears to target a non-staging "
+                "domain — load tests must target the staging "
+                "environment specifically.")
+    result = subprocess.run(
+        ["k6", "run", "--summary-export", summary_export_path, script_path],
+        capture_output=True, text=True, timeout=300
+    )
+    # ... rest unchanged ...</code></pre>
+<p>This is a direct, concrete implementation of Chapter 2's scope guardrail category, now specifically preventing a genuinely serious, real risk unique to performance testing — accidentally directing REAL, sustained load traffic at a production system, which could cause genuine, real disruption to actual customers in a way that a single misdirected API call (Chapter 6's equivalent concern) typically wouldn't.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

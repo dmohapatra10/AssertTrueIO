@@ -1,0 +1,269 @@
+<!doctype html>
+<html><head>
+<title>Playwright Fixtures: Built-in and Custom Fixtures Explained</title>
+<meta name="description" content="How Playwright fixtures work, the difference between test-scoped and worker-scoped fixtures, and how to build custom fixtures for login, page objects, and test data." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/fixtures.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Chapter 18: Fixtures</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="hooks.html">Hooks</a>, <a href="test-runner.html">Playwright Test Runner</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+      <p>A fixture is a piece of setup that a test declares it needs, by naming it as a parameter — and Playwright provides it automatically, already built. <code>page</code> is a fixture. So is <code>context</code>, <code>browser</code>, and <code>request</code>. You've been using fixtures since Chapter 2 without necessarily calling them that; this chapter covers what they actually are and how to build your own.</p>
+
+      <h2 id="why-is-it-important">Why is it important?</h2>
+      <p>Hooks (Chapter 17) share setup across tests, but the setup itself still lives in the test file, and every test that needs it must remember to declare the right <code>beforeEach</code>. Fixtures flip this: the test just asks for what it needs — <code>async ({ loggedInPage }) =&gt; { ... }</code> — and Playwright figures out how to build it, including anything <em>that</em> fixture itself depends on. This is what lets large suites share complex setup (authenticated sessions, seeded data, page objects) without every test file repeating boilerplate.</p>
+
+      <h2 id="built-in-fixtures">Built-in fixtures</h2>
+      <table>
+        <thead><tr><th>Fixture</th><th>Scope</th><th>What it provides</th></tr></thead>
+        <tbody>
+          <tr><td><code>page</code></td><td>Test</td><td>A fresh page (tab) in a fresh, isolated context.</td></tr>
+          <tr><td><code>context</code></td><td>Test</td><td>The BrowserContext the page belongs to.</td></tr>
+          <tr><td><code>browser</code></td><td>Worker</td><td>The shared browser instance for the current worker.</td></tr>
+          <tr><td><code>request</code></td><td>Test</td><td>An APIRequestContext for making HTTP calls (Chapter 9's API chapter).</td></tr>
+        </tbody>
+      </table>
+      <p>Notice <code>browser</code> is <strong>worker-scoped</strong>, not test-scoped — one browser process is reused for every test that worker runs, while <code>page</code> and <code>context</code> are recreated fresh for each individual test. This is the same Browser → BrowserContext → Page hierarchy from Chapter 3, expressed as fixture scopes.</p>
+
+      <h2 id="writing-a-custom-fixture">Writing a custom fixture</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// fixtures.ts
+import { test as base } from '@playwright/test';
+
+type MyFixtures = {
+  loggedInPage: Page;
+};
+
+export const test = base.extend&lt;MyFixtures&gt;({
+  loggedInPage: async ({ page }, use) =&gt; {
+    // --- setup ---
+    await page.goto('/login');
+    await page.getByLabel('Email').fill('user@example.com');
+    await page.getByLabel('Password').fill('secret123');
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await page.waitForURL('/dashboard');
+
+    await use(page); // --- hand control to the test ---
+
+    // --- teardown (runs after the test, even if it fails) ---
+    await page.context().clearCookies();
+  },
+});
+
+export { expect } from '@playwright/test';</code></pre>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// login.spec.ts
+import { test, expect } from './fixtures';
+
+test('dashboard shows the welcome banner', async ({ loggedInPage }) =&gt; {
+  await expect(loggedInPage.getByText('Welcome back')).toBeVisible();
+});</code></pre>
+      <p>The <code>use(page)</code> call is the pivot point: everything before it is setup, everything after it is teardown, and Playwright guarantees the teardown half runs even if the test itself throws. This single-function setup/teardown shape is what replaces a matched <code>beforeEach</code>/<code>afterEach</code> pair.</p>
+
+      <h2 id="test-scoped-vs-worker-scoped-fixtures">Test-scoped vs. worker-scoped fixtures</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export const test = base.extend&lt;{}, { apiToken: string }&gt;({
+  apiToken: [async ({}, use) =&gt; {
+    const token = await fetchServiceToken(); // expensive — do it once
+    await use(token);
+  }, { scope: 'worker' }],
+});</code></pre>
+      <p>A <strong>test-scoped</strong> fixture (the default) is rebuilt for every test — right for anything that must be isolated per test, like <code>page</code>. A <strong>worker-scoped</strong> fixture is built once and reused across every test that worker runs — right for genuinely expensive, shareable setup, like acquiring a service-account API token. Mixing these up in the wrong direction causes two different problems: making <code>page</code> worker-scoped would leak state between tests; making an expensive token fetch test-scoped would slow the suite down for no isolation benefit.</p>
+
+      <h2 id="fixture-dependencies">Fixture dependencies</h2>
+      <p>Fixtures can depend on other fixtures simply by naming them as parameters — Playwright resolves the dependency graph automatically:</p>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export const test = base.extend&lt;{ dashboardPage: DashboardPage }&gt;({
+  dashboardPage: async ({ loggedInPage }, use) =&gt; {
+    await use(new DashboardPage(loggedInPage));
+  },
+});</code></pre>
+      <p>Here <code>dashboardPage</code> depends on <code>loggedInPage</code>, which itself depends on <code>page</code>. Playwright builds them in the correct order automatically — a test that asks for <code>dashboardPage</code> transparently gets a logged-in session wrapped in a page object.</p>
+
+      <h2 id="automatic-fixtures">Automatic fixtures</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export const test = base.extend({
+  forEachTest: [async ({ page }, use) =&gt; {
+    console.log('Starting test...');
+    await use();
+    console.log('Finished test.');
+  }, { auto: true }],
+});</code></pre>
+      <p><code>{ auto: true }</code> makes a fixture run for every test automatically, even if no test explicitly asks for it — useful for cross-cutting concerns like logging or setting a consistent viewport, but easy to overuse into "invisible magic" that makes tests harder to reason about in isolation.</p>
+
+      <h2 id="real-world-example-page-object-fixture">Real-world example: Page Object fixture</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export const test = base.extend&lt;{ inventoryPage: InventoryPage }&gt;({
+  inventoryPage: async ({ page }, use) =&gt; {
+    const inventoryPage = new InventoryPage(page);
+    await inventoryPage.goto();
+    await use(inventoryPage);
+  },
+});
+
+// inventory.spec.ts
+test('can add item to cart', async ({ inventoryPage }) =&gt; {
+  await inventoryPage.addToCart('Wireless Mouse');
+  await expect(inventoryPage.cartBadge).toHaveText('1');
+});</code></pre>
+      <p>This is the pattern Chapter 11's Page Object Model chapter builds on directly — the page object's navigation is handled once, in the fixture, instead of repeated in every test that needs it.</p>
+
+      <h2 id="six-custom-fixture-patterns">Six Custom Fixture Patterns</h2>
+      <p>The login and page object fixtures above are two of the six patterns that cover almost every real custom fixture you'll write. The remaining four:</p>
+
+      <h3>API fixture</h3>
+      <p>Wraps <code>APIRequestContext</code> in a small client class, so tests call readable methods instead of raw <code>request.post()</code> calls with inline URLs and payloads scattered everywhere.</p>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>class OrdersApi {
+  constructor(private request: APIRequestContext) {}
+  async create(data: { item: string; quantity: number }) {
+    const res = await this.request.post('/api/orders', { data });
+    return res.json();
+  }
+}
+
+export const test = base.extend&lt;{ ordersApi: OrdersApi }&gt;({
+  ordersApi: async ({ request }, use) =&gt; {
+    await use(new OrdersApi(request));
+  },
+});</code></pre>
+      <p>This is the exact pattern the API Testing and Framework Folder Structure chapters build on — an API fixture is what turns "seed some test data fast" from a repeated block of <code>request.post()</code> calls into a single, readable <code>ordersApi.create(...)</code> line.</p>
+
+      <h3>Test data fixture</h3>
+      <p>Generates fresh, unique data a test needs — not hardcoded, so parallel tests (Parallelism chapter) never collide over the same fixed values.</p>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>type NewUser = { email: string; password: string };
+
+export const test = base.extend&lt;{ newUser: NewUser }&gt;({
+  newUser: async ({}, use) =&gt; {
+    const user = {
+      email: `test-${Date.now()}-${Math.random().toString(36).slice(2)}@example.com`,
+      password: 'correct-horse-battery-staple',
+    };
+    await use(user);
+  },
+});
+
+// signup.spec.ts
+test('new user can complete signup', async ({ page, newUser }) =&gt; {
+  await page.goto('/signup');
+  await page.getByLabel('Email').fill(newUser.email);
+  await page.getByLabel('Password').fill(newUser.password);
+  await page.getByRole('button', { name: 'Create account' }).click();
+});</code></pre>
+      <p>Unlike the login or API fixtures, this one has no <code>use()</code> teardown at all — there's nothing to clean up for data that only ever existed as a plain in-memory object, which is a normal, valid shape for a fixture to take.</p>
+
+      <h3>Database fixture</h3>
+      <p>Provides a real database connection (or a scoped transaction) directly to a test — useful for tests that need to verify backend state a UI or API response wouldn't fully expose, such as confirming a row was actually deleted, not just that the UI stopped showing it.</p>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import { Pool } from 'pg';
+
+export const test = base.extend&lt;{}, { dbPool: Pool }&gt;({
+  dbPool: [async ({}, use) =&gt; {
+    const pool = new Pool({ connectionString: process.env.TEST_DATABASE_URL });
+    await use(pool); // worker-scoped — one pool shared across that worker's tests
+    await pool.end();
+  }, { scope: 'worker' }],
+});
+
+// order-cleanup.spec.ts
+test('cancelled orders are actually removed from the database', async ({ page, dbPool }) =&gt; {
+  // ...cancel the order via the UI...
+  const { rows } = await dbPool.query('SELECT * FROM orders WHERE id = $1', [orderId]);
+  expect(rows).toHaveLength(0);
+});</code></pre>
+      <p>A database connection is exactly the kind of genuinely expensive, safely shareable resource the Test-Scoped vs. Worker-Scoped section above is describing — worker scope here isn't just an option, it's the correct choice, since opening a fresh connection pool per test would be needlessly slow.</p>
+
+      <h3>Cleanup fixture</h3>
+      <p>Sometimes a fixture's entire purpose is teardown, not setup — tracking resources a test creates during its body (not known in advance) and guaranteeing they're all removed afterward, regardless of how many were created or whether the test passed.</p>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export const test = base.extend&lt;{ trackOrder: (id: string) =&gt; void }&gt;({
+  trackOrder: async ({ request }, use) =&gt; {
+    const createdIds: string[] = [];
+
+    await use((id: string) =&gt; { createdIds.push(id); }); // setup: just an empty tracking array
+
+    // teardown: clean up EVERYTHING the test tracked, however many there were
+    for (const id of createdIds) {
+      await request.delete(`/api/orders/${id}`).catch(() =&gt; {});
+    }
+  },
+});
+
+// bulk-orders.spec.ts
+test('creating three orders in a row all succeed', async ({ request, trackOrder }) =&gt; {
+  for (let i = 0; i &lt; 3; i++) {
+    const res = await request.post('/api/orders', { data: { item: `Item ${i}` } });
+    trackOrder((await res.json()).id); // register each one for cleanup
+  }
+});</code></pre>
+      <p>This is a genuinely different shape from the other five patterns: <code>use()</code> here doesn't hand the test a resource to act on, it hands the test a <em>function</em> the test calls during its body to register cleanup work — flexible enough to handle "however many things this specific test happens to create," which a fixed teardown block can't do.</p>
+
+      <h2 id="extending-fixtures">Extending Fixtures</h2>
+      <p>Fixture files aren't limited to one flat <code>base.extend()</code> call — they can build on each other, and one project's fixtures can extend another's, which is how larger codebases avoid one enormous fixtures file.</p>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// auth-fixtures.ts
+export const authTest = base.extend&lt;{ loggedInPage: Page }&gt;({
+  loggedInPage: async ({ page }, use) =&gt; { /* ...login... */ await use(page); },
+});
+
+// checkout-fixtures.ts — extends authTest, adding on top of it rather than starting over
+import { authTest } from './auth-fixtures';
+
+export const checkoutTest = authTest.extend&lt;{ checkoutPage: CheckoutPage }&gt;({
+  checkoutPage: async ({ loggedInPage }, use) =&gt; {
+    await use(new CheckoutPage(loggedInPage));
+  },
+});</code></pre>
+      <p><code>checkoutTest</code> now has both <code>loggedInPage</code> <em>and</em> <code>checkoutPage</code> available, without redefining the login logic — a test file that only needs auth imports from <code>auth-fixtures</code>, one that needs checkout too imports from <code>checkout-fixtures</code>. Playwright also provides <code>mergeTests()</code> for combining multiple independent fixture files (rather than one extending another) when two unrelated fixture sets both need to be available together:</p>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import { mergeTests } from '@playwright/test';
+import { authTest } from './auth-fixtures';
+import { apiTest } from './api-fixtures';
+
+export const test = mergeTests(authTest, apiTest); // has fixtures from BOTH files</code></pre>
+      <p>Overriding an inherited fixture (rather than adding a new one) is also supported — a later <code>.extend()</code> call can redefine a fixture the base already provides, useful when one specific test file needs slightly different behavior (a different login role, a mocked version of an otherwise-real fixture) without affecting every other file that imports the original.</p>
+
+      <h2 id="common-mistakes">Common mistakes</h2>
+      <ul>
+        <li>Making an expensive, shareable resource test-scoped by default, slowing the whole suite down — check whether it actually needs per-test isolation before defaulting to test scope.</li>
+        <li>Overusing automatic fixtures for things only some tests need, making test behavior harder to trace back to its source.</li>
+        <li>Forgetting the teardown half after <code>use()</code> — a fixture that opens a resource but never cleans it up will leak across a long test run.</li>
+        <li>Reaching for a fixture when a plain hook would do — a one-off setup used by a single test file doesn't need the extra indirection of a custom fixture.</li>
+      </ul>
+
+      <h2 id="beforeeach-vs-fixture-vs-beforeall">beforeEach vs. Fixture vs. beforeAll</h2>
+      <table>
+        <thead><tr><th></th><th>Use for</th></tr></thead>
+        <tbody>
+          <tr><td><code>beforeEach</code></td><td>Simple, file-local setup used by every test in that file.</td></tr>
+          <tr><td>Fixture</td><td>Setup shared across many files, with dependencies, or that needs teardown logic tied to it.</td></tr>
+          <tr><td><code>beforeAll</code></td><td>Genuinely one-time, expensive setup with no per-test variation.</td></tr>
+        </tbody>
+      </table>
+
+      <h2 id="best-practices">Best practices</h2>
+      <ul>
+        <li>Default new fixtures to test scope; promote to worker scope only when the setup is provably expensive and safely shareable.</li>
+        <li>Keep the teardown half of every fixture symmetrical with its setup — whatever you open, close.</li>
+        <li>Reserve <code>{ auto: true }</code> for setup that genuinely applies to every single test in the project.</li>
+        <li>Put shared fixtures in a dedicated <code>fixtures.ts</code> file and import <code>test</code>/<code>expect</code> from there, not from <code>@playwright/test</code> directly, once a project has more than one or two custom fixtures.</li>
+      </ul>
+
+      <h2 id="summary">Summary</h2>
+      <p>Fixtures are named, declarative setup that Playwright builds on demand and tears down automatically, with dependencies resolved for you. Built-in fixtures like <code>page</code> and <code>browser</code> already use this system, at test and worker scope respectively. Custom fixtures — for logins, page objects, API tokens, or seeded data — are the main tool for scaling shared setup across a large suite without repeating it, and are the foundation Chapter 11's framework architecture builds on.</p>
+
+      <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why would you make a fixture worker-scoped instead of test-scoped, and what's the risk of getting it wrong?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Worker scope reuses the fixture's value across every test in that worker, so it's right for expensive setup that's safe to share, like an API token. Making something worker-scoped that actually needs per-test isolation — like a logged-in page — would leak state between tests. Making something test-scoped that's expensive to build but safe to share just wastes time rebuilding it unnecessarily for every test.</div>
+</details>
+<details class="faq-item">
+<summary>What's the real difference between expect(locator) and worker-scoped vs test-scoped fixtures?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Test-scoped fixtures rebuild fresh for every test (right for isolation, like page); worker-scoped fixtures build once per worker and are reused (right for expensive, safely shareable resources).</div>
+</details>
+<details class="faq-item">
+<summary>What does the use() call inside a fixture actually do?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It's the pivot point — everything before it is setup, everything after is teardown, and Playwright guarantees the teardown half runs even if the test throws.</div>
+</details>
+<details class="faq-item">
+<summary>How do you combine fixtures from two independent fixture files?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Use mergeTests() to combine them, or have one file's test extend() the other's if one should build on top of it.</div>
+</details>
+<details class="faq-item">
+<summary>Why is a 'cleanup fixture' shaped differently from the other fixture patterns?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Its use() call hands the test a function to register cleanup work during the test body, rather than handing back a ready-to-use resource.</div>
+</details>
+</div>
+</article>
+</body></html>

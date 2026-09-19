@@ -1,0 +1,96 @@
+<!doctype html>
+<html><head>
+<title>AI Failure Analysis in CI</title>
+<meta name="description" content="Running Chapter 9&#x27;s complete failure analysis automatically the moment a CI run fails — so a developer opens the run already knowing what broke and why." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/ai-failure-analysis-in-ci.html" />
+</head><body>
+<p class="difficulty">Advanced</p>
+<h1>AI Failure Analysis in CI</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="ai-test-generation-in-ci.html">AI Test Generation in CI</a></p>
+<article class="content">
+<h2>What You'll Learn</h2>
+<ul>
+  <li>Triggering Chapter 9's complete failure analysis automatically on any CI failure</li>
+  <li>Why this changes the experience of opening a failed CI run, concretely</li>
+  <li>Saving analysis output as a real, accessible CI artifact</li>
+</ul>
+
+<h2>Introduction</h2>
+<p>Chapter 9 built a complete pipeline — evidence capture, classification, root cause, confidence, recommendation. This page's only real job is triggering it automatically the moment a CI run fails, rather than a human running it manually after noticing the failure.</p>
+
+<h2>Step-by-Step Implementation</h2>
+<pre><code># .github/workflows/ai-playwright-tests.yml (extended from
+# Chapter 16's own opening page)
+      - name: Run Playwright tests
+        id: run_tests
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: npx playwright test
+        continue-on-error: true
+
+      - name: Analyze failures with AI
+        if: steps.run_tests.outcome == 'failure'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: node scripts/analyze-ci-failures.js
+
+      - name: Upload failure analysis
+        if: steps.run_tests.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-failure-analysis
+          path: test-results/failure-analysis.md
+
+      - name: Fail the job if tests failed
+        if: steps.run_tests.outcome == 'failure'
+        run: exit 1</code></pre>
+
+<h2>Code Explanation</h2>
+<p><code>continue-on-error: true</code> on the test step is deliberate — it lets the workflow proceed to the analysis step even after a failure, rather than stopping immediately. The final step still fails the overall job, so CI correctly reports failure; the analysis simply runs first, in between.</p>
+
+<h2>Step-by-Step Implementation — The Analysis Script, Reusing Chapter 9 Directly</h2>
+<pre><code>// scripts/analyze-ci-failures.js
+import { analyzeFailureCompletely } from '../src/complete-failure-analysis';
+import { generateMarkdownReport } from '../src/generate-failure-report';
+import { readFileSync, writeFileSync } from 'fs';
+import glob from 'glob';
+
+const resultsFiles = glob.sync('test-results/**/*.json');
+const reports = [];
+
+for (const file of resultsFiles) {
+  const testInfo = JSON.parse(readFileSync(file, 'utf-8'));
+  if (testInfo.status !== 'failed') continue;
+
+  const analysis = await analyzeFailureCompletely(testInfo, [], []);
+  reports.push(generateMarkdownReport(testInfo.title, analysis, testInfo));
+}
+
+writeFileSync('test-results/failure-analysis.md', reports.join('\n---\n'));</code></pre>
+
+<h2>Why It Matters — What Actually Changes for a Developer</h2>
+<p>Without this, a developer opening a failed CI run sees raw Playwright output — an error, maybe a stack trace — and starts investigating from scratch. With this, the same run's artifacts already contain Chapter 9's full analysis: classification, root cause, confidence, and a specific recommendation, generated automatically before anyone even opens the run.</p>
+
+<h2>Common Mistakes</h2>
+<ul>
+  <li><strong>Running failure analysis only when a human manually triggers it.</strong> This page's whole point is automating exactly that trigger — analysis that requires someone to remember to run it loses most of its real value.</li>
+  <li><strong>Reimplementing analysis logic inside the CI script instead of calling Chapter 9's functions.</strong> <code>analyzeFailureCompletely</code> already exists, tested and explained — this page's script is deliberately just a thin CI wrapper around it.</li>
+</ul>
+
+<h2>Best Practices</h2>
+<ul>
+  <li>Trigger failure analysis automatically on any test failure — never rely on a human remembering to run it manually.</li>
+  <li>Save the resulting report as a real, accessible CI artifact, so it's available to anyone reviewing the failed run later.</li>
+</ul>
+
+<h2>Hands-On Exercise</h2>
+<p>Add this page's failure analysis step to a real CI workflow, deliberately breaking a test to trigger it. Confirm the resulting artifact contains a genuine, complete analysis — not just the raw Playwright error output.</p>
+
+<h2>Key Takeaways</h2>
+<ul>
+  <li>This page automates exactly one thing — the trigger — while reusing Chapter 9's complete analysis pipeline entirely unchanged.</li>
+  <li>Automatic analysis changes what a developer sees the moment they open a failed run, from raw output to a structured, reasoned explanation.</li>
+  <li>Saving analysis as a CI artifact makes it available to the whole team, not just whoever happened to run it manually.</li>
+</ul>
+</article>
+</body></html>

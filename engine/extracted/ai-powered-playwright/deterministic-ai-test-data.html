@@ -1,0 +1,90 @@
+<!doctype html>
+<html><head>
+<title>Deterministic AI Test Data</title>
+<meta name="description" content="AI generation varies between calls by nature — caching a generated batch once and reusing it is what makes test runs reproducible, a real requirement for debugging." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/deterministic-ai-test-data.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Deterministic AI Test Data</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="context-aware-test-data.html">Context-Aware Test Data</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Why every earlier page's generation functions produce different data on every call</li>
+  <li>The real problem this creates for debugging a failing test</li>
+  <li>Caching a generated batch once, and reusing it deterministically</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>Every generation function in this chapter so far returns something genuinely different each time it's called — that's the whole point of AI-generated variety. This page is about the real problem that creates: a test that fails today, using data generated fresh, may be impossible to reproduce tomorrow, because tomorrow's generated data is different.</p>
+
+<h2 id="why-it-matters-a-concrete-debugging-problem">Why It Matters — A Concrete Debugging Problem</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>MONDAY: test fails with a GENERATED user whose LAST name
+        contains an apostrophe ("O'Brien") — a REAL, genuine
+        bug in ShopSmart's name-handling logic
+
+TUESDAY: a developer tries to REPRODUCE the failure, runs the
+         SAME test — a NEW user gets GENERATED, WITHOUT an
+         apostrophe this time — the test PASSES, and the REAL
+         bug looks like it "went AWAY" on its OWN</code></pre>
+<p>The bug never actually went away — the specific data that triggered it simply wasn't generated again. This is a genuine, real cost of using fresh AI generation for every test run, worth solving deliberately rather than accepting as an unavoidable tradeoff.</p>
+
+<h2 id="step-by-step-implementation-generate-once-cache-reuse">Step-by-Step Implementation — Generate Once, Cache, Reuse</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/cached-test-data.ts
+import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { generateUsers, GeneratedUser } from './generate-user-data';
+
+const CACHE_PATH = 'test-data/cached-users.json';
+
+export async function getCachedUsers(
+  count: number, forceRegenerate = false
+): Promise&lt;GeneratedUser[]&gt; {
+  if (existsSync(CACHE_PATH) &amp;&amp; !forceRegenerate) {
+    const cached = JSON.parse(readFileSync(CACHE_PATH, 'utf-8'));
+    if (cached.length &gt;= count) return cached.slice(0, count);
+  }
+
+  const fresh = await generateUsers(count);
+  writeFileSync(CACHE_PATH, JSON.stringify(fresh, null, 2), 'utf-8');
+  return fresh;
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p>This is deliberately simple — no database, no special infrastructure, just a JSON file checked into the same repository as the tests that use it. That's a real, intentional choice: the cached data becomes reviewable and versioned alongside the code, the same way any other test fixture would be, and <code>forceRegenerate</code> gives an explicit, deliberate way to refresh it when genuinely needed.</p>
+
+<h2 id="example-reproducing-monday-s-failure-reliably">Example — Reproducing Monday's Failure, Reliably</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// MONDAY, first run — generates FRESH, caches the result:
+const users = await getCachedUsers(5);
+// Includes the "O'Brien" user that TRIGGERED the bug
+
+// TUESDAY, a developer investigating:
+const sameUsers = await getCachedUsers(5);
+// Returns the EXACT SAME cached data — "O'Brien" is STILL
+// there, the bug reproduces RELIABLY, every single time</code></pre>
+
+<h2 id="why-it-matters-committing-the-cache-deliberately">Why It Matters — Committing the Cache Deliberately</h2>
+<p>Checking <code>test-data/cached-users.json</code> into version control means the whole team shares the same test data, and a git diff shows exactly when and why it changed — genuinely different from silent, fresh generation on every run, where nobody can tell whether today's data matches yesterday's without checking by hand.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Regenerating fresh data on every single test run "to maximize variety."</strong> This page's Monday/Tuesday example shows the real cost — genuine bugs that look like they disappeared on their own.</li>
+  <li><strong>Never regenerating the cache at all.</strong> Stale cached data eventually recreates the original staleness problem from this chapter's first page — <code>forceRegenerate</code> exists for deliberate, periodic refresh.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Cache generated data once, commit it to version control, and reuse it deterministically across runs — reserve fresh generation for deliberate refresh cycles.</li>
+  <li>When a test fails against cached data, keep the exact failing cache alongside the bug report — it's the most direct way to reproduce the issue later.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Apply this page's caching pattern to one of your own generation functions from earlier in this chapter. Run it twice and confirm the second run returns identical data. Then call it with <code>forceRegenerate: true</code> and confirm it genuinely produces something new.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Fresh AI generation on every run makes test failures genuinely hard to reproduce — a real, practical cost worth solving deliberately.</li>
+  <li>Caching generated data once and committing it to version control makes test data reviewable, shared, and genuinely reproducible.</li>
+  <li>Regeneration should be a deliberate, explicit choice, not an automatic default on every run.</li>
+</ul>
+</article>
+</body></html>

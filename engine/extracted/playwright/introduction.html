@@ -1,0 +1,125 @@
+<!doctype html>
+<html><head>
+<title>What is Playwright? Complete Introduction for Test Automation Engineers</title>
+<meta name="description" content="Learn what Playwright is, why it exists, how it compares to Selenium and Cypress, and when to choose it for automated testing." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/introduction.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Chapter 1: Introduction to Playwright</h1>
+<article class="content">
+<h2 id="what-is-playwright">What is Playwright?</h2>
+<p>Playwright is an open-source browser automation and end-to-end testing framework created by Microsoft. It lets you write scripts that control real browsers — Chromium, Firefox, and WebKit — to test web applications the way a real user would: clicking buttons, filling forms, navigating pages, and verifying what appears on screen.</p>
+<p>Unlike older automation tools that talk to the browser through a slow, flaky bridge, Playwright communicates with the browser over a persistent WebSocket connection, giving it fast, reliable control over pages, network traffic, and browser state — the full mechanics of this are covered in the Architecture chapter.</p>
+
+<h2 id="why-playwright-exists">Why Playwright Exists</h2>
+<p>Web applications became more dynamic — single-page apps, client-side routing, asynchronous rendering — and older tools struggled to keep pace. Playwright was built to handle modern web apps, true cross-browser testing, flakiness (via auto-waiting), and multi-context testing, all through one consistent API.</p>
+
+<h2 id="mental-model">Mental Model</h2>
+<p>Three ideas underpin almost everything else in this course, each get their own full chapter later, but it's worth naming them up front:</p>
+<ul>
+  <li><strong>Locators are lazy descriptions, not live references</strong> — a locator describes how to find an element; it doesn't need that element to exist yet, and re-resolves fresh every time it's used.</li>
+  <li><strong>Actions and assertions wait automatically</strong> — Playwright polls for the right condition (visible, enabled, stable) before acting, instead of assuming the page is already in the state you expect.</li>
+  <li><strong>A BrowserContext is an isolated "profile"</strong> — cookies, storage, and permissions inside one context never leak into another, which is what makes parallel and multi-user testing possible without interference.</li>
+</ul>
+
+<h2 id="basic-example">Basic Example</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import { test, expect } from '@playwright/test';
+
+test('homepage has the right title', async ({ page }) =&gt; {
+  await page.goto('https://playwright.dev');
+  await expect(page).toHaveTitle(/Playwright/);
+});</code></pre>
+<p>Even this small example demonstrates the core shape every test in this course follows: navigate, interact, assert — with Playwright handling the waiting in between.</p>
+
+<h2 id="playwright-vs-selenium-vs-cypress">Playwright vs. Selenium vs. Cypress</h2>
+<table>
+  <thead><tr><th></th><th>Playwright</th><th>Selenium</th><th>Cypress</th></tr></thead>
+  <tbody>
+    <tr><td>Browser engines</td><td>Chromium, Firefox, WebKit</td><td>Chromium, Firefox, WebKit, IE (via drivers)</td><td>Chromium-based only (+ experimental Firefox/WebKit)</td></tr>
+    <tr><td>Architecture</td><td>WebSocket protocol, out-of-process</td><td>WebDriver protocol (HTTP)</td><td>Runs inside the browser</td></tr>
+    <tr><td>Auto-waiting</td><td>Built-in</td><td>Manual/explicit waits needed</td><td>Built-in</td></tr>
+    <tr><td>Multi-tab/multi-origin</td><td>Native support</td><td>Supported, more verbose</td><td>Historically limited</td></tr>
+    <tr><td>Parallelization</td><td>Built into the test runner</td><td>Requires external grid/config</td><td>Built into Cypress Cloud (paid for full parallelism)</td></tr>
+    <tr><td>API testing</td><td>Built-in (APIRequestContext)</td><td>Not built-in</td><td>Built-in</td></tr>
+  </tbody>
+</table>
+
+<h2 id="real-world-example-why-auto-waiting-matters">Real-World Example — Why Auto-Waiting Matters</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// A button that's disabled until an async validation check finishes
+await page.getByLabel('Email').fill('user@example.com');
+// No manual wait needed — click() automatically waits for the button
+// to become enabled before attempting to click it
+await page.getByRole('button', { name: 'Continue' }).click();</code></pre>
+<p>A tool without built-in auto-waiting would need an explicit wait or a retry loop here; Playwright's actionability checks (covered fully in the Actions chapter) handle this transparently for essentially every action.</p>
+
+<h2 id="what-you-can-build-with-playwright">What You Can Build With Playwright</h2>
+<ul>
+  <li>End-to-end UI test suites</li>
+  <li>API test suites</li>
+  <li>Visual regression tests</li>
+  <li>Web scraping and automation scripts</li>
+  <li>Cross-browser compatibility checks</li>
+  <li>CI/CD-integrated regression pipelines</li>
+</ul>
+
+<h2 id="common-misconception-vs-reality">❌ Common Misconception vs. ✅ Reality</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ "Playwright is just a Selenium wrapper with nicer syntax"
+
+// ✅ Playwright is a from-scratch architecture: a different browser
+// communication protocol, first-class API testing, and a built-in test
+// runner with parallelization and fixtures — not a wrapper around WebDriver</code></pre>
+
+<h2 id="common-mistakes-even-at-the-intro-stage">Common Mistakes (Even at the Intro Stage)</h2>
+<ul>
+  <li><strong>Assuming Playwright is "just another Selenium wrapper."</strong> The underlying protocol, architecture, and feature set are genuinely different, not a thin compatibility layer.</li>
+  <li><strong>Treating it as UI-only</strong> when its API testing (via <code>APIRequestContext</code>) is a first-class feature, not an afterthought.</li>
+  <li><strong>Skipping the built-in Test Runner</strong> in favor of a plain script, then manually reimplementing parallelization, retries, and reporting that <code>@playwright/test</code> already provides.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Testing against a browser Playwright doesn't ship</strong> (real, non-Chromium-based Edge; older browsers) — Playwright can connect to some external browsers via <code>connect()</code>, but its own downloaded binaries only cover Chromium, Firefox, and WebKit.</li>
+  <li><strong>Native mobile app testing</strong> — Playwright automates mobile <em>web</em> (via emulated viewports/devices), not native iOS/Android apps; that's a different category of tool entirely (e.g., Appium).</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>When something about Playwright's behavior seems surprising for the first time, the most common root cause is one of the three mental-model ideas above — check whether the issue is really about locator laziness, missing auto-wait coverage, or context isolation before assuming it's a bug.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Start every new project with <code>@playwright/test</code>, not the raw automation library, unless you have a specific reason not to.</li>
+  <li>Treat API testing as equally available to UI testing from day one — many suites benefit from mixing both.</li>
+  <li>Don't port Selenium habits (explicit waits everywhere, WebDriver-style selectors) forward unexamined — several of them are actively unnecessary in Playwright.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Without writing any code yet, list three things you'd expect to be different debugging a flaky Selenium test versus a flaky Playwright test, based on the architectural differences described above.</p>
+
+<h2 id="summary">Summary</h2>
+<p>Playwright is a modern, cross-browser automation and testing framework built to handle today's dynamic web apps reliably, with auto-waiting, multi-context support, and built-in API testing — architected differently from Selenium and Cypress, not just styled differently.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>What are the main architectural differences between Playwright and Selenium?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Playwright drives browsers over a persistent WebSocket connection, giving it lower latency and native support for multiple browser contexts within one browser process. Selenium uses the WebDriver protocol (HTTP requests per command) and generally needs one browser instance per session. Playwright also ships auto-waiting and a built-in test runner, both of which Selenium requires external tooling or manual code to approximate.</div>
+</details>
+<details class="faq-item">
+<summary>Is Playwright a wrapper around Selenium's WebDriver protocol?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">No — it uses a fundamentally different architecture: a persistent WebSocket connection, not WebDriver's per-command HTTP requests.</div>
+</details>
+<details class="faq-item">
+<summary>Does Playwright only support UI testing?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">No — APIRequestContext makes API testing a first-class feature, not an afterthought bolted onto UI automation.</div>
+</details>
+<details class="faq-item">
+<summary>What's a Playwright limitation worth knowing upfront?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It automates mobile web via emulated viewports, not native iOS/Android apps — that's a different category of tool (e.g. Appium).</div>
+</details>
+<details class="faq-item">
+<summary>Name one built-in feature Selenium requires external tooling to approximate.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Auto-waiting — Selenium generally needs manual/explicit waits, where Playwright handles this automatically via actionability checks.</div>
+</details>
+</div>
+</article>
+</body></html>

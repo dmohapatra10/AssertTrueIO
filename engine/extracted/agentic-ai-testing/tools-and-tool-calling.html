@@ -1,0 +1,202 @@
+<!doctype html>
+<html><head>
+<title>Tools and Tool Calling: How an Agent Actually Acts</title>
+<meta name="description" content="How an AI agent turns a text decision into a real action through defined tools, what a tool definition actually looks like, and why tool design directly limits what an agent can safely do." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/tools-and-tool-calling.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Tools and Tool Calling</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="agent-memory.html">Agent Memory</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>The LLM page established that an LLM only produces text — tools are specifically what turn that text into a real, executed action: a browser click, an API request, a database query. A tool is a defined, bounded capability the agent is explicitly given access to, nothing more.</p>
+
+<h2 id="what-a-tool-definition-actually-looks-like">What a Tool Definition Actually Looks Like</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A genuine tool definition given to an agent (conceptually):
+
+Tool name: click_element
+Description: "Clicks a visible element on the current page,
+  identified by its accessible role and name."
+Parameters:
+  - role (string): the element's ARIA role, e.g. "button"
+  - name (string): the element's accessible name/label
+
+Tool name: fill_field
+Description: "Types text into a visible, editable form field."
+Parameters:
+  - label (string): the field's associated label text
+  - value (string): the text to type into it
+
+Tool name: get_page_text
+Description: "Returns the visible text content of the current page."
+Parameters: none</code></pre>
+<p>The LLM never directly executes any of these — it produces text saying, in effect, "call <code>click_element</code> with role='button', name='Add to Cart'." The agent's surrounding code then genuinely executes that specific, defined tool.</p>
+
+<h2 id="the-full-round-trip-now-with-real-detail">The Full Round Trip, Now With Real Detail</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>1. Reasoner decides: "I need to click the Add to Cart button"
+
+2. This gets turned into a structured TOOL CALL:
+   { tool: "click_element", role: "button", name: "Add to Cart" }
+
+3. Agent's code looks up what "click_element" actually DOES —
+   in this case, calls the real Playwright API:
+   await page.getByRole('button', { name: 'Add to Cart' }).click();
+
+4. The REAL browser actually clicks the REAL button
+
+5. Result gets captured and turned back into an OBSERVATION:
+   "Click succeeded. A toast notification now reads
+   'Added to cart.'"
+
+6. This observation feeds back into the next reasoning step</code></pre>
+<p>Every single tool in a real agent is exactly this same shape: a defined capability, with defined parameters, that does exactly one specific, bounded thing when called — nothing more, nothing the tool's own definition doesn't explicitly allow.</p>
+
+<h2 id="why-tool-design-directly-limits-what-an-agent-can-do">Why Tool Design Directly Limits What an Agent Can Do</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>An agent can ONLY do what its available tools allow — this is
+a genuinely important, deliberate safety property, not a
+limitation to work around.
+
+Example — an agent given ONLY these tools:
+  click_element, fill_field, get_page_text
+
+This agent CANNOT, structurally, no matter how it reasons:
+  - Delete a database record directly (no such tool exists)
+  - Send a real email (no such tool exists)
+  - Access any URL outside the specific application it's
+    scoped to (no general-purpose "make any HTTP request"
+    tool was given to it)
+
+The agent's reasoning might, in theory, "want" to do any of
+these things — but without an actual tool that performs it,
+wanting doesn't translate into a real, executed action.</code></pre>
+<p>This connects directly to guardrails, covered later in this chapter — carefully scoping which tools an agent even has access to is itself one of the most fundamental, effective safety mechanisms available, arguably more reliable than trying to constrain a capable agent's reasoning after the fact.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might giving an agent a single, broad tool like "run_any_shell_command" be genuinely more dangerous than giving it several specific, narrow tools like "click_element" and "fill_field," even if the broad tool could theoretically accomplish everything the narrow ones can plus more? A broad, general-purpose tool's actual behavior in any given call depends entirely on what the agent's reasoning decides to put into it — there's no structural limit on what it could attempt. Narrow, specific tools bound the agent's possible actions to exactly what each tool's own definition allows, which is a genuinely stronger, more predictable safety property than trusting reasoning alone to stay within bounds.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Giving an agent broader tool access than a specific task genuinely requires, on the theory that more capability is more flexible. This directly undermines the safety property described above — an agent testing ShopEasy's search feature genuinely doesn't need a tool that can modify production data, and giving it that access anyway is real, unnecessary risk for no genuine benefit to the task at hand.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>A genuinely useful design habit: for any new tool you're considering giving an agent, ask "what's the worst realistic thing this tool could be used to do, even by a well-intentioned agent making a genuine mistake?" If that worst case is unacceptable, the tool itself needs to be narrower, or paired with the guardrails covered on this chapter's final page.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Give an agent the narrowest set of tools that genuinely accomplishes its actual task — not the broadest set that theoretically could.</li>
+  <li>Write clear, specific tool descriptions — the LLM relies entirely on these to understand what each tool actually does and when to use it.</li>
+  <li>Treat tool scope as a genuine, primary safety mechanism, not just an implementation detail.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Tools are the defined, bounded capabilities that turn an agent's text-based decisions into real, executed actions.</li>
+  <li>An agent can only do what its available tools explicitly allow — this is a genuine, structural safety property, not a limitation.</li>
+  <li>Narrow, specific tools are generally safer than broad, general-purpose ones, since they bound what's possible regardless of how the agent reasons.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>For an agent whose task is specifically "verify search results are relevant on ShopEasy," design a minimal, genuinely sufficient set of 3-4 tools it would actually need — and explicitly name one broader tool you'd deliberately NOT give it, along with your reasoning.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A team wants to give their QA agent a single, powerful "execute_javascript" tool that can run arbitrary JavaScript in the browser, arguing it's more flexible than many narrow tools. What would you push back on, and why?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd push back specifically on the safety implications — "execute arbitrary JavaScript" has essentially no structural bound on what it could do, which directly undermines the tool-scoping safety property this page describes.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What a narrow tool set structurally PREVENTS:
+click_element, fill_field, get_page_text — these tools simply
+  CANNOT modify page state beyond clicking/filling, cannot
+  make arbitrary network requests, cannot access browser
+  storage or cookies outside their specific defined behavior
+
+What "execute_javascript" would ALLOW (even if never intended):
+  Arbitrary DOM manipulation, arbitrary fetch() calls to any
+  endpoint, reading/modifying localStorage or cookies, and
+  genuinely anything else JavaScript running in that page's
+  context can do — bounded only by the agent's OWN reasoning,
+  not by the tool's own definition</code></pre>
+<p>Even with good intentions, a tool this broad means safety now depends entirely on the agent always reasoning correctly about what NOT to do — exactly the weaker, less reliable safety property this page argues against, compared to tools that are simply incapable of the harmful action in the first place.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page argue that tool descriptions need to be clear and specific, given that the LLM never directly executes the tool's actual code?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because the description is the ONLY information the LLM has for deciding when and how to use a given tool — it can't inspect the tool's actual implementation, so a vague or misleading description directly causes the LLM to misuse the tool, even if the tool itself works perfectly.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Vague, unhelpful description:
+Tool: "click_element" — "Clicks an element."
+The LLM has no clear guidance on WHAT identifies an element
+  (a CSS selector? Visible text? Something else?), leading to
+  genuinely inconsistent or incorrect tool calls.
+
+Clear, specific description (this page's actual example):
+"Clicks a visible element on the current page, identified by
+  its accessible role and name." — tells the LLM EXACTLY what
+  parameters to provide and what kind of targeting to expect,
+  directly reducing incorrect or malformed tool calls.</code></pre>
+<p>The tool's actual implementation can be flawless, but if its description doesn't clearly communicate its real behavior and expected parameters to the LLM, the LLM will genuinely misuse it — the description is a real, load-bearing part of the tool's design, not just documentation.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain, with a concrete example, why "the agent can only do what its tools allow" is described as a safety property rather than just a technical limitation.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because it means safety doesn't depend on the agent's reasoning always being correct — it's enforced structurally, at the tool level, regardless of what the agent's reasoning concludes it should do.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Concrete example: an agent testing ShopEasy's search feature
+is given only click_element, fill_field, and get_page_text.
+
+Suppose (hypothetically) the agent's reasoning became genuinely
+confused and "decided" the best way to test search was to
+directly modify the product database to add fake test products.
+
+With ONLY the narrow tools above: this simply CANNOT happen —
+there is no tool that touches the database at all. The
+confused reasoning has literally no way to execute on itself.
+
+If the agent had ALSO been given a broad database-access tool
+"just in case": that same confused reasoning COULD actually
+modify real data, entirely dependent on the reasoning itself
+staying sound — a much weaker guarantee.</code></pre>
+<p>This is exactly why tool scoping is called a safety property: it protects against genuinely unsound reasoning by making certain actions structurally impossible, rather than relying entirely on the reasoning never going wrong.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might a team choose to build several narrow, task-specific tools rather than one flexible, general-purpose "browser_action" tool that takes a free-form instruction?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Beyond the safety argument, narrow tools also make an agent's behavior genuinely more predictable and debuggable — each tool call clearly states exactly what was attempted, in a structured, consistent way.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Free-form, general tool:
+{ tool: "browser_action", instruction: "click the add to cart
+  button and then wait for the toast" }
+Ambiguous: what if "add to cart" appears in two places? What
+  counts as "wait for the toast"? Debugging a failure here
+  means re-interpreting free-form text after the fact.
+
+Narrow, structured tools:
+{ tool: "click_element", role: "button", name: "Add to Cart" }
+{ tool: "wait_for_text", text: "Added to cart" }
+Precise, structured, and consistently loggable — a failure
+  points EXACTLY at which specific, well-defined call failed
+  and why, with no ambiguity about what was actually attempted.</code></pre>
+<p>Narrow tools trade a small amount of flexibility for real, meaningful gains in safety, predictability, and debuggability — a trade this course consistently favors, matching the broader theme of preferring reliable, bounded pieces over flexible, unbounded ones wherever genuinely possible.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you decide, practically, whether a new capability should be its own separate tool or a parameter on an existing, similar tool?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>The genuinely useful test: does this capability represent a meaningfully different kind of action with different risk or different required reasoning, or is it truly just a minor variation of something an existing tool already does?</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Reasonable as a PARAMETER on an existing tool:
+click_element(role, name) already exists — adding an optional
+  "double_click: boolean" parameter is a genuinely minor
+  variation of the SAME fundamental action (clicking).
+
+Reasonable as a genuinely SEPARATE tool:
+"delete_test_data" is fundamentally different in RISK and
+  REASONING REQUIRED from "click_element" — bundling it as
+  a parameter on an existing tool (e.g., "click_element" with
+  a hidden "also_delete: boolean" option) would be a genuinely
+  bad design, obscuring a high-risk action inside a low-risk
+  tool's interface where it's easy to overlook or misuse.</code></pre>
+<p>The deeper principle: tool boundaries should reflect genuinely meaningful differences in risk and purpose, not just technical convenience — a high-risk action deserves to be its own clearly-named, clearly-scoped tool, never quietly folded into something that looks routine.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

@@ -1,0 +1,149 @@
+<!doctype html>
+<html><head>
+<title>k6 Framework Anti-Patterns: Duplicated Code, Hardcoded Config, Shared Mutable State</title>
+<meta name="description" content="The specific mistakes that turn a k6 project painful to maintain — duplicated code, hardcoded URLs and credentials, shared mutable state, unrealistic workloads, and giant scripts." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/avoiding-the-anti-patterns.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Avoiding the Anti-Patterns</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="the-recommended-k6-folder-structure.html">The Recommended Folder Structure</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>This page names the specific mistakes that turn a growing k6 project painful to maintain, each tied directly to a fix already covered somewhere in this course — this is a checklist, not new material.</p>
+
+<h2 id="anti-pattern-1-duplicated-code">Anti-Pattern 1 — Duplicated Code</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>❌ Three test files each independently constructing the same login request
+
+✅ Fix (Chapter 3, formalized in this chapter's api/ layer):
+   One shared function, imported everywhere it's needed</code></pre>
+<p>Symptom: a bug fix or API change requires editing several files instead of one. Every layer covered in this chapter exists specifically to prevent this.</p>
+
+<h2 id="anti-pattern-2-hardcoded-urls">Anti-Pattern 2 — Hardcoded URLs</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>❌ const baseUrl = 'https://staging-api.example.com'; // scattered across many files
+
+✅ Fix (Chapter 9, centralized in config/):
+   const config = environments[__ENV.TARGET_ENV] || environments.staging;</code></pre>
+<p>Symptom: switching environments means find-and-replace across the whole project, with a real risk of missing one file and accidentally testing the wrong target.</p>
+
+<h2 id="anti-pattern-3-hardcoded-credentials">Anti-Pattern 3 — Hardcoded Credentials</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>❌ const apiKey = 'abc123secretkey'; // committed to version control, visible to anyone
+
+✅ Fix (Chapter 9, via __ENV, injected at run time):
+   const apiKey = __ENV.API_KEY;</code></pre>
+<p>Symptom: a genuine secret sitting in plain text in version control, visible to anyone with repository access, regardless of whether they should have credential access.</p>
+
+<h2 id="anti-pattern-4-shared-mutable-state">Anti-Pattern 4 — Shared Mutable State</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>❌ let sharedCounter = 0; // at module scope, mutated by every VU simultaneously
+export default function () {
+  sharedCounter++; // a genuine race condition — this isn't safe
+}
+
+✅ Fix (k6's own metric types, Chapter 6):
+   const counter = new Counter('my_counter');
+export default function () {
+  counter.add(1); // k6's Counter handles concurrent updates safely
+}</code></pre>
+<p>Symptom: a plain JavaScript variable shared across VUs and mutated directly is a genuine concurrency bug in the test script itself — exactly the kind of race condition Chapter 5 warned about in the system under test, except here it's a bug in the test's own code. k6's built-in metric types are specifically designed to handle concurrent updates safely; a plain shared variable is not.</p>
+
+<h2 id="anti-pattern-5-unrealistic-workloads">Anti-Pattern 5 — Unrealistic Workloads</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>❌ vus: 5000 // "sounds like enough," no connection to any real number
+
+✅ Fix (Chapter 4's workload modeling, Chapter 7's threshold derivation):
+   A VU count and threshold derived from an actual business requirement,
+   baseline, or SLA — never a guess.</code></pre>
+<p>Symptom: a test that either never fails (too lenient to ever catch a real regression) or always fails (too strict to ever pass, so the team learns to ignore it) — exactly the failure mode Chapter 7 covered in depth.</p>
+
+<h2 id="anti-pattern-6-giant-test-scripts">Anti-Pattern 6 — Giant Test Scripts</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>❌ One 800-line file mixing login logic, product browsing, cart management,
+   checkout, data generation, and configuration all together
+
+✅ Fix (this chapter's entire layered structure):
+   The same logic, split across workflows/, api/, data/, config/, and utils/,
+   each file small and focused</code></pre>
+<p>Symptom: understanding or safely changing any single piece of behavior requires reading through hundreds of unrelated lines first, and the risk of an unintended side effect from an edit grows with the file's size and lack of clear boundaries.</p>
+
+<h2 id="detailed-example-recognizing-multiple-anti-patterns-at-once">Detailed Example — Recognizing Multiple Anti-Patterns at Once</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// A genuinely troubled script, all six anti-patterns present:
+const baseUrl = 'https://api.example.com';        // hardcoded URL
+const apiKey = 'sk_live_abc123';                    // hardcoded credential
+let totalRequests = 0;                               // shared mutable state
+
+export default function () {
+  totalRequests++;                                     // race condition
+  const email = 'test@example.com';                      // no unique data (Ch. 8)
+  http.post(baseUrl + '/login', ...);                      // duplicated in 5 other files
+  // ...600 more lines of mixed concerns
+}
+export const options = { vus: 10000 };                      // arbitrary, ungrounded number
+</code></pre>
+<p>Every single anti-pattern on this page, together in one script — and every one of them has already been fixed, individually, somewhere earlier in this course. This chapter's contribution is naming them together as a deliberate checklist to review a project against.</p>
+
+<h2 id="real-world-example-what-fixing-just-the-layering-buys-you">Real-World Example — What Fixing Just the Layering Buys You</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Before: an API change requires finding and editing the same login logic
+        across 5 different test files, hoping none were missed.
+
+After (this chapter's structure): the same change happens in exactly
+        one file (api/auth.js), and every test importing it automatically
+        reflects the fix.</code></pre>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Any of the six anti-patterns above, present in a real project
+
+// ✅ Layered structure (this chapter), centralized config (Ch. 9),
+// unique data (Ch. 8), safe custom metrics (Ch. 6), grounded
+// thresholds (Ch. 7) — all working together</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Fixing only one anti-pattern while leaving others in place</strong> — a project can have well-organized layers but still hardcode a credential, or use safe custom metrics but still duplicate request logic; the six patterns are independent, and each needs its own attention.</li>
+  <li><strong>Assuming "we haven't hit a problem yet" means an anti-pattern is fine</strong> — a shared mutable state race condition might not manifest visibly until VU count crosses some specific threshold, by which point the test's own results may already be quietly unreliable.</li>
+  <li><strong>Treating this as a one-time cleanup</strong> rather than an ongoing discipline — new code added later can just as easily reintroduce any of these patterns without deliberate review.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>A genuinely small, short-lived script</strong> where full anti-pattern avoidance feels like overkill — the same proportionality judgment from earlier chapters applies; a five-line, one-off diagnostic script doesn't need the full framework treatment a production suite does.</li>
+  <li><strong>Legacy scripts inherited from before these practices were adopted</strong> — worth prioritizing which anti-patterns to fix first based on actual risk (hardcoded credentials and shared mutable state are usually the most urgent, since they carry real security or correctness risk, not just maintainability cost).</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a k6 project has become genuinely hard to maintain, walk through this page's six anti-patterns as a literal checklist against the actual codebase — in most real, troubled projects, several of them are present simultaneously, and addressing them together (not just one) is usually necessary to see real improvement.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Review a project against all six anti-patterns periodically, not just once during initial setup.</li>
+  <li>Prioritize fixing hardcoded credentials and shared mutable state first — these carry genuine security and correctness risk, not just maintainability cost.</li>
+  <li>Apply proportional judgment — a small, short-lived script doesn't need the same rigor as a long-term production suite.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Review the "genuinely troubled script" example on this page and, for each of the six anti-patterns present, write one sentence identifying which earlier chapter's technique fixes it and how.</p>
+
+<h2 id="summary">Summary</h2>
+<p>Duplicated code, hardcoded URLs, hardcoded credentials, shared mutable state, unrealistic workloads, and giant test scripts are the six specific patterns that turn a growing k6 project painful — and every one of them has a concrete fix already covered across this course: the layered structure from this chapter, <code>__ENV</code>-based configuration, k6's built-in metric types for safe concurrent measurement, and workload/threshold values grounded in real requirements rather than guesses. Reviewing a project against this checklist, deliberately and periodically, is what keeps a k6 suite maintainable as it grows.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why is a plain shared JavaScript variable, mutated directly across virtual users, genuinely unsafe in a k6 script?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Multiple virtual users executing concurrently can race to read and update the same plain variable, producing a genuine race condition within the test script itself — the same class of concurrency bug covered as a risk in the system under test, except here it's a bug in the test's own code. k6's built-in metric types (Counter, Rate, and the others) are specifically designed to handle concurrent updates safely, which a plain shared variable is not.</div>
+</details>
+<details class="faq-item">
+<summary>Why is hardcoding an API key directly in a script a more urgent problem than, say, duplicated request logic?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A hardcoded credential is a genuine security exposure — anyone with access to the script's source code, including anyone with repository access who shouldn't necessarily have credential access, gains the actual secret. Duplicated code is a real maintainability problem, but it doesn't carry the same immediate security risk, which is why hardcoded credentials generally warrant more urgent prioritization when reviewing a troubled project.</div>
+</details>
+<details class="faq-item">
+<summary>Why might an unrealistic, ungrounded VU count produce a test that "never fails," and why is that itself a problem?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A VU count picked arbitrarily, with no connection to real traffic patterns, could be set far below what the system would actually need to handle in production — a test that never approaches genuine stress will pass consistently regardless of real underlying problems, giving false confidence. This is the same core issue covered when discussing thresholds disconnected from reality: a test that can't meaningfully fail isn't actually providing useful information.</div>
+</details>
+<details class="faq-item">
+<summary>Why does this chapter describe these six anti-patterns as needing independent attention, rather than assuming fixing one automatically fixes the others?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A project can genuinely exhibit a well-organized folder structure (fixing duplicated code) while still hardcoding a credential, or use k6's safe custom metrics while still running an ungrounded, arbitrary workload — the six patterns address independent concerns (code organization, configuration, security, concurrency safety, workload realism, file structure), and progress on one doesn't guarantee progress on any of the others.</div>
+</details>
+<details class="faq-item">
+<summary>Why is it important to treat anti-pattern avoidance as an ongoing discipline rather than a one-time cleanup?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">New code written after an initial cleanup can just as easily reintroduce any of these six patterns if there's no deliberate, ongoing review — a new test file added later might duplicate existing request logic instead of importing it, or a new script might hardcode a URL out of convenience. Without treating this as a continuing practice, the benefits of an initial cleanup erode gradually as a project keeps growing.</div>
+</details>
+</div>
+</article>
+</body></html>

@@ -1,0 +1,181 @@
+<!doctype html>
+<html><head>
+<title>RestAssured CI/CD with GitHub Actions</title>
+<meta name="description" content="A complete GitHub Actions pipeline for a RestAssured Maven project — build, test, environment variables, secrets, reports, artifacts, and running against multiple environments in parallel." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/cicd-with-github-actions.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>CI/CD with GitHub Actions</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="test-reporting-junit-testng-allure.html">Test Reporting: JUnit, TestNG, Allure</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Developer Push
+      ↓
+GitHub Actions
+      ↓
+Build
+      ↓
+Run API Tests
+      ↓
+Generate Report
+      ↓
+Upload Artifacts</code></pre>
+<p>This is the pipeline every page in this chapter has been building toward — automating the entire test lifecycle so it runs consistently on every push, without anyone needing to trigger it manually or have Maven installed locally.</p>
+
+<h2 id="a-complete-working-workflow">A Complete Working Workflow</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># .github/workflows/api-tests.yml
+name: RestAssured API Tests
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Build
+        run: mvn -B compile
+
+      - name: Run API Tests
+        run: mvn -B test
+        env:
+          API_BASE_URL: ${{ secrets.QA_BASE_URL }}
+          TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
+          TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
+
+      - name: Upload Test Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports
+          path: target/surefire-reports/
+          retention-days: 14</code></pre>
+<p>Every step maps directly onto the pipeline diagram above — checkout, build, test, report. <code>cache: 'maven'</code> caches downloaded dependencies between runs, meaningfully speeding up repeat builds. <code>if: always()</code> on the upload step ensures the report gets archived even when tests fail — exactly the case where you need it most, echoing the same principle from the Playwright track's CI chapter.</p>
+
+<h2 id="environment-variables-and-secrets">Environment Variables and Secrets</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>env:
+  API_BASE_URL: ${{ secrets.QA_BASE_URL }}
+  TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
+  TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}</code></pre>
+<p>Every credential referenced here comes from GitHub's repository secrets (configured in the repo's Settings → Secrets), never hardcoded in the workflow file — the CI-level equivalent of the environment-variable configuration pattern from Chapter 2 and Chapter 10, now feeding into <code>EnvConfig</code> at runtime through the CI environment rather than a local <code>.env</code> file.</p>
+
+<h2 id="detailed-example-running-against-multiple-environments">Detailed Example — Running Against Multiple Environments</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        environment: [qa, staging]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { java-version: '21', distribution: 'temurin' }
+      - run: mvn -B test
+        env:
+          API_BASE_URL: ${{ matrix.environment == 'qa' && secrets.QA_BASE_URL || secrets.STAGING_BASE_URL }}</code></pre>
+<p>A matrix strategy runs the same test suite against multiple environments in parallel CI jobs — the CI-infrastructure-level parallelism, distinct from (but complementary to) the JUnit-level thread parallelism covered earlier in this chapter. This is genuinely useful for confirming a change behaves correctly across every environment it needs to work in, not just one.</p>
+
+<h2 id="real-world-example-combining-parallel-test-execution-with-ci-sharding">Real-World Example — Combining Parallel Test Execution With CI Sharding</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { java-version: '21', distribution: 'temurin' }
+      - name: Run shard ${{ matrix.shard }} of 4
+        run: mvn -B test -Dgroups="shard-${{ matrix.shard }}"
+        env:
+          API_BASE_URL: ${{ secrets.QA_BASE_URL }}</code></pre>
+<p>For a genuinely large suite, splitting tests across multiple CI machines (via JUnit 5 tags acting as shard identifiers, or a dedicated test-splitting plugin) works alongside the in-JVM thread parallelism from earlier in this chapter — two complementary layers of parallelism, one across machines, one across threads within each machine.</p>
+
+<h2 id="publishing-test-results-natively-in-github-s-ui">Publishing Test Results Natively in GitHub's UI</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>- name: Publish Test Results
+  if: always()
+  uses: dorny/test-reporter@v1
+  with:
+    name: RestAssured Test Results
+    path: target/surefire-reports/*.xml
+    reporter: java-junit</code></pre>
+<p>Beyond just archiving the raw report as a downloadable artifact, a dedicated reporting action can parse JUnit's XML output and display pass/fail results directly in GitHub's pull request UI — meaningfully more convenient than requiring anyone to download and open an artifact manually to see what happened.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Hardcoding a base URL or credential directly in the workflow YAML file
+env:
+  API_BASE_URL: "https://qa.example.com"
+  TEST_USER_PASSWORD: "hardcoded-password-123"
+
+// ✅ Every credential and environment-specific value from repository secrets
+env:
+  API_BASE_URL: ${{ secrets.QA_BASE_URL }}
+  TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Hardcoding credentials or environment URLs directly in the workflow file</strong> — the CI equivalent of hardcoding them in test code, and just as unsafe, since workflow files are typically committed to version control.</li>
+  <li><strong>Forgetting <code>if: always()</code></strong> on the report-upload step — loses exactly the report you need most, from a failed run.</li>
+  <li><strong>Not caching Maven dependencies</strong>, causing every CI run to re-download the same dependencies from scratch, needlessly slowing every build.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Tests that need a running application to test against</strong> (rather than an already-deployed QA environment) — a workflow can include a step that starts the application locally within the CI job first, similar in spirit to the <code>webServer</code> concept from browser-based testing, though the specific mechanism varies by application.</li>
+  <li><strong>Flaky tests specifically in CI but not locally</strong> — often traces back to genuine parallel-execution race conditions (earlier in this chapter) that are more likely to actually manifest under CI's typically higher parallelism than a local machine's.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a CI run fails in a way that's hard to diagnose from the uploaded report alone, that's the signal to improve the reporting setup (the previous page's guidance) rather than accepting "download the artifact and dig through it manually" as the normal workflow.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Store every credential and environment-specific value in repository secrets, never in the workflow file itself.</li>
+  <li>Always use <code>if: always()</code> on report/artifact upload steps.</li>
+  <li>Cache Maven dependencies to keep CI runs fast.</li>
+  <li>Consider matrix strategies for multi-environment runs and sharding for genuinely large suites.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Write a complete GitHub Actions workflow for a RestAssured Maven project that builds, runs tests against a QA environment using repository secrets, uploads the Surefire report as an artifact (even on failure), and publishes results directly in the pull request UI.</p>
+
+<h2 id="summary">Summary</h2>
+<p>A complete RestAssured CI/CD pipeline in GitHub Actions checks out code, builds with Maven, runs tests with credentials sourced from repository secrets, and archives reports — always, including on failure. Matrix strategies extend this to multiple environments or shards running in parallel, and a dedicated reporting action can surface results directly in GitHub's UI rather than requiring a manual artifact download.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why is if: always() specifically important on the artifact upload step in a GitHub Actions workflow?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Without it, a step only runs if every previous step in the job succeeded — but the test report is often most valuable precisely when tests fail, since that's when someone needs to investigate what went wrong. If the test-running step fails and the upload step doesn't have <code>if: always()</code>, GitHub Actions skips the upload entirely, meaning the exact run that most needs a diagnosable report has none available at all — forcing someone to reproduce the failure locally instead of simply downloading the artifact that should have already captured it.</div>
+</details>
+<details class="faq-item">
+<summary>Why is if: always() specifically important on the artifact-upload step?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Without it, a step only runs if every previous step succeeded — but the test report is most valuable exactly when tests fail; skipping the upload on failure means the run that most needs a diagnosable report has none available.</div>
+</details>
+<details class="faq-item">
+<summary>Why should credentials and environment URLs live in repository secrets rather than the workflow YAML file directly?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Workflow files are typically committed to version control — hardcoding a credential there exposes it the same way hardcoding it in test source code would.</div>
+</details>
+<details class="faq-item">
+<summary>What's the difference between a matrix strategy for environments and sharding for a large suite?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A matrix runs the SAME suite against different environments in parallel jobs (confirming behavior across each); sharding splits ONE suite across multiple machines, each running a portion — two complementary, distinct axes of CI-level parallelism.</div>
+</details>
+<details class="faq-item">
+<summary>Why cache Maven dependencies in a GitHub Actions workflow?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Without caching, every CI run re-downloads the same dependencies from scratch, needlessly slowing every single build for no benefit.</div>
+</details>
+</div>
+</article>
+</body></html>

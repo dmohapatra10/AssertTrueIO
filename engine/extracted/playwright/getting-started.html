@@ -1,0 +1,142 @@
+<!doctype html>
+<html><head>
+<title>Getting Started with Playwright: Installation, Setup, and Your First Test</title>
+<meta name="description" content="Install Playwright, scaffold a project, and write and run your first automated test — a complete beginner setup guide." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/getting-started.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Chapter 2: Getting Started</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="introduction.html">Introduction to Playwright</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+      <p>This chapter walks through installing Playwright, understanding the project it scaffolds for you, and running your first automated test — from an empty folder to a passing test in a few minutes.</p>
+
+      <h2 id="why-is-it-important">Why is it important?</h2>
+      <p>Playwright's official installer doesn't just add a dependency — it sets up a working project structure, downloads browser binaries, and generates a sample test and config. Understanding what it creates (and why) means you're not just copy-pasting commands blindly; you know what each file does before you start customizing it.</p>
+
+      <h2 id="prerequisites">Prerequisites</h2>
+      <p>Before installing Playwright, you need three things in place:</p>
+      <ul>
+        <li><strong><a href="https://nodejs.org" rel="nofollow">Node.js</a> 18 or later</strong> — Playwright's installer and CLI are Node-based tooling; run <code>node --version</code> to check what you have.</li>
+        <li><strong>npm</strong> (or yarn/pnpm) — installed automatically alongside Node.js, used to run the initializer and manage the project's dependencies.</li>
+        <li><strong>A code editor</strong> — any editor works, but VS Code has first-party Playwright tooling (covered later in this chapter) that makes the day-to-day experience noticeably smoother.</li>
+      </ul>
+      <p>No prior Playwright or browser-automation experience is assumed — this chapter starts from a genuinely empty folder.</p>
+
+      <h2 id="installation">Installation</h2>
+      <p>Playwright requires <a href="https://nodejs.org" rel="nofollow">Node.js</a> 18 or later. From an empty project folder, run the official initializer:</p>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>npm init playwright@latest</code></pre>
+      <p>This single command:</p>
+      <ul>
+        <li>Installs <code>@playwright/test</code>, the official test runner</li>
+        <li>Downloads browser binaries for Chromium, Firefox, and WebKit</li>
+        <li>Creates a <code>playwright.config.ts</code> file (or <code>.js</code>, if you decline TypeScript)</li>
+        <li>Generates a <code>tests/</code> folder with an example test</li>
+        <li>Optionally sets up a GitHub Actions workflow for CI</li>
+      </ul>
+      <p>Choose TypeScript when prompted — this tutorial series uses TypeScript throughout, since typed autocomplete for locators and assertions catches mistakes before you ever run a test.</p>
+
+      <h2 id="what-gets-created">What gets created</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>my-project/
+├── tests/
+│   └── example.spec.ts
+├── tests-examples/
+│   └── demo-todo-app.spec.ts
+├── playwright.config.ts
+├── package.json
+└── package-lock.json</code></pre>
+      <p><strong>playwright.config.ts</strong> is the central configuration file — base URL, browsers to test against, timeouts, and reporters all live here. You'll customize this heavily in the Configuration chapter later in this course.</p>
+      <p><strong>tests/example.spec.ts</strong> is a working sample test, useful as a syntax reference for your first week.</p>
+      <p><strong>tests-examples/demo-todo-app.spec.ts</strong> is a longer, more realistic reference test against a live public demo app — worth reading once for patterns, but it's not meant to become part of your real suite; most teams delete or ignore this folder once they've skimmed it.</p>
+      <p><strong>package.json</strong> lists your project's dependencies (including <code>@playwright/test</code>) and can hold a convenience script, e.g. <code>"test": "playwright test"</code>, so <code>npm test</code> works too.</p>
+      <p><strong>package-lock.json</strong> pins the exact installed dependency versions — commit this file so every teammate and CI run installs identical versions, not just compatible ones.</p>
+
+      <h2 id="your-first-test">Your first test</h2>
+      <p>Replace the contents of <code>tests/example.spec.ts</code> with a small real test:</p>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import { test, expect } from '@playwright/test';
+
+test('homepage has expected title', async ({ page }) =&gt; {
+  await page.goto('https://playwright.dev');
+  await expect(page).toHaveTitle(/Playwright/);
+});</code></pre>
+      <p>Line by line: <code>test()</code> registers a named test case. The <code>{ page }</code> parameter is a Playwright fixture — a fresh, isolated browser page provided automatically for every test, with no manual setup. <code>page.goto()</code> navigates to a URL, and Playwright automatically waits for navigation to complete before the next line runs. <code>expect(page).toHaveTitle()</code> is a web-first assertion — it retries automatically for a few seconds until the title matches or the timeout is hit, instead of failing immediately if the page hasn't finished loading.</p>
+
+      <h2 id="running-tests">Running tests</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>npx playwright test</code></pre>
+      <p>By default this runs headless across every browser configured in <code>playwright.config.ts</code>, in parallel.</p>
+
+      <h2 id="headless-vs-headed-mode">Headless vs. Headed Mode</h2>
+      <p><strong>Headless</strong> means the browser runs with no visible window — faster, and what CI always uses, since there's no display to render to anyway. <strong>Headed</strong> means you actually see the browser window while the test runs, which is occasionally useful for visually confirming what's happening at a specific moment, but isn't something you need for most day-to-day debugging (UI Mode and Trace Viewer, covered shortly, usually answer the same question faster without slowing every run down).</p>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>npx playwright test --headed        # watch the browser while it runs</code></pre>
+
+      <h2 id="running-a-specific-test-or-file">Running a Specific Test or File</h2>
+      <p>Two different things, easy to conflate: running one <em>file</em> versus running one <em>named test</em> within any number of files.</p>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>npx playwright test example.spec.ts        # run every test in this one file
+
+npx playwright test -g "homepage has expected title"  # run only tests whose title matches
+npx playwright test --grep "homepage"                 # -g and --grep are the same flag</code></pre>
+      <p><code>-g</code>/<code>--grep</code> matches against the test's title text (a substring or regex), regardless of which file it lives in — the right tool when you want to run one specific test case while iterating on it, without running everything else in the same file.</p>
+
+      <h2 id="debug-mode">Debug Mode</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>npx playwright test --debug</code></pre>
+      <p>This opens the Playwright Inspector and pauses <em>before every action</em>, letting you step through a single test line by line, inspect the current state of any locator, and use "Pick locator" to click an element on the page and get its generated selector. It's the most granular way to watch a test execute — slower to work with than UI Mode for a whole suite, but useful when you need to understand exactly what's happening at one specific line.</p>
+
+      <h2 id="ui-mode">UI Mode</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>npx playwright test --ui</code></pre>
+      <p><strong>UI mode</strong> is worth adopting early — it gives you a time-travel debugger, a live locator picker, and a visual pass/fail timeline for your <em>whole suite</em> at once (not just one test), and is generally the fastest way to write and debug new tests day to day.</p>
+
+      <h2 id="vs-code-integration">VS Code Integration</h2>
+      <p>The official <a href="https://marketplace.visualstudio.com/items?itemName=ms-playwright.playwright" rel="nofollow">Playwright Test for VS Code</a> extension adds a test explorer to the sidebar, inline "Run"/"Debug" buttons directly above each test in your editor, and Codegen — a recorder that generates test code as you click through your app in a real browser. None of this is required (everything it does is also available from the CLI commands above), but it removes a lot of terminal round-tripping during day-to-day authoring, and Codegen in particular is a fast way to get a first draft of a locator or flow before cleaning it up by hand.</p>
+
+      <h2 id="running-against-one-browser-only">Running Against One Browser Only</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>npx playwright test --project=chromium  # run against one browser only</code></pre>
+
+      <h2 id="common-mistakes">Common mistakes</h2>
+      <ul>
+        <li>Skipping the browser download step, then wondering why tests fail with a "browser not found" error — rerun <code>npx playwright install</code> if this happens.</li>
+        <li>Writing tests as plain scripts instead of using <code>test()</code> from <code>@playwright/test</code> — you lose fixtures, retries, parallelization, and reporting.</li>
+        <li>Hardcoding full URLs in every test instead of setting <code>baseURL</code> in the config and using relative paths with <code>page.goto('/login')</code>.</li>
+      </ul>
+
+      <h2 id="common-errors-and-how-to-troubleshoot-them">Common errors and how to troubleshoot them</h2>
+      <ul>
+        <li><strong>"browserType.launch: Executable doesn't exist"</strong> — browser binaries aren't installed; run <code>npx playwright install</code>.</li>
+        <li><strong>Tests time out on <code>page.goto()</code></strong> — check the URL is reachable and that no corporate proxy/VPN is blocking headless browser traffic.</li>
+        <li><strong>"No tests found"</strong> — confirm the file matches the test match pattern (default: <code>*.spec.ts</code>) and lives under the configured <code>testDir</code>.</li>
+      </ul>
+
+      <h2 id="best-practices">Best practices</h2>
+      <ul>
+        <li>Commit <code>playwright.config.ts</code> and the generated CI workflow to version control immediately — don't leave setup half-finished.</li>
+        <li>Use UI mode (<code>--ui</code>) while writing new tests; switch to headless for CI runs.</li>
+        <li>Set a <code>baseURL</code> in the config on day one, even for a single-page prototype — it saves rewriting every test later.</li>
+      </ul>
+
+      <h2 id="summary">Summary</h2>
+      <p><code>npm init playwright@latest</code> scaffolds a complete, working test project in one step — config, browsers, and a sample test included. From there, <code>npx playwright test</code> runs your suite, and <code>--ui</code> mode is the fastest way to write and debug new tests as you learn the API.</p>
+
+      <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>What does the <code>page</code> fixture provide, and why does Playwright inject it automatically?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer"><code>page</code> is a fresh, isolated browser page/tab created fresh for each test via Playwright's fixture system. Because it's injected automatically, tests don't need manual browser setup/teardown boilerplate, and each test runs in isolation — one test's page state can't leak into another's, which keeps the suite reliable when tests run in parallel.</div>
+</details>
+<details class="faq-item">
+<summary>What's the difference between npm install playwright and npm init playwright@latest?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The latter installs the library, downloads browser binaries, AND scaffolds a working project; a plain install skips the browsers and scaffold entirely.</div>
+</details>
+<details class="faq-item">
+<summary>Why do browser binaries need to be re-downloaded after cloning an existing project?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">They're cached outside the repo, not committed to git, so every fresh clone or CI runner needs npx playwright install again.</div>
+</details>
+<details class="faq-item">
+<summary>What's the difference between Debug Mode and UI Mode?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Debug Mode steps through a single test with the Inspector; UI Mode is a full test-explorer with a timeline, DOM snapshots, and network/console info for the whole suite.</div>
+</details>
+<details class="faq-item">
+<summary>Does Playwright drive the browser already installed on your machine?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">No — it launches its own separately downloaded, version-pinned browser binaries, independent of your everyday browser.</div>
+</details>
+</div>
+</article>
+</body></html>

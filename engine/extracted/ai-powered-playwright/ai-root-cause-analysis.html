@@ -1,0 +1,106 @@
+<!doctype html>
+<html><head>
+<title>AI Root Cause Analysis</title>
+<meta name="description" content="Going beyond a category label to explain genuinely why a failure happened — the real difference between knowing what broke and understanding why." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/ai-root-cause-analysis.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>AI Root Cause Analysis</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="ai-failure-classification.html">AI Failure Classification</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Why "Locator Failure" alone doesn't tell you why the locator broke</li>
+  <li>Building a real root-cause function specific to each category</li>
+  <li>Requesting a specific, checkable explanation — not a vague summary</li>
+</ul>
+
+<h2 id="introduction-category-versus-cause">Introduction — Category Versus Cause</h2>
+<p>The previous page's classification tells you what kind of problem occurred. It doesn't tell you why — "Locator Failure" is true whether the accessible name changed, the element moved behind a new modal, or the page simply hasn't finished loading yet. This page is about that deeper, genuinely more useful question.</p>
+
+<h2 id="step-by-step-implementation">Step-by-Step Implementation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/root-cause-analysis.ts
+import { askClaude } from './ai-client';
+import { AnalysisPayload } from './select-evidence-for-analysis';
+import { Classification } from './classify-failure';
+
+export interface RootCauseAnalysis {
+  likelyCause: string;
+  supportingEvidence: string;
+  alternativeExplanations: string[];
+}
+
+export async function analyzeRootCause(
+  payload: AnalysisPayload, classification: Classification
+): Promise&lt;RootCauseAnalysis&gt; {
+  const prompt = `A Playwright test failed and was classified as:
+"${classification.category}" — ${classification.reasoning}
+
+Full evidence:
+Error: ${payload.errorMessage}
+Stack: ${payload.relevantStackFrames}
+Console errors: ${JSON.stringify(payload.recentConsoleErrors)}
+Network failures: ${JSON.stringify(payload.recentNetworkFailures)}
+
+Explain the LIKELY root cause specifically — not just the
+category, the actual WHY. Cite which piece of evidence
+supports your explanation. List genuine alternative
+explanations you considered and ruled out.
+
+Respond with ONLY valid JSON:
+{"likelyCause": string, "supportingEvidence": string,
+"alternativeExplanations": [string, ...]}`;
+
+  const raw = await askClaude(prompt);
+  return JSON.parse(raw);
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p><code>alternativeExplanations</code> is deliberately included, not just the winning explanation. This mirrors good human debugging practice — a root cause worth trusting is one where other plausible explanations were genuinely considered and ruled out with a reason, not simply the first plausible story that came to mind.</p>
+
+<h2 id="example-going-deeper-on-the-locator-failure">Example — Going Deeper on the Locator Failure</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const rootCause = await analyzeRootCause(payload, classification);
+
+// A REAL, genuinely deeper explanation:
+// {
+//   likelyCause: "The 'Order Confirmed' heading's accessible
+//     name likely changed, since the error shows zero matches
+//     rather than a timeout — a timing issue would typically
+//     show the element eventually appearing in the trace.",
+//   supportingEvidence: "Zero matches immediately, no console
+//     errors, no network failures — consistent with a
+//     structural or textual change, not a loading delay.",
+//   alternativeExplanations: [
+//     "Timing issue — ruled out: no evidence of the element
+//       appearing later in the trace",
+//     "Network failure blocking page render — ruled out: no
+//       network failures were captured"
+//   ]
+// }</code></pre>
+
+<h2 id="why-it-matters">Why It Matters</h2>
+<p>This is genuinely more useful than the classification alone — it points directly at what to check first (the heading's current accessible name) rather than just confirming this is "a locator problem," which a human would likely have already suspected from the error message alone. The ruled-out alternatives are equally valuable: they tell a reviewer what's already been considered, so a human's own investigation doesn't waste time re-checking possibilities the analysis already addressed.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Treating category and root cause as the same output.</strong> This page's whole point is that they answer genuinely different questions — what happened versus why.</li>
+  <li><strong>Accepting a root cause with no cited supporting evidence.</strong> A plausible-sounding explanation with nothing pointing to why it's plausible is exactly the kind of confident-but-ungrounded output Chapter 1 warned about.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Always request supporting evidence alongside a root cause — an unsupported explanation, however plausible, deserves less trust.</li>
+  <li>Review the alternative explanations, not just the winning one — they reveal whether the analysis genuinely considered other possibilities.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Run this page's function against the classification you produced in the previous page's exercise. Check whether <code>supportingEvidence</code> genuinely points to something real in your evidence bundle, or reads as a generic explanation that could apply to any failure in that category.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Category answers "what kind of failure"; root cause answers "why did it actually happen" — genuinely different, both necessary questions.</li>
+  <li>A trustworthy root cause cites specific supporting evidence and names alternatives that were considered and ruled out.</li>
+  <li>This deeper analysis is what actually accelerates a human's investigation, rather than just confirming what the error message already suggested.</li>
+</ul>
+</article>
+</body></html>

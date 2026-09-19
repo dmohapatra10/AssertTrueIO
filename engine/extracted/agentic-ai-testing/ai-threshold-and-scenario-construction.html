@@ -1,0 +1,182 @@
+<!doctype html>
+<html><head>
+<title>AI Threshold and Scenario Construction: Setting Genuinely Meaningful Pass/Fail Criteria</title>
+<meta name="description" content="How an agent constructs K6 thresholds that reflect a real, justified standard rather than an arbitrary guess, and why a threshold too loose is as real a problem as one too strict." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/ai-threshold-and-scenario-construction.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>AI Threshold and Scenario Construction</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="ai-driven-load-test-design.html">AI-Driven Load Test Design</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>A load test without genuine thresholds just produces numbers — thresholds are what turn those numbers into an actual pass/fail result. This page is about constructing thresholds that reflect a real standard, not an arbitrary guess dressed up as one.</p>
+
+<h2 id="a-threshold-constructed-with-real-reasoning">A Threshold, Constructed With Real Reasoning</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>❌ An arbitrary, ungrounded threshold:
+  thresholds: {
+    http_req_duration: ['p(95)&lt;500'],  // why 500ms? Unstated.
+  }
+
+✅ Genuinely reasoned construction:
+  REASONING: "ShopEasy's existing user-experience research
+  (referenced in product documentation) states checkout should
+  feel 'responsive' — industry convention generally treats
+  under 1 second as responsive for a multi-step form
+  submission. I'll set the threshold at 800ms for p(95) to
+  leave genuine margin, while flagging this as based on
+  general convention, not ShopEasy-specific UX research."
+
+  thresholds: {
+    http_req_duration: ['p(95)&lt;800'],
+    http_req_failed: ['rate&lt;0.01'],  // error rate under 1% —
+      // connects to a stated, genuine business tolerance for
+      // checkout failures, not an arbitrary number
+  }</code></pre>
+
+<h2 id="why-a-threshold-too-loose-is-a-genuinely-real-problem-too">Why a Threshold Too LOOSE Is a Genuinely Real Problem Too</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>❌ An overly PERMISSIVE threshold, genuinely dangerous in its
+   own way:
+  thresholds: {
+    http_req_duration: ['p(95)&lt;5000'],  // 5 full seconds
+  }
+
+  This threshold would technically PASS almost any real system,
+  regardless of GENUINE performance — a checkout that takes
+  4.8 seconds under load would show as "PASSING," while real
+  users would likely have already abandoned their cart long
+  before that.
+
+The risk here is symmetric with an overly STRICT threshold —
+both produce a MEANINGLESS pass/fail result, just in opposite
+directions: one fails a genuinely acceptable system, the other
+passes a genuinely unacceptable one.</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might an overly LOOSE threshold be genuinely just as harmful as an overly STRICT one, even though a loose threshold feels "safer" because it produces fewer failures? A threshold's entire purpose is distinguishing acceptable from unacceptable performance — a threshold so loose that almost anything passes provides FALSE CONFIDENCE, exactly the same practical danger as Chapter 4's negative-case discussion of a vague "shows an error" check that could pass even when the WRONG error appears. A threshold needs to be tight enough to actually mean something, or it isn't measuring anything real at all.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Setting a threshold to whatever value the FIRST test run happens to produce, rather than to a genuine, independently-reasoned standard. If the first run shows p(95) at 1200ms and the threshold gets set to <code>p(95)&lt;1300</code> just to make it pass, the threshold now measures nothing except "did today's run resemble today's run" — it needs to reflect an actual, external standard for what's genuinely acceptable.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>When an agent constructs a threshold from limited context (as this page's example does, referencing general industry convention rather than ShopEasy-specific research), it's genuinely useful to have it state explicitly what it's basing the number on — this makes the threshold's own assumptions reviewable, exactly the same value Chapter 4's "expected outcome" justification provided.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Construct thresholds from a genuine, stated standard — user-experience research, business tolerance for errors, industry convention — never an arbitrary number.</li>
+  <li>Treat an overly loose threshold as seriously as an overly strict one — both produce a meaningless pass/fail result, in opposite directions.</li>
+  <li>Never set a threshold to match whatever a first test run happened to produce — this defeats the entire purpose of having an independent standard.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>A genuinely useful threshold reflects a real, stated standard — not an arbitrary guess, and not a number reverse-engineered from a first test run.</li>
+  <li>An overly loose threshold is a real, symmetric problem to an overly strict one — both undermine what a threshold is actually for.</li>
+  <li>Stating the reasoning behind a constructed threshold makes its underlying assumptions genuinely reviewable by a human.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Construct a genuine, reasoned threshold for ShopEasy's search endpoint (rather than checkout) — explicitly stating what real standard you're basing the response-time and error-rate values on, and why search might reasonably have a different threshold than the checkout example on this page.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A load test's first run shows p(95) at 1200ms. A teammate sets the threshold to p(95)&lt;1300 "so the test passes." What's genuinely wrong with this, using this page's own reasoning?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This is exactly the "Common Mistake" this page warns against — setting a threshold to match a first run's actual result means the threshold no longer measures anything against a genuine, independent standard; it only confirms that today resembles today.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why this GENUINELY defeats the threshold's purpose:
+A threshold reverse-engineered from a first run will ALWAYS
+  pass that same run, and will likely keep passing FUTURE runs
+  that perform similarly — even if 1200ms is actually a
+  GENUINELY poor result relative to what users would consider
+  acceptable. The threshold provides ZERO real signal about
+  whether performance is actually good enough.
+
+The correct approach, per this page:
+Set the threshold from an INDEPENDENT standard FIRST (user
+  research, business tolerance, industry convention) — THEN
+  run the test and see whether the SYSTEM meets that
+  independent standard, rather than defining "acceptable" as
+  "whatever the system happened to do today."</code></pre>
+<p>The teammate's approach inverts the entire relationship a threshold is supposed to have with reality — it should measure the system against a real standard, not redefine the standard to match the system's current behavior.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page argue that an overly loose threshold is "just as harmful" as an overly strict one, when an overly strict threshold seems more obviously problematic (causing false failures)?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Both failure modes are genuinely symmetric in their real cost — an overly strict threshold causes visible, obvious false alarms that waste investigation time, while an overly loose threshold causes a SILENT, harder-to-notice failure to catch genuinely poor performance, which can be MORE dangerous precisely because it's less obviously wrong.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Overly STRICT threshold — the "obvious" problem:
+Genuinely acceptable performance gets flagged as FAILING —
+  annoying, wastes investigation time, but the team at least
+  KNOWS something needs attention (even if it turns out to be
+  a threshold-tuning issue, not a real performance problem).
+
+Overly LOOSE threshold — the LESS obvious, arguably WORSE
+problem:
+Genuinely UNACCEPTABLE performance (a checkout that takes
+  4.8 seconds, per this page's own example) shows as PASSING
+  — nobody investigates, nobody notices, and real users
+  experience genuinely poor performance that the test suite
+  is actively, silently failing to catch.</code></pre>
+<p>The loose-threshold failure mode arguably deserves EXTRA scrutiny precisely because it's silent — a strict threshold's false failures are at least visible and get noticed; a loose threshold's false passes can hide a real, ongoing problem indefinitely, exactly why this page treats it as an equally serious, not lesser, concern.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why this page's threshold construction explicitly distinguishes "based on general industry convention" from "based on ShopEasy-specific UX research" — does this distinction genuinely matter?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Genuinely yes — these represent very different levels of confidence and applicability, and conflating them would give a reviewer a false sense of how well-grounded the threshold actually is for THIS SPECIFIC business.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>"General industry convention" (what the agent ACTUALLY had):
+A genuinely useful STARTING point, but not specific to
+  ShopEasy's own users, product, or business context — a
+  REASONABLE default in the absence of better information,
+  explicitly flagged as such.
+
+"ShopEasy-specific UX research" (what it ISN'T, and says so):
+Would represent GENUINE, first-party evidence about what
+  ShopEasy's OWN actual users find acceptable — a meaningfully
+  STRONGER basis for a threshold than general industry
+  convention, if it existed and were actually referenced.</code></pre>
+<p>Being explicit about WHICH of these two genuinely different evidence levels a threshold rests on lets a human reviewer correctly calibrate their own confidence — treating a general-convention-based estimate as if it carried the same weight as genuine, ShopEasy-specific research would be a real, meaningful overstatement of how well-grounded the number actually is.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might http_req_failed (error rate) and http_req_duration (response time) genuinely need DIFFERENT kinds of justification when constructing their respective thresholds?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>These measure genuinely different KINDS of acceptability — response time is fundamentally about USER EXPERIENCE (does it feel fast), while error rate is fundamentally about BUSINESS TOLERANCE (how many failed checkouts, translating to real lost revenue, is acceptable) — each deserves its own, appropriately distinct reasoning.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Response time threshold — genuinely a USER EXPERIENCE question:
+"Does 800ms feel responsive to a real user completing
+  checkout?" — best justified by UX research, industry
+  convention about perceived responsiveness, or direct
+  user testing data.
+
+Error rate threshold — genuinely a BUSINESS TOLERANCE question:
+"How many failed checkout attempts, out of every 100, is the
+  BUSINESS willing to accept before treating it as a genuine
+  problem?" — best justified by business context (revenue
+  impact, customer trust considerations), which is a
+  MEANINGFULLY different kind of reasoning than "does this
+  feel fast," even though both end up as K6 thresholds.</code></pre>
+<p>Recognizing that these are genuinely DIFFERENT KINDS of questions — not just two numbers needing justification in the same generic way — leads to more genuinely well-grounded thresholds than treating "pick a reasonable number" as one undifferentiated task across every metric.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you design a threshold construction process specifically for a NEW endpoint with no existing performance data, industry convention, or business context available at all?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This is a genuinely honest edge case worth naming directly — sometimes NONE of this page's justification sources are available, and the right response is an explicit, provisional threshold clearly marked for revision, rather than fabricating a false sense of grounded reasoning.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A genuinely honest approach when NO real basis exists yet:
+"No existing performance data, published convention, or
+  ShopEasy-specific business context is available for this
+  BRAND NEW endpoint. I'm setting a PROVISIONAL threshold of
+  p(95)&lt;1000ms as a generic, cautious starting point — this
+  should be explicitly REVISITED once real baseline data
+  exists from actual production or staging usage, and should
+  NOT be treated as a genuinely validated standard yet."
+
+thresholds: {
+  http_req_duration: ['p(95)&lt;1000'],  // PROVISIONAL — see comment
+}</code></pre>
+<p>This connects directly to the AI Request Construction page's approach from Chapter 6 — when genuine confirmation genuinely isn't available, the honest response is an explicit, clearly-flagged provisional value, not silently presenting a guess with the same confidence as a genuinely well-grounded threshold would deserve.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

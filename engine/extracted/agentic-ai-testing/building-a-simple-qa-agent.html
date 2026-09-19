@@ -1,0 +1,275 @@
+<!doctype html>
+<html><head>
+<title>Building a Simple QA Agent: The Complete, Working Example</title>
+<meta name="description" content="Every piece from this chapter — setup, agent creation, objective, instructions, tools, loop, and results — assembled into one complete, genuinely working QA agent for ShopEasy&#x27;s login flow." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/building-a-simple-qa-agent.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Building a Simple QA Agent</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="capturing-agent-results.html">Capturing Agent Results</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Every piece from this chapter's seven previous pages, assembled into one complete, genuinely working file — nothing new introduced here, just the full picture in one place, the way it would actually exist in a real project.</p>
+
+<h2 id="the-complete-agent-py">The Complete agent.py</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import os
+from anthropic import Anthropic
+from dotenv import load_dotenv
+from tools import click_element, fill_field, get_page_text, get_current_url
+
+load_dotenv()
+
+TOOL_DEFINITIONS = [
+    {"name": "click_element",
+     "description": "Clicks a visible element identified by its accessible role and name.",
+     "input_schema": {"type": "object",
+        "properties": {"role": {"type": "string"}, "name": {"type": "string"}},
+        "required": ["role", "name"]}},
+    {"name": "fill_field",
+     "description": "Types text into a visible, editable form field identified by its label.",
+     "input_schema": {"type": "object",
+        "properties": {"label": {"type": "string"}, "value": {"type": "string"}},
+        "required": ["label", "value"]}},
+    {"name": "get_page_text",
+     "description": "Returns the visible text content of the current page.",
+     "input_schema": {"type": "object", "properties": {}}},
+]
+
+MAX_STEPS = 15
+
+class QAAgent:
+    def __init__(self, api_key):
+        self.client = Anthropic(api_key=api_key)
+        self.model = "claude-sonnet-4-6"
+        self.objective = None
+        self.instructions = """You are a QA testing agent for ShopEasy.
+Verify features work correctly and report genuine issues clearly.
+Never submit a real order or modify real customer data.
+When something is ambiguous, note it explicitly rather than
+silently guessing. State clearly what you verified and what you
+did NOT verify. Respond with "TASK COMPLETE" followed by a
+summary once the objective is genuinely achieved."""
+
+    def set_objective(self, objective):
+        self.objective = objective
+
+    def execute_tool(self, tool_name, tool_input, page):
+        if tool_name == "click_element":
+            return click_element(page, **tool_input)
+        elif tool_name == "fill_field":
+            return fill_field(page, **tool_input)
+        elif tool_name == "get_page_text":
+            return get_page_text(page)
+        return f"Unknown tool: {tool_name}"
+
+    def _build_prompt(self, history, page):
+        history_text = "\n".join(
+            f"Step {h['step']}: {h['action']} → {h['result']}" for h in history
+        )
+        return f"""Objective: {self.objective}
+
+Current page URL: {page.url}
+
+History so far:
+{history_text if history_text else "(nothing tried yet)"}
+
+Decide the next single action."""
+
+    def _build_report(self, history, success, final_text):
+        return {"objective": self.objective, "success": success,
+                "summary": final_text, "steps_taken": len(history),
+                "full_history": history}
+
+    def run(self, page):
+        history = []
+        for step in range(MAX_STEPS):
+            prompt = self._build_prompt(history, page)
+            response = self.client.messages.create(
+                model=self.model, max_tokens=1024,
+                system=self.instructions,
+                messages=[{"role": "user", "content": prompt}],
+                tools=TOOL_DEFINITIONS
+            )
+            tool_used = False
+            for block in response.content:
+                if block.type == "tool_use":
+                    tool_used = True
+                    result = self.execute_tool(block.name, block.input, page)
+                    history.append({"step": step,
+                        "action": f"{block.name}({block.input})",
+                        "result": result})
+                elif block.type == "text" and "TASK COMPLETE" in block.text:
+                    return self._build_report(history, True, block.text)
+            if not tool_used:
+                return self._build_report(history, False, response.content[0].text)
+        return self._build_report(history, False,
+            "Stopped: exceeded maximum step limit.")</code></pre>
+
+<h2 id="running-it-main-py">Running It — main.py</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>from playwright.sync_api import sync_playwright
+from agent import QAAgent
+import os
+
+agent = QAAgent(api_key=os.environ["ANTHROPIC_API_KEY"])
+agent.set_objective(
+    "Verify that a user with valid credentials can successfully "
+    "log into ShopEasy, ending up on their account dashboard."
+)
+
+with sync_playwright() as p:
+    browser = p.chromium.launch()
+    page = browser.new_page()
+    page.goto("https://staging.shopeasy.example.com/login")
+
+    report = agent.run(page)
+
+    print(f"Success: {report['success']}")
+    print(f"Summary: {report['summary']}")
+    print(f"Steps taken: {report['steps_taken']}")
+    for h in report['full_history']:
+        print(f"  Step {h['step']}: {h['action']} → {h['result']}")
+
+    browser.close()</code></pre>
+
+<h2 id="a-genuinely-realistic-run">A Genuinely Realistic Run</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Success: True
+Summary: TASK COMPLETE. I filled in the email and password fields
+with the provided test credentials, clicked the Log In button,
+and observed the page navigate to a URL containing '/dashboard',
+displaying 'Welcome back' text. Verified: valid credentials
+successfully authenticate. NOT verified: invalid credential
+handling, or behavior with empty fields — outside this objective.
+Steps taken: 4
+  Step 0: fill_field(label='Email') → Filled field labeled 'Email'
+  Step 1: fill_field(label='Password') → Filled field labeled 'Password'
+  Step 2: click_element(role='button', name='Log In') → Clicked
+  Step 3: get_page_text() → "Welcome back, Test User..."</code></pre>
+<p>Four steps, a genuine, honest summary, explicit about scope — this is genuinely everything Chapter 2's concepts and this chapter's eight pages were building toward, actually running.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Looking at this complete file, which specific lines correspond to each of Chapter 2's seven architecture boxes (goal, planner, reasoner, tools, memory, observation, guardrails)? Doing this mapping explicitly — <code>self.objective</code> is the goal, the LLM call inside <code>run()</code> is the planner/reasoner, <code>execute_tool</code> and the imported functions are the tools, <code>history</code> is memory, <code>page.url</code> passed into the prompt is state/observation, and <code>MAX_STEPS</code> plus the instructions' behavioral rules are guardrails — is genuinely the best way to confirm the concepts from Chapter 2 aren't just abstract diagrams anymore, but real, identifiable pieces of working code.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Treating this chapter's agent as "done" and moving on without actually running it against a real or realistic test environment. Reading code and running code surface genuinely different problems — an API key issue, an unexpected tool response format, a genuinely ambiguous page structure — that are worth encountering here, on a deliberately small, well-understood example, before Chapter 4 builds on this same foundation for harder tasks.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>Once this agent is genuinely working, try deliberately breaking the staging login page in a small way (renaming a field's label, for instance) and re-running the agent — observing whether and how it adapts is a genuinely instructive way to build real intuition for this chapter's core promise: reasoning grounded in real observation, not fixed scripts.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Run this chapter's complete example yourself, against a real or realistic environment, before considering the chapter's concepts fully understood.</li>
+  <li>Explicitly map each piece of the working code back to Chapter 2's architecture — the connection between concept and implementation is genuinely worth confirming deliberately.</li>
+  <li>Treat this small agent as a genuine foundation, not a toy — every later, more complex agent in this course builds on exactly this same shape.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>This chapter's complete agent is genuinely small — one class, three tools, a 15-step limit — and genuinely working, verifying a real login flow through actual reasoning grounded in real observation.</li>
+  <li>Every piece maps directly back to Chapter 2's architecture: objective is the goal, the LLM call is planning/reasoning, tools execute real actions, history is memory, current page state grounds each decision, and instructions plus the step limit are guardrails.</li>
+  <li>This foundation — not a more complex framework — is exactly what later chapters in this course build on for genuinely harder testing tasks.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Extend this chapter's complete agent with a genuinely new objective — "verify that an INVALID password shows an appropriate error message" — and run it, checking whether the existing instructions, tools, and loop logic handle this new objective correctly without any code changes, or whether something genuinely needs to be added.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A new team member reviews this complete agent.py and asks "where's the actual AI part?" How would you answer, pointing to specific lines?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd point specifically to the single <code>self.client.messages.create(...)</code> call inside <code>run()</code> — that's genuinely the only line making a real LLM call; everything else is ordinary, deterministic Python, exactly matching Chapter 2's Anatomy page distinction between LLM-powered and non-LLM pieces.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>The ONE genuinely AI-powered line:
+response = self.client.messages.create(...)
+This is where real reasoning happens — deciding, given the
+  current objective, history, and page state, what to do next.
+
+Everything else is ordinary code:
+execute_tool() — a plain if/elif dispatch
+click_element(), fill_field() — plain Playwright calls
+history tracking, the MAX_STEPS loop — plain Python control flow
+_build_prompt(), _build_report() — plain string formatting</code></pre>
+<p>This is a genuinely useful thing to point out explicitly — "the AI part" is a small, specific, identifiable piece of a system that's mostly ordinary, well-understood software engineering around it, not some pervasive, mysterious force running through every line.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page's complete agent still work correctly if the objective is changed to something entirely different, like testing search instead of login, without any code changes?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because the code was deliberately built with the objective as a genuine, swappable input — nothing in <code>agent.py</code> itself hardcodes anything specific to login, exactly the appropriately-scoped-objective principle from earlier in this chapter, now visible in the actual architecture.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What's genuinely LOGIN-SPECIFIC in this complete file:
+Literally nothing in agent.py itself — only the OBJECTIVE
+  passed in from main.py ("verify... log into ShopEasy...")
+  is specific to login.
+
+What would happen with a DIFFERENT objective:
+agent.set_objective("Verify that searching for 'wireless mouse'
+  returns relevant results.") — the EXACT SAME agent.py, same
+  tools, same loop, would genuinely attempt this new objective,
+  using the same click_element/fill_field/get_page_text tools
+  against whatever real page it's pointed at.</code></pre>
+<p>This is a genuinely meaningful design outcome, not an accident — keeping the objective as the one task-specific input, with everything else genuinely general, is exactly what makes this small agent a real foundation rather than a one-off script that only works for login.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>If this agent's real run took 12 out of its 15 available steps to verify a simple login — more than the 4-step example shown on this page — what would you investigate, and how?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd review the full_history in the report first — this chapter's own <code>_build_report</code> retains it specifically for this kind of investigation — looking for repeated or seemingly unnecessary steps rather than assuming something is fundamentally broken just because it succeeded.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What to look for in full_history:
+- Are any ACTIONS genuinely repeated (the same fill_field call
+  appearing more than once)? This might indicate the agent
+  retried something that should have succeeded the first time
+- Is the agent calling get_page_text MORE often than seems
+  necessary, perhaps re-checking things it should already know
+  from earlier in its own history?
+- Does the SEQUENCE make logical sense for a simple login, or
+  does it show genuinely confused, roundabout reasoning?
+
+Also worth checking:
+Is the REAL page itself more complex than the simple example
+  assumes — an extra confirmation step, a CAPTCHA, a genuinely
+  slower-loading element requiring more back-and-forth? Some
+  legitimate real-world pages ARE more complex than a 4-step
+  minimal example, which wouldn't indicate a bug at all.</code></pre>
+<p>The key habit this illustrates: a successful run that took notably more steps than expected is worth a quick look at the actual history before assuming everything's fine — sometimes it reveals a real inefficiency worth fixing, and sometimes it reveals the real page genuinely needed more steps, which is itself useful information.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you explain to a skeptical colleague why this genuinely small, simple agent is a meaningful foundation for later, more complex agentic testing, rather than just a toy example?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because every architectural piece a genuinely more complex agent needs is already present here in a real, working form — later chapters add depth and sophistication to these SAME pieces, they don't introduce fundamentally different ones.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What later, more complex agents genuinely ADD on top of this
+EXACT SAME foundation:
+- Richer TOOLS (API calls, database checks, visual comparison)
+  — same execute_tool DISPATCH PATTERN, more tools registered
+- More sophisticated MEMORY (long-term, across separate runs)
+  — same underlying NEED this chapter's history already fills
+- More nuanced GUARDRAILS (action-level approval workflows)
+  — same underlying CATEGORY this chapter's MAX_STEPS already
+    represents, just one guardrail type among Chapter 2's four
+- Multi-step PLANNING for genuinely more complex objectives
+  — same underlying LOOP structure, handling bigger goals</code></pre>
+<p>The honest answer: this agent is small specifically because its OBJECTIVE (a simple login check) is small — the actual architecture, the genuine reason-act-observe-update loop with real tools, memory, state, and guardrails, is exactly the same shape a production agentic QA system uses, just with more of each piece, not a different design entirely.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>What's the very next thing you'd want to change or add to this chapter's agent before trusting it with a genuinely more consequential objective, like testing a real payment flow?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Given everything covered across this chapter and the previous one, the most important next addition would be genuine action-level guardrails specifically around anything payment-related, before broadening this agent's objective to anything touching real transactions.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What this chapter's CURRENT version has:
+Tool-level restriction (only 3 narrow, safe tools) and a loop-
+  level guardrail (MAX_STEPS) — genuinely solid for a LOW-RISK
+  objective like verifying login.
+
+What a PAYMENT-related objective would genuinely need FIRST:
+Explicit action-level guardrails (from the Tool Calling in
+  Practice page's own example) checking for payment-related
+  actions specifically, requiring human approval before ANY
+  real transaction-related tool call actually executes — not
+  optional for a task this consequential, exactly matching
+  Chapter 2's Guardrails page argument about matching
+  protection to genuine risk.</code></pre>
+<p>This is exactly the incremental-trust, match-guardrails-to-risk principle from Chapter 1 and Chapter 2 working together in practice — a genuinely low-risk objective like login verification is reasonably well-served by this chapter's current guardrails, but a higher-stakes objective genuinely needs more before it's responsible to actually run it.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

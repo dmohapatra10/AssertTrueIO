@@ -1,0 +1,141 @@
+<!doctype html>
+<html><head>
+<title>Playwright Parallel Execution and Workers Explained</title>
+<meta name="description" content="How Playwright&#x27;s parallel test execution and worker processes actually work, worker-safe test design, and avoiding shared state and test data collisions." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/parallel-execution-and-workers.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Parallel Execution & Workers</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="architecture.html">Architecture</a>, <a href="playwright-config-options.html">Configuration Options</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+  <p>Recall from the Architecture chapter: each worker is a separate Node.js process with its own browser instance. This chapter is about designing tests that actually run correctly under that model — since parallel execution introduces failure modes that don't exist when everything runs sequentially.</p>
+
+  <h2 id="why-it-s-important">Why it's important</h2>
+  <p>Parallelism is where the biggest speed gains in a large suite come from, but it's also where subtle bugs appear — two tests sharing a database record, a global counter, or a fixed test account can pass individually and fail unpredictably when run alongside each other.</p>
+
+  <h2 id="how-playwright-distributes-work">How Playwright Distributes Work</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export default defineConfig({
+  workers: 4,
+  fullyParallel: true, // individual tests within a file also run in parallel, not just files
+});</code></pre>
+  <p>By default, Playwright parallelizes at the <em>file</em> level — each worker takes whole files. <code>fullyParallel: true</code> goes further, parallelizing individual tests within a file too, which usually means faster runs but places a stricter requirement on true test isolation within a file, not just between files.</p>
+
+  <h2 id="basic-example-worker-safe-vs-worker-unsafe-test-data">Basic Example — Worker-Safe vs. Worker-Unsafe Test Data</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Worker-unsafe — two parallel tests hitting the same fixed account
+// will race against and interfere with each other's state
+test('user can update their profile name', async ({ page }) =&gt; {
+  await loginAs('shared-test-user@example.com', page);
+  // ...
+});
+
+// ✅ Worker-safe — each test gets its own unique data
+test('user can update their profile name', async ({ page }) =&gt; {
+  const email = `test-${Date.now()}-${Math.random()}@example.com`;
+  await registerNewUser(email, page);
+  // ...
+});</code></pre>
+
+  <h2 id="detailed-example-using-workerinfo-for-deterministic-uniqueness">Detailed Example — Using workerInfo for Deterministic Uniqueness</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('creates a uniquely-named list per worker', async ({ page }, testInfo) =&gt; {
+  const listName = `Test List (worker ${testInfo.workerIndex})`;
+  await page.getByLabel('List name').fill(listName);
+  await page.getByRole('button', { name: 'Create list' }).click();
+
+  await expect(page.getByText(listName)).toBeVisible();
+});</code></pre>
+  <p><code>testInfo.workerIndex</code> is a clean way to guarantee uniqueness without random values, when a test needs data that's stable within a single worker's tests but distinct from what other workers are doing simultaneously.</p>
+
+  <h2 id="real-world-example-a-worker-scoped-shared-resource">Real-World Example — A Worker-Scoped Shared Resource</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// A worker-scoped fixture (from the Fixtures chapter) is the correct place
+// for something genuinely safe to share across all tests IN ONE WORKER —
+// like a single API token that's expensive to fetch but read-only
+export const test = base.extend&lt;{}, { apiToken: string }&gt;({
+  apiToken: [async ({}, use) =&gt; {
+    const token = await fetchServiceToken();
+    await use(token);
+  }, { scope: 'worker' }],
+});</code></pre>
+  <p>This is the same worker-scoped fixture pattern from the Fixtures chapter, revisited here specifically for what it means under parallel execution: it's fetched once <em>per worker</em>, not once for the whole run and not once per test — exactly the right granularity for something expensive but safely read-only.</p>
+
+  <h2 id="tuning-worker-count">Tuning Worker Count</h2>
+  <table>
+    <thead><tr><th>Setting</th><th>Effect</th></tr></thead>
+    <tbody>
+      <tr><td><code>workers: undefined</code> (default)</td><td>Auto-detects based on CPU cores (roughly half, locally)</td></tr>
+      <tr><td><code>workers: 1</code></td><td>Fully sequential — useful for debugging a suspected worker-isolation bug</td></tr>
+      <tr><td><code>workers: N</code></td><td>Fixed count — common in CI where auto-detection may not match actual available capacity</td></tr>
+    </tbody>
+  </table>
+  <p>More workers isn't always faster: past your CPU's real capacity, additional workers compete for resources and can make the whole run slower, not faster — this is worth actually measuring for your specific CI runner rather than assuming higher is always better.</p>
+
+  <h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ A global variable shared across tests in the same file, assuming sequential order
+let cartItemCount = 0;
+test('adding an item increases the count', async ({ page }) =&gt; {
+  cartItemCount++; // breaks under fullyParallel — order isn't guaranteed
+});
+
+// ✅ Each test manages its own independent state
+test('adding an item increases the count', async ({ page }) =&gt; {
+  const initialCount = await getCartCount(page);
+  await addItemToCart(page);
+  await expect(page.getByTestId('cart-count')).toHaveText(String(initialCount + 1));
+});</code></pre>
+
+  <h2 id="common-mistakes">Common Mistakes</h2>
+  <ul>
+    <li><strong>Using a single shared test account or fixed test data</strong> across many tests, causing collisions once those tests run in parallel across different workers.</li>
+    <li><strong>Relying on test execution order</strong> (assuming test B runs after test A within a file) — <code>fullyParallel</code> makes no such guarantee, and even without it, order shouldn't be load-bearing for correctness.</li>
+    <li><strong>Setting an arbitrarily high worker count</strong> without measuring whether it actually improves total run time on the real CI hardware.</li>
+    <li><strong>Debugging a suspected race condition with workers still parallelized</strong> — set <code>workers: 1</code> temporarily to isolate whether an issue is genuinely about parallel execution or something else entirely.</li>
+  </ul>
+
+  <h2 id="edge-cases">Edge Cases</h2>
+  <ul>
+    <li><strong>Tests that must run in a specific sequence</strong> (rare, but sometimes genuinely necessary) — <code>test.describe.serial()</code> forces tests within that block to run in order, in the same worker, as an explicit, deliberate escape hatch rather than an accidental dependency.</li>
+    <li><strong>Rate-limited external APIs</strong> — many parallel workers hitting the same rate-limited third-party service simultaneously can cause failures unrelated to the application under test; consider a lower worker count or request throttling for suites that hit real external services.</li>
+  </ul>
+
+  <h2 id="debugging">Debugging</h2>
+  <p>If a test fails intermittently and only under full parallel execution, re-run with <code>workers: 1</code> to check whether it passes reliably in isolation — if it does, the bug is almost certainly a shared-state or ordering assumption, not the feature itself.</p>
+
+  <h2 id="best-practices">Best Practices</h2>
+  <ul>
+    <li>Generate unique test data per test (timestamps, random values, or <code>testInfo.workerIndex</code>) rather than reusing fixed accounts or records.</li>
+    <li>Never assume test execution order; use <code>test.describe.serial()</code> explicitly on the rare occasions order genuinely matters.</li>
+    <li>Reserve worker-scoped fixtures for genuinely expensive, safely shareable, read-only resources.</li>
+    <li>Measure actual run time at different worker counts on your real CI hardware rather than guessing at an optimal number.</li>
+  </ul>
+
+  <h2 id="practice-exercise">Practice Exercise</h2>
+  <p>Take a test that currently logs in as a single hardcoded test user shared across the file, and rewrite it to register a uniquely generated user per test, so it's safe to run under <code>fullyParallel: true</code>.</p>
+
+  <h2 id="summary">Summary</h2>
+  <p>Playwright parallelizes across worker processes, each with its own browser and (by default) its own file assignment — <code>fullyParallel</code> extends this to individual tests within a file. Worker-safe test design means unique data per test, no assumptions about execution order, and reserving shared/worker-scoped state for things that are genuinely safe to share.</p>
+
+  <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A test passes reliably when run alone but fails intermittently as part of the full parallel suite. What would you investigate first?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Shared state — check whether the test uses a fixed test account, a hardcoded record ID, or any data that another test running concurrently in a different worker might also be reading or modifying. Re-running with <code>workers: 1</code> is a fast way to confirm: if the test becomes reliable, the root cause is almost certainly a worker-isolation violation rather than a bug in the feature under test.</div>
+</details>
+<details class="faq-item">
+<summary>A test passes alone but fails intermittently in the full parallel suite — what's the first thing to check?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Shared state — a fixed test account, hardcoded record ID, or any data another concurrently running test might also touch.</div>
+</details>
+<details class="faq-item">
+<summary>What does fullyParallel: true actually change?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It parallelizes individual tests within a file, not just whole files across workers, which is the default without it.</div>
+</details>
+<details class="faq-item">
+<summary>Why is testInfo.workerIndex useful for generating test data?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It provides a stable, deterministic way to guarantee uniqueness across workers without needing random values.</div>
+</details>
+<details class="faq-item">
+<summary>Is more workers always faster?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">No — past your machine's or CI runner's actual CPU capacity, additional workers compete for resources and can slow the whole run down.</div>
+</details>
+</div>
+</article>
+</body></html>

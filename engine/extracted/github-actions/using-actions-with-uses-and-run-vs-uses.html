@@ -1,0 +1,102 @@
+<!doctype html>
+<html><head>
+<title>Using Actions in GitHub Actions: uses:, with:, and Deciding run vs. uses</title>
+<meta name="description" content="How the uses: key and with: inputs work, versioning actions correctly, and a real decision guide for choosing between a plain shell command and a reusable action." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/using-actions-with-uses-and-run-vs-uses.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Using Actions: uses:, with:, and run vs. uses</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="running-shell-commands-with-run.html">Running Shell Commands: The run: Key</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p><code>uses:</code> runs a pre-built, reusable action instead of a plain command — <code>actions/checkout@v4</code> has appeared in nearly every example so far. This page covers how it actually works, and — genuinely important — exactly when to reach for it instead of <code>run:</code>.</p>
+
+<h2 id="the-basic-syntax">The Basic Syntax</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>- uses: actions/checkout@v4</code></pre>
+<p>This references a specific action (<code>actions/checkout</code>), published by a specific owner (<code>actions</code>, GitHub's own official organization), at a specific version (<code>@v4</code>).</p>
+
+<h2 id="passing-inputs-with-with">Passing Inputs With with:</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>- uses: actions/setup-node@v4
+  with:
+    node-version: 20</code></pre>
+<p><code>with:</code> passes configuration into the action — here, telling <code>setup-node</code> which Node.js version to install. Each action defines its own specific set of accepted inputs, documented on its own page (usually on the GitHub Marketplace or the action's own repository).</p>
+
+<h2 id="version-pinning-why-v4-matters">Version Pinning — Why @v4 Matters</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>- uses: actions/checkout@v4        # a major version tag — gets minor updates automatically
+- uses: actions/checkout@v4.1.1    # an exact version — never changes
+- uses: actions/checkout@main      # the action's own main branch — genuinely risky</code></pre>
+<p>Pinning to a major version tag (like <code>@v4</code>) is the common, sensible default — you get bug fixes and minor improvements automatically, without unexpected breaking changes. Pinning to <code>@main</code> (or any other branch) means your workflow could break the moment the action's own maintainer pushes an unrelated change — genuinely risky for anything beyond quick experimentation.</p>
+
+<h2 id="the-real-decision-run-vs-uses">The Real Decision: run vs. uses</h2>
+<table>
+<thead><tr><th>Use <code>run:</code> when</th><th>Use <code>uses:</code> when</th></tr></thead>
+<tbody>
+<tr><td>The logic is simple and project-specific</td><td>Someone has already solved this exact, common problem well</td></tr>
+<tr><td>No existing action does quite what you need</td><td>A well-maintained, widely-used action exists for this task</td></tr>
+<tr><td>You want full, direct control over the exact command</td><td>You'd rather not maintain and test this logic yourself</td></tr>
+<tr><td>The task is a one-off, unlikely to be reused elsewhere</td><td>The task is common enough that a whole ecosystem exists around it</td></tr>
+</tbody>
+</table>
+
+<h2 id="detailed-example-applying-the-decision-directly">Detailed Example — Applying the Decision Directly</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Task 1: "Get the repository's code onto the runner."
+Decision: uses: actions/checkout@v4
+Why: This exact problem is universally common, and GitHub's own
+     official action handles every edge case correctly already.
+
+Task 2: "Print a custom deployment summary specific to ShopEasy."
+Decision: run: echo "Deployed ShopEasy version $VERSION to $ENVIRONMENT"
+Why: This is genuinely project-specific logic that no general-purpose
+     action could reasonably anticipate or handle for you.</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might pinning to an exact version (<code>@v4.1.1</code>) rather than a major version tag (<code>@v4</code>) sometimes be the right choice, even though it means missing automatic minor updates? For a workflow where absolute reproducibility genuinely matters — a regulated environment, a release pipeline where any unexpected change is a real risk — trading away convenient automatic updates for guaranteed, exact reproducibility can be a deliberate, correct choice.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Pinning an action to a branch name (like <code>@main</code>) instead of a version tag. This means your workflow's behavior can change unexpectedly whenever the action's maintainer pushes anything to that branch — completely outside your own control, and often without any warning at all.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>The GitHub Marketplace is a searchable catalog of publicly available actions — before writing custom logic with <code>run:</code> for a genuinely common task, it's worth a quick search there first; there's a real chance someone has already built and maintained exactly what you need.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Default to a well-maintained existing action for common, well-understood tasks — checking out code, setting up a language runtime, uploading an artifact.</li>
+  <li>Pin actions to a major version tag by default; consider an exact version pin specifically when reproducibility is a genuine, deliberate requirement.</li>
+  <li>Never pin a third-party action to a branch name — only to a proper, immutable version reference.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li><code>uses:</code> runs a pre-built action; <code>with:</code> passes configuration into it.</li>
+  <li>Version pinning matters — major version tags balance safety and convenience; branch names are genuinely risky.</li>
+  <li>The real decision between <code>run:</code> and <code>uses:</code> comes down to whether your task is common enough that someone else has already solved it well.</li>
+</ul>
+
+<h2 id="challenge">🏆 Challenge</h2>
+<p>For each of these three tasks, decide whether <code>run:</code> or <code>uses:</code> is the better fit, and briefly justify your choice: (1) installing a specific version of Python on the runner, (2) printing a custom, project-specific success message with today's date embedded in it, (3) uploading a folder of test reports as a downloadable artifact.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>What's the real, practical basis for deciding between run: and uses: for a given step?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The decision comes down to whether the task is common and well-understood enough that a well-maintained existing action already solves it correctly, versus whether it's specific enough to your own project that no general-purpose action could reasonably anticipate it. Common infrastructure tasks (checking out code, setting up a language) favor uses:; project-specific logic favors run:.</div>
+</details>
+<details class="faq-item">
+<summary>Why is pinning an action to a branch name like @main considered genuinely risky?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A branch name is not a fixed, immutable reference — it points to whatever the latest commit on that branch happens to be at any given moment. If the action's maintainer pushes any change to that branch, every workflow pinned to it picks up that change immediately and automatically, with no warning, potentially breaking previously-working workflows through no action of your own.</div>
+</details>
+<details class="faq-item">
+<summary>What's the practical tradeoff between pinning to a major version tag (@v4) versus an exact version (@v4.1.1)?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A major version tag automatically incorporates bug fixes and minor, non-breaking improvements as the action's maintainer releases them, offering convenience with reasonable safety. An exact version pin never changes at all, offering complete reproducibility at the cost of needing to manually update the pin yourself to receive any fixes or improvements — the right choice depends on how much a workflow specifically values reproducibility versus staying automatically current.</div>
+</details>
+<details class="faq-item">
+<summary>Why does with: exist as a separate key from uses:, rather than passing configuration directly on the uses: line?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Separating with: as its own key lets an action accept a genuinely flexible, potentially large set of named inputs in a clear, structured way — each input clearly labeled with its own name and value, rather than trying to encode multiple pieces of configuration into a single line. This structure also matches how the action's own documentation describes its accepted inputs, making it straightforward to look up and apply.</div>
+</details>
+<details class="faq-item">
+<summary>Why would checking the GitHub Marketplace before writing custom run: logic for a common task be a reasonable first step?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A genuinely common task — setting up a specific tool, uploading a specific kind of report, integrating with a specific external service — has a real chance of already being solved by a well-maintained, widely-used action published on the Marketplace. Checking first can save real time writing and testing custom logic that essentially reinvents something the broader community has already built, tested, and maintained.</div>
+</details>
+</div>
+</article>
+</body></html>

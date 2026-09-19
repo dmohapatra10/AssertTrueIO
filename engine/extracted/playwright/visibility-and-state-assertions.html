@@ -1,0 +1,105 @@
+<!doctype html>
+<html><head>
+<title>Playwright Visibility &amp; State Assertions: toBeVisible, toBeEnabled, toBeChecked</title>
+<meta name="description" content="How Playwright&#x27;s visibility and state assertions work — toBeVisible, toBeHidden, toBeEnabled, toBeDisabled, toBeChecked — and why they auto-retry instead of checking once." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/visibility-and-state-assertions.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Visibility & State Assertions</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="assertions.html">Assertions overview</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+      <p>These are the assertions that check whether an element is present, showing, or interactable: <code>toBeVisible()</code>, <code>toBeHidden()</code>, <code>toBeEnabled()</code>, <code>toBeDisabled()</code>, and <code>toBeChecked()</code>. They're the most-used assertions in any Playwright suite, because "is this thing actually there and usable" is the first thing almost every test needs to confirm.</p>
+
+      <h2 id="why-it-s-important">Why it's important</h2>
+      <p>Each of these mirrors a real actionability check from the Actions chapter — <code>toBeVisible()</code> is the assertion-side equivalent of the visibility check that runs before a click. Using the assertion explicitly (rather than relying on a later action to implicitly fail) makes a test's intent clear and gives a much more specific failure message than "click() timed out."</p>
+
+      <h2 id="basic-example">Basic Example</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>await expect(page.getByRole('dialog')).toBeVisible();
+await expect(page.getByText('Loading...')).toBeHidden();
+await expect(page.getByRole('button', { name: 'Submit' })).toBeEnabled();
+await expect(page.getByRole('button', { name: 'Submit' })).toBeDisabled();
+await expect(page.getByLabel('Remember me')).toBeChecked();</code></pre>
+
+      <h2 id="detailed-example-waiting-out-a-disabled-state">Detailed Example — Waiting Out a Disabled State</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// The Submit button starts disabled until all required fields are filled.
+// toBeEnabled() polls until that becomes true, instead of checking once.
+await page.getByLabel('Email').fill('user@example.com');
+await page.getByLabel('Password').fill('secret123');
+await expect(page.getByRole('button', { name: 'Sign in' })).toBeEnabled();
+await page.getByRole('button', { name: 'Sign in' }).click();</code></pre>
+      <p>This pattern — asserting a precondition is true before acting — produces a much clearer failure than skipping straight to the click and letting actionability timeout do the work; the assertion names exactly what was expected.</p>
+
+      <h2 id="real-world-example-toast-lifecycle">Real-World Example — Toast Lifecycle</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('adding an item shows and then dismisses a confirmation toast', async ({ page }) =&gt; {
+  await page.goto('/inventory');
+  await page.getByRole('button', { name: 'Add to cart' }).first().click();
+
+  await expect(page.getByText('Added to cart')).toBeVisible();
+  await expect(page.getByText('Added to cart')).toBeHidden({ timeout: 5000 });
+});</code></pre>
+      <p>Both assertions retry — the first waits for the toast to appear, the second waits (up to 5 seconds) for it to disappear. Neither needs a manual <code>waitForTimeout()</code>.</p>
+
+      <h2 id="tobevisible-vs-element-existing-in-the-dom">toBeVisible() vs. Element Existing in the DOM</h2>
+      <p>An element can be attached to the DOM but not visible (<code>display: none</code>, zero size, <code>visibility: hidden</code>). <code>toBeVisible()</code> checks true visual visibility, not just DOM presence — use <code>toBeAttached()</code> (a separate, less common assertion) when presence in the DOM is genuinely what matters, such as content that's deliberately visually hidden but still meant to exist for screen readers.</p>
+
+      <h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ One-time check, no retry — flaky if the element renders a beat later
+if (await page.getByRole('dialog').isVisible()) { /* ... */ }
+
+// ✅ Auto-retrying assertion — waits for the real condition
+await expect(page.getByRole('dialog')).toBeVisible();</code></pre>
+
+      <h2 id="common-mistakes">Common Mistakes</h2>
+      <ul>
+        <li><strong>Using <code>isVisible()</code> as an if-condition</strong> instead of an assertion — this checks once, immediately, with no retry, and is a frequent source of flaky tests when developers reach for it from habit.</li>
+        <li><strong>Asserting <code>toBeEnabled()</code> when the real question is whether an element exists at all</strong> — a missing element and a disabled one fail differently; read the actual error message rather than assuming.</li>
+        <li><strong>Forgetting <code>toBeChecked()</code> has a <code>{ checked: false }</code> option</strong> for explicitly asserting the unchecked state, instead of always reaching for <code>.not.toBeChecked()</code>.</li>
+      </ul>
+
+      <h2 id="edge-cases">Edge Cases</h2>
+      <ul>
+        <li><strong>Elements with zero opacity but full size</strong> — depending on how a fade transition is implemented, <code>toBeVisible()</code> may or may not consider a fully-transparent-but-present element visible; verify behavior against your specific animation library if this matters to a test.</li>
+        <li><strong>Indeterminate checkboxes</strong> (neither checked nor unchecked) — <code>toBeChecked()</code> and its negation don't have a third state; use <code>toHaveJSProperty('indeterminate', true)</code> for that specific case.</li>
+      </ul>
+
+      <h2 id="debugging">Debugging</h2>
+      <p>A failed <code>toBeVisible()</code> assertion's error message includes the element's last known state — check whether it says "not found" (locator matched nothing) versus "hidden" (matched but not visible); these point to different root causes.</p>
+
+      <h2 id="best-practices">Best Practices</h2>
+      <ul>
+        <li>Reach for these assertions instead of manual <code>isVisible()</code>/<code>isEnabled()</code> boolean checks anywhere a condition needs to become true.</li>
+        <li>Assert preconditions explicitly before actions that depend on them, rather than relying on the action's own actionability timeout to surface the problem.</li>
+      </ul>
+
+      <h2 id="practice-exercise">Practice Exercise</h2>
+      <p>Write a test for a multi-step form where the "Next" button is disabled until a required checkbox is checked. Assert the disabled state first, check the box, then assert the button becomes enabled.</p>
+
+      <h2 id="summary">Summary</h2>
+      <p><code>toBeVisible()</code>, <code>toBeHidden()</code>, <code>toBeEnabled()</code>, <code>toBeDisabled()</code>, and <code>toBeChecked()</code> are auto-retrying checks for an element's presence and interactive state — the assertion-level counterpart to actionability checks, and almost always preferable to a one-time boolean check.</p>
+
+      <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>What's the practical difference between if (await locator.isVisible()) and await expect(locator).toBeVisible()?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer"><code>isVisible()</code> returns the current state at the instant it's called, with no retry — if the element isn't visible yet but will be in 200ms, the check fails immediately. <code>expect().toBeVisible()</code> polls repeatedly until the condition is true or the timeout is reached, which is what makes it reliable against normal page timing variance.</div>
+</details>
+<details class="faq-item">
+<summary>What's the practical difference between isVisible() and toBeVisible()?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">isVisible() checks once immediately with no retry; toBeVisible() polls repeatedly until true or timeout, matching real page timing.</div>
+</details>
+<details class="faq-item">
+<summary>Does toBeVisible() check DOM presence or true visual visibility?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Visual visibility — an element can be attached to the DOM but fail toBeVisible() if it's display:none or has zero size.</div>
+</details>
+<details class="faq-item">
+<summary>How would you assert a checkbox is specifically unchecked, not just 'not checked due to absence'?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Use .not.toBeChecked(), or toBeChecked({ checked: false }) to be explicit about the expected state.</div>
+</details>
+<details class="faq-item">
+<summary>Why assert a precondition like toBeEnabled() before an action that depends on it?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It produces a much clearer failure message naming exactly what was expected, rather than relying on the action's own actionability timeout to surface the problem indirectly.</div>
+</details>
+</div>
+</article>
+</body></html>

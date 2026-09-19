@@ -1,0 +1,96 @@
+<!doctype html>
+<html><head>
+<title>Validating AI Actions</title>
+<meta name="description" content="Validating a single planned action, in real time, before it touches a real browser — genuinely different from Chapter 3&#x27;s whole-file validation, and just as necessary." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/validating-ai-actions.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Validating AI Actions</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="handling-ambiguous-instructions.html">Handling Ambiguous Instructions</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Why a single planned action needs its own validation, distinct from Chapter 3's whole-file validation</li>
+  <li>Building a real, working pre-execution check</li>
+  <li>What genuinely happens when a planned action fails validation</li>
+</ul>
+
+<h2 id="introduction-how-this-differs-from-chapter-3">Introduction — How This Differs From Chapter 3</h2>
+<p>Chapter 3 validated a complete, generated test file before running it — syntax, then locator existence, both checked once, up front. This page validates something smaller and more immediate: one planned action, right before it executes, in the middle of a live, unfolding sequence. The stakes are different too — a bad action here doesn't just fail a test file, it can leave the browser in a genuinely confusing state for every action that follows.</p>
+
+<h2 id="step-by-step-implementation">Step-by-Step Implementation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/validate-action.ts
+import { Page } from '@playwright/test';
+import { PlannedAction } from './plan-action';
+import { SHOPSMART_LOCATORS } from './map-to-playwright';
+
+export interface ActionValidation {
+  valid: boolean;
+  reason?: string;
+}
+
+export async function validateAction(
+  action: PlannedAction, page: Page
+): Promise&lt;ActionValidation&gt; {
+  // Check 1: is the target a REAL, known locator at all?
+  const locatorFn = SHOPSMART_LOCATORS[action.target];
+  if (!locatorFn) {
+    return { valid: false, reason: `Unknown target: "${action.target}"` };
+  }
+
+  // Check 2: does it ACTUALLY exist on the CURRENT, real page?
+  const locator = locatorFn(page);
+  const count = await locator.count();
+  if (count === 0) {
+    return { valid: false, reason: `Target "${action.target}" not found on current page` };
+  }
+
+  // Check 3: for fill actions, is there a REAL value to fill?
+  if (action.actionType === 'fill' && !action.value) {
+    return { valid: false, reason: `Fill action has no value` };
+  }
+
+  return { valid: true };
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p>Three genuinely different checks, deliberately kept separate rather than combined into one vague pass/fail. Check 1 reuses Chapter 5's own mapping-page discipline. Check 2 goes further than that page did — it confirms the target exists on the specific, current page state, not just that a mapping function exists for it in the abstract. Check 3 catches a narrower, concrete mistake — a fill action with nothing to fill, which would otherwise clear a real field unexpectedly.</p>
+
+<h2 id="example-catching-a-genuine-problem-before-it-happens">Example — Catching a Genuine Problem Before It Happens</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const action = {
+  stepOrder: 3, actionType: 'click' as const,
+  target: 'Add to Cart button',  // NOT yet in SHOPSMART_LOCATORS
+};
+const result = await validateAction(action, page);
+
+// { valid: false, reason: 'Unknown target: "Add to Cart button"' }
+// The action NEVER reaches the real browser — caught HERE,
+// with a CLEAR reason, rather than failing confusingly deep
+// inside Playwright's own click() call</code></pre>
+
+<h2 id="why-it-matters">Why It Matters</h2>
+<p>An invalid action executing against a real, live sequence doesn't just fail cleanly the way a bad test file does — it can leave the browser on the wrong page, in the wrong state, making every subsequent action in the sequence fail too, for a completely different, confusing reason. Validating before execution, every single time, is what keeps one bad planned action from cascading into a sequence of misleading failures.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Reusing Chapter 3's file-level validation for this, unchanged.</strong> That validation checks a static file before any execution begins — this page's validation checks one action against the live, current page state, a genuinely different and necessary check.</li>
+  <li><strong>Validating once at the start of a sequence and trusting every later action.</strong> The page's real state changes after every action — validation needs to happen before each one, not just the first.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Validate every single action immediately before execution, never batching validation up front for a sequence that hasn't started yet.</li>
+  <li>Keep validation checks separate and specifically named, the way this page's three checks are — a combined pass/fail hides which specific thing went wrong.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Run this page's <code>validateAction</code> against a deliberately broken action — an unknown target, then a real target that doesn't exist on the current page, then a fill action with an empty value. Confirm each produces the specific, correct reason, not just a generic failure.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Validating one live action, right before execution, is genuinely different from Chapter 3's whole-file validation — smaller in scope, but just as necessary.</li>
+  <li>An invalid action executing mid-sequence risks cascading, confusing failures across every action that follows it — validation prevents that specific real risk.</li>
+  <li>Keeping validation checks separate and specifically named makes a failure immediately diagnosable, not just detected.</li>
+</ul>
+</article>
+</body></html>

@@ -1,0 +1,113 @@
+<!doctype html>
+<html><head>
+<title>Boundary and Edge Case Generation</title>
+<meta name="description" content="Boundary and edge cases are genuinely different from negative tests — valid input in unusual shapes, not invalid input — with real ShopSmart cart examples." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/boundary-and-edge-case-generation.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Boundary and Edge Case Generation</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="happy-path-and-negative-generation.html">Happy Path and Negative Test Generation</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Why boundary and edge cases are genuinely distinct from negative tests, not a subset of them</li>
+  <li>Generating boundary values for ShopSmart's cart quantity field</li>
+  <li>Generating edge cases — unusual but genuinely valid combinations</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>The previous page's negative tests used clearly invalid input — an empty field, a wrong password. Boundary and edge cases are different: the input is genuinely valid, just at an extreme or unusual point most people don't think to test. This distinction matters because it changes what "correct behavior" even means — a boundary case should usually still succeed, not fail.</p>
+
+<h2 id="how-it-works-boundary-values">How It Works — Boundary Values</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export async function generateBoundaryCases(
+  fieldName: string, validRange: string, featureContext: string
+): Promise&lt;TestCase[]&gt; {
+  const prompt = `Field: "${fieldName}", valid range: ${validRange}
+Feature context: ${featureContext}
+
+Generate BOUNDARY test cases — values AT the edges of the
+valid range, and just OUTSIDE it. For a range of 1 to 99:
+include 1, 99 (should succeed), and 0, 100 (should fail).
+Don't generate deep-interior values like 50 — this is
+specifically about the EDGES.
+
+Respond with ONLY valid JSON: {"testCases": [...]}
+Each: {"id": string, "category": "boundary", "name": string,
+"steps": string[], "expected": string}`;
+
+  const raw = await askClaude(prompt);
+  const parsed = JSON.parse(raw);
+  if (!Array.isArray(parsed.testCases)) {
+    throw new Error(`Expected {"testCases": [...]} but got: ${raw.slice(0, 200)}`);
+  }
+  return parsed.testCases;
+}</code></pre>
+
+<h2 id="example-shopsmart-s-cart-quantity-field">Example — ShopSmart's Cart Quantity Field</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const cases = await generateBoundaryCases(
+  'cart item quantity', '1 to 99',
+  'ShopSmart limits quantity per item to 99 to prevent bulk-order abuse.'
+);
+
+// Real output includes:
+// { name: "Quantity of 1 (minimum valid)", expected: "Succeeds,
+//   item added with quantity 1" }
+// { name: "Quantity of 99 (maximum valid)", expected: "Succeeds,
+//   item added with quantity 99" }
+// { name: "Quantity of 0", expected: "Rejected with a clear
+//   validation message" }
+// { name: "Quantity of 100", expected: "Rejected with a clear
+//   validation message" }</code></pre>
+
+<h2 id="how-it-works-edge-cases">How It Works — Edge Cases</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export async function generateEdgeCases(
+  requirement: string, featureContext: string
+): Promise&lt;TestCase[]&gt; {
+  const prompt = `Requirement: "${requirement}"
+Feature context: ${featureContext}
+
+Generate EDGE cases — unusual but genuinely VALID combinations
+a typical tester might not think of first. NOT invalid input —
+combinations of otherwise-valid actions or states that are
+uncommon. Example shape: applying a discount code to an
+already-discounted item, or adding the same product twice in
+quick succession.
+
+Respond with ONLY valid JSON: {"testCases": [...]}
+Each: {"id": string, "category": "edge-case", "name": string,
+"steps": string[], "expected": string}`;
+
+  const raw = await askClaude(prompt);
+  const parsed = JSON.parse(raw);
+  if (!Array.isArray(parsed.testCases)) {
+    throw new Error(`Expected {"testCases": [...]} but got: ${raw.slice(0, 200)}`);
+  }
+  return parsed.testCases;
+}</code></pre>
+
+<h2 id="why-it-matters">Why It Matters</h2>
+<p>ShopSmart's checkout might correctly handle "apply one discount code" and correctly handle "add an item twice" separately — but genuinely mishandle applying a discount code, then removing and re-adding the discounted item, because nobody tested that specific, unusual-but-valid combination. This is exactly the category edge-case generation targets, and exactly why it's kept genuinely distinct from negative testing — the goal isn't rejection, it's correct handling of a real, valid, uncommon path.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Merging boundary and negative categories.</strong> A boundary value at the valid edge should succeed — treating it like a negative case leads to writing the wrong expected result.</li>
+  <li><strong>Generating edge cases with a vague prompt like "find weird bugs."</strong> This page's example shape ("applying a discount code to an already-discounted item") gives the model something concrete to reason from, directly following Chapter 2's specificity principle.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Keep boundary, negative, and edge-case generation as separate requests with separate, category-appropriate expected results — don't conflate what "correct" means across them.</li>
+  <li>Give edge-case generation a concrete example of the kind of unusual combination you mean — abstract requests produce abstract, less useful results.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Identify a numeric or bounded field in your own application (a quantity, a character limit, a date range). Run this page's <code>generateBoundaryCases</code> against it, then write, by hand, one edge case combining that field with another feature — compare it against what <code>generateEdgeCases</code> produces for the same area.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Boundary and edge cases use genuinely valid input, unlike negative tests — the expected result is usually success, not rejection.</li>
+  <li>Boundary testing targets the edges of a defined range; edge-case testing targets unusual but valid combinations across features.</li>
+  <li>Concrete examples in the generation prompt meaningfully improve edge-case quality, the same specificity principle from Chapter 2 applied here.</li>
+</ul>
+</article>
+</body></html>

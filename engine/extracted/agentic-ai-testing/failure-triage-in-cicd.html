@@ -1,0 +1,202 @@
+<!doctype html>
+<html><head>
+<title>Failure Triage in CI/CD: Routing Many Failures, Not Diagnosing One</title>
+<meta name="description" content="What happens when twenty tests fail in one pipeline run — a genuinely different question from Chapter 8&#x27;s deep, single-failure diagnosis: which ones need a human right now?" />
+<link rel="canonical" href="https://asserttrue.io/TRACK/failure-triage-in-cicd.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Failure Triage in CI/CD</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="intelligent-test-selection-and-prioritization.html">Intelligent Test Selection and Prioritization</a></p>
+<article class="content">
+<h2 id="what-is-this-and-how-it-differs-from-chapter-8">What is this, and how it differs from Chapter 8</h2>
+<p>Chapter 8 went DEEP on ONE failure — stack trace, screenshot, network trace, logs, a full root-cause investigation. That's genuinely too expensive to do for every failure in a pipeline run with twenty failures at once. This page is about a faster, first-pass question: given MANY failures, which ones need a human's attention RIGHT NOW, and which can wait?</p>
+
+<h2 id="a-genuine-pipeline-run-with-many-failures">A Genuine Pipeline Run With Many Failures</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>ShopEasy's E2E stage, ONE run: 63 tests, 8 FAILURES.
+
+Chapter 8's approach — FULL root-cause investigation for EACH
+of the 8 — would take REAL time (trace analysis, SCREENSHOTS,
+LOGS, for EVERY single failure) BEFORE a human even KNOWS
+which ones MATTER most. TRIAGE is about a FASTER FIRST pass:
+QUICKLY sorting 8 failures into "needs a HUMAN now" vs. "can
+WAIT" vs. "LIKELY already KNOWN," using CHEAP signals, BEFORE
+committing to Chapter 8's DEEPER investigation for the ONES
+that GENUINELY warrant it.</code></pre>
+
+<h2 id="a-genuine-fast-triage-pass">A Genuine, Fast Triage Pass</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def triage_pipeline_failures(failures, known_flaky_tests, client):
+    triaged = {"urgent": [], "likely_known": [], "needs_review": []}
+    for failure in failures:
+        if failure["test_name"] in known_flaky_tests:
+            # Chapter 9's OWN flaky-test detection, reused directly
+            # — a CHEAP, deterministic check, no reasoning needed
+            triaged["likely_known"].append(failure)
+            continue
+        if failure["stage"] == "e2e" and "checkout" in failure["test_name"]:
+            # A CHEAP, RULE-based signal: checkout failures are
+            # BUSINESS-critical, per Chapter 9's OWN importance-
+            # weighting principle — flag URGENT without waiting
+            # for a full investigation
+            triaged["urgent"].append(failure)
+            continue
+        triaged["needs_review"].append(failure)
+    return triaged</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># Applied to the 8 failures:
+{
+  "urgent": [checkout_discount_test],       # 1 failure
+  "likely_known": [flaky_cart_total_test],  # 1 failure, Chapter 9's
+                                              # own known flaky test
+  "needs_review": [6 remaining failures],   # genuinely need a
+                                              # closer look
+}
+
+ONE failure gets IMMEDIATE attention. ONE is ALREADY understood
+(Chapter 9's OWN cart-total race condition). The REMAINING SIX
+get Chapter 8's DEEPER investigation, but ONLY after THIS fast
+pass has ALREADY separated what's URGENT from what's NOT.</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why does this triage function reuse Chapter 9's known-flaky-tests list rather than re-running flakiness detection from scratch for every pipeline failure? Chapter 9's detection process is itself genuinely expensive — it requires historical data across many runs, grouped by commit and environment. Triage needs to be fast, a first pass across potentially dozens of failures in seconds. Reusing an already-computed, standing list of known-flaky tests lets triage benefit from Chapter 9's deeper work without repeating it on every single pipeline run — exactly the kind of "don't redo expensive work unnecessarily" principle this course has applied consistently since its early chapters.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Running Chapter 8's full root-cause investigation on every single failure in a pipeline run with many failures, before any triage happens. This is genuinely expensive at scale — triage exists specifically to make Chapter 8's deeper investigation something applied selectively, to failures that genuinely warrant it, not universally to every failure regardless of urgency.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>A genuinely useful triage rule set grows over time as a team learns which cheap signals reliably predict urgency — this page's "checkout tests are urgent" rule reflects real, accumulated knowledge about ShopEasy's business priorities, not a universal rule that would transfer unchanged to a different application.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Run a fast, cheap triage pass across all failures in a pipeline run before committing to Chapter 8's deeper investigation for any individual one.</li>
+  <li>Reuse existing, already-computed signals — like Chapter 9's known-flaky-tests list — rather than recomputing expensive analysis for every triage pass.</li>
+  <li>Let triage rules reflect a team's real, accumulated knowledge about business priorities, not generic, one-size-fits-all urgency heuristics.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Triage is a fast, first-pass sort across many simultaneous failures, genuinely different from Chapter 8's deep, single-failure root-cause investigation.</li>
+  <li>Reusing existing signals — like Chapter 9's flaky-test detection — lets triage be fast without repeating expensive analysis for every pipeline run.</li>
+  <li>Triage determines WHICH failures deserve Chapter 8's deeper investigation, making that expensive process selective rather than universal.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Add a fourth triage category to this page's function — "environment_suspect" — that flags a failure as likely environment-related if MULTIPLE, otherwise-unrelated tests in the same run all failed around the same time, connecting to Chapter 8's own environment-problem category.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A teammate argues "why bother with a separate triage step — just run Chapter 8's full investigation on every failure, it's more thorough." What's the genuine cost this misses?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Chapter 8's INVESTIGATION genuinely takes REAL TIME per FAILURE (trace ANALYSIS, screenshots, LOGS) — running it on EVERY failure BEFORE knowing WHICH ones are URGENT means a HUMAN waits LONGER before LEARNING which ONE (of possibly MANY) actually NEEDS their IMMEDIATE attention.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What "run FULL investigation on EVERYTHING" GENUINELY costs:
+For THIS page's 8 FAILURES, RUNNING Chapter 8's FULL,
+  multi-EVIDENCE investigation on EACH ONE, SEQUENTIALLY or
+  even in PARALLEL, takes REAL, non-trivial TIME — DURING
+  which the ONE GENUINELY urgent FAILURE (checkout, business-
+  CRITICAL) is TREATED with the SAME priority as the
+  ALREADY-known FLAKY one.
+
+What TRIAGE (THIS page's approach) SAVES:
+The FAST, CHEAP triage pass IMMEDIATELY identifies the
+  URGENT failure, LETTING a human START investigating IT right
+  AWAY, WHILE Chapter 8's DEEPER, more EXPENSIVE investigation
+  proceeds SEPARATELY (or LATER) for the REMAINING, LESS
+  time-SENSITIVE failures.</code></pre>
+<p>The TEAMMATE'S instinct toward THOROUGHNESS isn't WRONG — Chapter 8's investigation REMAINS genuinely VALUABLE — but APPLYING it UNIFORMLY, WITHOUT triage FIRST, means the MOST urgent PROBLEM doesn't NECESSARILY get IDENTIFIED any FASTER than the LEAST urgent ONE, EXACTLY the COST this page's TRIAGE step EXISTS to AVOID.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page's triage function check the KNOWN-flaky list BEFORE the checkout-urgency rule, rather than the OTHER order?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This is a GENUINELY deliberate ORDERING choice — CHECKING known FLAKINESS first CORRECTLY handles the CASE where a KNOWN-flaky test HAPPENS to ALSO be a CHECKOUT test, ROUTING it to "LIKELY known" RATHER than INCORRECTLY flagging it as URGENT EVERY single TIME it FAILS.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What would HAPPEN with the OPPOSITE order (CHECKOUT check
+FIRST):
+IF a checkout TEST is ALSO on Chapter 9's KNOWN-flaky LIST,
+  checking the CHECKOUT rule FIRST would INCORRECTLY flag it
+  as "URGENT" EVERY single TIME it FAILS — EVEN though
+  CHAPTER 9's OWN analysis ALREADY confirmed this is a KNOWN,
+  UNDERSTOOD flakiness PATTERN, not a GENUINELY NEW, urgent
+  PROBLEM each TIME.
+
+Why CHECKING flakiness FIRST (THIS page's ACTUAL order) is
+CORRECT:
+A test that's BOTH checkout-RELATED AND known-FLAKY GETS
+  correctly ROUTED to "LIKELY known" — AVOIDING the
+  UNNECESSARY, REPEATED "urgent" ALERT for a PROBLEM the TEAM
+  has ALREADY diagnosed and IS presumably ALREADY working ON,
+  per CHAPTER 9's OWN scoring and FIX recommendations.</code></pre>
+<p>This is a GENUINELY important, PRACTICAL detail — the ORDER of TRIAGE rules MATTERS, and THIS specific ORDERING correctly PREVENTS a KNOWN, ALREADY-understood ISSUE from REPEATEDLY generating FALSE "urgent" ALERTS just BECAUSE it HAPPENS to ALSO match a SEPARATE, business-CRITICALITY rule.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why this page describes its checkout-urgency rule as reflecting "real, accumulated knowledge," rather than a universal principle every team should adopt unchanged.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>"CHECKOUT tests are URGENT" is SPECIFICALLY true for SHOPEASY, GIVEN its OWN business MODEL (checkout DIRECTLY affects REAL revenue) — a DIFFERENT application with a GENUINELY different BUSINESS model might have a COMPLETELY different SET of "genuinely urgent" AREAS, making THIS specific RULE non-transferable AS-IS.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why THIS rule is SPECIFICALLY ShopEasy-APPROPRIATE:
+ShopEasy is an E-COMMERCE platform — checkout FAILURES
+  DIRECTLY, IMMEDIATELY threaten REAL revenue, making THIS a
+  GENUINELY sound, EVIDENCE-based priority RULE for THIS
+  SPECIFIC application.
+
+Why a DIFFERENT application might need a COMPLETELY DIFFERENT
+rule:
+A DIFFERENT hypothetical application — say, an INTERNAL
+  analytics DASHBOARD with NO direct revenue IMPACT — might
+  have an ENTIRELY different set of GENUINELY "urgent" AREAS
+  (perhaps DATA-accuracy tests MATTER more than ANY specific
+  UI flow) — BLINDLY copying SHOPEASY'S "CHECKOUT is urgent"
+  rule WOULDN'T make SENSE for a SYSTEM with NO checkout
+  FLOW at ALL.</code></pre>
+<p>This is EXACTLY why this page's "QUICK Tip" EMPHASIZES that TRIAGE rules should REFLECT a TEAM'S OWN, REAL business PRIORITIES, ACCUMULATED over TIME — NOT a GENERIC, ONE-SIZE-FITS-ALL set of RULES that GETS copied UNCHANGED from ONE application to a GENUINELY different ONE.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might it be a mistake to treat the "needs_review" category as GENUINELY lower priority than "urgent," rather than simply UNDETERMINED?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>THIS page's TRIAGE function GENUINELY only APPLIES CHEAP, LIMITED signals (KNOWN flakiness, BUSINESS-critical AREA) — "needs REVIEW" means the CHEAP signals DIDN'T provide ENOUGH information EITHER way, NOT that the FAILURE is CONFIRMED to be LOW priority.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What "needs_REVIEW" GENUINELY means, per THIS page's OWN
+function:
+The FAILURE didn't MATCH the KNOWN-flaky list, and DIDN'T
+  MATCH the checkout-URGENCY rule — this TELLS you the CHEAP
+  signals DIDN'T find a REASON to FLAG it EITHER way, NOT that
+  it's CONFIRMED to be SAFE or LOW-priority.
+
+Why treating it as "LOWER priority" would be a GENUINE mistake:
+ONE of THOSE six "needs_REVIEW" failures COULD, in PRINCIPLE,
+  be a GENUINELY SEVERE, novel PROBLEM the CHEAP rules SIMPLY
+  weren't DESIGNED to CATCH (a BRAND-new, first-TIME failure
+  in a GENUINELY critical AREA the RULES don't YET account
+  FOR) — TREATING "needs review" as AUTOMATICALLY LOW priority
+  would RISK OVERLOOKING exactly THIS kind of GENUINELY
+  important, but NOT-yet-recognized, PROBLEM.</code></pre>
+<p>This is a GENUINELY important, HONEST distinction — "NEEDS review" should be UNDERSTOOD as "the CHEAP signals COULDN'T determine PRIORITY, a HUMAN (or Chapter 8's DEEPER investigation) needs to LOOK," NOT as "CONFIRMED to be LESS important than URGENT," EXACTLY the SAME honest-UNCERTAINTY standard THIS course has MAINTAINED consistently SINCE Chapter 1.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you extend this page's triage function to flag a failure as URGENT if it's a GENUINELY new failure — one that's NEVER been seen BEFORE in this test's HISTORY — REGARDLESS of which STAGE or AREA it's in?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A GENUINELY useful ADDITIONAL rule checks whether THIS test has EVER failed BEFORE, using HISTORICAL data — a COMPLETELY novel FAILURE (NEVER seen BEFORE) is ARGUABLY worth URGENT attention REGARDLESS of business AREA, since it COULD represent a GENUINELY new, UNDIAGNOSED problem.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def triage_pipeline_failures_v2(failures, known_flaky_tests,
+                                    historical_pass_rates):
+    triaged = {"urgent": [], "likely_known": [], "needs_review": []}
+    for failure in failures:
+        if failure["test_name"] in known_flaky_tests:
+            triaged["likely_known"].append(failure)
+            continue
+        if failure["test_name"] not in historical_pass_rates:
+            # NEVER seen this test FAIL before — a GENUINELY
+            # NOVEL failure, worth URGENT attention regardless
+            # of business area, since it could be a REAL, NEW
+            # problem no existing rule ACCOUNTS for
+            triaged["urgent"].append(failure)
+            continue
+        if failure["stage"] == "e2e" and "checkout" in failure["test_name"]:
+            triaged["urgent"].append(failure)
+            continue
+        triaged["needs_review"].append(failure)
+    return triaged</code></pre>
+<p>This GENUINELY extends THIS page's TRIAGE logic with an IMPORTANT, ADDITIONAL signal — business CRITICALITY (the ORIGINAL checkout RULE) and NOVELTY (this NEW addition) are TWO genuinely DIFFERENT, both-VALID reasons a FAILURE might WARRANT urgent ATTENTION, and a MATURE triage SYSTEM should ACCOUNT for BOTH, rather than RELYING on JUST ONE kind of SIGNAL to DETERMINE what's GENUINELY worth a HUMAN'S immediate FOCUS.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

@@ -1,0 +1,192 @@
+<!doctype html>
+<html><head>
+<title>Why Tests Become Flaky: The Real, Common Underlying Causes</title>
+<meta name="description" content="Race conditions, shared state, test order dependency, and external dependencies — the genuine, recurring causes behind flaky tests, with the cart-total test&#x27;s own real cause revealed." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/why-tests-become-flaky.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Why Tests Become Flaky</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="what-is-a-flaky-test.html">What is a Flaky Test?</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Flakiness genuinely isn't random or mysterious — it has real, recurring causes, and recognizing which one applies is what makes an actual fix possible rather than just a workaround.</p>
+
+<h2 id="four-genuinely-common-causes">Four Genuinely Common Causes</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>1. RACE CONDITIONS — the test checks something before an
+   asynchronous operation genuinely finishes
+   Example: asserting a cart total BEFORE the UI has finished
+   re-rendering after an "add to cart" click completes.
+
+2. SHARED STATE — tests affect each other through data they
+   don't genuinely own exclusively
+   Example: two tests both use the SAME test account; one
+   test's leftover cart items affect the OTHER test's
+   expected total.
+
+3. TEST ORDER DEPENDENCY — a test's correctness depends on
+   OTHER tests having run first, in a specific order
+   Example: a test assumes a product catalog is already
+   seeded by an earlier test — passes when run AFTER that
+   test, fails when run in isolation or a different order.
+
+4. EXTERNAL DEPENDENCIES — a test depends on something outside
+   the team's own control that isn't perfectly reliable
+   Example: a real third-party payment sandbox occasionally
+   responding slowly, unrelated to anything in ShopEasy's own
+   code.</code></pre>
+
+<h2 id="this-chapter-s-test-revealing-the-real-cause">This Chapter's Test — Revealing the Real Cause</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('cart total updates after adding an item', async ({ page }) => {
+  await page.goto('/cart');
+  await page.getByRole('button', { name: 'Add Wireless Mouse' }).click();
+  await expect(page.getByTestId('cart-total')).toHaveText('$27.50');
+});
+
+The click TRIGGERS an async operation: an API call to add the
+item, THEN a client-side re-render of the total once that
+response returns. Playwright's own auto-waiting handles MOST
+timing gracefully — but if the assertion's own default timeout
+is occasionally too short relative to a SLOW render cycle
+(genuinely variable, not consistently slow), this test would
+fail INTERMITTENTLY — a textbook RACE CONDITION, category 1.</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might a race condition specifically produce INTERMITTENT failures, rather than either consistently passing or consistently failing? A race condition exists precisely because two things — the assertion checking a value, and the application updating that value — are happening concurrently with genuinely variable relative timing. Sometimes the update finishes first and the assertion sees the correct value; sometimes the assertion runs first and sees a stale or missing value. The INCONSISTENCY itself is the direct, natural signature of a race condition, which is exactly why this cause is often the first one worth suspecting when a test's failures show no other clear pattern.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Assuming a flaky test's cause without checking for the actual signature each category leaves behind. A race condition and shared state can both produce "intermittent failures," but they leave genuinely different evidence — a race condition's failures cluster around timing; shared state's failures often correlate with which OTHER tests ran nearby, which the next several pages' evidence-gathering can actually distinguish.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>A genuinely useful first question for any flaky test: "does this test's outcome ever depend on something happening ASYNCHRONOUSLY — a network response, a re-render, an animation?" Race conditions are consistently the single most common real cause of flakiness in browser and API testing, making this question a reasonable, efficient starting point.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Match a flaky test's failure pattern against these four genuine categories before assuming a cause.</li>
+  <li>Start investigation with race conditions specifically, given how commonly they're the actual underlying cause.</li>
+  <li>Look for each category's distinct evidence signature, rather than treating all flaky tests as interchangeable mysteries.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Flaky tests have real, recurring causes — race conditions, shared state, test order dependency, and external dependencies — not random, unexplainable behavior.</li>
+  <li>Each cause leaves a genuinely different evidence signature, making systematic investigation possible rather than guesswork.</li>
+  <li>Race conditions are consistently the most common real cause, making them a reasonable first hypothesis for a newly-discovered flaky test.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>For ShopEasy's test suite, describe a genuinely realistic scenario for each of the other three causes (shared state, test order dependency, external dependency) — being specific about what two tests, or what external system, would actually be involved in each case.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A flaky test's failures happen ONLY when it runs immediately after a specific OTHER test, never in isolation. Which of this page's four categories does this evidence most strongly support, and why?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This specific pattern — correlated with a PARTICULAR other test, not just timing — most strongly supports shared state or test order dependency, not a race condition, since race conditions don't typically depend on which specific other test ran nearby.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why this ISN'T likely a race condition:
+Race conditions are about TIMING variability WITHIN the
+  failing test itself — they wouldn't typically show a
+  consistent correlation with a SPECIFIC other test having
+  run immediately before, regardless of what that OTHER test
+  actually does.
+
+Why SHARED STATE or TEST ORDER DEPENDENCY fits better:
+The correlation with a SPECIFIC preceding test strongly
+  suggests that test LEAVES BEHIND something (data, state,
+  a side effect) that affects the SECOND test's outcome —
+  exactly the signature these two categories predict, distinct
+  from the purely timing-based signature a race condition
+  would leave.</code></pre>
+<p>The specific PATTERN of correlation — with WHICH test ran before, not just random inconsistency — is exactly the kind of evidence this page argues should guide classification, rather than defaulting to "probably a race condition" without checking whether the actual evidence supports it.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page suggest race conditions as a reasonable "first hypothesis," rather than treating all four causes as equally likely starting points?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This is a genuinely practical, evidence-based prioritization — race conditions are empirically the most common real cause across browser and API testing broadly, making them statistically the most efficient first hypothesis to check, not an arbitrary preference.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why race conditions are GENUINELY more common in practice:
+Modern web applications are HEAVILY asynchronous by nature —
+  API calls, re-renders, animations, debounced inputs — nearly
+  EVERY interaction involves some asynchronous operation,
+  creating FAR more opportunities for race-condition-style
+  timing issues than for shared state or test-order problems,
+  which specifically require MULTIPLE tests interacting in
+  a particular way.
+
+The practical, efficient investigation approach:
+Checking the MOST STATISTICALLY LIKELY cause first (a genuine,
+  evidence-based prioritization, similar to Chapter 8's
+  Failure Classification page recommending cheaper checks
+  first) is more efficient than treating all four as equally
+  probable and investigating them in an arbitrary order.</code></pre>
+<p>This isn't a claim that race conditions are ALWAYS the answer — it's a genuinely reasonable, evidence-informed starting point, exactly the same kind of efficient-triage thinking this course has applied consistently since Chapter 8.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why "external dependencies" is listed as its own distinct category, rather than being folded into Chapter 8's "network problem" classification.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>These genuinely overlap but answer different questions — Chapter 8's network problem is about diagnosing ONE failure (did THIS request fail to complete), while this page's external-dependency category is about explaining a RECURRING PATTERN of inconsistency tied to something outside the team's control.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Chapter 8's "network problem" (per-FAILURE diagnosis):
+"Did THIS SPECIFIC request fail to complete?" — a question
+  about ONE run's evidence, answered by looking at ONE trace.
+
+THIS page's "external dependency" (PATTERN explanation):
+"Does this test fail INCONSISTENTLY, over TIME, specifically
+  because it depends on a THIRD-PARTY system whose reliability
+  the team doesn't control?" — a question about a RECURRING
+  PATTERN across MANY runs, not a single instance.</code></pre>
+<p>A single instance of a failed request (Chapter 8's category) might be a ONE-OFF network blip; a PATTERN of recurring failures specifically tied to the SAME external dependency (this chapter's category) is a genuinely different, bigger-picture finding — the same underlying TECHNICAL cause (network issues with a third party) but analyzed at genuinely different SCOPES, exactly mirroring this chapter's own single-failure-vs-pattern distinction from its hub page.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might "the test's own default timeout" specifically, rather than the application's actual performance, be the genuinely correct place to look first for this chapter's cart-total example?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because the test's timeout and the application's actual render time are two genuinely SEPARATE variables, and a race condition specifically emerges from their RELATIONSHIP — a timeout that's simply too tight relative to genuinely normal, acceptable render-time variability, not necessarily a performance problem in the application itself.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Two genuinely DIFFERENT possible explanations, both producing
+the SAME symptom:
+1. The APPLICATION genuinely has a real, concerning
+   performance problem — render times are ABNORMALLY slow,
+   an issue worth investigating and fixing on its own merits.
+2. The APPLICATION'S render time is GENUINELY, NORMALLY
+   variable (say, usually 200-800ms) — but the TEST'S timeout
+   is set too CLOSE to that normal variability's upper end,
+   making OCCASIONAL, entirely normal slower renders exceed it.
+
+Why distinguishing these matters:
+Explanation 1 needs an APPLICATION performance fix; explanation
+  2 needs a TEST timeout adjustment — genuinely different
+  fixes for what might LOOK like the same symptom, exactly the
+  kind of distinction this chapter's Diagnosing Why a Test Is
+  Flaky page will need to resolve with real evidence, not
+  assumption.</code></pre>
+<p>This is a genuinely important nuance: a race condition doesn't automatically mean "the application is broken" — it often means the TEST'S expectations aren't genuinely, correctly calibrated to the application's normal, legitimate behavior, which is a real, important distinction for choosing the correct fix later in this chapter.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you design a controlled experiment to confirm a race condition specifically, rather than shared state, as the cause of this chapter's cart-total test's flakiness?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A genuinely useful experiment isolates the test completely — running it entirely alone, with no other tests nearby, repeatedly — since this would rule OUT shared state and test-order dependency (which require OTHER tests to be involved) while a race condition would still occur even in complete isolation.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>The controlled experiment:
+Run ONLY this ONE test, repeatedly (say, 20 times), with
+  absolutely NO other tests running before, after, or nearby
+  — completely isolated, eliminating any possibility of shared
+  state or test-order effects from OTHER tests.
+
+Interpreting the result:
+If the test STILL fails intermittently even in this COMPLETE
+  isolation — shared state and test-order dependency are
+  GENUINELY ruled out (there's no OTHER test to have caused
+  them), strongly supporting a race condition (or possibly an
+  external dependency, if applicable) as the real, remaining
+  explanation.
+
+If the test PASSES CONSISTENTLY in isolation, but fails when
+  run alongside OTHER tests:
+This would instead point TOWARD shared state or test-order
+  dependency, since the flakiness specifically REQUIRES other
+  tests to be present to manifest at all.</code></pre>
+<p>This is a genuinely rigorous, evidence-based way to distinguish between these causes — rather than guessing based on which cause seems most likely in the abstract, this experiment directly tests whether OTHER tests are actually necessary for the flakiness to occur at all, cleanly separating race-condition-style causes from the other three.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

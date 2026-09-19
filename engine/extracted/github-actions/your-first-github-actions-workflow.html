@@ -1,0 +1,123 @@
+<!doctype html>
+<html><head>
+<title>Your First GitHub Actions Workflow: A Real, Working Pipeline From Nothing</title>
+<meta name="description" content="Create, commit, and trigger a genuinely working GitHub Actions workflow — the smallest possible example, explained line by line, plus how to break and fix it." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/your-first-github-actions-workflow.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Your First GitHub Actions Workflow</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="github-actions-mental-model.html">GitHub Actions Mental Model</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Time to make everything from this chapter real. This page creates a genuinely working workflow, commits it, triggers it, and looks at the result — the smallest possible version, deliberately, before any real complexity.</p>
+
+<h2 id="step-1-create-the-file">Step 1 — Create the File</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>your-repository/
+└── .github/
+    └── workflows/
+        └── hello.yml</code></pre>
+<p>Create exactly this folder structure in your repository, and a file named <code>hello.yml</code> inside it (the filename itself can be anything — it's the folder location that matters).</p>
+
+<h2 id="step-2-the-smallest-possible-workflow">Step 2 — The Smallest Possible Workflow</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>name: Hello Automation Academy
+
+on: push
+
+jobs:
+  greet:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Hello Automation Academy!"</code></pre>
+
+<h2 id="explain-every-line">Explain Every Line</h2>
+<ul>
+  <li><code>name: Hello Automation Academy</code> — a human-readable label for this workflow, shown in the Actions tab.</li>
+  <li><code>on: push</code> — the event this workflow listens for; here, any push to the repository.</li>
+  <li><code>jobs:</code> — the start of the jobs section; everything indented below defines one or more jobs.</li>
+  <li><code>greet:</code> — the name of this specific job (you choose this name; it can be almost anything).</li>
+  <li><code>runs-on: ubuntu-latest</code> — which runner to use; here, the latest GitHub-provided Ubuntu Linux machine.</li>
+  <li><code>steps:</code> — the start of this job's steps; everything indented below is one step in order.</li>
+  <li><code>- run: echo "Hello Automation Academy!"</code> — a single step, running one plain shell command.</li>
+</ul>
+
+<h2 id="step-3-commit-and-push-it">Step 3 — Commit and Push It</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>$ git add .github/workflows/hello.yml
+$ git commit -m "Add first GitHub Actions workflow"
+$ git push</code></pre>
+<p>The moment this push completes, the workflow's <code>on: push</code> trigger fires immediately — there's no separate "activation" step required.</p>
+
+<h2 id="step-4-where-to-see-the-result">Step 4 — Where to See the Result</h2>
+<p>Open your repository on GitHub, click the <strong>Actions</strong> tab, and you should see "Hello Automation Academy" listed as a run, with a status (a spinning icon while running, then a green check or red X). Clicking into it, then into the "greet" job, shows the full log — including the literal text your <code>echo</code> command printed.</p>
+
+<h2 id="real-world-example-what-a-professional-team-would-actually-do-differently">Real-World Example — What a Professional Team Would Actually Do Differently</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// This tutorial's version: a single echo command
+- run: echo "Hello Automation Academy!"
+
+// A real team's first genuine workflow usually looks more like:
+- uses: actions/checkout@v4
+- run: npm ci
+- run: npm test</code></pre>
+<p>A real first workflow almost always starts by checking out the actual repository code (using the <code>actions/checkout</code> action, since a fresh runner starts completely empty, with no code on it at all) and then does something meaningful with that code, like installing dependencies and running tests. This tutorial's simplest version deliberately skips that to isolate just the "does a workflow trigger and run at all" question first.</p>
+
+<h2 id="debug-this-break-it-intentionally">🔍 Debug This — Break It Intentionally</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>name: Hello Automation Academy
+on: push
+jobs:
+  greet:
+  runs-on: ubuntu-latest
+    steps:
+      - run: echo "Hello Automation Academy!"</code></pre>
+<p>This version is broken — <code>runs-on</code> is indented at the wrong level (it should be nested one level deeper, under <code>greet:</code>, matching <code>steps:</code>). YAML is extremely sensitive to indentation; this exact mistake produces a workflow that GitHub can't even parse, often failing before a single step ever runs, with an error message pointing at the YAML structure itself rather than anything you actually intended to test.</p>
+
+<h2 id="fix-it">🛠️ Fix It</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>name: Hello Automation Academy
+on: push
+jobs:
+  greet:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Hello Automation Academy!"</code></pre>
+<p>The fix is purely about indentation — <code>runs-on</code> and <code>steps</code> both need to be indented consistently, one level deeper than <code>greet:</code>, since they're both properties <em>of</em> the greet job, not siblings of it.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Assuming a workflow failure always means your <em>logic</em> is wrong. A huge fraction of first-workflow failures are pure YAML formatting issues (indentation, a missing colon) that have nothing to do with what you were actually trying to accomplish — the fix is almost always in the structure, not the intent.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>Most code editors (VS Code included) have YAML syntax highlighting and indentation guides built in or available as a lightweight extension — turning this on makes indentation mistakes far easier to spot before you even commit, rather than discovering them from a failed run.</p>
+
+<h2 id="challenge">🏆 Challenge</h2>
+<p>Modify your working workflow so it also prints the current date and time as a second step (hint: another plain <code>run:</code> step, using the shell's own date command), and confirm both lines appear in the correct order in the Actions tab's log output.</p>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>A workflow file must live in <code>.github/workflows/</code> and use valid YAML to be recognized and run at all.</li>
+  <li><code>on: push</code> triggers immediately on the next push — no separate activation step.</li>
+  <li>The Actions tab is where you see whether a run succeeded, and read the full log of every step.</li>
+  <li>YAML indentation errors are a genuinely common first failure — and usually simple to fix once spotted.</li>
+</ul>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why does a fresh GitHub Actions runner need an explicit "checkout" step before it can do anything with your repository's code?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A GitHub-hosted runner starts as a completely fresh, empty virtual machine with no knowledge of your repository at all — it isn't automatically populated with your code. The actions/checkout step explicitly downloads your repository's code onto that runner, which is why almost every real workflow includes it as one of its very first steps, before anything that needs to read or build the actual code.</div>
+</details>
+<details class="faq-item">
+<summary>Why can a single incorrect indentation level in a workflow file cause the entire workflow to fail before any step even runs?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">YAML uses indentation to express structure — which properties belong to which job, which steps belong to which job's step list. Incorrect indentation changes what the YAML actually means structurally (or makes it invalid entirely), so GitHub can fail to parse the workflow file at all, before it ever gets to the point of scheduling a runner or executing any step.</div>
+</details>
+<details class="faq-item">
+<summary>What's the fastest way to see why a specific GitHub Actions run failed?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The repository's Actions tab, drilling into the specific failed run and then the specific job, shows the complete log output for every step — including exactly which step failed and what error or output it produced. This is the primary, fastest path to understanding a failure, rather than guessing from the workflow file alone.</div>
+</details>
+<details class="faq-item">
+<summary>If a workflow uses on: push with no branch filtering, when does it actually trigger?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It triggers on a push to any branch in the repository, with no restriction to a specific branch like main. This is worth noting specifically because unrestricted push triggers can run a workflow far more often than intended once a repository has many active branches — branch filtering (covered in a later chapter) is how you narrow this down deliberately.</div>
+</details>
+<details class="faq-item">
+<summary>Why might a professional team's very first real workflow look noticeably different from the tutorial's single echo-command example?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The tutorial's version deliberately isolates just one question — does a workflow trigger and run at all — before introducing any real complexity. A professional team's actual first workflow typically needs to do something meaningful right away, like checking out code and running a real test suite, since the whole point of their pipeline is verifying actual application behavior, not just confirming that automation itself is wired up correctly.</div>
+</details>
+</div>
+</article>
+</body></html>

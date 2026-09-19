@@ -1,0 +1,111 @@
+<!doctype html>
+<html><head>
+<title>Matrix + Automation Testing: Cross-Browser Playwright &amp; Multi-Environment API Tests</title>
+<meta name="description" content="Using a matrix strategy for cross-browser Playwright testing and multi-environment RestAssured API testing, connecting matrix builds directly to this site&#x27;s automation tracks." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/matrix-with-automation-testing.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Matrix + Automation Testing</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="parallel-execution-and-the-performance-challenge.html">Parallel Execution & the Performance Challenge</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Beyond sharding the same tests across runners, a matrix has a second, genuinely distinct automation-testing use: running the exact same test suite against multiple different real configurations — multiple browsers, multiple target environments — connecting directly to this site's Playwright and RestAssured tracks.</p>
+
+<h2 id="cross-browser-testing-with-playwright">Cross-Browser Testing With Playwright</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm ci
+      - run: npx playwright install --with-deps ${{ matrix.browser }}
+      - run: npx playwright test --project=${{ matrix.browser }}</code></pre>
+<p>This is genuinely different from sharding — each matrix combination here runs the <em>entire</em> test suite, just against a different browser engine. A real UI bug that only manifests in WebKit (Safari's engine) but not Chromium would be invisible without this kind of cross-browser matrix.</p>
+
+<h2 id="multi-environment-api-testing-with-restassured">Multi-Environment API Testing With RestAssured</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  api-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [staging, qa]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { java-version: '17', distribution: 'temurin' }
+      - run: mvn test -Denv=${{ matrix.environment }}
+        env:
+          API_KEY: ${{ secrets[format('API_KEY_{0}', matrix.environment)] }}</code></pre>
+<p>The same suite of RestAssured API tests runs against two genuinely different environments, each with its own environment-specific secret — <code>secrets[format(...)]</code> dynamically constructs the secret name based on the current matrix value, a genuinely useful pattern once you have per-environment credentials that follow a consistent naming convention.</p>
+
+<h2 id="detailed-example-combining-cross-browser-and-sharding-together">Detailed Example — Combining Cross-Browser AND Sharding Together</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>strategy:
+  fail-fast: false
+  matrix:
+    browser: [chromium, firefox]
+    shard: [1, 2, 3]
+
+# Produces 2 browsers × 3 shards = 6 total jobs:
+# chromium/shard-1, chromium/shard-2, chromium/shard-3,
+# firefox/shard-1, firefox/shard-2, firefox/shard-3</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>- run: npx playwright test --project=${{ matrix.browser }} --shard=${{ matrix.shard }}/3</code></pre>
+<p>These two matrix dimensions genuinely combine — this isn't an either/or choice. A real, mature Playwright CI pipeline often does exactly this: both testing across browsers <em>and</em> sharding within each browser for speed, exactly the full depth this site's Playwright track explores in its own dedicated CI/CD coverage.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why is cross-browser testing genuinely different in purpose from sharding, even though both use the same matrix mechanism? Sharding splits the <em>same</em> tests across runners purely for speed — every shard is checking for the same bugs, just faster in aggregate. Cross-browser testing runs the <em>complete</em> suite multiple times, specifically because a bug can genuinely exist in one browser's rendering or JavaScript engine and not another's — the goal isn't speed, it's coverage of real, different runtime environments.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Assuming that if tests pass on Chromium, they've been meaningfully verified across "the browser" generically. Real browser engines have genuine differences in rendering, JavaScript execution, and API support — a test suite that only ever runs against one engine has a real, meaningful gap in coverage for any project whose actual users use multiple browsers.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>The <code>secrets[format('API_KEY_{0}', matrix.environment)]</code> pattern shown above is a genuinely useful trick for any matrix dimension with a corresponding, consistently-named secret per value — worth remembering whenever a matrix needs to pull different credentials for different combinations.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Use cross-browser or cross-environment matrices specifically for genuine coverage concerns, not performance — that's what sharding is for.</li>
+  <li>Combine sharding and cross-browser/cross-environment dimensions when a real pipeline genuinely needs both speed and coverage.</li>
+  <li>Follow a consistent secret-naming convention per environment when using dynamic secret lookup via <code>format()</code>.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Cross-browser and multi-environment matrices run the complete test suite multiple times, for genuine coverage of real differences — a different purpose from sharding's speed focus.</li>
+  <li>Matrix dimensions can genuinely combine — cross-browser and sharding together produce a full cross product of both.</li>
+  <li>Dynamic secret lookup via <code>secrets[format(...)]</code> is a real, practical pattern for per-environment credentials in a matrix.</li>
+</ul>
+
+<h2 id="challenge">🏆 Challenge</h2>
+<p>Design a matrix (in YAML) for a hypothetical RestAssured suite that needs to run against three environments (dev, staging, production) and, within each, against two API versions (v1, v2) — stating how many total job runs this produces and writing the resulting <code>strategy.matrix</code> block.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why is cross-browser testing considered a genuinely different use of a matrix than sharding, even though both use the same underlying mechanism?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Sharding splits the same tests across runners purely to reduce total wall-clock time — every shard is looking for the same bugs, just running fewer of them each. Cross-browser testing runs the entire test suite multiple times, specifically because a real bug can exist in one browser engine's rendering or JavaScript behavior and not another's — the goal is genuine coverage of different real environments, not speed.</div>
+</details>
+<details class="faq-item">
+<summary>Can a matrix combine a cross-browser dimension with a sharding dimension in the same workflow?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Yes — matrix dimensions genuinely combine, producing every combination of both. A matrix with 2 browsers and 3 shards produces 6 total jobs, each testing one specific browser with one specific portion of the test suite, achieving both genuine cross-browser coverage and the speed benefit of sharding simultaneously.</div>
+</details>
+<details class="faq-item">
+<summary>Why might testing only against Chromium leave a genuine, meaningful gap in a project's real test coverage?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Different browser engines have real, genuine differences in how they render pages and execute JavaScript — a bug that only manifests in WebKit (Safari's engine) or Firefox's engine would be completely invisible to a test suite that only ever runs against Chromium. For any project whose actual users use multiple browsers, this represents a real coverage gap, not just a theoretical concern.</div>
+</details>
+<details class="faq-item">
+<summary>What does the secrets[format('API_KEY_{0}', matrix.environment)] pattern actually accomplish?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It dynamically constructs the name of the secret to retrieve based on the current matrix value — for a matrix.environment value of "staging", this would look up a secret named API_KEY_staging. This is genuinely useful when different matrix combinations need different, consistently-named credentials, avoiding the need to write separate, hardcoded logic for each possible environment value.</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page connect specifically to the Playwright track's own CI/CD coverage rather than fully repeating that depth here?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The Playwright track already covers combined cross-browser and sharding strategies in its own dedicated, deeper treatment specific to Playwright's actual tooling and configuration options. This page's role is establishing the general matrix-plus-automation-testing pattern that applies across different frameworks, then pointing to where the framework-specific depth already exists rather than duplicating it here.</div>
+</details>
+</div>
+</article>
+</body></html>

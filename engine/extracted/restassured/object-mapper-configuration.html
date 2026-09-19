@@ -1,0 +1,125 @@
+<!doctype html>
+<html><head>
+<title>RestAssured ObjectMapper Configuration: Naming Strategies &amp; Strict Deserialization</title>
+<meta name="description" content="How to configure RestAssured&#x27;s ObjectMapper globally — naming strategies for snake_case APIs, unknown field handling, and null-inclusion rules — instead of annotating every field individually." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/object-mapper-configuration.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>ObjectMapper Configuration</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="deserialization-response-to-pojo.html">Deserialization: Response to POJO</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Everything shown so far has relied on Jackson's or Gson's default behavior, occasionally overridden per-field with annotations like <code>@JsonProperty</code>. For a whole project, annotating every single field on every single POJO is repetitive and easy to get inconsistent. RestAssured lets you configure the underlying <code>ObjectMapper</code> (Jackson's central configuration object) once, globally, so every POJO in your project follows the same rules automatically.</p>
+
+<h2 id="why-it-s-important">Why it's important</h2>
+<p>A project-wide naming mismatch (your team writes Java in camelCase, the API uses snake_case everywhere) is exactly the kind of thing that shouldn't need per-field annotations scattered across every POJO — one global configuration line solves it for the whole codebase at once.</p>
+
+<h2 id="global-naming-strategy-the-snake-case-problem-solved-once">Global Naming Strategy — The Snake_Case Problem, Solved Once</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>ObjectMapper mapper = new ObjectMapper();
+mapper.setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
+
+RestAssured.config = RestAssuredConfig.config().objectMapperConfig(
+    new ObjectMapperConfig().jackson2ObjectMapperFactory((cls, charset) -&gt; mapper)
+);</code></pre>
+<p>With this configured once (typically in a shared base test class or setup method), every POJO in the project automatically serializes/deserializes using snake_case JSON keys — <code>itemName</code> maps to <code>item_name</code> everywhere, with zero <code>@JsonProperty</code> annotations needed anywhere. This is the project-wide alternative to the per-field annotation approach shown in the Serialization page.</p>
+
+<h2 id="ignoring-unknown-fields-or-not">Ignoring Unknown Fields (or Not)</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>ObjectMapper mapper = new ObjectMapper();
+mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false); // default behavior — lenient
+// or, to make it STRICT instead:
+mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, true);</code></pre>
+<p>The lenient default (silently ignoring fields your POJO doesn't define) is usually what you want — it means an API adding a new field doesn't break every existing test that deserializes its responses. The strict alternative is a deliberate choice for a narrower purpose: a contract test specifically designed to fail the moment the API's actual response shape changes in any way, catching an unannounced breaking change immediately rather than silently tolerating it.</p>
+
+<h2 id="controlling-null-inclusion-globally">Controlling Null Inclusion Globally</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>ObjectMapper mapper = new ObjectMapper();
+mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);</code></pre>
+<p>Rather than annotating <code>@JsonInclude(NON_NULL)</code> on every field that might be null, this single line applies the same "omit nulls from output" rule project-wide — useful for APIs that consistently treat an omitted field differently from an explicitly-null one across their whole surface.</p>
+
+<h2 id="real-world-example-a-shared-base-configuration-class">Real-World Example — A Shared Base Configuration Class</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>public class ApiTestConfig {
+
+    public static void configureObjectMapper() {
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
+        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
+        RestAssured.config = RestAssuredConfig.config().objectMapperConfig(
+            new ObjectMapperConfig().jackson2ObjectMapperFactory((cls, charset) -&gt; mapper)
+        );
+    }
+}
+
+// In a shared base test class:
+@BeforeAll
+static void setup() {
+    RestAssured.baseURI = "https://api.example.com";
+    ApiTestConfig.configureObjectMapper();
+}</code></pre>
+<p>This is the natural home for ObjectMapper configuration in a real project — set once, alongside the base URI configuration from Chapter 2, and every test in the project inherits consistent serialization/deserialization behavior without needing to think about it again.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ @JsonProperty("item_name") repeated on every single field, across every single POJO,
+// in a project where the ENTIRE API consistently uses snake_case
+public class OrderRequest {
+    @JsonProperty("item_name") private String itemName;
+    @JsonProperty("quantity_ordered") private int quantityOrdered;
+    // ...repeated across dozens of classes
+}
+
+// ✅ One global naming strategy, zero per-field annotations needed anywhere
+mapper.setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Annotating every field individually</strong> for a naming convention that's actually consistent across the whole API — a global naming strategy solves this once instead of dozens of times.</li>
+  <li><strong>Enabling strict unknown-field failure project-wide</strong> without a specific reason — turns routine, harmless API additions into widespread test breakage.</li>
+  <li><strong>Configuring the ObjectMapper differently in different test classes</strong> instead of once in a shared base — produces inconsistent serialization behavior that's confusing to debug.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>An API that's mostly snake_case but has a few camelCase exceptions</strong> (a legacy endpoint, third-party integration) — combine a global naming strategy with per-field <code>@JsonProperty</code> overrides on the specific exceptions.</li>
+  <li><strong>Different naming conventions across genuinely separate APIs</strong> in the same test project — use separate <code>ObjectMapper</code> configurations (and separate <code>RequestSpecification</code>s, covered in Chapter 8) per API rather than forcing one global config to serve both.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If serialization/deserialization behaves unexpectedly after adding global ObjectMapper configuration, confirm it's actually being applied — check that <code>RestAssured.config</code> is set before any test runs, typically via a <code>@BeforeAll</code> in a shared base class, not scattered inconsistently across individual test files.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Configure the ObjectMapper once, globally, in a shared setup location — not per-test or per-class.</li>
+  <li>Default to lenient unknown-field handling; reserve strict mode specifically for deliberate contract tests.</li>
+  <li>Prefer a global naming strategy over scattered per-field annotations whenever a naming convention is genuinely consistent across the API.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Configure a global ObjectMapper with snake_case naming and lenient unknown-field handling, apply it in a shared base test class, and confirm a POJO with camelCase Java field names correctly serializes to and deserializes from snake_case JSON with zero per-field annotations.</p>
+
+<h2 id="summary">Summary</h2>
+<p>Global ObjectMapper configuration — naming strategy, unknown-field handling, null inclusion — solves project-wide serialization conventions once, instead of requiring per-field annotations scattered across every POJO. Set it up once in a shared base test class alongside your base URI configuration, and every test in the project inherits consistent behavior automatically.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>When would you deliberately enable FAIL_ON_UNKNOWN_PROPERTIES instead of leaving it at its lenient default?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The lenient default (ignoring unknown fields) is right for most functional tests, since it means an API adding a harmless new field doesn't break existing tests. Enabling strict mode is a deliberate choice for a narrower purpose — a contract test specifically designed to fail the moment an API's response shape changes in <em>any</em> way, including additions, so an unannounced or unexpected change to the API surface gets caught immediately rather than silently passing through undetected.</div>
+</details>
+<details class="faq-item">
+<summary>What problem does a global naming strategy solve that per-field @JsonProperty annotations don't scale to?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">If an entire API consistently uses snake_case, annotating every single field on every POJO is repetitive; one global naming strategy line solves it project-wide instead.</div>
+</details>
+<details class="faq-item">
+<summary>Why is FAIL_ON_UNKNOWN_PROPERTIES left disabled by default?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The lenient default means an API adding a harmless new field doesn't break every existing test that deserializes its responses — enabling strict mode is a deliberate choice for dedicated contract tests specifically designed to catch any shape change.</div>
+</details>
+<details class="faq-item">
+<summary>Where should ObjectMapper configuration typically live in a real project?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Once, in a shared base test class's setup method, alongside the base URI configuration — not scattered or reconfigured differently across individual test classes.</div>
+</details>
+<details class="faq-item">
+<summary>When would you deliberately want strict unknown-field failure instead of the lenient default?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">For a contract test specifically designed to fail the moment an API's response shape changes in any way — catching an unannounced or unexpected change immediately rather than silently tolerating it.</div>
+</details>
+</div>
+</article>
+</body></html>

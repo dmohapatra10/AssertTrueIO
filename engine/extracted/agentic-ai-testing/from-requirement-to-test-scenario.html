@@ -1,0 +1,187 @@
+<!doctype html>
+<html><head>
+<title>From Requirement to Test Scenario: How AI Test Generation Works</title>
+<meta name="description" content="The real process of turning a written requirement into a genuine list of test scenarios using AI — what makes a good prompt, and why the output is a draft, not a finished suite." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/from-requirement-to-test-scenario.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>From Requirement to Test Scenario</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="ai-powered-test-generation.html">AI-Powered Test Generation overview</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Test generation is genuinely simpler than agent execution from the previous chapter — no loop, no tools, no browser. It's a single, well-crafted prompt: give the LLM a real requirement, ask for test scenarios, get back a structured, reviewable list.</p>
+
+<h2 id="the-actual-process">The Actual Process</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>1. Write the REQUIREMENT clearly (this chapter's discount-code
+   requirement from the hub page)
+2. Prompt the LLM, explicitly asking for CATEGORIES of scenarios
+   — not just "give me some tests"
+3. Get back a structured list — a genuine DRAFT
+4. A HUMAN reviews it (covered in full on this chapter's final
+   page) before anything is trusted or converted into real code</code></pre>
+
+<h2 id="a-genuinely-useful-prompt">A Genuinely Useful Prompt</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def generate_test_scenarios(requirement, client):
+    prompt = f"""Given this requirement, generate a structured
+list of test scenarios. Organize them into these categories:
+positive cases, negative cases, boundary cases, and edge cases.
+For each scenario, state what's being tested and what the
+expected outcome should be.
+
+Requirement:
+{requirement}
+"""
+    response = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=2048,
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return response.content[0].text</code></pre>
+<p>Notice this prompt explicitly names the categories — positive, negative, boundary, edge — rather than leaving the LLM to organize things however it happens to choose. This matters more than it might seem, and the next four pages explain exactly why each category deserves this explicit treatment.</p>
+
+<h2 id="what-comes-back-a-genuine-reviewable-draft">What Comes Back — A Genuine, Reviewable Draft</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>POSITIVE CASES:
+1. Apply a valid, non-expired percentage code to a qualifying
+   order — discount is correctly calculated and applied.
+2. Apply a valid fixed-amount code — the exact amount is
+   deducted from the order total.
+
+NEGATIVE CASES:
+1. Apply an expired code — order shows a clear error, discount
+   is NOT applied.
+2. Apply a code that doesn't exist — same expected behavior.
+
+BOUNDARY CASES:
+1. Order value exactly equal to a code's minimum threshold —
+   should qualify.
+2. Order value one cent below the minimum threshold — should
+   NOT qualify.
+
+EDGE CASES:
+1. Attempt to apply a second code after one is already applied.
+2. Apply a code in a different letter case than it was created
+   with (case-insensitivity).</code></pre>
+<p>This is genuinely useful as a starting point — but notice it's exactly that, a starting point. The next several pages go deeper into each category, including scenarios this first pass might have genuinely missed.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might explicitly naming the four categories in the prompt (rather than just asking for "test scenarios" broadly) produce a genuinely more useful result? An open-ended request lets the LLM's own judgment decide what's worth covering, which can skew toward whatever categories feel most obvious or common — often positive cases, since they're the most straightforward to think of. Explicitly requesting all four categories forces genuine, deliberate coverage of negative, boundary, and edge cases too, which are exactly the categories most likely to be under-represented if left to an open-ended request.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Treating the very first generated list as complete and moving straight to writing automated tests from it. This page's own output already shows only two examples per category — a genuinely thorough pass, covered across this chapter's remaining pages, typically reveals meaningfully more than an LLM's first, single-pass attempt.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>Asking the LLM to also state the expected outcome for each scenario (as this page's prompt does) — not just what's being tested — makes the draft genuinely more useful for the validation step covered at the end of this chapter, since a reviewer can directly check whether the stated expectation is actually correct.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Write the requirement itself clearly and completely before generating anything — genuinely good scenarios depend on a genuinely clear requirement.</li>
+  <li>Explicitly request the specific categories you want covered, rather than leaving scope to an open-ended prompt.</li>
+  <li>Treat the first generated list as a genuine starting draft, not a finished, comprehensive suite.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>AI test generation is a structured prompt — a clear requirement plus explicitly named categories — producing a reviewable draft, not a running test.</li>
+  <li>Explicitly requesting categories (positive, negative, boundary, edge) produces meaningfully more complete coverage than an open-ended request.</li>
+  <li>A first-pass generated list is a genuine starting point — the chapter's remaining pages exist specifically because a single pass typically isn't the full picture.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Using this page's exact prompt structure, write out (by hand, reasoning as if you were the LLM) at least two additional positive-case scenarios for the discount-code requirement that weren't included in this page's own example output.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A teammate's prompt simply says "generate tests for this requirement" with no category structure, and the output is 90% positive cases. Why did this happen, and how would you fix the prompt?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>An open-ended request leaves category coverage entirely to the LLM's own judgment, and positive cases are typically the most obvious, straightforward scenarios to think of — without explicit structure, there's a genuine, common tendency to skew toward them.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Original, unstructured prompt (the actual problem):
+"Generate tests for this requirement: [discount code
+  requirement]" — no explicit categories requested, so the
+  LLM's own sense of "obvious tests" dominates the output.
+
+Fixed prompt, matching this page's actual structure:
+"Generate scenarios organized into these categories: positive
+  cases, negative cases, boundary cases, edge cases." — this
+  EXPLICITLY forces deliberate coverage of all four, rather
+  than leaving distribution to chance or default tendencies.</code></pre>
+<p>The fix is exactly what this page demonstrates: naming the required categories directly in the prompt removes the ambiguity that let the imbalanced output happen in the first place.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page's prompt ask for the "expected outcome" alongside each scenario, rather than just a list of scenario descriptions?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A scenario description alone tells you WHAT will be tested, but not what "correct" actually looks like — including the expected outcome makes the draft genuinely checkable, both by a human reviewer and later by whatever automated test gets written from it.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Scenario WITHOUT expected outcome (less useful):
+"Apply an expired code." — tests something, but doesn't state
+  what SHOULD happen, leaving that to be figured out separately
+  later, possibly incorrectly or inconsistently.
+
+Scenario WITH expected outcome (this page's actual approach):
+"Apply an expired code — order shows a clear error, discount
+  is NOT applied." — genuinely actionable immediately; a
+  reviewer can check whether this expectation is CORRECT, and
+  whoever converts it to real code knows exactly what to assert.</code></pre>
+<p>This connects directly to the chapter's final page on validation — a reviewable draft needs both what's being tested AND what correct looks like, or there's genuinely nothing concrete for a human to actually verify.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might the very same requirement produce a genuinely different set of generated scenarios on two separate calls to the same LLM?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This connects directly back to Chapter 2's LLM page — an LLM's output can genuinely vary between calls, even for very similar inputs, which is exactly why a single generation pass shouldn't be treated as the definitive, complete answer.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Practical implication for test generation specifically:
+Run 1 might generate the case-insensitivity edge case; run 2,
+  given the identical requirement, might emphasize a different
+  edge case instead (like the second-code-attempt scenario)
+  and genuinely miss the case-insensitivity one.
+
+This is exactly why this chapter treats generation as a
+  STARTING draft, reviewed and refined by a human (and,
+  as later pages show, potentially by MULTIPLE generation
+  passes or explicit category-by-category prompting) — rather
+  than trusting any single run to be exhaustively complete.</code></pre>
+<p>The practical lesson: this variability isn't a bug to work around — it's a genuine property of how LLMs work, and the right response is building a process (multiple passes, explicit categories, human review) that's robust to it, rather than expecting perfect consistency from a single call.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you rewrite this page's requirement itself if it were genuinely too vague to generate good scenarios from — say, if it only said "ShopEasy supports discount codes"?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A vague requirement genuinely can't produce specific, meaningful scenarios — the fix is adding the concrete details a real requirement needs, exactly what this chapter's hub page's own requirement already includes, which is worth recognizing as a deliberate model, not just background context.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Too vague: "ShopEasy supports discount codes."
+Genuinely unclear: percentage or fixed amount? Any limits on
+  how many codes per order? Do codes expire? Any minimum
+  order value? Case-sensitive? NONE of this is answerable from
+  the vague version, so generated scenarios would have to
+  GUESS at these details — exactly the kind of silent
+  assumption Chapter 2's instructions page warned against.
+
+Genuinely sufficient (this chapter's actual requirement):
+Specifies discount TYPE, case-sensitivity, one-per-order limit,
+  expiration, and minimum order value explicitly — enough
+  concrete detail that generated scenarios can be SPECIFIC
+  and genuinely testable, not vague guesses.</code></pre>
+<p>The general lesson: garbage in, garbage out applies directly to test generation — a vague requirement can only produce vague, guessed-at scenarios, no matter how good the underlying generation prompt is.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page describe test generation as "genuinely simpler" than the agent execution built in Chapter 3, despite both using an LLM?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because test generation is a single request-response exchange with no loop, no tools, and no real-world actions — it's missing most of the architectural pieces Chapter 2 and Chapter 3 built up for agent execution specifically.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What Chapter 3's agent execution genuinely needed:
+A loop (repeated reasoning), tools (real browser actions),
+  memory (tracking history across steps), state (current page
+  position), and guardrails (step limits, scope restrictions)
+  — a genuinely complex system with many moving, interacting
+  pieces working together.
+
+What THIS page's test generation needs:
+One prompt, in, one structured response, out. No loop — it
+  doesn't need to observe a REAL environment and react, since
+  it's working purely from a WRITTEN requirement, not a live,
+  changing system. No tools, no real actions taken at all.</code></pre>
+<p>This genuinely matters practically: test generation is a good, low-complexity entry point specifically because it doesn't require the full agent architecture — it's real AI-assisted work with a much simpler, more contained shape than the agent from the previous chapter.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

@@ -1,0 +1,112 @@
+<!doctype html>
+<html><head>
+<title>Detecting Unexpected UI Changes</title>
+<meta name="description" content="Sending two real screenshots — before and after — in one call, asking the model to distinguish an intentional-looking change from something genuinely broken." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/detecting-unexpected-ui-changes.html" />
+</head><body>
+<p class="difficulty">Advanced</p>
+<h1>Detecting Unexpected UI Changes</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="semantic-visual-validation.html">Semantic Visual Validation</a></p>
+<article class="content">
+<h2>What You'll Learn</h2>
+<ul>
+  <li>Sending two real screenshots in one call for direct comparison</li>
+  <li>Asking the model to judge whether a difference looks intentional or genuinely broken</li>
+  <li>Why this is a genuinely different question from either single-image check so far</li>
+</ul>
+
+<h2>Introduction</h2>
+<p>The previous page checked one screenshot against a stated requirement. This page checks two screenshots against each other — a genuinely different, comparative question this track hasn't asked visually until now.</p>
+
+<h2>Step-by-Step Implementation</h2>
+<pre><code>// src/detect-ui-changes.ts
+import { anthropic } from './ai-client';
+
+export interface ChangeAssessment {
+  changeDetected: boolean;
+  looksIntentional: boolean;
+  description: string;
+}
+
+export async function assessVisualChange(
+  beforeBase64: string, afterBase64: string
+): Promise&lt;ChangeAssessment&gt; {
+  const response = await anthropic.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 500,
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'text', text: 'BEFORE:' },
+        { type: 'image', source: { type: 'base64', media_type: 'image/png', data: beforeBase64 } },
+        { type: 'text', text: 'AFTER:' },
+        { type: 'image', source: { type: 'base64', media_type: 'image/png', data: afterBase64 } },
+        { type: 'text', text: `Compare these two screenshots of
+the same page. Describe any real difference. Judge whether it
+looks like an intentional design change or something genuinely
+broken (misalignment, missing content, overlapping elements).
+
+Respond with ONLY valid JSON:
+{"changeDetected": boolean, "looksIntentional": boolean,
+"description": string}` },
+      ],
+    }],
+  });
+
+  const textBlock = response.content.find((b) =&gt; b.type === 'text');
+  return JSON.parse((textBlock as any).text);
+}</code></pre>
+
+<h2>Code Explanation</h2>
+<p>Notice the content array now carries two labeled images, not one — the explicit "BEFORE:" and "AFTER:" text blocks matter genuinely here, giving the model clear reference points for which image is which before it reasons about what changed between them.</p>
+
+<h2>Example — A Genuine Regression, Correctly Flagged</h2>
+<pre><code>const result = await assessVisualChange(beforeImage, afterImage);
+
+// {
+//   changeDetected: true,
+//   looksIntentional: false,
+//   description: "The order summary panel in the 'after'
+//     screenshot overlaps with the payment form, with the
+//     total price partially hidden behind the credit card
+//     input field — this looks like a broken layout, not an
+//     intentional redesign."
+// }</code></pre>
+
+<h2>Example — An Intentional Redesign, Correctly Distinguished</h2>
+<pre><code>// A DIFFERENT before/after PAIR, from a genuine redesign:
+// {
+//   changeDetected: true,
+//   looksIntentional: true,
+//   description: "The 'Add to Cart' button moved from below
+//     the price to beside it, and the color changed from
+//     green to blue — this reads as a deliberate visual
+//     refresh, with no signs of a broken layout."
+// }</code></pre>
+
+<h2>Why It Matters</h2>
+<p>This is the genuine answer to Chapter 17's opening page's core gap — a pixel diff would flag both examples above identically, as "different," with no way to distinguish them. This comparative check gives a real, if imperfect, first-pass judgment before a human needs to look at either pair themselves.</p>
+
+<h2>Common Mistakes</h2>
+<ul>
+  <li><strong>Sending unlabeled images in the content array.</strong> Without the explicit "BEFORE:" and "AFTER:" text blocks, the model has to guess which image is which — labeling removes that ambiguity entirely.</li>
+  <li><strong>Treating <code>looksIntentional: true</code> as a final, unreviewed verdict.</strong> This is a genuine first-pass judgment, not a replacement for human sign-off on an actual design change — Chapter 17's closing page addresses this limitation directly.</li>
+</ul>
+
+<h2>Best Practices</h2>
+<ul>
+  <li>Always label multiple images explicitly in the content array — never rely on the model inferring order or identity from position alone.</li>
+  <li>Treat this check's output as a genuine, useful first pass — routing "looks broken" results for immediate human review, and "looks intentional" results for lighter-weight confirmation.</li>
+</ul>
+
+<h2>Hands-On Exercise</h2>
+<p>Capture two real screenshots of the same page in your own application, deliberately introducing one broken change (like an overlapping element) in one pair, and one purely cosmetic change (like a color swap) in another. Run this page's function against both pairs and confirm it correctly distinguishes them.</p>
+
+<h2>Key Takeaways</h2>
+<ul>
+  <li>Sending two labeled images in one call lets the model reason comparatively — a genuinely different capability from checking either image alone.</li>
+  <li>This is the real, working answer to the gap Chapter 17 opened with — distinguishing an intentional change from a genuine regression.</li>
+  <li>This judgment is a genuine, useful first pass, not a final verdict — Chapter 17's closing page is explicit about why human review still matters.</li>
+</ul>
+</article>
+</body></html>

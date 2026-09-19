@@ -1,0 +1,121 @@
+<!doctype html>
+<html><head>
+<title>Running Playwright, RestAssured &amp; k6 Automation Tests in GitHub Actions</title>
+<meta name="description" content="How Playwright, RestAssured, and k6 tests actually run in a GitHub Actions pipeline, connecting this course&#x27;s CI/CD concepts to this site&#x27;s other automation testing tracks." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/running-automation-tests-playwright-restassured-k6.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Running Automation Tests: Playwright, RestAssured &amp; k6</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="building-the-application-and-running-unit-tests.html">Building the Application & Running Unit Tests</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Unit tests verify individual pieces of logic in isolation. Automation tests — UI tests with Playwright, API tests with RestAssured, performance tests with k6 — verify real, end-to-end behavior against an actual running system. This page connects this chapter's CI fundamentals directly to the dedicated CI/CD pages already covered in each of those tracks.</p>
+
+<h2 id="playwright-in-ci-the-genuinely-different-part">Playwright in CI — The Genuinely Different Part</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>- uses: actions/setup-node@v4
+  with:
+    node-version: 20
+- run: npm ci
+- run: npx playwright install --with-deps
+- run: npx playwright test
+- uses: actions/upload-artifact@v4
+  if: always()
+  with:
+    name: playwright-report
+    path: playwright-report/</code></pre>
+<p>The genuinely distinct step here is <code>npx playwright install --with-deps</code> — Playwright needs real browser binaries and their system-level dependencies installed on the runner, which isn't something a normal <code>npm ci</code> handles. This site's Playwright track covers this full pipeline — including sharding and how CI genuinely differs from local execution — in its own dedicated page: <a href="../playwright/github-actions-cicd.html">Playwright with GitHub Actions: A Complete CI/CD Pipeline</a>.</p>
+
+<h2 id="restassured-in-ci-a-maven-based-pipeline">RestAssured in CI — A Maven-Based Pipeline</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>- uses: actions/setup-java@v4
+  with:
+    java-version: '17'
+    distribution: 'temurin'
+- run: mvn test</code></pre>
+<p>Since RestAssured tests are ordinary Java/Maven tests, running them in CI looks structurally identical to running any other Maven-based test suite — the actual test execution isn't the distinct part here; running against multiple environments in parallel and secrets handling are. This site's RestAssured track covers the complete pipeline in depth: <a href="../restassured/cicd-with-github-actions.html">RestAssured CI/CD with GitHub Actions</a>.</p>
+
+<h2 id="k6-in-ci-performance-tests-as-an-automated-gate">k6 in CI — Performance Tests as an Automated Gate</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>- uses: grafana/k6-action@v0.3.1
+  with:
+    filename: tests/load/checkout-load.js
+  env:
+    TARGET_ENV: staging
+    API_KEY: ${{ secrets.STAGING_API_KEY }}</code></pre>
+<p>k6 uses its own dedicated community action rather than a generic setup-and-run pattern. The genuinely distinct part here is that a k6 run's exit code reflects whether its <em>thresholds</em> passed, not just whether the script executed without crashing — meaning a performance regression can fail the build automatically, exactly like a failing unit test would. This site's K6 track covers the complete pipeline, including regression detection against a stored baseline: <a href="../k6/running-k6-in-cicd-github-actions-and-regression-detection.html">Running k6 in CI/CD: GitHub Actions, Automated Reports & Regression Detection</a>.</p>
+
+<h2 id="detailed-example-all-three-in-one-real-pipeline">Detailed Example — All Three, In One Real Pipeline</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  ui-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm ci
+      - run: npx playwright install --with-deps
+      - run: npx playwright test
+
+  api-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { java-version: '17', distribution: 'temurin' }
+      - run: mvn test
+
+  performance-tests:
+    runs-on: ubuntu-latest
+    needs: [ui-tests, api-tests]   # only run once functional tests pass
+    steps:
+      - uses: actions/checkout@v4
+      - uses: grafana/k6-action@v0.3.1
+        with: { filename: tests/load/checkout-load.js }</code></pre>
+<p>This directly mirrors the "Full Automation Pipeline" shape from this site's broader teaching approach — Build → Unit Tests → API Tests → UI Tests → Performance Tests → Report — with performance tests deliberately gated behind the functional tests passing first (using <code>needs:</code>, covered fully in a later chapter), since there's little point performance-testing a system that isn't even functionally correct yet.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why does it make sense for performance tests to run <em>after</em> functional tests (UI and API), rather than in parallel with them or before them? A performance test measures how well a system behaves under load — if the system isn't even functionally correct to begin with, a performance result is close to meaningless. Gating performance tests behind functional tests passing first avoids spending real CI time and resources measuring the performance of something that's already known to be broken.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Forgetting <code>npx playwright install --with-deps</code> specifically in CI, having only ever run Playwright locally where browsers were already installed from initial setup. A fresh CI runner has no browser binaries at all — this step is genuinely required every time, not an optional convenience.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>All three of this site's other tracks treat their own GitHub Actions coverage as a capstone-adjacent topic, assuming the reader already understands CI/CD fundamentals — if any of the linked pages above reference a concept (secrets, job dependencies, artifacts) that feels unfamiliar, later chapters in this GitHub Actions track cover each one in depth.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Install Playwright's browsers explicitly in every CI job that runs Playwright tests — never assume they're pre-installed.</li>
+  <li>Keep RestAssured's Maven-based test execution simple and standard — the real CI complexity for API tests usually lives in secrets and environment configuration, not the test-running command itself.</li>
+  <li>Gate performance tests behind functional test success using job dependencies, rather than running everything in blind parallel.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Each automation framework has its own genuinely distinct CI requirement — Playwright needs browser installation, k6 uses its own dedicated action with threshold-based exit codes, RestAssured runs as ordinary Maven tests.</li>
+  <li>This site's Playwright, RestAssured, and K6 tracks each cover their own complete CI/CD pipeline in dedicated depth — this page connects, rather than duplicates, that coverage.</li>
+  <li>A full automation pipeline typically sequences build → unit tests → API tests → UI tests → performance tests → report, with later, more expensive stages gated behind earlier ones passing.</li>
+</ul>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why does running Playwright tests in CI require an extra step that isn't needed for RestAssured or k6?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Playwright needs actual browser binaries (Chromium, Firefox, WebKit) and their system-level dependencies installed on the runner to drive real browser automation, which a fresh CI runner doesn't have by default. RestAssured tests run as ordinary Java code with no browser involved, and k6 uses its own dedicated action that handles its own execution environment, so neither has this same specific requirement.</div>
+</details>
+<details class="faq-item">
+<summary>Why does a k6 test's exit code being tied to its thresholds matter for CI specifically?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Because k6 exits with a non-zero status code when a configured threshold fails, CI systems automatically treat that as a failed step, which fails the overall build — without needing any additional custom logic. This means a genuine performance regression can automatically block a pipeline exactly the same way a failing functional test would, directly connecting to this site's K6 track's own coverage of automated regression detection.</div>
+</details>
+<details class="faq-item">
+<summary>Why might performance tests be deliberately configured to run only after UI and API tests pass, using a job dependency?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A performance test measures how a system behaves under load, which is far less meaningful if the system isn't even functionally correct to begin with. Gating performance tests behind functional test success avoids spending CI time and resources measuring the performance characteristics of a system already known to have a functional bug.</div>
+</details>
+<details class="faq-item">
+<summary>Why does RestAssured's CI execution look structurally similar to running any other Maven-based test suite?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">RestAssured tests are written as ordinary Java tests executed through Maven (or a similar build tool), with no special runtime requirement like Playwright's browser binaries. The genuine CI complexity for a RestAssured suite tends to live elsewhere — in managing secrets, environment-specific configuration, and parallel execution across environments — rather than in the actual mechanics of running the tests themselves.</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page link out to each track's own dedicated GitHub Actions coverage rather than fully repeating that content here?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Each of the Playwright, RestAssured, and K6 tracks already covers its own complete, in-depth CI/CD pipeline — including specifics like test sharding, parallel environment execution, and regression detection — that would be genuinely redundant to duplicate here. This page's role is connecting this chapter's general CI/CD fundamentals to those existing, deeper resources, not replacing them.</div>
+</details>
+</div>
+</article>
+</body></html>

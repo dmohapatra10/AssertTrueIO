@@ -1,0 +1,73 @@
+<!doctype html>
+<html><head>
+<title>Parallel Execution, Reporting &amp; CI/CD in RestAssured</title>
+<meta name="description" content="How to run RestAssured tests in parallel safely, report results usefully, and wire the whole suite into a GitHub Actions CI/CD pipeline." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/parallel-execution-reporting-cicd.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Parallel Execution, Reporting &amp; CI/CD</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="framework-architecture.html">Framework Architecture</a></p>
+<article class="content">
+<h2 id="running-fast-reporting-clearly-automating-everything">Running Fast, Reporting Clearly, Automating Everything</h2>
+<p>A well-architected framework (Chapter 13) is what makes everything here actually work reliably. Three genuinely distinct concerns, one page each:</p>
+<ol>
+  <li><a href="parallel-execution-and-thread-safety.html">Parallel Execution & Thread Safety</a> — running tests fast without them interfering with each other</li>
+  <li><a href="test-reporting-junit-testng-allure.html">Test Reporting: JUnit, TestNG, Allure</a> — turning results into something a human (or a dashboard) can actually use</li>
+  <li><a href="cicd-with-github-actions.html">CI/CD with GitHub Actions</a> — running the whole thing automatically on every push</li>
+</ol>
+
+<h2 id="how-these-three-connect">How These Three Connect</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Developer Push
+      ↓
+GitHub Actions
+      ↓
+Build
+      ↓
+Run API Tests (in parallel)
+      ↓
+Generate Report
+      ↓
+Upload Artifacts</code></pre>
+<p>This is the full pipeline the pages ahead build toward — parallel execution makes the "Run API Tests" step fast, reporting makes its output useful, and CI/CD is the automation gluing every step together into something that runs on its own, on every push, without anyone manually triggering it.</p>
+
+<h2 id="why-these-three-are-grouped-together">Why These Three Are Grouped Together</h2>
+<p>Parallel execution, reporting, and CI/CD aren't independent topics that happen to be grouped here — they're deeply connected. Parallel execution only matters because CI wants fast feedback; good reporting only matters because CI runs happen without anyone watching live, so the report is the only record of what happened; and CI/CD is what makes both of the others actually matter at all, by running the suite automatically and consistently rather than only ever manually, on someone's own machine.</p>
+
+<h2 id="where-this-sits-in-the-bigger-picture">Where This Sits in the Bigger Picture</h2>
+<p>Everything covered here — safe parallelism, useful reporting, full CI automation — depends directly on the layered framework architecture from Chapter 13. A framework with leaked concerns and shared mutable state (the exact anti-patterns Chapter 13 warned against) makes safe parallel execution genuinely difficult; a suite with no structured reporting makes CI failures hard to diagnose without a local re-run. This is where that architectural investment starts paying off concretely, right before the capstone project pulls everything in this entire course together.</p>
+
+<h2 id="common-mistakes-to-watch-for">Common Mistakes to Watch For</h2>
+<ul>
+  <li><strong>Enabling parallel execution without addressing shared mutable state first</strong> — produces intermittent, hard-to-reproduce CI failures that don't manifest locally.</li>
+  <li><strong>Treating reporting as an afterthought</strong> until a CI failure is genuinely hard to diagnose without a local re-run.</li>
+  <li><strong>Hardcoding credentials or environment values directly in CI workflow files</strong> instead of using repository secrets.</li>
+</ul>
+
+<h2 id="what-you-ll-be-able-to-do">What You'll Be Able to Do</h2>
+<p>By the end of the three pages that follow, you should be able to run a suite safely in parallel without tests interfering with each other, configure reporting that gives a clear picture of what passed, failed, and why, and set up a complete GitHub Actions pipeline that builds, tests, reports, and archives results automatically on every push. Start with Parallel Execution & Thread Safety below.</p>
+      
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why are parallel execution, reporting, and CI/CD grouped into one chapter rather than treated as unrelated topics?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">They're deeply connected — parallel execution matters because CI wants fast feedback, reporting matters because CI runs happen with nobody watching live, and CI/CD is what makes both of those actually matter by running the suite automatically and consistently.</div>
+</details>
+<details class="faq-item">
+<summary>What's the full pipeline this chapter's three pages build toward?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Developer Push -> GitHub Actions -> Build -> Run API Tests (in parallel) -> Generate Report -> Upload Artifacts — each page in this chapter fills in one stage of that flow.</div>
+</details>
+<details class="faq-item">
+<summary>Why does this chapter depend directly on Chapter 13's framework architecture?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A framework with leaked concerns and shared mutable state makes safe parallel execution genuinely difficult; the architectural investment from the previous chapter is what makes everything in this chapter work reliably.</div>
+</details>
+<details class="faq-item">
+<summary>What's the risk of enabling parallel execution before addressing shared mutable state?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It produces intermittent, hard-to-reproduce CI failures that never show up locally when tests run sequentially — exactly the class of bug the first page in this chapter is specifically about avoiding.</div>
+</details>
+<details class="faq-item">
+<summary>Why are parallel execution, reporting, and CI/CD treated as one connected chapter rather than three separate topics?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">They're deeply connected in practice — parallel execution matters because CI wants speed, reporting matters because CI runs unattended, and CI/CD is what makes both of the others actually matter by running everything automatically and consistently.</div>
+</details>
+</div>
+</article>
+</body></html>

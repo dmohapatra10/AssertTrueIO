@@ -1,0 +1,144 @@
+<!doctype html>
+<html><head>
+<title>RestAssured Query Parameters: .queryParam() Deep Dive</title>
+<meta name="description" content="How to use RestAssured&#x27;s .queryParam() correctly — single values, repeated keys, and why it&#x27;s safer than hand-building query strings." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/query-parameters.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Query Parameters</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="headers-in-requests.html">Headers</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>given()
+    .queryParam("page", 2)
+    .queryParam("limit", 10)
+.when()
+    .get("/users");
+// Resulting URL: /users?page=2&limit=10</code></pre>
+<p><code>.queryParam()</code> adds a key-value pair to the request's query string — the part of a URL after <code>?</code> used for filtering, sorting, and pagination against a resource collection that already exists independent of the parameter.</p>
+
+<h2 id="why-use-queryparam-instead-of-building-the-url-string-yourself">Why use .queryParam() instead of building the URL string yourself?</h2>
+<p>Query values often contain characters that need URL encoding — spaces, ampersands, non-ASCII text. <code>.queryParam()</code> handles this automatically; hand-building a query string requires you to remember and correctly apply <code>URLEncoder.encode()</code> yourself, and forgetting it produces a URL that's silently malformed rather than an obvious error.</p>
+
+<h2 id="basic-example">Basic Example</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>given()
+    .queryParam("status", "active")
+.when()
+    .get("/users");</code></pre>
+
+<h2 id="multiple-values-for-the-same-key">Multiple Values for the Same Key</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>given()
+    .queryParam("status", "active", "pending")
+.when()
+    .get("/users");
+// Resulting URL: /users?status=active&status=pending</code></pre>
+<p>Useful for APIs that accept repeated query keys to mean "match any of these values" — passing multiple arguments to a single <code>.queryParam()</code> call produces the key repeated once per value, exactly matching that convention.</p>
+
+<h2 id="passing-a-map-of-query-parameters">Passing a Map of Query Parameters</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Map&lt;String, Object&gt; params = new HashMap&lt;&gt;();
+params.put("page", 2);
+params.put("limit", 10);
+params.put("sort", "created_at");
+
+given()
+    .queryParams(params)
+.when()
+    .get("/users");</code></pre>
+<p>For a request with many query parameters, especially ones built up conditionally, a <code>Map</code> passed to <code>.queryParams()</code> (plural) is often cleaner than a long chain of individual <code>.queryParam()</code> calls.</p>
+
+<h2 id="real-world-example-conditional-query-parameters">Real-World Example — Conditional Query Parameters</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>RequestSpecification request = given();
+
+if (statusFilter != null) {
+    request.queryParam("status", statusFilter);
+}
+if (minPrice != null) {
+    request.queryParam("min_price", minPrice);
+}
+
+request.when().get("/products").then().statusCode(200);</code></pre>
+<p>Building a request specification up conditionally, only adding parameters that actually have a value, avoids sending an empty or null query parameter that might produce different (and unintended) behavior than omitting it entirely.</p>
+
+<h2 id="two-different-conventions-for-multiple-values">Two Different Conventions for "Multiple Values"</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Convention A: repeated key (shown earlier on this page)
+given().queryParam("status", "active", "pending").when().get("/users");
+// → /users?status=active&status=pending
+
+// Convention B: a single comma-separated value — a genuinely different convention
+given().queryParam("status", "active,pending").when().get("/users");
+// → /users?status=active,pending</code></pre>
+<p>These are two real, different conventions that different APIs choose between — RestAssured's multi-argument <code>.queryParam()</code> call produces the repeated-key style automatically, but if an API instead expects a single comma-joined value, you need to build that string yourself and pass it as one value. Check the API's actual documentation rather than assuming; using the wrong convention typically doesn't error, it just silently filters incorrectly (an API expecting comma-separated values sees the second <code>status=pending</code> as an entirely separate, unrecognized parameter under convention A).</p>
+
+<h2 id="extracting-query-parameter-values-for-verification">Extracting Query Parameter Values (for Verification)</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Response response = given().queryParam("page", 3).when().get("/users");
+String requestUri = response.getDetailedCookies().toString(); // not this —
+
+// To confirm what was actually SENT, log it instead:
+given().log().all().queryParam("page", 3).when().get("/users");</code></pre>
+<p>Unlike headers, RestAssured doesn't offer a direct "get the query param I sent" accessor on the response, since query parameters are a property of the <em>request</em>, not the response. If you need to confirm exactly what was sent, <code>.log().all()</code> (covered in the Building HTTP Requests overview) remains the reliable way to see the fully resolved outgoing URL.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Hand-built query string — breaks on special characters, no encoding safety
+given().when().get("/products/search?q=" + searchTerm + "&category=electronics");
+
+// ✅ Let RestAssured handle encoding
+given()
+    .queryParam("q", searchTerm)
+    .queryParam("category", "electronics")
+.when()
+    .get("/products/search");</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Hand-concatenating query strings</strong> instead of using <code>.queryParam()</code> — loses automatic encoding and readability both.</li>
+  <li><strong>Passing a null value directly to <code>.queryParam()</code></strong> without checking first — can produce an unintended empty-value parameter in the URL rather than correctly omitting it.</li>
+  <li><strong>Using a query parameter where a path parameter belongs</strong> — a value that identifies <em>which specific resource</em> you mean belongs in the path, not the query string.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Boolean and numeric values</strong> — <code>.queryParam("active", true)</code> and <code>.queryParam("limit", 10)</code> both work directly; RestAssured converts them to their string representation automatically.</li>
+  <li><strong>Empty string vs. omitted parameter</strong> — these can mean genuinely different things to an API; be deliberate about which one you're actually sending.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If you're unsure what query string a chain of <code>.queryParam()</code> calls actually produces, add <code>.log().all()</code> to print the fully resolved outgoing URL before the request is sent.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Always use <code>.queryParam()</code>/<code>.queryParams()</code> rather than hand-building query strings.</li>
+  <li>Only add a query parameter when it has a real, intentional value — don't pass null or empty values without deliberate reason.</li>
+  <li>Use a <code>Map</code> via <code>.queryParams()</code> once a request has more than three or four query parameters.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Write a test against a search endpoint that conditionally adds a category filter, a minimum price, and a maximum price — only including each parameter when its corresponding value is non-null — and confirm via <code>.log().all()</code> that the resulting URL reflects exactly the parameters you intended.</p>
+
+<h2 id="summary">Summary</h2>
+<p><code>.queryParam()</code> and <code>.queryParams()</code> build a request's query string safely, handling URL encoding automatically — the tool of choice over hand-built strings for anything filtering, sorting, or paginating within an existing resource collection.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>What actually goes wrong if you build a query string by hand-concatenating a search term instead of using .queryParam()?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Values with special characters — spaces, ampersands, non-ASCII text — need URL encoding to be transmitted correctly. A hand-concatenated string skips this unless you remember to call <code>URLEncoder.encode()</code> yourself, and forgetting it doesn't throw an obvious error — it silently produces a malformed URL that may be misinterpreted by the server or simply fail to match anything, which is a confusing class of bug to track down. <code>.queryParam()</code> encodes values automatically, removing this entire failure mode.</div>
+</details>
+<details class="faq-item">
+<summary>Why use .queryParam() instead of manually building the query string?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Query values often need URL encoding for special characters; .queryParam() handles this automatically, while manual string building requires remembering to encode correctly and fails silently if you don't.</div>
+</details>
+<details class="faq-item">
+<summary>What are the two different conventions APIs use for multi-value query parameters?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Repeated keys (?status=active&status=pending) or a single comma-separated value (?status=active,pending) — genuinely different conventions; using the wrong one against a specific API usually doesn't error, it just silently filters incorrectly.</div>
+</details>
+<details class="faq-item">
+<summary>Why avoid passing a null value directly to .queryParam()?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It can produce an unintended empty-value parameter in the URL rather than correctly omitting the parameter entirely — check for null before adding it, don't pass it through blindly.</div>
+</details>
+<details class="faq-item">
+<summary>How would you confirm the exact query string a chain of .queryParam() calls produces?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Add .log().all() to print the fully resolved outgoing URL before the request is sent.</div>
+</details>
+</div>
+</article>
+</body></html>

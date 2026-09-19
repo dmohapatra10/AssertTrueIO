@@ -1,0 +1,103 @@
+<!doctype html>
+<html><head>
+<title>Browser Observation</title>
+<meta name="description" content="Extending Chapter 5&#x27;s scoped observation into something genuinely broader — capturing what&#x27;s available to interact with, not just what one known next step needs." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/browser-observation.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Browser Observation</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="ai-exploration-strategy.html">AI Exploration Strategy</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Why exploration needs genuinely broader observation than Chapter 5's scoped version</li>
+  <li>Capturing every interactive element, not just the ones a known next step needs</li>
+  <li>Keeping this broader capture affordable, applying Chapter 2's token-cost lesson again</li>
+</ul>
+
+<h2 id="introduction-why-chapter-5-s-observation-isn-t-quite-enough-here">Introduction — Why Chapter 5's Observation Isn't Quite Enough Here</h2>
+<p>Chapter 5's <code>observePage</code> was scoped tightly to what one specific, known next step needed — product names for "select a product," nothing more. Exploration has no known next step to scope around; it needs to see genuinely everything worth considering, since the strategy layer from the previous page needs real options to choose between.</p>
+
+<h2 id="step-by-step-implementation">Step-by-Step Implementation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/observe-for-exploration.ts
+import { Page } from '@playwright/test';
+
+export interface ExplorationObservation {
+  url: string;
+  interactiveElements: { role: string; name: string }[];
+  formFields: { label: string; type: string }[];
+  visibleText: string[];
+}
+
+export async function observeForExploration(
+  page: Page
+): Promise&lt;ExplorationObservation&gt; {
+  const buttons = await page.getByRole('button').all();
+  const links = await page.getByRole('link').all();
+
+  const interactiveElements = await Promise.all(
+    [...buttons, ...links].map(async (el) =&gt; ({
+      role: await el.getAttribute('role') ?? 'button',
+      name: (await el.textContent()) ?? '',
+    }))
+  );
+
+  const inputs = await page.locator('input, select, textarea').all();
+  const formFields = await Promise.all(
+    inputs.map(async (el) =&gt; ({
+      label: (await el.getAttribute('aria-label')) ?? (await el.getAttribute('name')) ?? '',
+      type: (await el.getAttribute('type')) ?? 'text',
+    }))
+  );
+
+  const visibleText = (await page.locator('h1, h2, h3').allTextContents());
+
+  return { url: page.url(), interactiveElements, formFields, visibleText };
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p>This captures every button, link, and form field — genuinely broader than Chapter 5's product-name-only scope, since exploration doesn't know in advance which of these will matter. It's still not "capture everything" in the Chapter 9 sense — full HTML, every attribute — this is a deliberate middle ground, broad enough for genuine choice, not so broad it becomes noisy or expensive.</p>
+
+<h2 id="example-observing-shopsmart-s-cart-page-for-exploration">Example — Observing ShopSmart's Cart Page for Exploration</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const observation = await observeForExploration(page);
+
+// {
+//   url: "https://shopsmart.example.com/cart",
+//   interactiveElements: [
+//     { role: "button", name: "Apply Discount Code" },
+//     { role: "button", name: "Remove Item" },
+//     { role: "link", name: "Continue Shopping" }
+//   ],
+//   formFields: [
+//     { label: "Discount code", type: "text" },
+//     { label: "Quantity", type: "number" }
+//   ],
+//   visibleText: ["Your Cart", "Order Summary"]
+// }</code></pre>
+
+<h2 id="why-it-matters">Why It Matters</h2>
+<p>This observation is exactly what the previous page's strategy function needs to make a genuinely informed choice — it can see the discount code field exists at all, which is what made the "apply it twice" hypothesis from this chapter's opening page possible in the first place. Chapter 5's narrower observation would never have surfaced this field, since it wasn't relevant to that chapter's specific, known next step.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Reusing Chapter 5's scoped observation unchanged for exploration.</strong> It would miss exactly the kind of genuinely unexpected element — like a discount field nobody explicitly asked about — that makes exploration valuable at all.</li>
+  <li><strong>Capturing the full page HTML "to be thorough."</strong> This reintroduces the token-cost problem Chapter 9 already addressed — broad but bounded capture, not everything.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Scope exploration observation to interactive elements and structure — broad enough for genuine choice, bounded enough to stay affordable.</li>
+  <li>Re-observe after every single action during exploration, since the whole point is discovering things that weren't anticipated in advance.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Run this page's function against a real page in your own application that has several interactive elements. Review the output and identify anything genuinely unexpected it surfaced that you might not have thought to check manually.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Exploration needs genuinely broader observation than Chapter 5's scoped version, since there's no known next step to narrow around.</li>
+  <li>This broader capture stays deliberately bounded — every interactive element and form field, not the entire page's raw HTML.</li>
+  <li>This observation is what makes the previous page's strategy choices genuinely informed, surfacing elements a narrower, task-specific scope would miss.</li>
+</ul>
+</article>
+</body></html>

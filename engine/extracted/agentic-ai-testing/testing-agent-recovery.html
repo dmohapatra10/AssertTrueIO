@@ -1,0 +1,207 @@
+<!doctype html>
+<html><head>
+<title>Testing Agent Recovery: What Happens When Something Goes Wrong Mid-Task?</title>
+<meta name="description" content="Deliberately injecting real obstacles into a controlled test environment to verify an agent genuinely recovers, rather than assuming its happy-path success generalizes." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/testing-agent-recovery.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Testing Agent Recovery</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="testing-agent-state.html">Testing Agent State</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Every agent test so far in this chapter used a normal, well-behaved page. Real applications aren't always well-behaved — a modal appears unexpectedly, a network request times out, an element takes longer than usual. This page is about deliberately testing an agent's response to exactly these obstacles.</p>
+
+<h2 id="deliberately-injecting-a-real-obstacle">Deliberately Injecting a Real Obstacle</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def test_recovery_from_unexpected_modal(agent, page):
+    # Deliberately inject a genuine obstacle into a CONTROLLED
+    # test page — a newsletter modal that wasn't part of the
+    # ORIGINAL objective, exactly Chapter 2's own example
+    page.evaluate("""() => {
+        const modal = document.createElement('div');
+        modal.id = 'injected-newsletter-modal';
+        modal.innerHTML = '&lt;button id="close-modal"&gt;X&lt;/button&gt;';
+        modal.style.cssText = 'position:fixed;top:0;left:0;' +
+            'width:100%;height:100%;background:white;z-index:9999;';
+        document.body.appendChild(modal);
+    }""")
+
+    agent.set_objective("Verify a user can add an item to their cart.")
+    report = agent.run(page)
+
+    return {
+        "recovered": report["success"],
+        "steps_taken": report["steps_taken"],
+        "dismissed_modal": any(
+            "close-modal" in str(h) or "dismiss" in str(h).lower()
+            for h in report["full_history"]
+        ),
+    }</code></pre>
+
+<h2 id="why-this-needs-to-be-deliberately-injected-not-waited-for">Why This Needs to Be Deliberately Injected, Not Waited For</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Waiting for a REAL obstacle to naturally occur during testing
+is genuinely unreliable — it might happen rarely, or never,
+during however many test runs you happen to execute. Injecting
+it DELIBERATELY, on demand, into a CONTROLLED test page means
+this specific recovery capability can be tested RELIABLY,
+EVERY time, rather than hoping a real obstacle happens to
+occur during whatever testing you happen to run.</code></pre>
+
+<h2 id="a-genuine-recovery-failure-this-test-would-catch">A Genuine Recovery Failure This Test Would Catch</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># A run where recovery GENUINELY fails:
+{
+  "recovered": False,
+  "steps_taken": 15,  # hit MAX_STEPS without progress
+  "dismissed_modal": False,
+}
+
+This reveals the agent GENUINELY couldn't handle an obstacle
+it wasn't EXPLICITLY told about in its ORIGINAL objective —
+exactly the kind of GENUINE re-planning capability Chapter 2's
+Agent Planning page described CONCEPTUALLY, now shown to be
+ABSENT or BROKEN in this SPECIFIC agent through an ACTUAL,
+concrete test result.</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might an agent that performs perfectly on every happy-path test still be a genuinely risky choice to deploy without recovery testing specifically? Happy-path success confirms the agent can execute a plan when nothing unexpected happens — but real applications genuinely, routinely produce unexpected obstacles (Chapter 2's own newsletter-modal example wasn't hypothetical). An agent that's never been tested against a genuine obstacle has an unknown, unverified recovery capability — it might handle real-world surprises gracefully, or it might get stuck indefinitely, and happy-path testing alone provides no evidence either way.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Testing an agent exclusively against clean, well-behaved test pages, never deliberately introducing the kind of obstacles real applications routinely produce. This page's injected-modal technique exists specifically because waiting for obstacles to occur naturally during testing is unreliable — deliberate injection is what makes recovery testing genuinely repeatable.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>Beyond a modal, genuinely useful obstacles to deliberately inject include: a temporarily disabled button that becomes enabled after a delay, an element that moves position after initial page load, and a network request that's artificially delayed — each tests a genuinely different kind of real-world unpredictability.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Deliberately inject real, controlled obstacles into test environments rather than waiting for them to occur naturally during testing.</li>
+  <li>Test recovery against obstacles the agent's original objective never explicitly mentioned, verifying genuine adaptability, not just literal instruction-following.</li>
+  <li>Treat happy-path success and recovery success as genuinely separate confirmations — passing one never confirms the other.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Recovery testing deliberately injects real obstacles into a controlled environment, verifying an agent's genuine adaptability rather than hoping it generalizes from happy-path success.</li>
+  <li>An agent that's never faced a genuine obstacle during testing has an unknown, unverified recovery capability, regardless of how reliably it handles clean, well-behaved scenarios.</li>
+  <li>Deliberate, repeatable obstacle injection — not waiting for natural occurrence — is what makes recovery testing genuinely reliable.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Write a test function (following this page's <code>test_recovery_from_unexpected_modal</code> pattern) that deliberately injects a button that's disabled for the first 3 seconds after page load, then becomes enabled — and describe what a genuinely successful recovery would look like in the agent's action history.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A team deploys an agent after it passes 50 consecutive happy-path test runs with zero failures. A teammate argues this is sufficient evidence of reliability. What would you push back on?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd point out that 50 happy-path successes confirm the agent executes cleanly when nothing unexpected happens — they provide zero evidence about what happens when it inevitably encounters a genuine obstacle, exactly this page's central argument.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What 50 happy-path PASSES GENUINELY confirms:
+The agent's CORE execution logic works CORRECTLY under CLEAN,
+  WELL-BEHAVED conditions — a real, meaningful confirmation,
+  but SCOPED specifically to THOSE conditions.
+
+What it does NOT confirm, per THIS page's argument:
+Whether the agent can GENUINELY recover from an UNEXPECTED
+  modal, a DELAYED element, or any OTHER real-world surprise —
+  NONE of the 50 happy-path runs TESTED this capability AT
+  ALL, meaning it remains COMPLETELY UNVERIFIED regardless of
+  how MANY clean runs succeeded.</code></pre>
+<p>50 clean passes is genuine, real evidence for ONE specific claim (works under clean conditions) — treating it as evidence for a DIFFERENT claim (handles real-world obstacles reliably) is exactly the kind of unjustified generalization this page's deliberate obstacle-injection testing exists to actually verify, rather than assume.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page argue that waiting for a natural obstacle to occur during testing is "genuinely unreliable," rather than a reasonable, if slower, testing approach?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Natural occurrence depends on factors genuinely outside the tester's control — whether a specific modal happens to trigger, whether a specific delay happens to occur — meaning a team could run MANY tests without ever actually exercising the recovery capability they're trying to verify, producing false confidence through sheer absence of the relevant scenario.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why "wait for it to occur naturally" is GENUINELY unreliable:
+If the newsletter modal ONLY appears on, say, 5% of REAL page
+  loads (a genuinely plausible real-world rate), a team running
+  20 tests might NEVER encounter it AT ALL, purely by CHANCE —
+  concluding "recovery seems fine, we've never seen a problem"
+  when the CAPABILITY was simply NEVER GENUINELY EXERCISED.
+
+Why DELIBERATE injection (this page's actual approach) is
+GENUINELY more reliable:
+Injecting the obstacle ON DEMAND, EVERY time you want to test
+  it, means the SPECIFIC capability gets EXERCISED and VERIFIED
+  RELIABLY — not left to CHANCE occurrence that might simply
+  never happen to align with your testing schedule.</code></pre>
+<p>This is a genuinely important, practical distinction — "we've never observed a failure" is a MEANINGFULLY WEAKER claim than "we've DELIBERATELY tested this and confirmed it works," and natural-occurrence-only testing can only ever produce the WEAKER kind of confidence.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why testing recovery specifically against an obstacle "the agent's original objective never explicitly mentioned" is a genuinely important design choice for this page's test.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This is specifically what distinguishes GENUINE adaptability from mere literal instruction-following — an agent could handle an obstacle its instructions explicitly warned about without that proving anything about GENUINE, GENERAL recovery capability for UNANTICIPATED situations.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What testing an EXPLICITLY-MENTIONED obstacle would ONLY
+prove:
+If the AGENT'S instructions said "watch out for a newsletter
+  modal, dismiss it if you see one," successfully dismissing
+  it would ONLY confirm the agent can FOLLOW EXPLICIT
+  instructions — genuinely useful, but NOT evidence of TRUE,
+  GENERAL adaptability to GENUINELY UNANTICIPATED situations.
+
+Why testing an UNMENTIONED obstacle (THIS page's actual
+approach) is a STRONGER, more MEANINGFUL test:
+The OBJECTIVE in this page's example says ONLY "verify a user
+  can add an item to their cart" — NOTHING about a MODAL. A
+  SUCCESSFUL recovery here demonstrates the agent's GENUINE
+  REASONING capability to handle something it was GENUINELY
+  NEVER explicitly told to expect — a MEANINGFULLY stronger,
+  more USEFUL confirmation of REAL adaptability.</code></pre>
+<p>This is exactly why this page's test deliberately AVOIDS mentioning the modal in the objective — testing GENUINE, GENERAL adaptability requires the obstacle to be a REAL surprise to the agent, not something it was already explicitly briefed to handle.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might it be a mistake to consider a recovery test "passed" simply because report["success"] is True, without also checking dismissed_modal specifically?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A True success COULD, in principle, occur through some GENUINELY unrelated path that never actually addressed the injected obstacle at all — checking the SPECIFIC evidence that the modal was actually dismissed confirms the SUCCESS genuinely resulted from HANDLING the obstacle, not from some OTHER, coincidental reason.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A GENUINELY concerning scenario where success=True MIGHT be
+MISLEADING:
+Suppose the injected MODAL somehow didn't actually BLOCK the
+  cart button in some EDGE CASE (a bug in the TEST'S OWN
+  injection code, perhaps) — the agent might report SUCCESS
+  simply because the MODAL never actually INTERFERED with its
+  task, NOT because it GENUINELY recovered from a REAL
+  obstacle.
+
+Why CHECKING dismissed_modal SPECIFICALLY matters:
+This confirms the agent's history ACTUALLY shows it
+  ENCOUNTERING and DEALING WITH the modal — a MORE SPECIFIC,
+  MORE RELIABLE confirmation that the SUCCESS genuinely
+  reflects the RECOVERY capability being tested, not a
+  COINCIDENTAL success that happened to bypass the intended
+  test scenario ENTIRELY.</code></pre>
+<p>This is a genuinely useful, practical reminder — a test's OVERALL success flag alone doesn't always confirm the SPECIFIC thing you actually wanted to verify happened; checking for SPECIFIC, EXPECTED evidence WITHIN the run (like dismissed_modal) provides a MORE RELIABLE, MORE PRECISE confirmation than the BROAD success flag alone.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you design a recovery test specifically for the case where the injected obstacle is GENUINELY unresolvable (no dismiss button exists at all), verifying the agent fails GRACEFULLY rather than getting stuck indefinitely?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A genuinely useful "graceful failure" test checks that the agent STOPS within a reasonable step count and produces an HONEST, informative failure report — connecting directly to Chapter 2's loop-guardrail discussion and Chapter 8's failure-report principles.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def test_graceful_failure_on_unresolvable_obstacle(agent, page):
+    # Inject a modal with NO dismiss mechanism at all — a
+    # GENUINELY unresolvable obstacle
+    page.evaluate("""() =&gt; {
+        const modal = document.createElement('div');
+        modal.style.cssText = 'position:fixed;top:0;left:0;' +
+            'width:100%;height:100%;background:white;z-index:9999;';
+        document.body.appendChild(modal);
+    }""")
+
+    agent.set_objective("Verify a user can add an item to their cart.")
+    report = agent.run(page)
+
+    return {
+        "stopped_within_limit": report["steps_taken"] &lt;= MAX_STEPS,
+        "honest_failure_report": (
+            not report["success"] and
+            len(report["summary"]) &gt; 20  # a GENUINE explanation,
+                                             # not an empty or
+                                             # vague summary
+        ),
+    }</code></pre>
+<p>This directly tests a GENUINELY different, equally important property from the ORIGINAL recovery test — not whether the agent SUCCEEDS against a RESOLVABLE obstacle, but whether it FAILS RESPONSIBLY (respecting Chapter 2's step limit, producing an HONEST report per Chapter 8) against a GENUINELY UNRESOLVABLE one, exactly the kind of BOTH-DIRECTIONS testing a THOROUGH recovery test suite needs — verifying SUCCESSFUL adaptation AND GRACEFUL, HONEST failure, not just one or the other.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

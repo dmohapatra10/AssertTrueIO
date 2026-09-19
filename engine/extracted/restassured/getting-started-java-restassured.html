@@ -1,0 +1,211 @@
+<!doctype html>
+<html><head>
+<title>Getting Started with Java &amp; RestAssured: Setup, Dependencies, and Your First Test</title>
+<meta name="description" content="Set up a Maven project, add the RestAssured dependency, choose between JUnit 5 and TestNG, and write your first RestAssured test — with the given/when/then structure explained line by line." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/getting-started-java-restassured.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Getting Started with Java & RestAssured</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="api-rest-fundamentals.html">API & REST Fundamentals</a></p>
+<article class="content">
+<h2 id="what-is-this-chapter-for">What is this chapter for?</h2>
+<p>This chapter covers exactly the Java and tooling knowledge you need to run your first RestAssured test — not a general Java course. If you already write Java for a living, skim the project-setup sections and slow down at "The given/when/then structure," since that mental model is the one thing every later chapter assumes you have solid.</p>
+
+<h2 id="java-prerequisites">Java Prerequisites</h2>
+<p>You need working knowledge of: classes and objects, methods, basic collections (<code>List</code>, <code>Map</code>), and how to read a stack trace. You do <em>not</em> need to be an expert in Java's more advanced features yet — streams, generics, and records get introduced later in this course, in the specific contexts where API automation actually uses them (mostly around test data builders and POJOs).</p>
+
+<h2 id="maven-vs-gradle">Maven vs. Gradle</h2>
+<p>Both are build tools that manage your project's dependencies (like RestAssured itself) and run your tests. <strong>Maven</strong> uses XML (<code>pom.xml</code>) and is still the more common choice in enterprise API automation projects, largely due to familiarity and a huge ecosystem of existing examples. <strong>Gradle</strong> uses a more concise Groovy or Kotlin DSL and tends to build faster on large projects. This course uses Maven for its examples, since it's what you'll most often inherit in a real job — but everything RestAssured-specific transfers directly to a Gradle project with only the dependency-declaration syntax changing.</p>
+
+<h2 id="project-structure">Project Structure</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>restassured-project/
+├── src/
+│   ├── main/java/        # framework code you'll build in later chapters
+│   └── test/java/        # your actual test classes live here
+├── pom.xml                # Maven's dependency and build configuration
+└── target/                 # compiled output and test reports (generated, not committed)</code></pre>
+<p>For now, everything lives directly under <code>src/test/java</code> — the split into <code>main</code> vs. <code>test</code>, and the deeper folder structure (clients, models, specs, utils), only starts to matter once you reach the Framework Architecture chapter. Don't over-organize a two-test project; let structure grow as genuine need arises.</p>
+
+<h2 id="adding-the-restassured-dependency">Adding the RestAssured Dependency</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>&lt;dependency&gt;
+    &lt;groupId&gt;io.rest-assured&lt;/groupId&gt;
+    &lt;artifactId&gt;rest-assured&lt;/artifactId&gt;
+    &lt;version&gt;5.5.0&lt;/version&gt;
+    &lt;scope&gt;test&lt;/scope&gt;
+&lt;/dependency&gt;</code></pre>
+<p>Always check <a href="https://mvnrepository.com/artifact/io.rest-assured/rest-assured" rel="nofollow">Maven Central</a> for the current version rather than trusting a hardcoded number in any tutorial, including this one — RestAssured releases regularly, and a tutorial's pinned version can quietly go stale. The <code>&lt;scope&gt;test&lt;/scope&gt;</code> matters: it tells Maven this dependency is only needed for running tests, not for your application's actual production code (which, for a pure test project, doesn't really apply — but it's the correct convention regardless).</p>
+
+<h2 id="junit-5-vs-testng">JUnit 5 vs. TestNG</h2>
+<p>RestAssured itself doesn't care which test framework runs it — <code>given().when().get(...)</code> works identically either way. The choice is about how you want to organize, group, and run your tests:</p>
+<table>
+  <thead><tr><th></th><th>JUnit 5</th><th>TestNG</th></tr></thead>
+  <tbody>
+    <tr><td>Popularity</td><td>More common overall, especially newer projects</td><td>Common in larger enterprise QA teams</td></tr>
+    <tr><td>Parameterized tests</td><td>Built-in, flexible (<code>@ParameterizedTest</code>)</td><td>Built-in (<code>@DataProvider</code>), long-established</td></tr>
+    <tr><td>Parallel execution</td><td>Supported, configuration-based</td><td>Native, very mature — a big reason some teams still prefer it</td></tr>
+    <tr><td>Grouping tests</td><td>Tags</td><td>Groups (often considered more flexible)</td></tr>
+  </tbody>
+</table>
+<p><strong>Recommended for this course: JUnit 5.</strong> It's the more actively developed of the two, has excellent parameterized-test support (genuinely useful for the data-driven testing you'll do in the Test Data Management chapter), and is what most new Java projects default to today. If your actual workplace uses TestNG, everything here transfers with only the annotation names changing (<code>@Test</code>, <code>@BeforeEach</code>/<code>@BeforeMethod</code>, etc.) — the RestAssured code itself is identical either way.</p>
+
+<h2 id="your-first-restassured-test">Your First RestAssured Test</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import io.restassured.RestAssured;
+import org.junit.jupiter.api.Test;
+import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.equalTo;
+
+public class FirstApiTest {
+
+    @Test
+    void getSingleUserReturns200() {
+        given()
+            .baseUri("https://reqres.in/api")
+        .when()
+            .get("/users/2")
+        .then()
+            .statusCode(200)
+            .body("data.id", equalTo(2));
+    }
+}</code></pre>
+<p>Run it exactly like any other JUnit test — from your IDE, or via <code>mvn test</code> from the terminal. If it passes, you've just made a real HTTP GET request, received a real response, and validated both its status code and a value inside its JSON body — the entire request/response cycle from Chapter 1, expressed in code.</p>
+
+<h2 id="the-given-when-then-structure-deeply-explained">The given() / when() / then() Structure, Deeply Explained</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>given()
+   ↓
+when()
+   ↓
+then()</code></pre>
+<p>This isn't arbitrary syntax — it's a deliberate readability pattern (RestAssured calls it BDD-style) that mirrors how you'd naturally describe an API test out loud: "<strong>given</strong> this setup, <strong>when</strong> I do this action, <strong>then</strong> I expect this result."</p>
+<ul>
+  <li><strong><code>given()</code></strong> — everything about the request's <em>preconditions</em>: base URI, headers, query/path parameters, request body, authentication. Nothing here has been sent yet; you're just building the request.</li>
+  <li><strong><code>when()</code></strong> — the actual action: which HTTP method, against which endpoint. This is the moment the request is genuinely sent over the network.</li>
+  <li><strong><code>then()</code></strong> — validation of what came back: status code, headers, body content. This section runs against the real response your request just received.</li>
+</ul>
+<p>Keeping these three concerns visually separated is what makes RestAssured tests readable months later without re-deriving what each line does — a real advantage over hand-rolling raw HTTP calls with a generic Java HTTP client, where setup, action, and validation all blur together in ordinary imperative code.</p>
+
+<h2 id="static-imports">Static Imports</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.equalTo;</code></pre>
+<p><code>given()</code> is a static method on the <code>RestAssured</code> class — without the static import, you'd have to write <code>RestAssured.given()</code> on every single test, which adds noise without adding clarity. The convention across essentially every RestAssured codebase you'll encounter is to statically import <code>given</code> (and the Hamcrest matchers like <code>equalTo</code>, <code>hasItem</code>, <code>greaterThan</code> you'll use in assertions) so the test body reads as cleanly as possible.</p>
+
+<h2 id="requestspecification-response-and-validatableresponse">RequestSpecification, Response, and ValidatableResponse</h2>
+<p>Three types quietly flow through every test you write, even when you never name them explicitly:</p>
+<ul>
+  <li><strong><code>RequestSpecification</code></strong> — what <code>given()</code> returns. It represents the request you're building, before it's sent. Every method you chain after <code>given()</code> — <code>.header()</code>, <code>.queryParam()</code>, <code>.body()</code> — returns this same type, which is why you can keep chaining them.</li>
+  <li><strong><code>Response</code></strong> — what you get back after <code>when().get(...)</code> actually fires the request. It holds the raw status code, headers, and body, and you can extract data from it directly without ever calling <code>.then()</code> at all.</li>
+  <li><strong><code>ValidatableResponse</code></strong> — what <code>.then()</code> returns, wrapping the same response specifically for fluent assertion-chaining (<code>.statusCode(200).body(...)</code>).</li>
+</ul>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// You don't have to use .then() at all — this is equally valid,
+// and useful when you want to inspect a Response object directly
+Response response = given().when().get("/users/2");
+System.out.println(response.getStatusCode());
+System.out.println(response.getBody().asString());</code></pre>
+<p>Understanding that <code>.then()</code> isn't mandatory — it's just RestAssured's fluent path for assertions — makes the difference between <em>validating</em> a response and <em>extracting data</em> from one much clearer, a distinction the next chapter goes much deeper on.</p>
+
+<h2 id="restassured-base-configuration">RestAssured Base Configuration</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@BeforeAll
+static void setup() {
+    RestAssured.baseURI = "https://reqres.in";
+    RestAssured.basePath = "/api";
+}</code></pre>
+<p>Repeating <code>.baseUri("https://reqres.in/api")</code> in every single test is exactly the kind of duplication that makes a suite painful to maintain — if the base URL ever changes, you'd need to update it everywhere. Setting <code>RestAssured.baseURI</code> once (commonly in a <code>@BeforeAll</code>, or in a shared base test class) means every test's <code>given()</code> automatically starts from that base, and only needs to specify the path that's actually unique to it: <code>.get("/users/2")</code> instead of the full URL. This is the seed of the <code>RequestSpecification</code> reuse pattern the Specifications chapter builds on properly.</p>
+
+<h2 id="real-world-example-a-minimal-base-test-class">Real-World Example — A Minimal Base Test Class</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>public abstract class BaseApiTest {
+
+    @BeforeAll
+    static void configureBaseUri() {
+        RestAssured.baseURI = System.getProperty("api.baseUrl", "https://reqres.in");
+    }
+}
+
+public class UserApiTest extends BaseApiTest {
+
+    @Test
+    void getUserReturnsExpectedName() {
+        given()
+            .pathParam("id", 2)
+        .when()
+            .get("/api/users/{id}")
+        .then()
+            .statusCode(200)
+            .body("data.first_name", equalTo("Janet"));
+    }
+}</code></pre>
+<p>Reading the base URL from a system property (with a sensible default) rather than hardcoding it is a small habit worth building immediately — it's the first thread connecting this chapter to the multi-environment strategy (local, QA, staging) covered fully once you reach Framework Architecture.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Full URL repeated and hardcoded in every single test
+given().when().get("https://reqres.in/api/users/2").then().statusCode(200);
+
+// ✅ Base URI configured once; each test only specifies what's unique to it
+given().when().get("/users/2").then().statusCode(200);</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Hardcoding the full URL in every test</strong> instead of configuring <code>RestAssured.baseURI</code> once — painful the moment the base URL needs to change for a new environment.</li>
+  <li><strong>Skipping the static import</strong> for <code>given()</code>, leading to verbose <code>RestAssured.given()</code> scattered throughout, which most real codebases avoid by convention.</li>
+  <li><strong>Not knowing <code>.then()</code> is optional</strong> — some engineers assume every request must end in a <code>.then()</code> chain, and don't realize a plain <code>Response</code> object is often the more natural tool when you're extracting data rather than asserting.</li>
+  <li><strong>Choosing a test framework based on unfamiliarity avoidance</strong> rather than what the team already standardizes on — consistency across a codebase matters more than which framework is "better" in the abstract.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Multiple base URLs in one project</strong> (calling two different microservices) — don't force a single global <code>RestAssured.baseURI</code>; use separate <code>RequestSpecification</code> objects instead, covered in Chapter 8.</li>
+  <li><strong>Running the same test suite against different environments</strong> — reading the base URL from a system property or environment variable (as shown above) rather than a hardcoded default is what makes this possible without editing test code per environment.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a test fails with a connection error before you even get to an assertion, check <code>RestAssured.baseURI</code> first — a typo'd or unset base URI is one of the most common "why is this failing" moments for a brand-new project, and the resulting stack trace (a connection failure) doesn't always make the actual cause obvious at a glance.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Configure <code>RestAssured.baseURI</code> once, in a shared base class or a <code>@BeforeAll</code>, never per-test.</li>
+  <li>Statically import <code>given</code> and your Hamcrest matchers — it's the near-universal convention for a reason.</li>
+  <li>Pick JUnit 5 unless your team already has a strong, established TestNG codebase — don't introduce a second test framework into an existing project without a good reason.</li>
+  <li>Read environment-specific values (base URL, credentials) from system properties or environment variables from day one, even in a two-test project — retrofitting this later means touching every test.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Set up a fresh Maven project with the RestAssured and JUnit 5 dependencies, configure a shared base URI against <code>https://reqres.in</code> in a <code>@BeforeAll</code>, and write two tests: one asserting a successful GET on an existing user, and one asserting a 404 on a user ID that doesn't exist.</p>
+
+<h2 id="summary">Summary</h2>
+<p>A RestAssured project needs just three real ingredients: a build tool (Maven or Gradle) to manage the dependency, a test framework (JUnit 5 recommended) to run and organize tests, and the RestAssured dependency itself. The <code>given()/when()/then()</code> structure isn't decoration — it's a readability convention separating request setup, the actual call, and response validation into three clear, scannable sections, and understanding that <code>Response</code> and <code>ValidatableResponse</code> are two different tools for two different jobs (extracting vs. asserting) sets up the next chapter cleanly.</p>
+
+<h2 id="what-you-learned">What You Learned</h2>
+<p>✓ Setting up a Maven project with the RestAssured dependency<br />
+✓ Choosing between JUnit 5 and TestNG<br />
+✓ The given/when/then structure and why it's organized that way<br />
+✓ Static imports, RequestSpecification, Response, and ValidatableResponse<br />
+✓ Configuring a base URI once instead of repeating it everywhere</p>
+
+<h2 id="related-topics">Related Topics</h2>
+<p>→ Building HTTP Requests (next chapter)<br />
+→ Response Validation & Assertions<br />
+→ Request & Response Specifications</p>
+      
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why is JUnit 5 recommended over TestNG for this course specifically?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It's more actively developed, has strong parameterized-test support genuinely useful for data-driven testing, and is what most new Java projects default to today — though the RestAssured code itself is identical regardless of which framework runs it.</div>
+</details>
+<details class="faq-item">
+<summary>What's the actual difference between what given() and .then() return?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">given() returns a RequestSpecification representing the request being built; .then() returns a ValidatableResponse specifically for fluent assertion chaining — two different types serving two different phases of the same request.</div>
+</details>
+<details class="faq-item">
+<summary>Why configure RestAssured.baseURI once instead of repeating it in every test?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Repeating it means updating dozens or hundreds of near-identical lines if the base URL ever changes; configuring it once (typically in a shared base class) means every test's given() automatically starts from that base.</div>
+</details>
+<details class="faq-item">
+<summary>What problem does the static import of given() actually solve?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Without it, every test would need the verbose RestAssured.given() — the static import is purely a readability convention nearly every real RestAssured codebase follows.</div>
+</details>
+<details class="faq-item">
+<summary>What's the actual purpose of the given/when/then structure beyond just syntax?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It's a deliberate readability convention separating a request's preconditions, the action that sends it, and validation of what came back — keeping these three concerns visually distinct is what makes a test readable months later without re-deriving what each line does.</div>
+</details>
+</div>
+</article>
+</body></html>

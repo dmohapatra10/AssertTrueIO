@@ -1,0 +1,119 @@
+<!doctype html>
+<html><head>
+<title>Recognizing When Your k6 Load Generator Itself Is the Bottleneck</title>
+<meta name="description" content="The specific symptoms of a resource-constrained load-generating machine — CPU, memory, and network — and how to distinguish them from a genuine bottleneck in the system under test." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/recognizing-when-the-load-generator-is-the-bottleneck.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Recognizing When the Load Generator Is the Bottleneck</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="distributed-and-large-scale-performance-testing.html">Distributed & Large-Scale Performance Testing overview</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>The machine running k6 has its own finite CPU, memory, and network capacity — and every one of those can run out before the system actually under test ever comes close to its own limits. This page covers how to recognize that happening.</p>
+
+<h2 id="cpu-exhaustion-on-the-load-generator">CPU Exhaustion on the Load Generator</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Symptom: k6's own reported metrics (http_req_duration) start climbing,
+         but the TARGET SYSTEM's own monitoring (if you have access to it)
+         shows normal, healthy CPU and response times on its end.</code></pre>
+<p>If the machine running k6 is itself CPU-starved — too many virtual users configured for the hardware actually available — k6 can't process responses, evaluate checks, or schedule the next request promptly, adding delay that has nothing to do with the target system's real performance. This is a genuine, common cause of misleading results.</p>
+
+<h2 id="memory-exhaustion-on-the-load-generator">Memory Exhaustion on the Load Generator</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Symptom: the k6 process itself slows down or crashes partway through a
+         test, especially one loading large data sets without SharedArray
+         (Chapter 8), or running an extremely high VU count.</code></pre>
+<p>Each virtual user carries some memory overhead, and un-shared data (the exact problem <code>SharedArray</code> solves) multiplies that overhead by the VU count. A machine running out of memory doesn't produce a clean, informative error — it produces degraded performance or an outright crash that can look like a target-system problem if you're not specifically checking the load generator's own resource usage.</p>
+
+<h2 id="network-capacity-on-the-load-generator">Network Capacity on the Load Generator</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Symptom: http_req_connecting (Chapter 6) climbs across the board, for
+         EVERY request, uniformly — not concentrated on one specific
+         endpoint the way a genuine server-side problem usually would be.</code></pre>
+<p>A single machine has finite outbound network bandwidth and a finite number of concurrent connections it can realistically sustain. If every single request, regardless of which endpoint, shows elevated connection time, that uniform pattern points toward the load generator's own network capacity rather than a problem specific to the target system's handling of any one endpoint.</p>
+
+<h2 id="detailed-example-distinguishing-the-two-scenarios-directly">Detailed Example — Distinguishing the Two Scenarios Directly</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Scenario A — genuine target-system bottleneck:
+  http_req_waiting is high specifically for ONE endpoint (checkout),
+  while others (products, search) remain fast.
+  → Points to something specific in the target system's checkout logic.
+
+Scenario B — load generator bottleneck:
+  http_req_connecting is elevated UNIFORMLY across every endpoint,
+  and the machine running k6 shows high CPU usage in its own OS-level
+  monitoring (top, htop, or equivalent) during the test.
+  → Points to the load generator's own resource exhaustion, not the
+    target system at all.</code></pre>
+<p>The component-phase breakdown from Chapter 6, combined with checking the load generator's own OS-level resource usage during a run, is what actually distinguishes these two genuinely different explanations for the same surface symptom (degrading response times).</p>
+
+<h2 id="real-world-example-a-test-that-found-a-bottleneck-that-wasn-t-real">Real-World Example — A Test That "Found a Bottleneck" That Wasn't Real</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Team's conclusion: "Our system caps out around 2,000 VUs — that's our
+                    real capacity limit."
+
+What was actually happening: the single laptop running the k6 test
+maxed out its own CPU around 2,000 VUs — the target system, monitored
+separately, never exceeded 15% CPU usage the entire time.
+
+Corrected conclusion: the team's ACTUAL capacity is unknown — they
+found the load generator's limit, not the system's.</code></pre>
+<p>This is a genuinely common, costly mistake — treating the load generator's own ceiling as if it were the target system's real capacity limit, potentially leading to unnecessary and expensive infrastructure scaling decisions based on a number that was never actually about the target system at all.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Concluding a capacity limit from k6 results alone, with no visibility
+// into the load generator's OWN resource usage during the test
+
+// ✅ Monitoring the load-generating machine's CPU, memory, and network
+// alongside the target system's, and checking both before drawing
+// any conclusion about where a limit actually comes from</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Never monitoring the load generator's own OS-level resource usage</strong> during a test — treating k6's reported metrics as the complete picture.</li>
+  <li><strong>Treating a uniform slowdown across every endpoint as a target-system-wide problem</strong>, when a uniform pattern (versus one endpoint specifically) is actually a strong signal pointing toward the load generator itself.</li>
+  <li><strong>Assuming a laptop or modest development machine can generate arbitrarily high load</strong> without ever hitting its own real hardware limits.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>A load generator that's resource-constrained specifically by an unrelated process</strong> running on the same machine (another application competing for CPU) — worth ruling out before concluding k6 itself, or the VU count, is the actual cause.</li>
+  <li><strong>Cloud-hosted load generators with their own network egress limits</strong> — even a powerful virtual machine can have a capped network bandwidth allowance that becomes the real ceiling before CPU or memory ever does.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If test results seem to plateau or degrade at a specific VU count, check the load-generating machine's own CPU, memory, and network usage at that exact point in the test, using OS-level tools alongside k6's own output — this single check is what separates "we found our system's real limit" from "we found our laptop's limit."</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Monitor the load generator's own OS-level resource usage during every test that pushes toward high VU counts, not just the target system's.</li>
+  <li>Treat a uniform slowdown across every endpoint as a signal to check the load generator first, before investigating the target system.</li>
+  <li>Never conclude a "capacity limit" from k6 results alone without ruling out the load generator's own resource ceiling.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Given a test where <code>http_req_connecting</code> rises uniformly across all endpoints starting around 3,000 VUs, while the target system's own server-side monitoring shows healthy, low resource usage throughout, write a one-paragraph explanation of what's most likely actually happening and what should be checked to confirm it.</p>
+
+<h2 id="summary">Summary</h2>
+<p>The machine running k6 has finite CPU, memory, and network capacity, and exhausting any of these produces symptoms that can look identical to a genuine target-system bottleneck from k6's output alone. Monitoring the load generator's own OS-level resource usage, and recognizing that a uniform slowdown across every endpoint points toward the generator rather than the target, is what prevents mistaking your own test infrastructure's limit for the system under test's real capacity.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why might http_req_duration climb across a test even though the target system's own monitoring shows nothing wrong?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">If the machine running k6 itself is CPU-starved, it can't process responses, evaluate checks, or schedule requests promptly — this adds delay to k6's own measurements that has nothing to do with the target system's actual performance. The target system's own monitoring correctly shows it's healthy, because the actual bottleneck is entirely on the load-generating side.</div>
+</details>
+<details class="faq-item">
+<summary>Why is a uniform slowdown across every endpoint a stronger signal of a load-generator problem than a target-system problem?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A genuine target-system bottleneck typically concentrates on something specific — a particular slow database query, an inefficient endpoint — producing a pattern where some endpoints are affected and others aren't. A uniform slowdown across every single endpoint regardless of what it does is more consistent with a shared, generator-side constraint (limited network capacity, exhausted CPU) affecting every outgoing request equally.</div>
+</details>
+<details class="faq-item">
+<summary>What real, costly mistake can result from treating a load generator's own resource ceiling as the target system's actual capacity limit?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A team might conclude their system caps out at some number of concurrent users, when that number was actually the load-generating machine's own limit — leading to unnecessary infrastructure scaling decisions, or worse, false confidence that a much lower real capacity exists, potentially missing a genuine capacity problem the test never actually reached.</div>
+</details>
+<details class="faq-item">
+<summary>Why does Chapter 8's SharedArray pattern directly relate to preventing the load generator from becoming the bottleneck?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Without SharedArray, a data set gets duplicated in memory once per virtual user — at high VU counts, this multiplies memory usage significantly, and can exhaust the load generator's own available memory well before any meaningful load has actually been generated against the target system. SharedArray keeps memory usage roughly constant regardless of VU count, directly preventing this specific path to becoming the bottleneck.</div>
+</details>
+<details class="faq-item">
+<summary>Why might a cloud-hosted virtual machine still hit a bottleneck even with generous CPU and memory allocated?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Cloud providers often cap network egress (outbound bandwidth) independently of CPU and memory allocation — a virtual machine could have ample processing power and RAM while still being capped on how much outbound network traffic it can generate, becoming the actual limiting factor before CPU or memory ever would.</div>
+</details>
+</div>
+</article>
+</body></html>

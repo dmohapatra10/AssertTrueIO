@@ -1,0 +1,238 @@
+<!doctype html>
+<html><head>
+<title>The Recommended k6 Project Folder Structure, Fully Worked</title>
+<meta name="description" content="A complete, concrete k6 project folder structure with real file contents for every layer, and a checkout-load test assembled end to end from it." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/the-recommended-k6-folder-structure.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>The Recommended Folder Structure</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="layer-by-layer-responsibilities-k6.html">Layer-by-Layer Responsibilities</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>The previous page defined what each layer is for. This page lays out where those layers actually live on disk, with a complete, concrete example — one real test assembled end to end from every folder.</p>
+
+<h2 id="the-full-structure">The Full Structure</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>k6-performance/
+├── tests/
+│   ├── smoke/
+│   │   └── checkout-smoke.js
+│   ├── load/
+│   │   └── checkout-load.js
+│   ├── stress/
+│   │   └── checkout-stress.js
+│   └── soak/
+│       └── checkout-soak.js
+├── workflows/
+│   └── checkout.js
+├── api/
+│   ├── auth.js
+│   ├── products.js
+│   ├── cart.js
+│   └── checkout.js
+├── data/
+│   └── users.json
+├── config/
+│   └── index.js
+├── utils/
+│   ├── unique-data.js
+│   └── jwt.js
+├── metrics/
+│   └── index.js
+├── thresholds/
+│   ├── smoke.js
+│   ├── load.js
+│   └── stress.js
+├── reports/
+│   └── (test output written here)
+└── package.json</code></pre>
+<p>Test types (Chapter 10) get their own subfolders under <code>tests/</code>, since a mature project accumulates several of each as more workflows are covered — a checkout smoke test, a browsing smoke test, and so on.</p>
+
+<h2 id="detailed-example-every-file-fully-written">Detailed Example — Every File, Fully Written</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// config/index.js
+const environments = {
+  staging: { baseUrl: 'https://staging-api.example.com' },
+  production: { baseUrl: 'https://api.example.com' },
+};
+export const config = environments[__ENV.TARGET_ENV] || environments.staging;</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// utils/unique-data.js
+export function uniqueEmail() {
+  return `user-${__VU}-${__ITER}-${Date.now()}@example.com`;
+}</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// data/users.js (note: reads data/users.json)
+import { SharedArray } from 'k6/data';
+export const users = new SharedArray('users', function () {
+  return JSON.parse(open('./users.json'));
+});</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// api/auth.js
+import http from 'k6/http';
+import { config } from '../config/index.js';
+
+let vuToken = null;
+export function ensureLoggedIn(credentials) {
+  if (!vuToken) {
+    const response = http.post(`${config.baseUrl}/login`,
+      JSON.stringify(credentials),
+      { headers: { 'Content-Type': 'application/json' } });
+    vuToken = response.json('token');
+  }
+  return vuToken;
+}</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// api/products.js
+import http from 'k6/http';
+import { config } from '../config/index.js';
+
+export function getProduct(token, id) {
+  return http.get(`${config.baseUrl}/products/${id}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    tags: { endpoint: 'products' },
+  });
+}</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// api/cart.js
+import http from 'k6/http';
+import { config } from '../config/index.js';
+
+export function addToCart(token, productId) {
+  return http.post(`${config.baseUrl}/cart`,
+    JSON.stringify({ productId, quantity: 1 }),
+    { headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      tags: { endpoint: 'cart' } });
+}</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// api/checkout.js
+import http from 'k6/http';
+import { config } from '../config/index.js';
+
+export function checkout(token) {
+  return http.post(`${config.baseUrl}/checkout`, null, {
+    headers: { Authorization: `Bearer ${token}` },
+    tags: { endpoint: 'checkout' },
+  });
+}</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// workflows/checkout.js
+import { check, sleep, group } from 'k6';
+import { ensureLoggedIn } from '../api/auth.js';
+import { getProduct } from '../api/products.js';
+import { addToCart } from '../api/cart.js';
+import { checkout } from '../api/checkout.js';
+import { users } from '../data/users.js';
+
+export default function () {
+  const user = users[__VU % users.length];
+  const token = ensureLoggedIn(user);
+
+  group('Checkout Journey', function () {
+    const product = getProduct(token, 500);
+    check(product, { 'product loaded': (r) => r.status === 200 });
+    sleep(2);
+
+    const cartResponse = addToCart(token, 500);
+    check(cartResponse, { 'added to cart': (r) => r.status === 201 });
+    sleep(1);
+
+    const checkoutResponse = checkout(token);
+    check(checkoutResponse, { 'checkout succeeded': (r) => r.status === 200 });
+  });
+}</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// thresholds/load.js
+export default {
+  http_req_duration: ['p(95)&lt;800'],
+  checks: ['rate>0.97'],
+};</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// tests/load/checkout-load.js
+import checkoutWorkflow from '../../workflows/checkout.js';
+import thresholds from '../../thresholds/load.js';
+
+export const options = {
+  scenarios: {
+    checkout_load: {
+      executor: 'ramping-vus',
+      startVUs: 0,
+      stages: [
+        { duration: '3m', target: 200 },
+        { duration: '15m', target: 200 },
+        { duration: '3m', target: 0 },
+      ],
+    },
+  },
+  thresholds,
+};
+
+export default checkoutWorkflow;</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>$ k6 run -e TARGET_ENV=staging tests/load/checkout-load.js</code></pre>
+<p>Every file here is small and has exactly one job — the final test file is barely 20 lines, because everything it needs already exists in its proper layer, assembled through imports rather than duplicated inline.</p>
+
+<h2 id="real-world-example-adding-a-smoke-test-costs-almost-nothing">Real-World Example — Adding a Smoke Test Costs Almost Nothing</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// thresholds/smoke.js
+export default { checks: ['rate>0.99'] };
+
+// tests/smoke/checkout-smoke.js
+import checkoutWorkflow from '../../workflows/checkout.js';
+import thresholds from '../../thresholds/smoke.js';
+
+export const options = { vus: 1, iterations: 5, thresholds };
+export default checkoutWorkflow;</code></pre>
+<p>Because the actual workflow logic already exists, adding a smoke-test variant is just a new, tiny options file — no request logic duplicated, no risk of the smoke test drifting out of sync with the load test's underlying behavior.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Everything in one file, per test type — checkout-load.js and
+// checkout-smoke.js each independently reimplementing the same requests
+
+// ✅ One workflow, imported by every test-type file, each just supplying
+// different options and thresholds</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Nesting folders more deeply than the project's actual size warrants</strong> — the structure shown here fits a genuinely multi-workflow project; a small project with one or two workflows may not need every subfolder populated yet.</li>
+  <li><strong>Naming files inconsistently across layers</strong> — a clear, predictable naming convention (matching the resource or workflow name across <code>api/</code>, <code>workflows/</code>, and <code>tests/</code>) makes the project far easier to navigate.</li>
+  <li><strong>Forgetting to actually populate the <code>reports/</code> output location</strong> in CI configuration (Chapter 13) — an empty or misconfigured output path silently loses valuable historical results.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>A workflow shared across genuinely different test types</strong> with legitimately different behavior (Chapter 10's stress-test exception, skipping a slow step) — this can be handled with a parameter to the workflow function, rather than duplicating the whole workflow file.</li>
+  <li><strong>Multiple unrelated workflows that don't share any API modules</strong> — perfectly fine; not every project needs every workflow to share every layer, as long as genuine duplication (the same request logic, copy-pasted) is avoided.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a new test type takes more than a few minutes to add, something's likely not layered correctly — adding a new test-type file should mean writing a small options/thresholds combination and importing an already-existing workflow, not reimplementing request logic.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Keep the final test file in <code>tests/</code> as thin as the worked example above — assembly, not implementation.</li>
+  <li>Use consistent naming across layers so a given resource or workflow is easy to trace through the project.</li>
+  <li>Let the project's actual size and complexity determine how fully the structure needs to be populated — don't force every folder to exist before there's real content for it.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Using the structure and file examples on this page as a template, add a "browse" workflow (browsing products without checking out) with its own <code>api/</code> functions where needed, and a smoke-test file for it — reusing the existing <code>config/</code>, <code>data/</code>, and <code>utils/</code> layers rather than duplicating anything.</p>
+
+<h2 id="summary">Summary</h2>
+<p>A real k6 project's structure separates test-type configuration (<code>tests/</code>), realistic workflows, API request construction, data, configuration, utilities, metrics, and thresholds into their own dedicated locations — with each individual file staying small because it has exactly one job. The payoff is concrete: adding a new test type for an existing workflow becomes a small, safe addition rather than a risk of duplicating and diverging from existing logic.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why does the recommended structure put different test types (smoke, load, stress) in separate subfolders under tests/?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">As a project grows to cover multiple workflows, each needing multiple test types, organizing by test type keeps related configurations grouped together and makes it easy to, for instance, run every smoke test across all workflows before a deployment, or locate every stress-test configuration in one place — rather than test types for different workflows being scattered without any consistent organization.</div>
+</details>
+<details class="faq-item">
+<summary>Why is the final tests/load/checkout-load.js file in the worked example so short?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Because every piece of actual logic it needs — the workflow, the request construction, the data, the configuration — already exists in its proper layer. The test file's only job is importing the workflow and supplying the specific options and thresholds for this particular test type, which is exactly why it stays small regardless of how complex the underlying workflow actually is.</div>
+</details>
+<details class="faq-item">
+<summary>Why does adding a new smoke-test variant for an existing workflow cost "almost nothing," as this page describes it?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Since the actual checkout workflow logic already exists as a shared, imported module, a new test-type variant only requires a new, small thresholds file and a new, small test file that imports the existing workflow with different options — no request logic needs to be reimplemented or duplicated, which is precisely the payoff of separating workflow logic from test-type configuration in the first place.</div>
+</details>
+<details class="faq-item">
+<summary>How would you handle a workflow that needs slightly different behavior specifically for a stress test, without duplicating the whole workflow file?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A parameter passed to the workflow function (indicating, for instance, whether to skip a slow, non-essential step) keeps the behavioral variation contained within the single shared workflow file, rather than requiring a full separate copy of the workflow for that one test type. This preserves the single-source-of-truth benefit while still accommodating a legitimate, deliberate difference in behavior.</div>
+</details>
+<details class="faq-item">
+<summary>What's a reliable signal that a k6 project's folder structure isn't actually being used correctly, even if all the folders exist?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">If adding a new test type for an existing workflow takes significant time or requires reimplementing request logic rather than just writing a small options/thresholds combination and importing the existing workflow, the layering isn't actually being respected — the folders may exist, but logic is likely still duplicated across files rather than genuinely centralized in its proper layer.</div>
+</details>
+</div>
+</article>
+</body></html>

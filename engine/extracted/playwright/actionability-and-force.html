@@ -1,0 +1,211 @@
+<!doctype html>
+<html><head>
+<title>Playwright Actionability Checks and force: Complete Guide</title>
+<meta name="description" content="How Playwright&#x27;s actionability checks work before every action, what each check verifies, why the force option usually hides a real bug, and when force is legitimately needed." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/actionability-and-force.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Actionability Checks and <code class="api-name">force</code></h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="actions.html">Actions overview</a>, <a href="click-and-dblclick.html">click() and dblclick()</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+      <p>Actionability checks are the automatic waiting logic that runs before nearly every action — <code>click()</code>, <code>fill()</code>, <code>check()</code>, and the rest — confirming the target element is genuinely ready to receive that action before Playwright attempts it. <code>force: true</code> is the escape hatch that skips these checks entirely.</p>
+
+      <h2 id="why-it-s-important">Why it's important</h2>
+      <p>This is the single mechanism responsible for most of Playwright's reputation for reliability compared to older tools. Every "flaky test" caused by clicking too early, typing into a disabled field, or interacting with an element hidden behind a loading spinner is a category of bug actionability checks are specifically designed to eliminate — automatically, with no manual wait code required.</p>
+
+      <h2 id="the-five-checks">The Five Checks</h2>
+      <p>Before most actions, Playwright waits (up to the configured timeout) for the target element to be:</p>
+      <ol>
+        <li><strong>Attached</strong> — present in the DOM. An element removed and re-added (common in framework re-renders) needs to be re-attached before an action can proceed.</li>
+        <li><strong>Visible</strong> — has a non-empty bounding box, and isn't <code>display: none</code>, <code>visibility: hidden</code>, or zero-opacity in a way that hides it.</li>
+        <li><strong>Stable</strong> — not actively animating; its bounding box hasn't moved across at least two consecutive animation frames. This specifically catches acting on an element mid-transition, before it settles.</li>
+        <li><strong>Enabled</strong> — not carrying a <code>disabled</code> attribute (for form controls) or otherwise marked non-interactive.</li>
+        <li><strong>Receives events</strong> — not obscured by another element at its target point (a loading overlay, a modal backdrop, a sticky header covering part of the page).</li>
+      </ol>
+      <p>Different actions require different subsets — <code>fill()</code> additionally checks the element is "editable," while a check like <code>isVisible()</code> (an assertion helper, not an action) doesn't wait at all, it just returns the current state immediately.</p>
+
+      <h2 id="basic-example-waiting-automatically">Basic Example — Waiting Automatically</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// No explicit wait needed — Playwright waits for the button to become
+// enabled once the form's required fields are filled
+await page.getByLabel('Email').fill('user@example.com');
+await page.getByLabel('Password').fill('secret123');
+await page.getByRole('button', { name: 'Sign in' }).click(); // waits for enabled state automatically</code></pre>
+
+      <h2 id="detailed-example-reading-a-real-timeout-error">Detailed Example — Reading a Real Timeout Error</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// TimeoutError: locator.click: Timeout 30000ms exceeded.
+// =========================== logs ===========================
+// waiting for getByRole('button', { name: 'Submit' })
+//   - element is visible, enabled
+//   - element is not stable - waiting...
+//   - element is outside of the viewport
+// ==============================================================</code></pre>
+      <p>This is a genuinely useful error message, not a generic failure — it tells you exactly which check is stuck (here, the element keeps moving, likely due to an ongoing CSS animation or a layout shift caused by something loading above it). Reading this log is the fastest way to diagnose the real underlying issue, which almost always exists in the app, not the test.</p>
+
+      <h2 id="the-force-option">The <code>force</code> Option</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>await page.getByRole('button', { name: 'Delete' }).click({ force: true });</code></pre>
+      <p><code>force: true</code> skips all actionability checks and performs the action immediately — including on elements that are invisible, disabled, or covered by something else. It exists for narrow, legitimate cases, but it's frequently reached for as a shortcut when a test is flaky, which almost always makes things worse, not better.</p>
+
+      <h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Papering over a timeout with force — the underlying problem (an overlay
+// blocking the button) is still there; the test now just ignores it
+await page.getByRole('button', { name: 'Submit' }).click({ force: true });
+
+// ✅ Investigate what's actually blocking the click, and fix the real cause —
+// here, waiting for the loading overlay to disappear first
+await expect(page.getByTestId('loading-overlay')).toBeHidden();
+await page.getByRole('button', { name: 'Submit' }).click();</code></pre>
+
+      <h2 id="when-force-is-legitimately-needed">When force Is Legitimately Needed</h2>
+      <ul>
+        <li><strong>Testing a genuinely broken state on purpose</strong> — e.g., verifying that clicking a visually-disabled-but-not-actually-<code>disabled</code>-attribute element correctly does nothing, as a regression test for a specific bug.</li>
+        <li><strong>Elements intentionally covered by design</strong> for a reason unrelated to the test's concern — rare, and usually better solved by scrolling or dismissing the covering element first rather than forcing through it.</li>
+        <li><strong>Drag-and-drop or canvas-based interactions</strong> where the standard visibility model doesn't map cleanly — even here, force should be a deliberate, documented choice, not a default reflex.</li>
+      </ul>
+
+      <h2 id="common-mistakes">Common Mistakes</h2>
+      <ul>
+        <li><strong>Reaching for <code>force: true</code> the instant a click times out</strong>, before reading what the actionability error actually says is wrong.</li>
+        <li><strong>Adding a manual <code>waitForTimeout()</code> before an action "just in case"</strong> — this doesn't address actionability at all; it just adds arbitrary delay while hoping the real condition resolves in that window, which is both slower and less reliable than waiting for the actual state.</li>
+        <li><strong>Assuming a longer timeout fixes a stuck actionability check</strong> — if the element is genuinely blocked (disabled forever, permanently covered by a bug), no timeout length will help; the fix is in the app or the test's understanding of the flow, not the timeout value.</li>
+      </ul>
+
+      <h2 id="edge-cases">Edge Cases</h2>
+      <ul>
+        <li><strong>Elements that are visible but covered by a transparent element</strong> (e.g., an invisible click-catcher <code>&lt;div&gt;</code> used for a modal backdrop) — the "receives events" check correctly catches this even though the element looks clickable to the eye; it's testing real click-target overlap, not just visual appearance.</li>
+        <li><strong>Custom elements with non-standard disabled styling</strong> (visually greyed out via CSS but no real <code>disabled</code> attribute) — actionability checks only see the real <code>disabled</code> attribute/property, so a "visually disabled" button will still pass the enabled check and get clicked; this is often itself an app bug worth flagging.</li>
+      </ul>
+
+      <h2 id="debugging">Debugging</h2>
+      <p>Always read the full actionability error log before reaching for <code>force</code> — it names the specific check that's failing (not stable, not visible, outside viewport, covered by another element), which almost always points directly at the real cause. Trace Viewer (Chapter 15) additionally shows a visual snapshot at the moment of failure, making "covered by another element" failures especially easy to diagnose at a glance.</p>
+
+      <h2 id="best-practices">Best Practices</h2>
+      <ul>
+        <li>Treat every actionability timeout as a signal worth investigating, not an obstacle to route around with <code>force</code>.</li>
+        <li>If <code>force</code> is genuinely necessary, leave a comment explaining why — future readers (including future you) shouldn't have to rediscover the reasoning.</li>
+        <li>Never use <code>force</code> as a first response to flakiness — diagnose via the error log and Trace Viewer first.</li>
+      </ul>
+
+      <h2 id="practice-exercise">Practice Exercise</h2>
+      <p>A click on a "Publish" button times out with "element is covered by another element" during a page load. Without using <code>force</code>, write the fix that waits for the actual blocking element (a loading spinner overlay) to disappear first.</p>
+
+      <h2 id="summary">Summary</h2>
+      <p>Actionability checks (attached, visible, stable, enabled, receives events) run automatically before actions, eliminating the most common category of flaky-test bugs without requiring manual waits. <code>force: true</code> skips all of them and should be reserved for narrow, deliberate, documented cases — not used as a default fix for timeouts, which almost always indicate a real problem worth understanding.</p>
+
+      <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A test fails in CI with "element is not stable — waiting..." but passes reliably every time you run it locally. A teammate proposes adding force: true to make the flakiness go away. Walk through what's actually happening and why that fix is the wrong one.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>The "not stable" message means Playwright is watching the element's bounding box across consecutive frames and it's still moving — almost always a CSS transition or animation that hasn't finished settling. This is genuinely more likely to reproduce in CI than locally: CI runners are typically slower and more resource-constrained, so an animation that finishes well within the timeout on a fast local machine may still be mid-transition when Playwright checks in CI.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// The real cause — a card that slides in on page load:
+// .card { transition: transform 400ms ease; }
+// On a slow CI runner, 400ms of animation can still be running
+// when the test's default timeout window starts checking stability.
+
+await page.goto('/dashboard');
+await page.getByRole('button', { name: 'Archive' }).click(); // times out: not stable</code></pre>
+<p>force: true would make the click happen mid-animation, at whatever coordinates the button happened to occupy at that instant — potentially missing it entirely, or clicking correctly by pure luck. The actual fix addresses the real condition instead: either wait for the animation to genuinely finish, or disable animations in the test environment entirely, which most real teams do specifically for this reason.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// playwright.config.ts
+export default defineConfig({
+  use: {
+    // Disables CSS animations/transitions site-wide for tests
+    launchOptions: { args: ['--force-prefers-reduced-motion'] },
+  },
+});</code></pre>
+</div>
+</details>
+<details class="faq-item">
+<summary>Write out what each of the five actionability checks — attached, visible, stable, enabled, receives events — actually verifies, and give one concrete real-world bug each one is specifically designed to catch.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Each check maps to a genuine, common real-world failure mode:</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ATTACHED — element exists in the DOM
+// Bug it catches: a React/Vue re-render removes and recreates a
+// component, and the test's old element reference is now a ghost
+// pointing at nothing.
+
+// VISIBLE — has a real bounding box, not display:none or 0 opacity
+// Bug it catches: a modal that's technically rendered but still
+// hidden behind a "loading" class that hasn't been removed yet.
+
+// STABLE — bounding box hasn't moved across 2+ animation frames
+// Bug it catches: clicking a button mid-slide-in, landing on the
+// wrong coordinates because the element hadn't settled.
+
+// ENABLED — no disabled attribute
+// Bug it catches: a submit button correctly disabled until all
+// required fields are filled — clicking it "successfully" via
+// force would test a state a real user could never reach.
+
+// RECEIVES EVENTS — nothing else is on top of it at that point
+// Bug it catches: a cookie-consent banner or sticky header
+// covering the actual target element, invisible to the test
+// unless something explicitly checks for it.
+await page.getByRole('button', { name: 'Submit' }).click();
+// "element is not stable" / "is disabled" / "intercepted by &lt;div class='cookie-banner'&gt;" —
+// each message names exactly which of the five checks failed</code></pre>
+</div>
+</details>
+<details class="faq-item">
+<summary>A code reviewer blocks a pull request containing await page.getByRole('button', { name: 'Delete Account' }).click({ force: true }). The PR author argues "it works, the test passes." Make the reviewer's case, with a concrete example of what could go wrong in production if this ships.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>The reviewer is right to block it — "the test passes" is exactly the problem, not the reassurance the PR author thinks it is. A test's entire value comes from verifying that a real user could actually perform this action; force: true removes that verification while leaving the test green.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// What force: true actually did here, concretely:
+// The "Delete Account" button was covered by an unread-notice banner
+// ("You have 2 unread messages") that appears above account settings.
+// A real user would need to dismiss the banner first — but the banner
+// dismiss button had a bug and silently failed to register clicks.
+
+await page.getByRole('button', { name: 'Delete Account' }).click({ force: true });
+// passes: force skips the "receives events" check entirely,
+// clicking straight through the banner as if it weren't there
+
+// Without force:
+await page.getByRole('button', { name: 'Delete Account' }).click();
+// TimeoutError: element is outside of the viewport, or another
+// element intercepts pointer events — surfaces the REAL bug:
+// users are currently unable to delete their account at all</code></pre>
+<p>Shipping the force:true version means this genuine, user-facing bug reaches production with a fully green test suite — the worst possible outcome, since the team now has false confidence specifically where they have none.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Is there a legitimate, correct use for force: true, or should it always be treated as a workaround to remove? Give a genuine example where it's the right call.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>It's rare, but genuine cases exist — specifically when an element is intentionally, correctly hidden from the actionability checks' perspective by design, not by accident.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// A real, defensible case: testing a "skip to main content" link,
+// a common accessibility pattern that's visually hidden until
+// keyboard focus reveals it (so sighted mouse users don't see
+// clutter, but screen reader / keyboard users can access it).
+
+// .skip-link { position: absolute; left: -9999px; }
+// .skip-link:focus { left: 0; } /* only visible when focused */
+
+const skipLink = page.getByRole('link', { name: 'Skip to main content' });
+await skipLink.focus();          // triggers the CSS that reveals it
+await expect(skipLink).toBeVisible(); // now genuinely visible — no force needed
+
+// vs. a case where force is arguably defensible: verifying a
+// programmatic click handler fires correctly on an element your
+// OWN test setup has deliberately kept hidden for an unrelated
+// reason, where visibility genuinely isn't what's being tested.</code></pre>
+<p>The distinguishing question is always: "is this element hidden/blocked because of a real condition a genuine user would also face, or because of something incidental to what I'm actually testing?" The skip-link example resolves itself without force at all once you trigger focus correctly — which is usually the better lesson: most apparent "legitimate" cases for force turn out to have a non-force solution once you find the actual right way to reach the element's real state.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>You're pair-debugging a flaky test with a colleague. The error log shows "element is visible, enabled — element is not stable — waiting..." followed by a timeout. Your colleague says "let's just increase the timeout." Explain why that might not fix it, and what you'd check first instead.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Increasing the timeout only helps if the animation genuinely finishes eventually — it does nothing for an animation that's looping indefinitely, or a layout that never truly settles because something above it keeps reflowing (an image loading without reserved dimensions, a periodically-updating banner, a CSS animation with <code>infinite</code> iteration).</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Before reaching for a longer timeout, check what's ACTUALLY
+// still moving — Playwright's own trace viewer shows this directly:
+npx playwright show-trace trace.zip
+
+// Or, quickly in the browser console during a paused debug session:
+// getComputedStyle(document.querySelector('.card')).animationName
+// "pulse-glow" — an infinite decorative animation, not a one-time
+// transition — this element will NEVER pass the stable check</code></pre>
+<p>If the animation is genuinely a one-time, finite transition that's just slow, a longer timeout is a reasonable, honest fix. But if it's an infinite or looping animation — which a longer timeout can never resolve — the actual fix is either disabling animations in the test environment, or scoping the interaction to happen before the animation starts, not chasing the timeout number upward indefinitely.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

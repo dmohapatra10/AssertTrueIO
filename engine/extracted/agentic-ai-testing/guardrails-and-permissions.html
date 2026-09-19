@@ -1,0 +1,201 @@
+<!doctype html>
+<html><head>
+<title>Guardrails and Permissions: Keeping an Agent Safe by Design</title>
+<meta name="description" content="Why guardrails belong in an agent&#x27;s design from the very start, the real categories of guardrails every agent needs, and how they connect to every other piece covered in this chapter." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/guardrails-and-permissions.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Guardrails and Permissions</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="agent-loops.html">Agent Loops</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Guardrails are the explicit boundaries on what an agent is actually allowed to do, checked before — not after — a real action happens. This chapter has referenced them throughout; this final page makes them explicit, and makes the case for why they belong in an agent's design from day one, not bolted on once something has already gone wrong.</p>
+
+<h2 id="four-real-categories-of-guardrails">Four Real Categories of Guardrails</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>1. TOOL-LEVEL guardrails (covered on the Tools page):
+   Simply never GIVE an agent a tool capable of something it
+   shouldn't do. The strongest, most reliable category — an
+   agent structurally cannot misuse a tool it was never given.
+
+2. SCOPE guardrails:
+   "This agent may only interact with the STAGING environment,
+   never production." Enforced by which credentials, URLs, or
+   environments the agent's tools actually have access to.
+
+3. ACTION-LEVEL guardrails:
+   "Before executing anything matching 'delete' or 'submit
+   payment', require explicit human approval first." Checked
+   at the moment of each individual action, not just once at
+   the start of a task.
+
+4. LOOP-LEVEL guardrails (covered on the previous page):
+   Maximum step count, maximum time, maximum cost — stopping
+   a genuinely runaway process regardless of what it's doing.</code></pre>
+
+<h2 id="a-real-complete-example">A Real, Complete Example</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>An agent given the goal "explore ShopEasy's checkout flow and
+report anything unusual," with guardrails actually applied:
+
+TOOL-LEVEL: only given click_element, fill_field, get_page_text,
+  and take_screenshot — no tool exists that could modify a
+  real database record or send a real email.
+
+SCOPE: its browser tool is configured to only reach
+  staging.shopeasy.example.com — attempting to navigate
+  anywhere else is simply not possible, regardless of what
+  the reasoner might decide.
+
+ACTION-LEVEL: if the reasoner ever decides to click something
+  whose accessible name contains "delete" or "confirm order",
+  that SPECIFIC action pauses for human approval before
+  executing — everything else proceeds autonomously.
+
+LOOP-LEVEL: hard limit of 30 total steps and 10 minutes —
+  after which the task stops and reports its current state,
+  regardless of whether the goal was reached.</code></pre>
+<p>Notice these four categories work at genuinely different levels — tool-level and scope guardrails prevent entire categories of action from ever being possible; action-level guardrails catch specific, individually risky actions; loop-level guardrails catch runaway processes regardless of what they're doing. A real, responsible agent needs all four, not just one.</p>
+
+<h2 id="why-add-guardrails-later-is-a-genuinely-risky-ordering">Why "Add Guardrails Later" Is a Genuinely Risky Ordering</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>❌ Build the agent first, add safety once it "works":
+  By the time an agent is genuinely capable enough to be
+  useful, it's also genuinely capable enough to cause real
+  harm if something goes wrong — and testing/demoing it during
+  development, WITHOUT guardrails, is exactly when unexpected
+  behavior is most likely, since it's the least mature stage.
+
+✅ Design guardrails alongside the agent, from the very first
+  version:
+  Even a genuinely simple, early-stage agent gets the same
+  categories of protection — tool scope kept narrow, action
+  approval on anything consequential, loop limits enforced —
+  so there's never a window where a working-but-unprotected
+  agent exists.</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might tool-level guardrails be described as "the strongest, most reliable category," compared to action-level guardrails that check each specific action as it happens? A tool-level guardrail makes an entire category of action structurally impossible — there's no code path, no reasoning outcome, that could result in an agent without a database-delete tool actually deleting a database record. An action-level guardrail, by contrast, depends on correctly recognizing a risky action AT the moment it's about to happen — which is a real, ongoing detection problem that could, in principle, have gaps or edge cases a tool-level restriction simply doesn't have to worry about.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Relying entirely on action-level guardrails ("we'll catch anything risky before it executes") while giving an agent broad, general-purpose tool access "just in case it needs it." This inverts the actual safety hierarchy — tool scope should be the first, strongest line of defense, with action-level checks as an additional layer, not a replacement for genuinely narrow tool access.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>When designing guardrails for a new agent, it's genuinely useful to work through all four categories from this page explicitly, one at a time, rather than just adding whatever safeguard comes to mind first. A gap in one category (say, no loop limit) can undermine otherwise-solid guardrails in the others.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Start with tool-level and scope restrictions as the primary, strongest safety mechanism — narrow by default, expanded only when a real task genuinely requires it.</li>
+  <li>Layer action-level approval on top for anything consequential, as a second, complementary line of defense.</li>
+  <li>Always include loop-level limits (step count, time, cost) regardless of how well-scoped the tools and actions already are.</li>
+  <li>Design all four categories alongside the agent from its very first version — never as a later addition once something already works.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Guardrails fall into four genuine categories — tool-level, scope, action-level, and loop-level — each catching different kinds of real risk.</li>
+  <li>Tool-level restrictions are the strongest safety mechanism, since they make certain actions structurally impossible rather than relying on correctly detecting risk at the moment it occurs.</li>
+  <li>Guardrails belong in an agent's design from its very first version, not as something added once the agent is already "working."</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>For an agent whose goal is "autonomously test that ShopEasy's contact form sends a confirmation email," design at least one genuine guardrail in each of this page's four categories, being specific about what exactly each guardrail restricts and why it's needed for this particular task.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A stakeholder asks why your team is "spending time on guardrails before the agent can even complete a basic task yet." How would you respond?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd point out that this framing treats guardrails and capability as sequential, competing priorities, when this page argues they should be built together — and that an early-stage, not-yet-capable agent is actually one of the LEAST safe times to skip them, not a reasonable time to defer them.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why "not capable yet, so skip safety" is actually backwards:
+An early-stage agent is being actively developed and tested —
+  run repeatedly, with changing code, against real or
+  real-like environments. This is EXACTLY when unexpected
+  behavior is most likely to occur, not a low-risk period
+  where guardrails can reasonably wait.
+
+The actual cost of building guardrails alongside early
+  development is genuinely low — narrow tool scope, a loop
+  limit, and action-level checks on consequential operations
+  are not large engineering investments, and layering them
+  in from the start avoids ever having a working-but-
+  unprotected agent exist at all.</code></pre>
+<p>The honest answer: guardrails aren't a tax on getting to a working agent faster — they're part of what "working correctly" actually means for a system that takes real, potentially consequential actions.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page describe tool-level and action-level guardrails as complementary rather than redundant, given that both aim to prevent unsafe actions?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because they protect against genuinely different failure modes — tool-level guardrails prevent an entire category of action from ever being possible, while action-level guardrails catch specific risky actions that remain genuinely possible within the agent's actual given tool set.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What tool-level guardrails DON'T cover:
+An agent legitimately GIVEN a "submit_order" tool (because
+  placing real orders IS part of its genuine task) could still
+  use that tool inappropriately — e.g., submitting an order
+  with a clearly wrong quantity due to a reasoning error.
+  Tool-level restriction alone doesn't catch THIS, since the
+  tool itself is legitimately needed for the task.
+
+What action-level guardrails add:
+"Before executing submit_order, if the quantity exceeds a
+  sane threshold, require human confirmation" — catches
+  exactly this remaining risk, WITHIN a tool the agent
+  legitimately needs and has.</code></pre>
+<p>The two layers cover different gaps: tool-level guardrails eliminate entire categories of risk upfront; action-level guardrails catch risky uses of capabilities the agent genuinely, legitimately needs to have.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Design a scope guardrail for an agent that needs to test ShopEasy's search feature, and explain specifically what real-world mistake it would prevent.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A genuinely sensible scope guardrail: configure the agent's browser tool to only accept URLs matching the staging environment's domain, rejecting or blocking any navigation attempt outside that specific scope.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Guardrail: browser tool configured with an ALLOWED domain list
+  — only *.staging.shopeasy.example.com is reachable; any
+  attempt to navigate elsewhere is simply blocked at the tool
+  level, before the navigation ever executes.
+
+Real mistake this prevents:
+A reasoning error, a misconfigured test environment variable,
+  or a genuinely confusing page redirect could otherwise cause
+  the agent to end up testing against PRODUCTION instead of
+  staging — potentially interacting with real user data or a
+  live, real system, when the actual intent was always to test
+  safely against staging.</code></pre>
+<p>This is exactly the kind of guardrail that costs relatively little to implement but closes off a genuinely serious, realistic risk — accidentally testing against a real, live environment instead of the intended safe one.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might a loop-level guardrail (like a maximum step count) still be necessary even for an agent whose tools and scope are already narrowly, carefully restricted?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because loop-level guardrails protect against a genuinely different kind of harm — wasted time and cost from a stuck process — which tool and scope restrictions don't address at all, even when perfectly designed.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>An agent with PERFECT tool and scope restrictions:
+Only has click_element, fill_field, get_page_text — genuinely
+  safe, narrow tools. Only able to reach the staging
+  environment — genuinely safe scope.
+
+...can STILL get stuck in the exact kind of unbounded retry
+  loop described on the previous page — trying varied
+  approaches against a button that simply doesn't exist,
+  burning real LLM API cost and real time, for potentially
+  hours, without ANY of the tool or scope restrictions doing
+  anything to stop it, since nothing about that behavior
+  violates either restriction.</code></pre>
+<p>Tool and scope guardrails answer "is this action safe to perform," while loop-level guardrails answer a genuinely separate question: "has this process gone on longer than it reasonably should have." An agent needs both kinds of protection, since neither one substitutes for the other.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How do all nine pages of this chapter — from anatomy through guardrails — connect to form one coherent picture, in your own words?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>The anatomy page laid out seven boxes; the remaining eight pages each opened one box in real depth, and guardrails specifically is the piece that applies to and constrains every other box, not just one.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>The chapter's actual shape:
+Anatomy → the map of all the pieces
+LLMs → what powers the "thinking" boxes specifically
+Planning + Reasoning → the two DISTINCT kinds of thinking
+Memory + State → the two DISTINCT kinds of "what the agent
+  knows" (history vs. current snapshot)
+Tools → how thinking becomes real, executed action
+Loops → how all of the above repeats as one coherent cycle
+Guardrails → constrains EVERY piece above — which tools exist
+  at all, what scope they can reach, which actions need
+  approval, and how long the whole loop is allowed to run</code></pre>
+<p>Guardrails deliberately closes the chapter specifically because it's not one more independent piece alongside the others — it's the piece that makes every other piece safe to actually use together, which is exactly why Chapter 3 (building a real, working agent) can now proceed with all nine of these concepts already established as genuine, working vocabulary.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

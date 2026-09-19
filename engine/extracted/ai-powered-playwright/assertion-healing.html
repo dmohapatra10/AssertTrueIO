@@ -1,0 +1,106 @@
+<!doctype html>
+<html><head>
+<title>Assertion Healing</title>
+<meta name="description" content="A genuinely different, higher-risk kind of fix — updating an expected value, not a selector — where the wrong healing can quietly hide a real regression." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/assertion-healing.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Assertion Healing</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="locator-healing.html">Locator Healing</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Why healing an assertion's expected value is genuinely riskier than healing a locator</li>
+  <li>The real danger this category introduces — quietly hiding a genuine regression</li>
+  <li>A concrete safeguard this page builds specifically for that risk</li>
+</ul>
+
+<h2 id="introduction-a-genuinely-different-higher-risk-category">Introduction — A Genuinely Different, Higher-Risk Category</h2>
+<p>A locator either finds the right element or it doesn't — Chapter 6's runtime validation genuinely confirms this. An assertion's expected value is different: changing <code>toHaveText('$49.98')</code> to <code>toHaveText('$54.98')</code> can be a legitimate fix for a genuine, intentional price change, or it can be quietly papering over a real pricing bug. Existence on the page doesn't validate correctness here the way it does for a locator.</p>
+
+<h2 id="why-it-matters-the-real-danger-concretely">Why It Matters — The Real Danger, Concretely</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A LOCATOR healing MISTAKE: the test still FAILS, just with a
+DIFFERENT error — GENUINELY visible, GENUINELY safe to catch
+
+An ASSERTION healing MISTAKE: the test now PASSES — SILENTLY
+accepting a VALUE that might be a REAL, GENUINE application
+BUG, not a legitimate change — the WORST possible outcome:
+a test that LOOKS healthy while HIDING a real REGRESSION</code></pre>
+
+<h2 id="step-by-step-implementation-a-deliberately-cautious-approach">Step-by-Step Implementation — A Deliberately Cautious Approach</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/generate-assertion-fix.ts
+import { askClaude } from './ai-client';
+
+export interface AssertionFixCandidate {
+  originalAssertion: string;
+  proposedAssertion: string;
+  requiresBusinessRuleConfirmation: boolean;
+  reasoning: string;
+}
+
+export async function proposeAssertionFix(
+  originalAssertion: string, actualObservedValue: string,
+  businessContext: string
+): Promise&lt;AssertionFixCandidate&gt; {
+  const prompt = `A test asserts: ${originalAssertion}
+The application actually shows: "${actualObservedValue}"
+Business context: ${businessContext}
+
+Propose an updated assertion ONLY if this change is CLEARLY
+explainable by a legitimate business reason stated in the
+context. If you cannot confirm this is legitimate rather than
+a possible bug, set requiresBusinessRuleConfirmation to TRUE.
+
+Respond with ONLY valid JSON:
+{"proposedAssertion": string,
+"requiresBusinessRuleConfirmation": boolean, "reasoning": string}`;
+
+  const raw = await askClaude(prompt);
+  const parsed = JSON.parse(raw);
+  return { originalAssertion, ...parsed };
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p><code>requiresBusinessRuleConfirmation</code> is this page's real, deliberate safeguard — it defaults toward caution rather than confidence. Unlike locator healing, where Chapter 6's runtime existence check provides genuine, independent confirmation, no equivalent check exists for "is this new expected value actually correct." The prompt is written to make the model admit uncertainty explicitly, rather than confidently proposing a fix it can't actually verify.</p>
+
+<h2 id="example-a-genuinely-ambiguous-shopsmart-case">Example — A Genuinely Ambiguous ShopSmart Case</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const fix = await proposeAssertionFix(
+  "toHaveText('$49.98')", "$54.98",
+  "ShopSmart occasionally runs promotional pricing, but no
+  active promotion is documented for this product currently."
+);
+
+// A GENUINELY honest, cautious result:
+// {
+//   proposedAssertion: "toHaveText('$54.98')",
+//   requiresBusinessRuleConfirmation: true,
+//   reasoning: "The price increased by $5, but no documented
+//     promotional or pricing change explains this specific
+//     change — this could be a legitimate price update or a
+//     genuine pricing bug. A human should confirm which before
+//     this assertion is updated."
+// }</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Applying assertion healing with the same confidence as locator healing.</strong> This page's whole point is that they carry genuinely different risk — existence on a page and correctness of a value are not the same kind of confirmation.</li>
+  <li><strong>Treating <code>requiresBusinessRuleConfirmation: true</code> as a technicality to route around.</strong> It's the single most important field this function returns — the honest admission that automated confirmation genuinely isn't possible here.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Always route assertion healing with <code>requiresBusinessRuleConfirmation: true</code> to a human with real, specific business context — never treat it as equivalent to a validated locator fix.</li>
+  <li>Provide genuine, specific business context in the prompt — vague context makes it harder for the model to honestly distinguish a legitimate change from a possible bug.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Find a real assertion in your own test suite whose expected value has changed at least once before. Write out, honestly, what business context would have been needed to confirm that change was legitimate rather than a bug — and consider whether that context was actually available at the time.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Assertion healing carries genuinely higher risk than locator healing — a wrong fix here can silently hide a real regression rather than producing a visible failure.</li>
+  <li>No equivalent to Chapter 6's runtime existence check confirms an assertion's new value is correct — this gap is real and can't be automated away.</li>
+  <li>Defaulting to explicit uncertainty, via <code>requiresBusinessRuleConfirmation</code>, is the honest, correct response to this gap, not a limitation to work around.</li>
+</ul>
+</article>
+</body></html>

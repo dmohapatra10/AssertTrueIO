@@ -1,0 +1,160 @@
+<!doctype html>
+<html><head>
+<title>Calling a Reusable GitHub Actions Workflow, With Inputs &amp; Outputs</title>
+<meta name="description" content="Actually calling a reusable workflow with &#x27;uses&#x27;, passing inputs and secrets into it, and reading its outputs back — parameterizing shared CI logic correctly." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/calling-a-reusable-workflow-with-inputs-and-outputs.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Calling a Reusable Workflow with Inputs &amp; Outputs</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="why-reusability-matters-and-reusable-workflows.html">Why Reusability Matters & Reusable Workflows</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>The previous page defined a reusable workflow. This page covers actually calling one, and — genuinely important for real, shared logic — parameterizing it with inputs so different calling repositories can customize behavior without needing their own separate copy.</p>
+
+<h2 id="calling-a-reusable-workflow">Calling a Reusable Workflow</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># In a DIFFERENT repository's workflow:
+jobs:
+  ci:
+    uses: my-org/shared-workflows/.github/workflows/shared-ci.yml@main</code></pre>
+<p>Note this uses <code>uses:</code>, not <code>run:</code> — genuinely similar in spirit to using an action, since you're invoking something someone else (or your own organization) already defined, not writing new logic directly.</p>
+
+<h2 id="defining-inputs-on-the-reusable-workflow">Defining Inputs on the Reusable Workflow</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># In the REUSABLE workflow itself:
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: 'Node.js version to use'
+        required: false
+        default: '20'
+        type: string</code></pre>
+<p>This is genuinely similar to <code>workflow_dispatch</code> inputs (Chapter 3) — a named, typed, optionally-defaulted parameter, except this one is supplied by a <em>calling workflow</em> rather than a person clicking a button.</p>
+
+<h2 id="passing-inputs-when-calling">Passing Inputs When Calling</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  ci:
+    uses: my-org/shared-workflows/.github/workflows/shared-ci.yml@main
+    with:
+      node-version: '18'   # this repository specifically needs Node 18</code></pre>
+<p>Each calling repository can supply its own value — one repository uses the default (Node 20), another explicitly overrides it to Node 18, all calling the exact same underlying shared logic.</p>
+
+<h2 id="passing-secrets-to-a-reusable-workflow">Passing Secrets to a Reusable Workflow</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  ci:
+    uses: my-org/shared-workflows/.github/workflows/shared-ci.yml@main
+    secrets:
+      DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}</code></pre>
+<p>Secrets don't pass through automatically — they need to be explicitly forwarded, the same deliberate, visible approach to sensitive data covered throughout Chapter 7.</p>
+
+<h2 id="defining-and-reading-outputs">Defining and Reading Outputs</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># In the REUSABLE workflow:
+on:
+  workflow_call:
+    outputs:
+      build-version:
+        value: ${{ jobs.build.outputs.version }}
+jobs:
+  build:
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+    steps:
+      - id: get_version
+        run: echo "version=1.2.3" >> $GITHUB_OUTPUT</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># In the CALLING workflow:
+jobs:
+  ci:
+    uses: my-org/shared-workflows/.github/workflows/shared-ci.yml@main
+  notify:
+    needs: ci
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Built version ${{ needs.ci.outputs.build-version }}"</code></pre>
+<p>This chains together exactly the mechanisms from Chapter 9 — a step output, exposed as a job output, exposed as a <em>workflow-level</em> output — three layers deep, but each layer using an idea already familiar from earlier in this course.</p>
+
+<h2 id="detailed-example-the-complete-real-scenario-fully-parameterized">Detailed Example — The Complete Real Scenario, Fully Parameterized</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># Central repo: .github/workflows/shared-ci.yml
+on:
+  workflow_call:
+    inputs:
+      node-version: { required: false, default: '20', type: string }
+    secrets:
+      NPM_TOKEN: { required: false }
+jobs:
+  build-test-report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: ${{ inputs.node-version }} }
+      - run: npm ci
+        env: { NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }} }
+      - run: npm run build
+      - run: npm test</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># Repository A's workflow:
+jobs:
+  ci:
+    uses: my-org/shared-workflows/.github/workflows/shared-ci.yml@main
+    secrets:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+    # uses default Node 20
+
+# Repository B's workflow:
+jobs:
+  ci:
+    uses: my-org/shared-workflows/.github/workflows/shared-ci.yml@main
+    with:
+      node-version: '18'   # explicitly overrides for this repo's needs
+    secrets:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why must secrets be explicitly forwarded to a reusable workflow, rather than automatically inherited the way they might be within a single workflow's own jobs? Automatic, implicit secret sharing across repository boundaries would be a genuine security risk — a calling repository shouldn't accidentally expose secrets it never intended to share just by calling someone else's shared workflow. Requiring explicit forwarding keeps this deliberate and visible, consistent with Chapter 7's entire approach to secrets.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Forgetting to forward a genuinely required secret when calling a reusable workflow, then getting a confusing failure inside the shared workflow that has nothing obviously to do with the calling repository's own configuration — the shared workflow simply never received a secret it needed.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>Pinning a reusable workflow reference to a specific version (like <code>@v1.2.0</code>) rather than a branch (<code>@main</code>) applies the exact same reasoning as pinning a third-party action, covered back in Chapter 4 — avoiding an unexpected, uncontrolled change to shared logic that every calling repository depends on.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Define genuinely necessary inputs with sensible defaults, letting most callers use the default while allowing real customization where needed.</li>
+  <li>Always explicitly forward exactly the secrets a reusable workflow actually needs — never more than necessary.</li>
+  <li>Pin a reusable workflow reference to a specific version, not a mutable branch, for the same reasons covered for third-party actions.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>A reusable workflow is called using <code>uses:</code>, with inputs passed via <code>with:</code> and secrets explicitly forwarded via <code>secrets:</code>.</li>
+  <li>Secrets never pass through automatically — explicit forwarding is a deliberate security choice, not an oversight in the design.</li>
+  <li>Outputs can flow from a step, to a job, to the workflow level, letting a calling workflow read a value the shared logic computed.</li>
+</ul>
+
+<h2 id="challenge">🏆 Challenge</h2>
+<p>Extend the shared workflow example with an additional input, <code>run-lint</code> (boolean, default <code>true</code>), that controls whether a linting step actually runs — and show how a calling repository would explicitly disable it by passing <code>run-lint: false</code>.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why does calling a reusable workflow use uses: rather than run: or a direct job definition?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">uses: signals that this job's actual logic comes from something already defined elsewhere — the reusable workflow itself — rather than being written directly inline in the calling workflow. This mirrors how uses: works for actions, since in both cases you're invoking existing, already-defined logic rather than writing new commands directly in this workflow file.</div>
+</details>
+<details class="faq-item">
+<summary>Why don't secrets automatically pass through to a reusable workflow the way they might within a single workflow's own jobs?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Automatic, implicit secret sharing across a repository boundary would be a genuine security risk — a calling repository could accidentally expose secrets to a shared workflow it never intended to share with. Requiring explicit forwarding via the secrets: key keeps this deliberate and visible, directly consistent with the careful, explicit approach to secrets established in an earlier chapter.</div>
+</details>
+<details class="faq-item">
+<summary>How does an output flow from a reusable workflow's internal step all the way up to something a calling workflow can actually read?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It passes through three layers: a step writes to $GITHUB_OUTPUT, that value is exposed as a job output within the reusable workflow, and the reusable workflow's own workflow_call.outputs configuration exposes that job output at the workflow level. The calling workflow then reads it via needs.&lt;job-name&gt;.outputs.&lt;name&gt;, exactly as it would for any other job's output.</div>
+</details>
+<details class="faq-item">
+<summary>Why might a calling repository need to override a reusable workflow's node-version input rather than accepting the default?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Different repositories calling the same shared workflow may genuinely have different technical requirements — one project might depend on a specific Node.js version that differs from whatever sensible default the shared workflow provides. Defining the input with a default lets most callers use it unchanged, while still allowing genuine, specific customization for repositories that actually need something different.</div>
+</details>
+<details class="faq-item">
+<summary>Why does pinning a reusable workflow reference to a specific version matter as much as pinning a third-party action?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A reusable workflow pinned to a mutable branch like @main could have its underlying logic changed by whoever maintains it at any time, silently affecting every single repository that calls it, with no warning. Pinning to a specific, immutable version ensures every calling repository continues using exactly the logic that was reviewed and expected, until they deliberately choose to update to a newer version.</div>
+</details>
+</div>
+</article>
+</body></html>

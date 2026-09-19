@@ -1,0 +1,109 @@
+<!doctype html>
+<html><head>
+<title>What is YAML? Why GitHub Actions Uses It</title>
+<meta name="description" content="What YAML actually is, why it was chosen for GitHub Actions workflows over alternatives like JSON or XML, and the philosophy of a human-readable configuration language." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/what-is-yaml-and-why-github-actions-uses-it.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>What is YAML? Why GitHub Actions Uses It</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="yaml-fundamentals-for-github-actions.html">YAML Fundamentals for GitHub Actions overview</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>YAML ("YAML Ain't Markup Language") is a human-readable data format used for configuration files across a huge range of tools — GitHub Actions, Docker Compose, Kubernetes, and many others all use it for exactly the same reason.</p>
+
+<h2 id="why-do-we-need-it">Why do we need it?</h2>
+<p>A workflow needs to describe structured information — a name, a list of steps, nested settings — in a way that's both machine-parseable and genuinely readable by a human without special tooling. YAML is designed specifically for that middle ground.</p>
+
+<h2 id="real-world-analogy">Real-World Analogy</h2>
+<p>Think of YAML like a well-organized outline you'd write by hand — headings, sub-points indented underneath, bullet lists where something has multiple items. You don't need special software to read a good outline; the structure is visible just from how it's laid out on the page. YAML applies that same idea to configuration a computer needs to parse.</p>
+
+<h2 id="yaml-vs-json-the-same-information-two-formats">YAML vs. JSON — The Same Information, Two Formats</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// The same data, in JSON:
+{
+  "name": "My Workflow",
+  "on": "push",
+  "jobs": {
+    "build": {
+      "runs-on": "ubuntu-latest"
+    }
+  }
+}</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># The same data, in YAML:
+name: My Workflow
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-latest</code></pre>
+<p>Both represent identical structured data. YAML drops the braces, brackets, and most of the quotation marks, relying on indentation and line breaks instead — genuinely easier to read at a glance, especially once a file grows to dozens or hundreds of lines, which is exactly the situation a real CI/CD workflow eventually reaches.</p>
+
+<h2 id="detailed-example-why-readability-actually-matters-here">Detailed Example — Why Readability Actually Matters Here</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># A real, growing workflow — still readable specifically BECAUSE of YAML's format
+name: CI Pipeline
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npm test</code></pre>
+<p>Even without knowing every specific key yet, this is genuinely readable just from its shape — you can see there's a checkout step, a Node.js setup step, then two commands. That readability is a direct, deliberate consequence of YAML's design, not an accident.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>If GitHub Actions had chosen JSON instead of YAML, workflows would still technically work — the underlying information is the same. What would genuinely be lost? Mostly readability and ease of hand-editing: JSON's mandatory braces, commas, and quotes add real visual noise for a human reading or writing the file, even though a computer parses either format equally well.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Assuming YAML is "just like" other config formats you might know (like <code>.ini</code> files or Python) and guessing at syntax rather than learning YAML's actual specific rules. YAML has genuine, precise syntax — most notably around indentation — that doesn't forgive guessing the way some more permissive formats do.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>YAML files conventionally use a <code>.yml</code> or <code>.yaml</code> extension — both are valid and mean the same thing; GitHub Actions accepts either for workflow files.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Treat YAML's readability as a real asset, not just a stylistic preference — write workflows that stay genuinely easy to scan, not just technically valid.</li>
+  <li>Don't assume familiarity with another configuration format transfers directly — learn YAML's actual specific rules, covered in depth on the next page.</li>
+  <li>Either <code>.yml</code> or <code>.yaml</code> works for GitHub Actions files — pick one convention and stay consistent within a project.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>YAML is a human-readable data format, chosen for GitHub Actions specifically for its readability at scale.</li>
+  <li>YAML and JSON can represent identical structured data — YAML just does it with less visual noise.</li>
+  <li>YAML's specific syntax rules (especially indentation) need to be learned properly, not guessed from other formats.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Take a small JSON object you're familiar with (or write one) representing a person's name, age, and a list of hobbies, and manually convert it into YAML by hand, using the examples on this page as a reference.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why did GitHub Actions choose YAML over a format like JSON for workflow files?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">YAML represents the same structured data as JSON with significantly less visual noise — no mandatory braces, brackets, or quotes for most values — relying instead on indentation and line breaks. This makes workflow files genuinely easier for a human to read and hand-edit, which matters enormously for a format people are expected to write and maintain directly, not just have a computer parse.</div>
+</details>
+<details class="faq-item">
+<summary>Can the same configuration data be represented in both YAML and JSON?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Yes — YAML and JSON can represent identical structured data; they're just different textual representations of the same underlying information (key-value pairs, nested structures, lists). The choice between them is about readability and ergonomics for humans, not about what kind of data can be expressed.</div>
+</details>
+<details class="faq-item">
+<summary>Why is it a mistake to assume YAML syntax rules transfer directly from a language like Python?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">While both use indentation meaningfully, YAML has its own specific, precise syntax rules — around exactly how lists are denoted, how strings are quoted (or not), and how nesting levels work — that don't perfectly mirror any other single language. Assuming familiarity transfers directly, rather than learning YAML's actual rules, is a common source of subtle formatting mistakes.</div>
+</details>
+<details class="faq-item">
+<summary>Does it matter whether a GitHub Actions workflow file uses a .yml or .yaml extension?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">No — both extensions are valid and are treated identically by GitHub Actions; they're simply two common conventions for the same file type. What matters is that the file itself contains valid YAML and lives in the correct .github/workflows/ folder, not which of the two equivalent extensions it uses.</div>
+</details>
+<details class="faq-item">
+<summary>Why might a workflow file's readability matter beyond just "looking nice"?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A workflow file is something real people need to read, understand, and safely modify over time, often under time pressure while debugging a failing pipeline. A genuinely readable structure — which YAML's design specifically supports — makes it faster to spot what a workflow actually does and where a problem might be, which is a real, practical benefit, not merely an aesthetic one.</div>
+</details>
+</div>
+</article>
+</body></html>

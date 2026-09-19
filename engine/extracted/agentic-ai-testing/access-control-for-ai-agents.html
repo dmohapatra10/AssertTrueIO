@@ -1,0 +1,197 @@
+<!doctype html>
+<html><head>
+<title>Access Control for AI Agents: Who Can Trigger, Configure, and Extend</title>
+<meta name="description" content="Three genuinely different access questions — who can run an agent, who can change its instructions, and who can grant it new tools — each needing its own control." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/access-control-for-ai-agents.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Access Control for AI Agents</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="data-privacy-in-ai-testing.html">Data Privacy in AI Testing</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>"Who can use the agent" turns out to be three genuinely different questions once you look closely — running it, changing what it's instructed to do, and changing what it's able to do. Each needs its own control, and conflating them creates real gaps.</p>
+
+<h2 id="three-genuinely-different-questions">Three Genuinely Different Questions</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>1. WHO can TRIGGER a run? — invoking an ALREADY-configured
+   agent against a GIVEN objective, using EXISTING tools and
+   instructions.
+
+2. WHO can MODIFY the system PROMPT? — Chapter 14's OWN
+   prompt-testing page SHOWED a "harmless" tone TWEAK
+   producing a REAL regression. WHO gets to make THIS kind
+   of change deserves TIGHTER control than WHO gets to
+   TRIGGER a run.
+
+3. WHO can GRANT new TOOLS? — Chapter 13's OWN scope-
+   discipline principle MEANT tightly SCOPED tools in the
+   FIRST place; WHO can EXPAND that scope is a GENUINELY
+   separate, HIGHER-stakes decision than either of the OTHER
+   two.</code></pre>
+
+<h2 id="a-genuine-access-control-structure">A Genuine Access Control Structure</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>ROLES = {
+    "qa_engineer": {
+        "can_trigger_runs": True,
+        "can_modify_prompt": False,
+        "can_grant_tools": False,
+    },
+    "qa_lead": {
+        "can_trigger_runs": True,
+        "can_modify_prompt": True,   # requires REVIEW, per
+                                        # Chapter 14's OWN warning
+        "can_grant_tools": False,
+    },
+    "platform_admin": {
+        "can_trigger_runs": True,
+        "can_modify_prompt": True,
+        "can_grant_tools": True,      # the WIDEST, HIGHEST-
+                                         # stakes permission
+    },
+}
+
+def check_permission(role, action):
+    return ROLES.get(role, {}).get(action, False)</code></pre>
+
+<h2 id="why-tool-granting-deserves-the-narrowest-access">Why Tool-Granting Deserves the Narrowest Access</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>GRANTING a new TOOL is GENUINELY the highest-STAKES of these
+THREE actions — Chapter 2's OWN guardrails discussion and
+Chapter 13's OWN "run_shell_command" EXAMPLE both showed HOW
+an OVER-broad tool creates a REAL, LARGE blast RADIUS. A
+QA ENGINEER triggering a RUN can only DO what the AGENT is
+ALREADY configured to do; SOMEONE granting a NEW tool is
+DIRECTLY expanding WHAT the agent CAN do at ALL — a
+GENUINELY more consequential ACTION deserving the NARROWEST
+access.</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why is it meaningful that this page's access structure gives "can_trigger_runs" to every role, while "can_grant_tools" is reserved for only one? Triggering a run against an already-configured agent is bounded — the agent can only do what it's already been set up to do, no matter who triggers it. Granting a new tool genuinely changes what's possible for every future run, by anyone with trigger access. The asymmetry in this page's role table directly reflects an asymmetry in genuine consequence — a wider blast radius from tool-granting justifies narrower access to it.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Treating "who can use the AI testing system" as one undifferentiated permission, rather than recognizing it as three genuinely separate decisions with genuinely different stakes. This page's own role structure exists specifically because collapsing these into one permission either over-restricts routine use or under-restricts the highest-stakes changes.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>When a new team member needs access to a QA agent system, asking specifically "which of these three actions do they genuinely need" — rather than granting broad access by default — keeps the access-control structure meaningful rather than becoming a formality everyone gets full permissions for.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Separate access control into triggering runs, modifying instructions, and granting tools — three genuinely distinct decisions with different stakes.</li>
+  <li>Reserve tool-granting access most narrowly, since it directly expands what's possible for every future run, by any user with trigger access.</li>
+  <li>Grant access based on genuine need for each specific action, not a single, broad permission level by default.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>"Who can use an AI agent" splits into three genuinely different questions — triggering, instruction modification, and tool granting — each warranting its own control.</li>
+  <li>Tool-granting deserves the narrowest access since it directly expands the agent's capabilities for every future user, the widest possible blast radius.</li>
+  <li>Collapsing these three into one undifferentiated permission either over-restricts routine work or under-restricts the highest-stakes changes.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Add a fourth role to this page's <code>ROLES</code> structure — "read_only_observer" — appropriate for someone who needs to view Chapter 15's dashboards but should have none of this page's three action permissions, and explain what real organizational need this role would serve.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A team gives every QA engineer full admin access to their agent system, reasoning "they're all trusted professionals, why complicate things?" What genuine risk does this page's reasoning identify?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>TRUST in a PERSON'S JUDGMENT and APPROPRIATE SCOPE of ACCESS are GENUINELY separate CONCERNS — Chapter 14's OWN prompt-TESTING page showed a WELL-intentioned, TRUSTED engineer's "HARMLESS" tone TWEAK producing a REAL regression, EXACTLY the KIND of RISK narrower ACCESS control is DESIGNED to CONTAIN, REGARDLESS of TRUSTWORTHINESS.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why "THEY'RE trusted" doesn't ELIMINATE the GENUINE risk:
+Chapter 14's PROMPT-testing EXAMPLE wasn't about a
+  MALICIOUS actor — it was a WELL-INTENTIONED engineer MAKING
+  a CHANGE that SEEMED harmless but PRODUCED a REAL, measurable
+  regression. TRUST in SOMEONE'S intentions DOESN'T prevent
+  GENUINE MISTAKES, EVEN from GENUINELY skilled, TRUSTED
+  professionals.
+
+Why NARROWER access GENUINELY helps, EVEN among trusted
+people:
+LIMITING WHO can MODIFY prompts or GRANT tools MEANS fewer
+  PEOPLE making THESE HIGH-stakes changes, REDUCING the
+  GENUINE surface AREA for ACCIDENTAL, well-INTENTIONED
+  mistakes — NOT because the TEAM doesn't TRUST individual
+  engineers, but BECAUSE narrower ACCESS genuinely REDUCES
+  the CHANCE of an UNREVIEWED, consequential CHANGE
+  SLIPPING through.</code></pre>
+<p>The TEAM'S reasoning CONFLATES "trustworthy PEOPLE" with "NO need for STRUCTURE" — THIS page's ENTIRE point is that EVEN genuinely TRUSTED professionals BENEFIT from access CONTROL that MATCHES the GENUINE stakes of DIFFERENT actions.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page argue tool-GRANTING deserves NARROWER access than PROMPT modification, RATHER than treating BOTH as EQUALLY high-stakes?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>These carry GENUINELY different SCOPES of CONSEQUENCE — a PROMPT modification CHANGES behavior WITHIN the agent's EXISTING capabilities; GRANTING a NEW tool EXPANDS what's POSSIBLE at ALL, a STRUCTURALLY larger BLAST radius, per THIS page's OWN reasoning.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why PROMPT modification, WHILE genuinely RISKY, is BOUNDED:
+Chapter 14's OWN "enthusiastic TONE" regression CHANGED HOW
+  the agent BEHAVED within its EXISTING, ALREADY-scoped
+  capabilities — a REAL, genuine RISK, but ONE bounded by
+  WHAT the agent COULD already DO.
+
+Why TOOL-granting is GENUINELY a LARGER blast RADIUS:
+Chapter 13's run_shell_COMMAND example SHOWED that
+  EXPANDING an agent's TOOLS can INTRODUCE entirely NEW
+  categories of RISK (arbitrary CODE execution) that
+  DIDN'T exist BEFORE — this isn't JUST changing HOW an
+  agent BEHAVES, it's CHANGING what it's CAPABLE of DOING
+  at ALL, for EVERY future USER with trigger ACCESS.</code></pre>
+<p>This IS a GENUINELY meaningful DISTINCTION worth MAKING explicitly — NOT all HIGH-stakes actions CARRY equal RISK, and MATCHING access CONTROL narrowness to the GENUINE scope of POTENTIAL consequence (RATHER than treating EVERYTHING "high-STAKES" identically) is a MORE precise, USEFUL approach.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why THIS page's qa_lead role can MODIFY the prompt but STILL "requires review," RATHER than HAVING unrestricted PROMPT-modification access.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>ACCESS control (WHO technically CAN make a CHANGE) and REVIEW process (WHETHER that CHANGE gets VERIFIED before TAKING effect) are GENUINELY separate SAFEGUARDS — Chapter 14's OWN prompt-testing PAGE established that EVEN a well-INTENTIONED change NEEDS verification AGAINST a real TEST suite BEFORE deployment, REGARDLESS of WHO made it.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why ACCESS alone ISN'T a SUFFICIENT safeguard:
+GIVING qa_lead the ABILITY to modify PROMPTS addresses WHO
+  is AUTHORIZED to MAKE this kind of CHANGE — but IT says
+  NOTHING about WHETHER that SPECIFIC change is GENUINELY
+  sound, EXACTLY the GAP Chapter 14's OWN regression example
+  REVEALED (an AUTHORIZED, well-intentioned CHANGE still
+  PRODUCED a REAL problem).
+
+Why REVIEW remains NECESSARY even FOR authorized users:
+Chapter 14's OWN recommendation — RUN the SAME test suite
+  against BOTH old and NEW prompt versions BEFORE deploying —
+  is a REVIEW process INDEPENDENT of WHO made the CHANGE,
+  CATCHING problems EVEN when the PERSON making them was
+  GENUINELY authorized and WELL-intentioned.</code></pre>
+<p>This DIRECTLY connects THIS page's access-CONTROL structure to Chapter 14's OWN, EARLIER established PRACTICE — AUTHORIZATION and VERIFICATION are BOTH necessary, COMPLEMENTARY safeguards, NEITHER one SUBSTITUTING for the OTHER.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might it be a MISTAKE to assume THIS page's THREE-tier role STRUCTURE is APPROPRIATE for EVERY team, REGARDLESS of TEAM size or MATURITY?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>THIS specific structure REFLECTS a REASONABLE, PRACTICAL default for a TEAM roughly the SIZE and MATURITY of ShopEasy's — a SIGNIFICANTLY smaller TEAM (say, TWO people) or a MUCH larger, MORE complex ORGANIZATION might GENUINELY need FEWER or MORE tiers, RESPECTIVELY.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why a VERY small team might GENUINELY need FEWER tiers:
+A TWO-person team WHERE both members GENUINELY need ALL
+  three CAPABILITIES might find THREE separate roles
+  GENUINELY excessive OVERHEAD, relative to the ACTUAL,
+  practical RISK of a SMALL, tightly-COORDINATED team.
+
+Why a LARGE, complex organization might GENUINELY need MORE
+tiers:
+A LARGE enterprise MIGHT reasonably WANT separate roles FOR
+  "can grant TOOLS within a SANDBOXED environment" VERSUS
+  "can grant TOOLS in PRODUCTION" — a DISTINCTION this
+  page's SIMPLER, three-tier STRUCTURE doesn't CAPTURE.</code></pre>
+<p>This is a GENUINELY important, HONEST caveat — THIS page's SPECIFIC role STRUCTURE is a REASONABLE starting POINT and ILLUSTRATIVE example, NOT a UNIVERSAL template; the UNDERLYING PRINCIPLE (separate ACCESS by GENUINE stakes) matters MORE than the EXACT number of TIERS or THEIR specific NAMES.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you EXTEND this page's check_permission function to also LOG every permission CHECK, connecting DIRECTLY to this chapter's NEXT page on audit TRAILS?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A GENUINELY useful extension RECORDS every PERMISSION check — GRANTED or DENIED — as a STRUCTURED log ENTRY, DIRECTLY applying Chapter 15's OWN structured-LOGGING principle to ACCESS-control decisions SPECIFICALLY.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def check_permission_with_audit_log(role, action, user_id, audit_log):
+    allowed = ROLES.get(role, {}).get(action, False)
+    audit_log.append({
+        "timestamp": datetime.utcnow().isoformat(),
+        "user_id": user_id,
+        "role": role,
+        "action_requested": action,
+        "granted": allowed,
+    })
+    return allowed</code></pre>
+<p>This DIRECTLY extends THIS page's access-CONTROL structure to FEED into the NEXT page's AUDIT-trail concern — RATHER than PERMISSION checks HAPPENING silently, WITH no RECORD, this EXTENSION creates a GENUINE, structured HISTORY of WHO attempted WHAT action and WHETHER it was GRANTED, EXACTLY the KIND of accountability RECORD this CHAPTER'S next PAGE argues is GENUINELY distinct FROM Chapter 15's debugging-FOCUSED traces.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

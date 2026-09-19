@@ -1,0 +1,103 @@
+<!doctype html>
+<html><head>
+<title>AI Locator Healing</title>
+<meta name="description" content="Assembling every piece from this chapter&#x27;s earlier pages into the full, real healing pipeline — Broken Locator through Test Execution, running end to end." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/ai-locator-healing.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>AI Locator Healing</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="locator-validation.html">Locator Validation</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Assembling this chapter's five earlier pages into one real, working pipeline</li>
+  <li>Running the full architecture end to end against ShopSmart's broken button</li>
+  <li>What to do — and what never to do — with a healed locator</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>Every earlier page in this chapter built one real piece. This page connects them into the actual pipeline from Chapter 6's own architecture diagram, and runs it against the exact broken locator this chapter opened with.</p>
+
+<h2 id="step-by-step-implementation">Step-by-Step Implementation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/heal-locator.ts
+import { Page } from '@playwright/test';
+import { generateLocatorCandidates } from './generate-locator-candidates';
+import { rankLocatorCandidates } from './rank-locator-candidates';
+import { findFirstValidCandidate } from './validate-locator-candidate';
+
+export interface HealResult {
+  healed: boolean;
+  workingLocatorCode?: string;
+  reason?: string;
+}
+
+export async function healLocator(
+  brokenLocatorDescription: string, page: Page
+): Promise&lt;HealResult&gt; {
+  // Broken Locator → AI Analysis → Candidate Locators
+  const candidates = await generateLocatorCandidates(
+    brokenLocatorDescription, page
+  );
+  if (candidates.length === 0) {
+    return { healed: false, reason: 'No candidates generated' };
+  }
+
+  // Candidate Locators → (ranking, deterministic)
+  const ranked = rankLocatorCandidates(candidates);
+
+  // → Validation → Best Candidate
+  const result = await findFirstValidCandidate(ranked, page);
+  if (!result) {
+    return { healed: false, reason: 'No candidate validated on the real page' };
+  }
+
+  // → Test Execution (the CALLER'S responsibility, not this
+  // function's — healing SUGGESTS a working locator, it does
+  // NOT modify test files automatically)
+  return { healed: true, workingLocatorCode: result.candidate.locatorCode };
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p>Every function this code calls was built on this chapter's earlier pages — nothing new here except the assembly itself. Notice the comment at the end: <code>healLocator</code> deliberately stops at returning a working locator. It does not rewrite a test file automatically — that's a much bigger, riskier decision this tutorial's Chapter 11 addresses directly, with its own explicit human-approval step.</p>
+
+<h2 id="expected-result-the-full-pipeline-running">Expected Result — The Full Pipeline, Running</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const result = await healLocator(
+  "getByRole('button', { name: 'Add to Cart' })", page
+);
+
+console.log(result);
+// { healed: true,
+//   workingLocatorCode: "page.getByTestId('add-to-cart-btn')" }
+
+// The PIPELINE genuinely worked: THREE candidates were
+// generated, RANKED deterministically (testId first), and
+// the TOP one was EMPIRICALLY confirmed to exist uniquely on
+// the REAL, current page — exactly Chapter 6's own diagram,
+// now a real, working function</code></pre>
+
+<h2 id="why-it-matters-what-happens-next-is-a-deliberate-choice">Why It Matters — What Happens Next Is a Deliberate Choice</h2>
+<p>A healed locator is genuinely useful information — but what to do with it is a real decision, not something this function makes on your behalf. Logging it for a human to review and update manually is one option; Chapter 11's self-healing chapter covers a more automated path, with its own genuine safeguards. This chapter deliberately stops short of deciding that for you.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Having <code>healLocator</code> automatically rewrite the source test file.</strong> This chapter's function deliberately doesn't — that's a meaningfully bigger decision Chapter 11 handles with its own explicit approval step.</li>
+  <li><strong>Running this pipeline only after a test has already failed in CI, with no human ever reviewing the healed result.</strong> A healed locator is a suggestion worth a human's attention, not an automatic, unreviewed fix.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Log every healing result — including <code>reason</code> on failure — the same observability discipline Chapter 5 established for ambiguous instruction resolution.</li>
+  <li>Treat a successful heal as a prompt for human review, not a silent, automatic fix, until you've deliberately built the additional safeguards Chapter 11 covers.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Run this page's full <code>healLocator</code> pipeline against a locator you deliberately break in a local ShopSmart environment. Confirm every stage — generation, ranking, validation — genuinely executes, and review the final, healed locator by eye before considering the exercise complete.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>This chapter's full pipeline — generate, rank, validate, select — is now real and assembled entirely from functions built on its own earlier pages.</li>
+  <li>A healed locator is a suggestion, not an automatic fix — this function deliberately stops before deciding what happens next.</li>
+  <li>Chapter 11 builds a more automated path on top of exactly this foundation, with its own explicit safeguards for actually modifying test files.</li>
+</ul>
+</article>
+</body></html>

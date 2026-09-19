@@ -1,0 +1,78 @@
+<!doctype html>
+<html><head>
+<title>Validating Fixes and Re-Running</title>
+<meta name="description" content="Stage five — closing the loop by re-running the original test plan once the development team&#x27;s real fix lands, confirming the bug is genuinely resolved, not just reported." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/validating-fixes-and-re-running.html" />
+</head><body>
+<p class="difficulty">Advanced</p>
+<h1>Validating Fixes and Re-Running</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="root-cause-and-safe-fixes.html">Root Cause and Safe Fixes</a></p>
+<article class="content">
+<h2>What You'll Learn</h2>
+<ul>
+  <li>Closing the loop after a real, human-applied application fix lands</li>
+  <li>Re-running the exact original exploration step that first found the bug</li>
+  <li>Why re-running the same real trigger, not a new test, is the honest way to confirm resolution</li>
+</ul>
+
+<h2>Introduction</h2>
+<p>The previous stage produced a diagnosis for the development team, not an automatic fix. This page picks up once that team has actually applied a real fix to <code>discount-calculator.ts</code> — closing the loop this capstone's pipeline exists to close.</p>
+
+<h2>Step-by-Step Implementation</h2>
+<pre><code>// src/capstone-pipeline.ts (stage 5)
+import { executeAction } from './map-to-playwright';
+import { Page } from '@playwright/test';
+
+export async function revalidateAfterFix(
+  originalExplorationAction: string, page: Page
+) {
+  // Re-run the EXACT same action that ORIGINALLY revealed the
+  // bug — applying the SAME discount code TWICE — not a NEW,
+  // different test. This IS the honest way to confirm THIS
+  // SPECIFIC bug is genuinely RESOLVED.
+  await executeAction(originalExplorationAction, page);
+
+  const cartTotal = await page.getByTestId('cart-total').textContent();
+  return { cartTotal, retriggeredAction: originalExplorationAction };
+}</code></pre>
+
+<h2>Code Explanation</h2>
+<p>Re-running the exact original trigger, rather than writing a new, different test for the fix, is deliberate — it's the most direct, honest way to confirm this specific bug is genuinely gone. A new test could pass while subtly failing to exercise the exact condition that revealed the original problem; re-running the original trigger leaves no such gap.</p>
+
+<h2>Example — The Real, Confirmed Fix</h2>
+<pre><code>const result = await revalidateAfterFix(
+  'apply discount code SAVE10 twice in succession', page
+);
+
+// BEFORE the fix: cartTotal reflected a 20% REDUCTION
+// AFTER the fix:  cartTotal reflects a 10% reduction, and a
+//                  CLEAR message: "This code has already been
+//                  applied" — the SAME action, GENUINELY
+//                  different, CORRECT result</code></pre>
+
+<h2>Why It Matters — This Is a Real Regression Check Too</h2>
+<p>This re-run also functions as Chapter 11's own regression check, applied to this specific case — confirming the fix genuinely resolves the reported behavior without needing a separate, redundant test. If the same action still produced a doubled discount, this stage would correctly report the fix as incomplete, closing the loop honestly either way.</p>
+
+<h2>Common Mistakes</h2>
+<ul>
+  <li><strong>Writing a new, different test to verify the fix instead of re-running the original trigger.</strong> This page's whole point is that the original trigger is the most direct, honest confirmation — a new test risks subtly not exercising the exact same condition.</li>
+  <li><strong>Assuming a fix that compiles and deploys is automatically correct.</strong> This stage's actual re-run against the live application is what provides real, genuine confirmation — not just that code changed, but that the reported behavior genuinely changed too.</li>
+</ul>
+
+<h2>Best Practices</h2>
+<ul>
+  <li>Always re-run the exact original trigger when confirming a fix for a specific, reported bug — it's the most direct, honest verification available.</li>
+  <li>Report the re-run's actual outcome honestly, whether the fix genuinely resolved the issue or not.</li>
+</ul>
+
+<h2>Hands-On Exercise</h2>
+<p>If you've implemented a real fix for the discount-stacking bug in a test ShopSmart environment, run this page's <code>revalidateAfterFix</code> function and confirm the cart total genuinely reflects the corrected, single-discount behavior.</p>
+
+<h2>Key Takeaways</h2>
+<ul>
+  <li>Re-running the exact original trigger, not a new test, is the honest way to confirm a specific, reported bug is genuinely resolved.</li>
+  <li>This re-run doubles as a real regression check for this specific case, without needing a separate, redundant test.</li>
+  <li>An honest re-run reports the fix's actual outcome either way — genuine resolution or continued failure — closing this capstone's loop truthfully.</li>
+</ul>
+</article>
+</body></html>

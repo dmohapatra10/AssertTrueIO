@@ -1,0 +1,153 @@
+<!doctype html>
+<html><head>
+<title>Deriving Realistic k6 Thresholds From SLAs, Baselines, and Real Requirements</title>
+<meta name="description" content="How to arrive at a threshold value that actually means something — from SLAs, SLOs, production baselines, business requirements, and historical performance, not a guess." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/deriving-realistic-thresholds.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Deriving Realistic Thresholds</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="threshold-vs-check-the-real-distinction.html">Threshold vs. Check: The Real Distinction</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>The syntax for a threshold is genuinely simple — the hard part, and the part that actually matters, is deciding what number belongs inside it. This page covers five real sources a threshold value should come from, none of which is "a number that sounds about right."</p>
+
+<h2 id="source-1-slas-and-slos">Source 1 — SLAs and SLOs</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>SLO: "p95 response time should stay under 500ms."
+
+export const options = {
+  thresholds: {
+    http_req_duration: ['p(95)&lt;500'], // directly from the SLO
+  },
+};</code></pre>
+<p>This is the most direct source — an already-established SLO (Chapter 1) translates almost mechanically into a threshold. If your organization already has documented SLOs, deriving thresholds from them is usually the most defensible, lowest-effort approach available.</p>
+
+<h2 id="source-2-production-baselines">Source 2 — Production Baselines</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Production baseline (measured, real): p95 = 320ms, error rate = 0.2%
+
+Derived threshold: a reasonable buffer above the real baseline
+thresholds: {
+  http_req_duration: ['p(95)&lt;400'], // some headroom above the real 320ms baseline
+  http_req_failed: ['rate&lt;0.005'],  // some headroom above the real 0.2% baseline
+}</code></pre>
+<p>Without a formal SLO, a real, measured baseline (Chapter 1) is the next best source — deriving a threshold as a reasonable margin above genuine current performance, rather than an arbitrary aspirational number that has no connection to what the system has ever actually achieved.</p>
+
+<h2 id="source-3-business-requirements">Source 3 — Business Requirements</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Business requirement: "Checkout should feel instant — under 1 second for
+                        the vast majority of users."
+
+Translated: "vast majority" → p95 (a defensible interpretation, not p50 or p100)
+            "under 1 second" → 1000ms
+
+thresholds: {
+  http_req_duration: ['p(95)&lt;1000'],
+}</code></pre>
+<p>Business requirements are often phrased in plain language, not percentile terms — translating "the vast majority" into a specific percentile (usually p95, sometimes p99 for a stricter interpretation) is a judgment call worth making explicitly and documenting, exactly the translation skill built in Chapter 4.</p>
+
+<h2 id="source-4-historical-performance-trends">Source 4 — Historical Performance Trends</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Historical data (last 6 months of production p95, weekly):
+  340ms, 355ms, 310ms, 380ms, 325ms, 360ms
+
+Derived threshold: something above the observed range, not the single best week
+thresholds: {
+  http_req_duration: ['p(95)&lt;450'], // above typical range, catches genuine regressions
+}</code></pre>
+<p>A single baseline measurement can be an unusually good (or bad) week — historical data across a longer period gives a more honest picture of natural variation, letting a threshold be set to catch genuine regressions without constantly false-alarming on normal week-to-week fluctuation.</p>
+
+<h2 id="source-5-competitive-or-industry-benchmarks">Source 5 — Competitive or Industry Benchmarks</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Industry expectation for this category of product: users expect page loads
+under 2-3 seconds before abandonment rates climb significantly.
+
+thresholds: {
+  http_req_duration: ['p(95)&lt;2500'],
+}</code></pre>
+<p>When internal data doesn't exist yet (a brand-new system with no production history), external, well-established expectations for the category of product can serve as a reasonable starting threshold — with the explicit understanding that it should be revisited and tightened once real baseline data exists.</p>
+
+<h2 id="detailed-example-combining-multiple-sources-for-one-threshold">Detailed Example — Combining Multiple Sources for One Threshold</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Available information:
+- SLO: p95 under 600ms (documented, but somewhat old)
+- Recent baseline: p95 has been running at 480ms for the last month
+- Business requirement: "checkout must feel fast" (vague, no specific number)
+
+Decision: use the SLO as the hard ceiling, but note the baseline suggests
+real headroom — set the threshold at the SLO value, and treat any result
+significantly above the recent baseline as worth investigating even if
+technically still passing.
+
+thresholds: {
+  http_req_duration: ['p(95)&lt;600'], // the documented SLO, still the real gate
+}</code></pre>
+<p>Real threshold-setting often means reconciling several imperfect sources rather than finding one clean, authoritative number — being explicit about which source ultimately won, and why, is worth documenting alongside the threshold itself.</p>
+
+<h2 id="real-world-example-what-happens-when-a-threshold-is-just-a-guess">Real-World Example — What Happens When a Threshold Is Just a Guess</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>❌ "Let's just say p95 under 300ms, that sounds reasonable."
+
+Reality: the system has never run faster than p95=450ms, even under light
+load, due to a genuine architectural characteristic (a required downstream
+call that always takes ~200ms).
+
+Result: the threshold fails on EVERY run, including runs where nothing is
+actually wrong — the team starts ignoring "failed" results because they're
+always red, defeating the entire purpose of having a threshold at all.</code></pre>
+<p>This is a genuinely common, real failure mode — a threshold disconnected from actual system reality doesn't create useful pressure to improve, it just creates noise that teams learn to tune out, which is worse than having no threshold at all.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ A threshold picked because it "sounds like a good number"
+thresholds: { http_req_duration: ['p(95)&lt;300'] } // no connection to reality
+
+// ✅ A threshold derived from an actual documented SLO or measured baseline
+thresholds: { http_req_duration: ['p(95)&lt;500'] } // matches the real, established SLO</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Picking a threshold value with no connection to any real source</strong> — produces either constant false failures (if too strict) or a meaningless rubber-stamp pass (if too lenient).</li>
+  <li><strong>Using a single best-case measurement as the baseline</strong> instead of a representative range across real historical data.</li>
+  <li><strong>Never revisiting a threshold</strong> set early (perhaps from an industry benchmark, with no real data yet) once genuine baseline data actually exists.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>A brand-new system with genuinely no historical data</strong> — an industry benchmark or a conservative estimate is a reasonable starting point, with an explicit plan to tighten the threshold once real baseline data accumulates.</li>
+  <li><strong>Conflicting sources</strong> — an old SLO that no longer matches current, better-performing baseline data — worth actively reconciling (and likely updating the outdated SLO) rather than blindly defaulting to whichever source was easiest to find.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a threshold is failing on every single run, including ones the team otherwise considers healthy, check whether the threshold value was ever actually connected to a real source (an SLO, a genuine baseline) — a threshold disconnected from reality doesn't get fixed by ignoring it, it needs to be revisited and corrected.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Always derive a threshold from a real source — a documented SLO, a measured baseline, a genuine business requirement, historical data, or (as a last resort for new systems) an industry benchmark.</li>
+  <li>Document which source a given threshold came from, so it can be revisited intelligently later rather than treated as an arbitrary fixed number.</li>
+  <li>Revisit thresholds periodically as real baseline data accumulates, especially ones initially set from a rough benchmark for a brand-new system.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>For a new internal admin dashboard with no existing SLA, no historical performance data, and only a vague business requirement of "shouldn't feel sluggish," propose a starting threshold value, explain which of the five sources on this page it's most reasonably derived from, and describe what should happen to that threshold once six months of real usage data exists.</p>
+
+<h2 id="summary">Summary</h2>
+<p>A meaningful threshold value comes from a real source — a documented SLO or SLA, a measured production baseline, a carefully translated business requirement, historical performance trends, or (when nothing else exists yet) an industry benchmark — never an arbitrary number that merely sounds reasonable. A threshold disconnected from reality either fails constantly on healthy runs or passes meaninglessly on unhealthy ones, and either outcome defeats the entire purpose of having a threshold in the first place.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why is a documented SLO usually the most defensible source for a threshold value?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">An SLO already represents an established, agreed-upon internal target — deriving a threshold from it is a nearly direct translation rather than requiring new judgment calls about what the number should be. It also means the threshold is automatically aligned with whatever organizational process already exists around that SLO, rather than introducing a separate, potentially inconsistent target.</div>
+</details>
+<details class="faq-item">
+<summary>Why might using a single best-case performance measurement as a baseline lead to a bad threshold?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A single measurement can reflect an unusually good moment — low traffic, favorable conditions — rather than typical, representative performance. A threshold derived from that unusually good measurement would be stricter than the system can reliably sustain under normal conditions, leading to frequent false failures that don't actually indicate a genuine problem.</div>
+</details>
+<details class="faq-item">
+<summary>What real, practical harm comes from a threshold that's disconnected from actual system reality?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A threshold set too strict relative to what the system can genuinely achieve fails on every run, including entirely healthy ones — teams quickly learn to ignore "failed" results because they're always red, which defeats the threshold's entire purpose as a meaningful, trustworthy signal. This is arguably worse than having no threshold at all, since it trains people to disregard automated failure signals generally.</div>
+</details>
+<details class="faq-item">
+<summary>How should you approach a situation where an existing SLO conflicts with more recent, better baseline data?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">This is worth actively reconciling rather than defaulting automatically to whichever source is easiest to reference — if the system has genuinely improved and the SLO is now outdated and overly lenient, it's likely worth updating the SLO itself to reflect the better achievable standard, rather than setting a threshold that's needlessly loose relative to what the system actually delivers today.</div>
+</details>
+<details class="faq-item">
+<summary>What's a reasonable approach to setting a threshold for a brand-new system with no historical performance data at all?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">An industry benchmark or a conservative, well-reasoned estimate for that category of application is a reasonable starting point, since no genuine baseline yet exists to derive a threshold from. This should be treated explicitly as a temporary starting point, with a clear intention to revisit and tighten the threshold once real, representative baseline data has actually accumulated from genuine usage.</div>
+</details>
+</div>
+</article>
+</body></html>

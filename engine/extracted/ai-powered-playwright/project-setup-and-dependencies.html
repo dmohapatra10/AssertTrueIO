@@ -1,0 +1,91 @@
+<!doctype html>
+<html><head>
+<title>Project Setup and Dependencies</title>
+<meta name="description" content="A real, working TypeScript + Playwright + AI project, set up from scratch with the exact commands and package.json this chapter&#x27;s remaining code depends on." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/project-setup-and-dependencies.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Project Setup and Dependencies</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="setting-up-ai-and-playwright.html">Setting Up AI + Playwright overview</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Setting up a real TypeScript + Playwright project</li>
+  <li>Adding the AI SDK dependency this chapter's remaining pages use</li>
+  <li>The exact folder structure this tutorial's code assumes going forward</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>Every later chapter's code assumes this project structure exists. Getting it right once here means every later "add this file" instruction just works, without revisiting setup.</p>
+
+<h2 id="step-by-step-implementation">Step-by-Step Implementation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># Create and enter the project directory
+mkdir shopsmart-ai-testing
+cd shopsmart-ai-testing
+
+# Initialize a Node.js project
+npm init -y
+
+# Install Playwright and its test runner
+npm install -D @playwright/test
+
+# Install the Anthropic SDK — this chapter's concrete AI
+# provider example, per this chapter's own vendor-neutral note
+npm install @anthropic-ai/sdk
+
+# Install TypeScript tooling and environment variable support
+npm install -D typescript ts-node @types/node dotenv
+
+# Download the actual browser binaries Playwright needs
+npx playwright install
+
+# Initialize TypeScript configuration
+npx tsc --init</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p>Two dependencies matter most here. <code>@playwright/test</code> is Playwright's own test runner — the same tool the rest of the existing Playwright tutorial uses. <code>@anthropic-ai/sdk</code> is this chapter's chosen AI client library — the thing that actually sends requests to the model and gets responses back, covered in depth two pages from now.</p>
+
+<h2 id="the-folder-structure-this-tutorial-assumes">The Folder Structure This Tutorial Assumes</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>shopsmart-ai-testing/
+├── src/
+│   ├── ai-client.ts        # this chapter's Creating the AI
+│   │                         Client page
+│   ├── generate-scenarios.ts  # From Prompt to Structured
+│   │                             Test Scenarios
+│   └── generate-tests.ts        # Generating Playwright Code
+│                                   from Scenarios
+├── tests/
+│   └── generated/                # AI-generated test files
+│                                    land here
+├── .env                             # real credentials, never
+│                                       committed
+├── .gitignore
+├── package.json
+└── tsconfig.json</code></pre>
+
+<h2 id="expected-result">Expected Result</h2>
+<p>Running <code>npx playwright test --list</code> should complete without error, even with zero tests written yet — this confirms Playwright's own test runner is correctly installed and configured before any AI code enters the picture.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Skipping <code>npx playwright install</code>.</strong> Without it, Playwright's package is installed but the actual browser binaries aren't — tests will fail with a confusing "browser not found" error that has nothing to do with AI at all.</li>
+  <li><strong>Installing the AI SDK as a dev dependency when it's needed at runtime.</strong> Unlike TypeScript tooling, <code>@anthropic-ai/sdk</code> is a real runtime dependency — installed without <code>-D</code>, deliberately, above.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Confirm Playwright's own test runner works in isolation (an empty <code>tests/</code> folder is fine) before adding any AI-generated code on top of it.</li>
+  <li>Keep AI-related source code in its own <code>src/</code> folder, separate from the <code>tests/</code> folder Playwright's runner actually executes — this chapter's structure keeps generation and execution cleanly separated.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Run through this page's setup commands yourself, then run <code>npx playwright test --list</code> to confirm it completes cleanly. If it doesn't, resolve that before continuing — every later page in this chapter builds directly on this working foundation.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>This project's structure deliberately separates AI-related source code from the tests folder Playwright's runner executes.</li>
+  <li><code>@anthropic-ai/sdk</code> is a real runtime dependency, not a dev-only tool, since it's used when generating scenarios and code, not just during development.</li>
+  <li>Confirming Playwright's test runner works before adding AI code isolates any later problems to the AI layer specifically, not the foundation underneath it.</li>
+</ul>
+</article>
+</body></html>

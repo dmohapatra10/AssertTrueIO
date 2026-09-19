@@ -1,0 +1,140 @@
+<!doctype html>
+<html><head>
+<title>RestAssured Response Logging: Seeing What Actually Came Back</title>
+<meta name="description" content="How to log RestAssured responses — full response logging, targeted logging, and pretty-printing — to see exactly what an API returned." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/response-logging.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Response Logging</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="request-logging.html">Request Logging</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>given()
+    .when()
+        .get("/users/2")
+    .then()
+        .log().all() // logs the RESPONSE — placed after .then(), not given()
+        .statusCode(200);</code></pre>
+<p>Response logging is the mirror image of request logging: instead of confirming what you sent, it shows you exactly what came back — status code, headers, and body. Placed after <code>.then()</code>, it prints the response either before or as part of the assertion chain, depending on where in the chain it appears.</p>
+
+<h2 id="why-it-s-important">Why it's important</h2>
+<p>When an assertion fails, the failure message tells you what was expected and (often) a summary of what didn't match — but seeing the <em>entire</em> response gives you the full context: is a field missing entirely, or present with the wrong value? Is the whole response shaped differently than you assumed? Response logging answers these faster than inferring from a partial failure message alone.</p>
+
+<h2 id="basic-example-logging-the-full-response">Basic Example — Logging the Full Response</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>given()
+.when()
+    .get("/users/2")
+.then()
+    .log().all()
+    .statusCode(200);
+
+// Prints something like:
+// Status: 200 OK
+// Headers: Content-Type=application/json; charset=utf-8, ...
+// Body: { "data": { "id": 2, "first_name": "Janet", ... } }</code></pre>
+
+<h2 id="logging-just-the-body">Logging Just the Body</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>given()
+.when()
+    .get("/users/2")
+.then()
+    .log().body()  // response body only, skip status/headers
+    .statusCode(200);</code></pre>
+<p>When you're specifically trying to understand a response's structure — confirming field names before writing a JsonPath expression, for instance — logging just the body avoids scrolling past headers you don't currently care about.</p>
+
+<h2 id="pretty-printing-for-readability">Pretty-Printing for Readability</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Response response = given().when().get("/users/2");
+System.out.println(response.getBody().asPrettyString());
+
+// vs. the compact, single-line default:
+System.out.println(response.getBody().asString());</code></pre>
+<p><code>.asPrettyString()</code> formats JSON (or XML) with indentation, which is dramatically easier to read for anything beyond a very small, flat response — worth reaching for whenever you're manually inspecting a response body rather than relying on <code>.log()</code>'s default formatting.</p>
+
+<h2 id="detailed-example-understanding-an-unfamiliar-response-shape">Detailed Example — Understanding an Unfamiliar Response Shape</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void exploringAResponseShapeBeforeWritingAssertions() {
+    Response response = given().when().get("/orders/500");
+    System.out.println(response.getBody().asPrettyString());
+
+    // Output reveals the actual structure — nested customer object,
+    // array of line items, etc. — informing exactly which JsonPath
+    // expressions the REAL assertions (written next) should use
+}</code></pre>
+<p>This is a genuinely common, legitimate workflow: before writing assertions against an API you haven't worked with before, print and read one real response first. Guessing at a response's structure and writing assertions against your assumption is slower (and more error-prone) than looking at the real thing once.</p>
+
+<h2 id="real-world-example-comparing-expected-vs-actual-on-a-failure">Real-World Example — Comparing Expected vs. Actual on a Failure</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void debuggingAFailingBodyAssertion() {
+    given()
+    .when()
+        .get("/users/2")
+    .then()
+        .log().ifValidationFails() // covered fully on the next page
+        .body("data.first_name", equalTo("Janet"));
+    // If this assertion fails, the full response prints automatically —
+    // revealing whether "first_name" is missing, misspelled, or just has a different value
+}</code></pre>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Guessing at a response's structure without ever having looked at a real one
+.then().body("user.details.contact.email", equalTo("john@example.com")); // wrong nesting, fails mysteriously
+
+// ✅ Log a real response first, THEN write assertions against its actual structure
+Response sample = given().when().get("/users/2");
+System.out.println(sample.getBody().asPrettyString());
+// ...now write assertions matching what you actually saw</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Writing assertions against an assumed response structure</strong> without ever having looked at a real response first.</li>
+  <li><strong>Using the compact <code>.asString()</code></strong> when manually inspecting a response, instead of <code>.asPrettyString()</code> — makes anything beyond a trivial response hard to read.</li>
+  <li><strong>Leaving full response logging in committed code</strong> for the same reason covered on the Request Logging page — floods CI output unnecessarily.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Very large response bodies</strong> (a big paginated list) — full logging can produce a huge amount of console output; consider logging just a specific extracted piece instead of the entire response.</li>
+  <li><strong>Binary response bodies</strong> (a downloaded file, an image) — <code>.log().body()</code> isn't meaningful here; check <code>Content-Type</code> and length instead of attempting to print binary content.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>When a test fails and the assertion message alone doesn't make the cause obvious, log the full response next — comparing what you expected against everything the API actually returned resolves most confusing failures faster than staring at the assertion error alone.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Log and read one real response before writing assertions against an unfamiliar API's shape.</li>
+  <li>Use <code>.asPrettyString()</code> for manual inspection of anything beyond a trivially small response.</li>
+  <li>Prefer conditional response logging (next page) over permanent full logging in committed test code.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Against an API endpoint you haven't tested before, log and pretty-print a real response first, then write three assertions based on what you actually observed — confirming this workflow is faster and more accurate than guessing at the structure upfront.</p>
+
+<h2 id="summary">Summary</h2>
+<p>Response logging — full via <code>.log().all()</code> after <code>.then()</code>, targeted via <code>.log().body()</code>, or manual via <code>.asPrettyString()</code> — shows you exactly what an API returned, which is invaluable both for understanding an unfamiliar response shape before writing assertions and for diagnosing why an existing assertion is failing.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why is it a good habit to log and inspect a real response before writing assertions against an API you haven't tested before?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Assumptions about a response's structure — field names, nesting, whether something is an object or an array — are frequently wrong in small but assertion-breaking ways, especially for APIs you didn't design yourself. Writing assertions against an assumed structure produces confusing failures that look like bugs in the API but are actually just incorrect JsonPath expressions. Looking at one real, logged response first means every subsequent assertion is written against the actual shape, not a guess.</div>
+</details>
+<details class="faq-item">
+<summary>Why print a real response and read it before writing assertions against an unfamiliar API?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Assumptions about response structure — field names, nesting — are frequently wrong in small, assertion-breaking ways; looking at one real response first means every subsequent assertion matches the actual shape, not a guess.</div>
+</details>
+<details class="faq-item">
+<summary>What does .asPrettyString() give you that .asString() doesn't?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Indented, formatted output that's dramatically easier to read for anything beyond a trivially small response — the compact default is hard to parse visually once a response has any real structure.</div>
+</details>
+<details class="faq-item">
+<summary>Why does a failing assertion often benefit from full response logging, not just the assertion's own error message?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The assertion error alone might say 'expected X, got Y' without full context; the complete response reveals whether a field is missing entirely, misspelled, or just has an unexpected value.</div>
+</details>
+<details class="faq-item">
+<summary>Is logging the full response appropriate for every test in committed code?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">No — the same CI-noise concern from request logging applies; conditional logging (covered on the next page) is the pattern real projects converge on for committed code.</div>
+</details>
+</div>
+</article>
+</body></html>

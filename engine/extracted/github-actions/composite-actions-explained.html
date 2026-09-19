@@ -1,0 +1,130 @@
+<!doctype html>
+<html><head>
+<title>Composite Actions in GitHub Actions Explained</title>
+<meta name="description" content="What a composite action is, how it differs from a reusable workflow, and building one to bundle a small, repeated sequence of steps into a single reusable unit." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/composite-actions-explained.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Composite Actions Explained</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="calling-a-reusable-workflow-with-inputs-and-outputs.html">Calling a Reusable Workflow with Inputs & Outputs</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>A composite action bundles several steps into a single, reusable unit — used with <code>uses:</code>, exactly like any other action, but one you define yourself rather than a pre-built third-party one.</p>
+
+<h2 id="why-do-we-need-it">Why do we need it?</h2>
+<p>Some genuinely shared logic is smaller than a whole workflow — a specific setup sequence, a repeated multi-step pattern used across several jobs or workflows. A reusable workflow is a genuinely heavier tool for this; a composite action is the lighter-weight equivalent for step-level reuse.</p>
+
+<h2 id="defining-a-composite-action">Defining a Composite Action</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># .github/actions/setup-project/action.yml
+name: 'Setup Project'
+description: 'Checks out code and sets up Node.js with caching'
+inputs:
+  node-version:
+    description: 'Node.js version'
+    required: false
+    default: '20'
+runs:
+  using: 'composite'
+  steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: 'npm'
+    - run: npm ci
+      shell: bash</code></pre>
+<p>The genuinely distinguishing detail is <code>runs: using: 'composite'</code> — this tells GitHub Actions this action's actual logic is a sequence of steps, not a single script or a Docker container (other action types this course hasn't needed to cover).</p>
+
+<h2 id="using-a-composite-action">Using a Composite Action</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ./.github/actions/setup-project
+        with:
+          node-version: '18'
+      - run: npm run build
+      - run: npm test</code></pre>
+<p>Three steps — checkout, Node.js setup with caching, dependency install — collapsed into one, reusable line. Note the local path (<code>./.github/actions/setup-project</code>) — a composite action living in the same repository is referenced this way, rather than an <code>org/repo@version</code> reference used for a third-party or externally-shared action.</p>
+
+<h2 id="detailed-example-before-and-after">Detailed Example — Before and After</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>❌ Repeated in every job that needs this setup:
+jobs:
+  build:
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: 'npm' }
+      - run: npm ci
+      - run: npm run build
+  test:
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: 'npm' }
+      - run: npm ci
+      - run: npm test
+
+✅ The shared setup, extracted into one composite action:
+jobs:
+  build:
+    steps:
+      - uses: ./.github/actions/setup-project
+      - run: npm run build
+  test:
+    steps:
+      - uses: ./.github/actions/setup-project
+      - run: npm test</code></pre>
+<p>The genuinely repeated checkout-setup-install sequence now lives in exactly one place — a fix or improvement to that shared setup only needs to happen once.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why does a composite action's own steps each need an explicit <code>shell:</code> (like <code>shell: bash</code> on the <code>run</code> step above), when an ordinary workflow step usually doesn't need to specify this? A composite action can genuinely be used across different operating systems and contexts, so it can't safely assume the same default shell an ordinary workflow step running directly on a known runner would have — being explicit here removes that ambiguity.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Forgetting that a composite action referenced locally (<code>./.github/actions/...</code>) needs the calling workflow to have already checked out the repository first — unlike a third-party action referenced by <code>org/repo@version</code>, a local composite action's own files need to physically exist on the runner, which only happens after <code>actions/checkout</code> has run.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>A composite action's own <code>action.yml</code> file can itself be version-controlled and reviewed like any other code in the repository — genuinely useful for tracking exactly how a shared setup sequence has evolved over time, the same way any other meaningful code change would be reviewed.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Extract a composite action when the same small sequence of steps genuinely repeats across multiple jobs or workflows.</li>
+  <li>Always specify <code>shell:</code> explicitly on a composite action's own <code>run</code> steps, since it can't safely assume a specific default.</li>
+  <li>Remember a locally-referenced composite action requires the repository to already be checked out before it can be used.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>A composite action bundles multiple steps into one reusable unit, defined with <code>runs: using: 'composite'</code>.</li>
+  <li>It's referenced with <code>uses:</code>, exactly like any other action — a local path for same-repository reuse, or <code>org/repo@version</code> for shared, external ones.</li>
+  <li>Composite action steps need explicit <code>shell:</code> specification, since they can't assume a specific default.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>For a repeated sequence of "checkout, set up Python 3.11, install dependencies from requirements.txt" used across several jobs, write the <code>action.yml</code> for a composite action that bundles this sequence.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>What does runs: using: 'composite' actually tell GitHub Actions about an action?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It specifies that this action's actual logic is defined as a sequence of ordinary steps, rather than a single script file or a Docker container (the other possible action types). This is what allows a composite action to bundle multiple checkout, setup, and command steps together into one reusable unit that other workflows can invoke with a single uses: line.</div>
+</details>
+<details class="faq-item">
+<summary>Why does a composite action's run steps need an explicit shell: specification, unlike most ordinary workflow steps?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A composite action is designed to be genuinely reusable across different workflows and potentially different operating systems, so it can't safely assume the same default shell an ordinary step running directly on a specific, known runner would have. Being explicit about the shell removes this ambiguity, ensuring the action behaves consistently regardless of where it's actually used.</div>
+</details>
+<details class="faq-item">
+<summary>Why does using a locally-defined composite action require the repository to already be checked out first?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A composite action referenced by a local path (like ./.github/actions/setup-project) needs its actual action.yml file and any associated files to physically exist on the runner's filesystem. Since a fresh runner starts with no code at all, actions/checkout must run first to bring the repository's files — including the composite action's own definition — onto the runner before it can be used.</div>
+</details>
+<details class="faq-item">
+<summary>What's the practical benefit of extracting a repeated three-or-four-step sequence into a composite action?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The repeated logic now exists in exactly one place rather than being duplicated across every job or workflow that needs it, meaning a fix or improvement only needs to be made once. This directly parallels the same duplication-avoidance reasoning behind matrices (for job-level repetition) and reusable workflows (for whole-workflow repetition), just applied at the smaller, step-sequence level.</div>
+</details>
+<details class="faq-item">
+<summary>How is a locally-defined composite action referenced differently from a third-party action published elsewhere?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A composite action living in the same repository is referenced by a local path, like ./.github/actions/setup-project, pointing to where its action.yml file actually lives within the checked-out repository. A third-party or externally-shared action is instead referenced by an org/repo@version pattern, pointing to a specific, separate repository and version rather than a local file path.</div>
+</details>
+</div>
+</article>
+</body></html>

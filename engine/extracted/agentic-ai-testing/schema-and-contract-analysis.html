@@ -1,0 +1,217 @@
+<!doctype html>
+<html><head>
+<title>Schema and Contract Analysis: Beyond a Single Response</title>
+<meta name="description" content="What an agent can catch by comparing an API&#x27;s actual response structure against its documented contract over time — a genuinely different kind of check from validating one response." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/schema-and-contract-analysis.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Schema and Contract Analysis</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="ai-generated-restassured-tests.html">AI-Generated RestAssured Tests</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Every earlier page in this chapter validated ONE response at a time. This final page is about something genuinely different: whether an API's actual structure matches its documented CONTRACT — and whether that structure stays stable over time, not just correct in a single snapshot.</p>
+
+<h2 id="what-a-contract-actually-is">What a Contract Actually Is</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A genuine API contract (e.g., an OpenAPI/Swagger definition)
+for the orders endpoint might specify:
+
+GET /orders/{id} returns:
+  id: integer, required
+  status: string, one of [pending, shipped, delivered, cancelled]
+  total: number, required
+  items: array of {product_id: integer, quantity: integer}
+
+This is a genuine PROMISE about the response's shape — not
+just what ONE example response happened to look like.</code></pre>
+
+<h2 id="contract-comparison-in-code">Contract Comparison, in Code</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def check_contract_compliance(response_body, contract_schema, client):
+    prompt = f"""Compare this ACTUAL API response against its
+documented CONTRACT. Report any field that's MISSING, any
+field present but NOT documented in the contract, and any
+field whose TYPE doesn't match what the contract specifies.
+
+Actual response: {response_body}
+
+Documented contract: {contract_schema}
+"""
+    result = client.messages.create(
+        model="claude-sonnet-4-6", max_tokens=512,
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return result.content[0].text</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># A genuinely realistic finding:
+"The actual response includes a field 'internal_notes' that
+is NOT documented in the contract. This might be an internal
+field accidentally exposed to API consumers, or the contract
+documentation may simply be out of date — worth confirming
+which."</code></pre>
+
+<h2 id="why-this-is-genuinely-different-from-validating-one-response">Why This Is Genuinely Different From Validating One Response</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Earlier pages' response validation asks:
+  "Is THIS response internally consistent and correct?"
+
+Contract analysis asks a GENUINELY different question:
+  "Does the ACTUAL, real structure match what was PROMISED,
+  and does that promise hold up CONSISTENTLY, not just this
+  one time?"
+
+A field like 'internal_notes' being present is NOT an
+inconsistency within the response itself — every field is
+internally coherent. It's a MISMATCH against an external
+PROMISE (the documented contract) that single-response
+validation structurally has no way to catch, since it has
+no contract to compare against at all.</code></pre>
+
+<h2 id="an-accidentally-exposed-field-a-genuinely-real-risk">An Accidentally-Exposed Field — A Genuinely Real Risk</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why 'internal_notes' appearing in a customer-facing API
+response matters, concretely: it might contain information
+NEVER intended for external consumers — a warehouse note like
+"customer complained about damaged packaging last time, handle
+carefully" is legitimately useful INTERNALLY, but a genuine
+privacy or professionalism concern if it's accidentally
+visible in a response any API consumer could see.
+
+This is exactly the kind of finding contract analysis is
+specifically positioned to catch — a single-response
+correctness check wouldn't flag this AT ALL, since the field
+is technically well-formed and doesn't make the response
+internally inconsistent.</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might comparing a response against its documented contract be valuable even if the contract documentation itself might be stale or incomplete? Even an imperfect, potentially-outdated contract still provides a genuine reference point for noticing DRIFT — a field appearing that isn't documented anywhere is worth investigating regardless of whether the ultimate conclusion is "the contract needs updating" or "this field shouldn't be exposed." The value isn't that the contract is perfectly authoritative — it's that comparing against ANY stated expectation reveals genuine discrepancies worth a human's attention, exactly the same principle Chapter 4 applied to comparing scenarios against requirements.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Treating every contract mismatch as automatically the API's fault, rather than considering that the documented contract itself might be the stale, incorrect side of the mismatch. This page's example is explicit about this — the finding is "worth confirming which," not an automatic conclusion that the API is wrong.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>Running contract analysis periodically (not on every single request) against a small set of genuinely representative responses is often more practical than checking it on every API call — this mirrors Chapter 5's exploratory-testing cadence discussion, where a genuinely useful check doesn't need to run at maximum possible frequency to be valuable.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Compare actual responses against their documented contract periodically, not just validate each response in isolation.</li>
+  <li>Treat a discovered mismatch as needing investigation into which side (the API or the documentation) is actually stale or wrong, not an automatic verdict against the API.</li>
+  <li>Pay particular attention to undocumented fields appearing in responses — a genuine, real risk of accidentally exposing information that was never meant to be public.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Contract analysis compares an API's actual structure against its documented promise — a genuinely different question from whether a single response is internally correct.</li>
+  <li>An undocumented field appearing in a response is a real, meaningful risk category — potentially exposing information never intended for external consumers — that single-response validation can't catch.</li>
+  <li>A contract mismatch needs investigation into which side is actually wrong, not an automatic assumption that the API itself is at fault.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Using this page's <code>check_contract_compliance</code> pattern, write out what you'd expect the finding to look like if ShopEasy's documented contract specifies <code>total: number</code>, but the actual API response returns <code>total</code> as a string (e.g., <code>"67.43"</code> instead of <code>67.43</code>) — and explain why this specific kind of mismatch is genuinely worth flagging even though the value itself is correct.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A contract analysis finds an undocumented 'internal_notes' field in API responses. A teammate says "just add it to the documentation and move on." What would you push back on?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd push back on the assumption that updating documentation is automatically the right fix — this page's own example is explicit that the finding could mean EITHER "the contract needs updating" OR "this field shouldn't be exposed at all," and these have very different, genuinely important implications.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why "just document it" might be the WRONG fix:
+If 'internal_notes' contains genuinely sensitive internal
+  content (warehouse notes, internal flags), the correct fix
+  is REMOVING it from the customer-facing response entirely
+  — documenting a field that shouldn't be exposed doesn't
+  solve the underlying privacy or professionalism problem,
+  it just formalizes an existing mistake.
+
+The genuinely correct first step:
+Investigate WHAT this field actually contains and WHY it's
+  present, before deciding whether the fix is "update the
+  documentation" or "remove the field from the response" —
+  exactly the human-review step this page insists on before
+  drawing any conclusion.</code></pre>
+<p>"Just document it" skips the actual investigation this finding genuinely warrants — the right response is determining WHICH side of the mismatch is actually the problem, not defaulting to the easier-sounding fix without checking.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page argue that single-response validation (from earlier pages) structurally CANNOT catch an undocumented field, even a very thorough single-response check?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because single-response validation has no CONTRACT to compare against at all — it can only judge whether a response is internally consistent with ITSELF, and a well-formed, internally-consistent field that simply shouldn't be there produces no internal inconsistency to detect.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What single-response validation CAN genuinely check:
+"Does this response's total match its line items? Is the
+  status field a genuinely recognized value?" — these are
+  ALL questions answerable by looking at the response ALONE,
+  with no external reference needed.
+
+What it structurally CANNOT check:
+"Should this field even BE HERE?" — this question has NO
+  answer available from the response alone; it requires
+  comparing against something EXTERNAL to the response itself
+  — specifically, the documented CONTRACT that says what
+  SHOULD be present. Without that external reference, there's
+  simply no way to determine that 'internal_notes' is
+  unexpected, since nothing about the field ITSELF looks
+  wrong.</code></pre>
+<p>This is precisely why this page exists as a genuinely distinct, final piece of this chapter — it introduces a fundamentally different KIND of check (comparison against an external reference) that no amount of more thorough single-response validation could ever substitute for.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why this page suggests running contract analysis "periodically" rather than on every single API call, connecting this to a principle from earlier in this course.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This directly applies the cost-cadence principle from Chapter 5's Autonomous Browser Testing page — genuinely useful checks don't automatically need to run at maximum possible frequency, and matching cadence to real cost-benefit is a deliberate, practical skill this course has built toward consistently.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why running this on EVERY call would be genuinely wasteful:
+An API's actual STRUCTURE (which fields exist, their types)
+  typically doesn't change between individual requests to the
+  SAME endpoint — running a full contract comparison on every
+  single call adds real, repeated cost for information that's
+  highly unlikely to have changed since the LAST check, just
+  moments ago.
+
+Why PERIODIC checking genuinely still catches the real risk:
+Structural drift (an accidentally-added field, a changed type)
+  happens at the pace of CODE DEPLOYMENTS, not individual API
+  calls — checking periodically (e.g., after each deployment,
+  or on a regular schedule) is genuinely sufficient to catch
+  drift at the actual RATE it can realistically occur, without
+  the wasted, repeated cost of checking on every single request.</code></pre>
+<p>This is the same underlying principle from Chapter 5, now applied to a genuinely different check — match how OFTEN you run something to how often the thing it's checking for could actually change, rather than defaulting to maximum frequency regardless of genuine need.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you design a contract-analysis check specifically for a TYPE mismatch (total returned as a string instead of a number), and why does this matter even when the underlying value is correct?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A type mismatch is genuinely important beyond aesthetic correctness — many real API consumers (client code, other services) parse responses based on EXPECTED types, and a string where a number was promised can cause genuine, real failures downstream, even though the human-readable VALUE looks perfectly correct.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why "67.43" (string) vs 67.43 (number) genuinely matters:
+Client code written expecting a NUMBER (for direct arithmetic,
+  like calculating a running total across multiple orders)
+  might FAIL or behave unexpectedly if it receives a STRING
+  instead — many programming languages don't automatically
+  treat "67.43" and 67.43 as interchangeable for arithmetic
+  operations, even though a human reading the RAW JSON would
+  see what looks like "the same value" either way.
+
+A genuine contract-analysis finding for this case:
+"The 'total' field is documented as type 'number' but the
+  actual response returns it as a STRING. While the numeric
+  VALUE itself appears correct, this type mismatch could break
+  client code that performs arithmetic directly on this field
+  without first converting it — worth confirming and fixing
+  regardless of whether the displayed value looks fine."</code></pre>
+<p>This is a genuinely good closing example for this chapter — it shows contract analysis catching something that's simultaneously "technically not wrong" (the value IS correct) and "genuinely a real problem" (the TYPE contract is violated), which is exactly the kind of subtle, structural issue this final page exists specifically to address.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Looking back across this entire chapter, how does this final page's contract-analysis concept connect to Chapter 5's Screenshot and Trace Analysis page, which also closed that chapter?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Both pages deliberately close their respective chapters by introducing a genuinely NEW category of analysis — beyond navigation/exploration, locators/construction, and assertions/validation — that requires comparing against something EXTERNAL to a single interaction, rather than judging one interaction in isolation.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Chapter 5's closing move — Screenshot/Trace analysis:
+Goes BEYOND checking individual DOM elements or assertions,
+  toward reasoning about VISUAL rendering and TIMING data —
+  information sources genuinely different from, and
+  complementary to, what earlier pages in that chapter covered.
+
+THIS chapter's closing move — Contract analysis:
+Goes BEYOND validating a single response's internal
+  correctness, toward comparing against an EXTERNAL, documented
+  PROMISE (the contract) — a genuinely different question than
+  anything earlier pages in THIS chapter addressed.</code></pre>
+<p>Both final pages share the same STRUCTURAL role within their respective chapters: after building up navigation/exploration, targeting/construction, and assertion/validation capabilities, each chapter closes by introducing one more genuinely distinct analytical capability that draws on ADDITIONAL information sources (screenshots and traces; contracts and schemas) beyond what the earlier, more foundational pages needed — a deliberate, parallel structure across both of this course's major hands-on chapters.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

@@ -1,0 +1,217 @@
+<!doctype html>
+<html><head>
+<title>Analyzing Screenshots and Traces for Failure Diagnosis</title>
+<meta name="description" content="Using the exact same screenshot and trace tools from Chapter 5, now to diagnose a real failure rather than assert correctness during a live run." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/analyzing-screenshots-and-traces-for-failure-diagnosis.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Analyzing Screenshots and Traces for Failure Diagnosis</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="stack-trace-analysis.html">Stack Trace Analysis</a></p>
+<article class="content">
+<h2 id="what-is-this-and-why-it-s-not-a-repeat-of-chapter-5">What is this, and why it's not a repeat of Chapter 5</h2>
+<p>Chapter 5's Screenshot and Trace Analysis page used these same artifacts to check whether something looked correct DURING a live run — a genuinely forward-looking, assertion-style use. This page uses the exact same tools for a backward-looking job: given a failure that already happened, what do the screenshot and trace from that moment actually reveal?</p>
+
+<h2 id="the-failure-screenshot">The Failure Screenshot</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># Playwright automatically captures a screenshot at the moment
+# of failure — genuinely different from Chapter 5's LIVE,
+# on-demand screenshot calls during a passing exploration
+
+def analyze_failure_screenshot(screenshot_path, failure_context, client):
+    with open(screenshot_path, 'rb') as f:
+        image_bytes = f.read()
+    response = client.messages.create(
+        model="claude-sonnet-4-6", max_tokens=512,
+        messages=[{
+            "role": "user",
+            "content": [
+                {"type": "text", "text": f"""This screenshot
+was captured at the moment a test failed. The test expected
+to see 'Welcome back' text but it never appeared.
+Failure context: {failure_context}
+
+What does the page ACTUALLY show at this moment? Is there an
+error message, a loading spinner, an unexpected redirect, or
+anything else visible that would explain why the expected
+text never appeared?"""},
+                {"type": "image", "source": {"type": "base64",
+                    "media_type": "image/png",
+                    "data": base64.b64encode(image_bytes).decode()}}
+            ]
+        }]
+    )
+    return response.content[0].text</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># A genuinely real, diagnostic finding:
+"The screenshot shows the login page STILL displaying the
+login form itself, with a small red text reading 'Invalid
+credentials' beneath the password field. The page never
+navigated away from /login at all. This strongly suggests the
+LOGIN ATTEMPT ITSELF was rejected — worth checking whether the
+test's stored password is genuinely still correct, rather than
+an application defect in the post-login welcome flow."</code></pre>
+<p>This is genuinely diagnostic in a way Chapter 5's live analysis wasn't — it's specifically explaining a FAILURE that already occurred, not confirming correctness of something currently happening.</p>
+
+<h2 id="the-failure-trace-what-it-adds">The Failure Trace — What It Adds</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Chapter 5's trace analysis asked: "did any request take too
+long, were there console errors, during this exploration?"
+
+THIS page's failure-focused trace analysis asks a genuinely
+more TARGETED question:
+
+def analyze_failure_trace(trace_data, failure_timestamp, client):
+    prompt = f"""This is trace data around the moment of a test
+failure at timestamp {failure_timestamp}:
+
+{trace_data}
+
+Specifically: what was the LAST network request made before
+the failure, and did it complete successfully? Were there any
+console errors logged in the moments immediately before the
+failure?"""
+    result = client.messages.create(
+        model="claude-sonnet-4-6", max_tokens=512,
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return result.content[0].text</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># A genuinely useful finding:
+"The last network request was POST /api/login, which completed
+with a 401 status code — the server explicitly REJECTED the
+login attempt. No console errors were logged. This is
+consistent with the screenshot's 'Invalid credentials' message
+— the login genuinely failed at the CREDENTIALS level, not due
+to a broken feature or a network issue."</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why does combining the screenshot's "Invalid credentials" text with the trace's "401 status code" finding produce a genuinely more confident diagnosis than either piece of evidence alone would? Either finding individually is suggestive but not conclusive — a visible "Invalid credentials" message could theoretically be leftover, stale UI from a previous state; a 401 status alone doesn't confirm what the user actually SAW. Together, they corroborate each other: the SERVER genuinely rejected the credentials (the trace), AND the UI correctly reflected this to the user (the screenshot) — two independent evidence sources agreeing is a meaningfully stronger basis for a confident diagnosis than either alone.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Using only ONE of these two evidence sources when both are genuinely available. A screenshot alone might miss WHY something happened (no visible network detail); a trace alone might miss what a USER would actually have perceived (no visual confirmation). This page's example shows real, genuine value in combining them.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>Playwright's own trace viewer captures BOTH the screenshot and the network/console data together, timestamped — an agent's failure analysis is genuinely more reliable when it uses this built-in correlation rather than treating screenshots and traces as separate, disconnected artifacts to reason about independently.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Use failure screenshots to see what a real user would have actually perceived at the moment of failure, not just what the code technically did.</li>
+  <li>Use failure-focused trace analysis to check the specific request and console activity immediately around the failure point, not a broad exploration.</li>
+  <li>Combine both evidence sources when available — corroborating findings across independent sources produce genuinely more confident diagnoses.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>The same screenshot and trace tools from Chapter 5 serve a genuinely different, backward-looking diagnostic purpose here — explaining a failure that already happened, not asserting live correctness.</li>
+  <li>A failure screenshot reveals what a real user would have actually seen; a failure trace reveals what actually happened at the network and console level — often complementary.</li>
+  <li>Corroborating evidence across a screenshot and a trace produces a meaningfully more confident diagnosis than either evidence source alone.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>For a hypothetical failure screenshot showing a generic "500 Internal Server Error" page instead of the login form, write out what trace evidence you'd expect to corroborate this, and explain which of Failure Classification's six categories this combination would most strongly support.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A colleague says "we already covered screenshot and trace analysis in Chapter 5 — why does this page exist?" How would you explain the genuine difference?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Chapter 5 used these tools forward-looking, DURING a live exploration, to check whether something currently looked correct; this page uses the exact same tools backward-looking, AFTER a failure, to explain why something already went wrong — genuinely different jobs, even with identical underlying artifacts.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Chapter 5's actual use (live, forward-looking):
+"Does this CHECKOUT page's Place Order button appear visually
+  obscured RIGHT NOW, during this exploration?" — asked WHILE
+  a test is actively running, about the CURRENT state.
+
+THIS page's actual use (post-mortem, backward-looking):
+"Given that this test ALREADY FAILED, what does the captured
+  screenshot from THAT moment reveal about WHY?" — asked AFTER
+  the fact, specifically to explain something that's already
+  happened and can't be directly re-observed live.</code></pre>
+<p>The underlying capability (visual reasoning over an image, reasoning over trace data) is genuinely identical — what's different is the QUESTION being asked and WHEN it's being asked, exactly the distinction this page's own opening section makes explicit.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page argue that a screenshot showing "Invalid credentials" and a trace showing a 401 status code together are more convincing than either alone?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Because each piece of evidence has its own, different potential weakness that the OTHER piece happens to rule out — together they close gaps neither one could close independently.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>The SCREENSHOT'S potential weakness, alone:
+Could the visible "Invalid credentials" text be STALE UI, left
+  over from a PREVIOUS failed attempt earlier in the session,
+  rather than a genuine response to THIS specific attempt?
+  Theoretically possible from the screenshot alone.
+
+The TRACE'S potential weakness, alone:
+A 401 status code confirms the SERVER rejected the request —
+  but does it confirm the USER INTERFACE correctly reflected
+  this rejection, rather than silently failing in some OTHER,
+  confusing way? The trace alone doesn't show what a user
+  would have actually SEEN.
+
+TOGETHER, these weaknesses cancel out:
+The trace confirms THIS SPECIFIC request was genuinely
+  rejected; the screenshot confirms the UI correctly displayed
+  that rejection to the user — each source resolves the OTHER
+  source's specific gap.</code></pre>
+<p>This is a genuinely good, concrete illustration of why corroborating independent evidence sources matters — not because either source is individually unreliable, but because each has a DIFFERENT blind spot the other happens to cover.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why this page's failure-trace prompt asks specifically about "the LAST network request before the failure," rather than requesting the ENTIRE trace's full network activity.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This directly applies the same focused-context principle from earlier chapters — the question being asked is specifically about what happened immediately before THIS failure, and requesting the entire trace's full activity would dilute attention with genuinely irrelevant, earlier network activity.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why FOCUSING on the last request before failure is genuinely
+better:
+For diagnosing THIS SPECIFIC failure, the request IMMEDIATELY
+  preceding it is by far the most likely to be directly
+  relevant — exactly matching Chapter 5's AI-Generated
+  Playwright Tests page's argument for capping captured page
+  structure to relevant elements, now applied to trace data.
+
+Why the FULL trace would be less useful for THIS purpose:
+A typical page load might involve DOZENS of network requests
+  — images, analytics calls, unrelated API calls — most of
+  which have NOTHING to do with diagnosing THIS SPECIFIC
+  login failure. Including all of them risks the same
+  attention-dilution problem this course has warned about
+  since Chapter 2's Reasoning page.</code></pre>
+<p>This is a consistent, recurring pattern across this entire course: focused, relevant context produces more reliable reasoning than exhaustive, unfiltered context, now shown applying specifically to failure-diagnosis trace analysis.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might it be a mistake to trust a failure screenshot's visual content without ALSO checking whether it was captured at the genuinely correct moment (right at the point of failure, not earlier or later)?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A screenshot captured at the WRONG moment — too early (before the relevant state was reached) or too late (after some automatic recovery or redirect already happened) — could show something genuinely misleading about what actually caused the failure.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A GENUINELY misleading scenario, if timing were wrong:
+If the screenshot were captured a few seconds AFTER the actual
+  failure moment, and the page had ALREADY auto-redirected to
+  a generic error page by then, the screenshot might show a
+  completely GENERIC "Something went wrong" page — potentially
+  obscuring the MORE SPECIFIC, genuinely useful "Invalid
+  credentials" message that was briefly visible just before
+  that redirect occurred.
+
+Why Playwright's AUTOMATIC failure screenshot (referenced in
+this page's opening) is genuinely more trustworthy than a
+manually-timed one:
+Playwright captures this AT THE EXACT MOMENT the assertion
+  actually times out — a reliable, consistent timing guarantee
+  that a manually-scheduled screenshot call might not have.</code></pre>
+<p>This is a genuinely important, practical detail: the VALUE of a failure screenshot depends heavily on WHEN exactly it was captured relative to the failure — which is exactly why this page specifically references Playwright's own automatic, precisely-timed failure screenshot capture, rather than assuming any arbitrary screenshot would serve the same diagnostic purpose equally well.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you extend this page's approach to diagnose a failure where NEITHER the screenshot nor the trace shows anything obviously wrong?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This is a genuinely realistic, honest scenario worth planning for — when both readily-available evidence sources come up empty, the correct response is escalating to the NEXT evidence source (application and system logs, covered on the next page), not forcing a conclusion from insufficient evidence.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A genuinely honest response when screenshot AND trace are both
+inconclusive:
+"The failure screenshot shows the EXPECTED page state with no
+  visible error message, and the trace shows the login request
+  completed with a NORMAL 200 status code — neither piece of
+  evidence explains why the 'Welcome back' text specifically
+  failed to appear. This requires checking application-level
+  LOGS (next page) for anything that might explain a
+  successful-LOOKING response that still didn't produce the
+  expected UI state — possibly a client-side RENDERING issue
+  not visible in either the screenshot or the network trace."</code></pre>
+<p>This honest escalation — rather than forcing an unsupported guess from insufficient evidence — is exactly the discipline this chapter has built toward since its opening page: a genuine diagnosis requires genuinely sufficient evidence, and when the available sources don't provide it, the correct next step is gathering MORE evidence, not confidently guessing from what's already there.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

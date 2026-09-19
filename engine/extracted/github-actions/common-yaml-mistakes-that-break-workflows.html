@@ -1,0 +1,133 @@
+<!doctype html>
+<html><head>
+<title>Common YAML Mistakes That Break GitHub Actions Workflows</title>
+<meta name="description" content="The specific YAML formatting mistakes responsible for a huge share of GitHub Actions failures — bad indentation, missing colons, wrong list syntax, and quoting issues — each broken and fixed." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/common-yaml-mistakes-that-break-workflows.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Common YAML Mistakes That Break Workflows</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="yaml-syntax-keys-values-lists-and-nesting.html">YAML Syntax: Keys, Values, Lists & Nesting</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>This page is a deliberate collection of broken YAML — the specific mistakes responsible for a huge share of real "why won't my workflow even start" problems — each one shown broken, explained, and fixed.</p>
+
+<h2 id="mistake-1-incorrect-indentation">🔍 Mistake 1 — Incorrect Indentation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  build:
+  runs-on: ubuntu-latest
+    steps:
+      - run: echo "hi"</code></pre>
+<p><code>runs-on</code> is indented at the same level as <code>build:</code> instead of one level deeper — meaning it isn't recognized as belonging to the build job at all.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "hi"</code></pre>
+<p><strong>Fix:</strong> <code>runs-on</code> needs to be indented one level deeper than <code>build:</code>, matching <code>steps:</code>, since both are properties of the build job.</p>
+
+<h2 id="mistake-2-missing-colon">🔍 Mistake 2 — Missing Colon</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>name My Workflow
+on: push</code></pre>
+<p>The colon after <code>name</code> is simply missing — without it, YAML has no way to know this line is meant to be a key-value pair at all.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>name: My Workflow
+on: push</code></pre>
+<p><strong>Fix:</strong> add the colon (and the required space after it).</p>
+
+<h2 id="mistake-3-incorrect-list-syntax">🔍 Mistake 3 — Incorrect List Syntax</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>steps:
+  run: echo "hi"
+  run: echo "bye"</code></pre>
+<p>Without the leading dash, these lines look like two key-value pairs both trying to use the same key (<code>run</code>) — not a list of two separate steps at all. This is invalid, and even if it were technically parseable, it wouldn't mean what was intended.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>steps:
+  - run: echo "hi"
+  - run: echo "bye"</code></pre>
+<p><strong>Fix:</strong> each list item needs its own leading dash.</p>
+
+<h2 id="mistake-4-wrong-nesting-level">🔍 Mistake 4 — Wrong Nesting Level</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  build:
+    runs-on: ubuntu-latest
+  steps:
+    - run: echo "hi"</code></pre>
+<p><code>steps</code> is indented at the same level as <code>build:</code>, making it a sibling of the build job rather than a property inside it — this defines a job with only <code>runs-on</code> and nothing else, plus a separate, meaningless top-level <code>steps</code> key that GitHub Actions doesn't know what to do with.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "hi"</code></pre>
+<p><strong>Fix:</strong> <code>steps</code> needs to be indented under <code>build:</code>, at the same level as <code>runs-on</code>.</p>
+
+<h2 id="mistake-5-quoting-issues">🔍 Mistake 5 — Quoting Issues</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>run: echo "It's a great day"</code></pre>
+<p>Mixing quote types carelessly — a double-quoted string containing an unescaped apostrophe is usually fine in YAML, but the reverse (a single-quoted string containing an unescaped single quote) genuinely breaks, since YAML uses that same character to end the string early.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># This breaks — the apostrophe in "It's" prematurely ends the single-quoted string:
+run: 'echo "It's a great day"'
+
+# Fixed — use double quotes for the outer string instead:
+run: echo "It's a great day"</code></pre>
+<p><strong>Fix:</strong> be deliberate about which quote character wraps a string, especially when the string's own content contains a quote character of either kind.</p>
+
+<h2 id="detailed-example-finding-a-broken-line-fast">Detailed Example — Finding a Broken Line Fast</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Real error message you might actually see:
+"YAML syntax error on line 4, column 3: mapping values are not allowed here"
+
+This is GitHub's parser telling you almost exactly where the problem is —
+line 4, column 3. Go directly there first, rather than re-reading the
+entire file from the top.</code></pre>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Reading a YAML parse error and assuming it points to a logic problem with what you were trying to accomplish. These errors are almost always about the file's <em>structure</em> — indentation, a missing colon, a stray character — not about whether your intended automation makes sense.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>Most online YAML validators (and your editor's built-in YAML support) can catch these exact mistakes before you even commit — pasting a suspicious snippet into a validator is often faster than staring at indentation trying to count spaces by eye.</p>
+
+<h2 id="challenge">🏆 Challenge</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>name: Broken Workflow
+on push
+jobs:
+  test:
+   runs-on: ubuntu-latest
+  steps:
+    - uses: actions/checkout@v4
+    - run npm test</code></pre>
+<p>This snippet has <strong>three separate mistakes</strong> from this page, all at once. Find and fix all three before reading further. <em>(Hint: check the colon after "on", the indentation of "runs-on" and "steps", and the colon after "run" in the last step.)</em></p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>When a workflow fails to even start (rather than failing partway through a step), suspect YAML structure first, not your actual logic.</li>
+  <li>Use the line and column number in a parse error message directly — it's usually precise enough to go straight to the problem.</li>
+  <li>Validate YAML with a linter or editor extension before committing, rather than discovering a formatting mistake only after pushing.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Indentation mistakes (wrong level, or a line indented at the same level as something it should belong to) are the single most common category of YAML failure.</li>
+  <li>A missing colon, missing space after a colon, or missing dash on a list item are all genuinely invalid YAML, not just bad style.</li>
+  <li>Parse errors point to structural problems, not logic problems — read them as "something about the file's shape is wrong," not "your intent is wrong."</li>
+</ul>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why does a YAML parse error typically not mean there's a logic problem with what the workflow is trying to do?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A parse error means the YAML parser couldn't even successfully read the file's structure — it never got far enough to evaluate whether the intended automation makes sense. These errors are almost always caused by structural issues like incorrect indentation, a missing colon, or a missing list dash, which need to be fixed before the file can be parsed at all, regardless of what the workflow was actually meant to accomplish.</div>
+</details>
+<details class="faq-item">
+<summary>Why does writing two steps without a leading dash on each one fail, rather than just being unconventional?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Without the dash, YAML doesn't interpret the lines as separate list items — it reads them as key-value pairs, and having two lines attempt to use the identical key (like run) within the same mapping is invalid. The dash is the actual syntactic signal for "this is one item in a list," not an optional stylistic marker.</div>
+</details>
+<details class="faq-item">
+<summary>Why can mixing single and double quotes carelessly around a string containing an apostrophe cause a real problem?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">YAML uses matching quote characters to mark where a quoted string begins and ends. If a string is wrapped in single quotes but its own content contains an unescaped single quote (like an apostrophe in a contraction), YAML interprets that apostrophe as the end of the string prematurely, breaking the intended value. Using double quotes for a string containing an apostrophe avoids this specific collision.</div>
+</details>
+<details class="faq-item">
+<summary>If a workflow fails immediately, before any step's log output even appears, what does that suggest about where to look for the problem?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A failure before any step output appears strongly suggests the YAML file itself couldn't be parsed successfully — the workflow never actually reached the point of executing any step. This points directly at the file's structure (indentation, missing colons, malformed lists) rather than anything about the actual commands or actions the steps were meant to run.</div>
+</details>
+<details class="faq-item">
+<summary>Why is checking the line and column number in a YAML parse error usually faster than re-reading the whole file?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">YAML parsers generally report fairly precise location information about where parsing broke down, since that's where the file's structure stopped making sense to the parser. Going directly to that specific line and column is usually far faster than manually scanning an entire file for a subtle indentation or punctuation mistake, especially once a workflow grows to dozens of lines.</div>
+</details>
+</div>
+</article>
+</body></html>

@@ -1,0 +1,208 @@
+<!doctype html>
+<html><head>
+<title>Negative API Testing: Spec-Driven Coverage, Not Hand-Picked Examples</title>
+<meta name="description" content="Systematically generating a negative test for every required field&#x27;s omission and every declared constraint&#x27;s violation, directly from the schema — comprehensive by construction." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/negative-api-testing.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Negative API Testing</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="schema-and-response-validation.html">Schema and Response Validation</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Chapter 4's Negative Test Cases page generated negative scenarios by reasoning about a prose requirement. This page generates them mechanically from the spec's own declared constraints — comprehensive by construction, not by however thoroughly an LLM happened to brainstorm.</p>
+
+<h2 id="one-negative-test-per-required-field-generated-systematically">One Negative Test Per Required Field, Generated Systematically</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def generate_missing_field_tests(schema):
+    base_request = generate_request_body(schema)  # from the
+                                                      # Request
+                                                      # Generation page
+    tests = []
+    for field in schema.get("required", []):
+        modified = dict(base_request)
+        del modified[field]
+        tests.append({
+            "description": f"Request missing required field '{field}'",
+            "body": modified,
+            "expected_status": "400",
+        })
+    return tests</code></pre>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># Applied to the order-creation schema (required: customer_id, items):
+[
+  {"description": "Request missing required field 'customer_id'",
+   "body": {"items": []}, "expected_status": "400"},
+  {"description": "Request missing required field 'items'",
+   "body": {"customer_id": 1}, "expected_status": "400"},
+]
+
+TWO negative tests, GENERATED, one for EVERY required field the
+spec declares — guaranteed complete coverage of THIS specific
+category, with ZERO chance of forgetting one.</code></pre>
+
+<h2 id="one-negative-test-per-declared-constraint-violation">One Negative Test Per Declared Constraint Violation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def generate_constraint_violation_tests(schema):
+    base_request = generate_request_body(schema)
+    tests = []
+    for field, definition in schema["properties"].items():
+        if "enum" in definition:
+            modified = dict(base_request)
+            modified[field] = "NOT_A_VALID_ENUM_VALUE"
+            tests.append({"description": f"'{field}' set to an invalid enum value",
+                          "body": modified, "expected_status": "400"})
+        if "minimum" in definition:
+            modified = dict(base_request)
+            modified[field] = definition["minimum"] - 1
+            tests.append({"description": f"'{field}' below declared minimum",
+                          "body": modified, "expected_status": "400"})
+    return tests</code></pre>
+
+<h2 id="why-this-is-genuinely-comprehensive-not-just-thorough">Why This Is Genuinely Comprehensive, Not Just Thorough</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Chapter 4's prose-based negative generation, even done well,
+depends on an LLM correctly ANTICIPATING which negative cases
+matter — genuinely good, but per that chapter's own honest
+discussion, potentially variable between runs.
+
+THIS page's approach doesn't anticipate anything — it
+MECHANICALLY visits every declared required field and every
+declared constraint, generating a corresponding negative test
+for EACH ONE. Missing a required field's negative test here
+isn't possible unless the field ISN'T in the spec's own
+required list — the coverage is complete BY CONSTRUCTION.</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why does this page's mechanical approach still need Chapter 4's Negative Test Cases page for genuinely complete negative coverage, rather than fully replacing it? Mechanical generation from the spec catches every violation of something the spec EXPLICITLY declares — a missing required field, an out-of-range value. It structurally cannot catch a negative case the spec never encodes as a formal constraint at all, like Chapter 4's own example of attempting to apply a second discount code — a business RULE, not a schema-level TYPE or REQUIRED constraint. The two approaches are complementary for exactly the same reason OpenAPI-Based Test Generation's own FAQ concluded spec-driven and exploratory approaches are complementary.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Assuming mechanical, spec-driven negative testing makes Chapter 4's reasoning-based negative case generation unnecessary. This page catches everything the spec formally declares as a constraint; it cannot catch a business rule violation the spec's schema never encodes, exactly the gap Chapter 4's reasoning-based approach still fills.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>Running this page's mechanical generators against a real spec is a genuinely fast way to gauge how much a spec formally encodes versus leaves to prose or implicit convention — a spec with rich declared constraints (enums, minimums, patterns) yields much richer mechanical negative coverage than one that mostly just declares bare types.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Generate one negative test per declared required field and per declared constraint mechanically, guaranteeing complete coverage of what the spec formally encodes.</li>
+  <li>Keep Chapter 4's reasoning-based negative generation for business rules and scenarios the spec's schema doesn't formally capture.</li>
+  <li>Use the richness of mechanically-generated negative coverage as a rough signal for how much the spec itself formally encodes versus leaves implicit.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Spec-driven negative testing generates one test per declared required field and constraint mechanically, complete by construction rather than by however thoroughly an LLM brainstormed.</li>
+  <li>This approach structurally cannot catch business-rule violations the spec's formal schema never encodes — Chapter 4's reasoning-based approach remains necessary for those.</li>
+  <li>The two approaches are genuinely complementary, covering formally-declared constraints and implicit business rules respectively.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Extend this page's <code>generate_constraint_violation_tests</code> function to also generate a test violating a declared <code>maximum</code> constraint (using <code>maximum + 1</code>), and a test violating a declared string <code>pattern</code> (using an obviously non-matching value) — following the same style as the existing enum and minimum checks.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A teammate argues this page's mechanical generation makes Chapter 4's negative-case work obsolete for API testing specifically. How would you respond, using a concrete example?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd point to Chapter 4's own second-discount-code example directly — this page's mechanical generators have no way to produce that test, since "only one discount code per order" is a business rule, not a schema-level type or required-field constraint.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What THIS page's generators CAN produce, mechanically:
+Missing required fields, values outside declared min/max,
+  invalid enum values, pattern mismatches — all DIRECTLY
+  derivable from the schema's own FORMAL declarations.
+
+What THIS page's generators STRUCTURALLY CANNOT produce:
+"Attempt to apply a SECOND discount code after one is already
+  applied" — nothing in a TYPICAL OpenAPI schema for a SINGLE
+  request would encode this MULTI-STEP, STATEFUL business
+  rule. The schema for the discount-application ENDPOINT alone
+  has no way to express "but only if one hasn't ALREADY been
+  applied to THIS order."</code></pre>
+<p>This is a concrete, genuine gap mechanical generation cannot close — the teammate's claim is specifically wrong for exactly this category of negative case, confirming the "genuinely complementary, not competing" conclusion this page's own "Think About It" section reaches.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page describe its coverage as "comprehensive by construction," and is this claim genuinely accurate or overstated?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>The claim is accurate but genuinely SCOPED — it's comprehensive relative to what the spec formally declares, not comprehensive in any absolute sense; the previous FAQ answer's business-rule example shows exactly where this scoping matters.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Where "comprehensive by construction" IS genuinely accurate:
+For EVERY field the spec marks as required, and EVERY
+  constraint (enum, minimum, pattern) it declares, this page's
+  functions GUARANTEE a corresponding negative test — there's
+  NO way to accidentally skip one, since the generation
+  MECHANICALLY visits the schema's own declared structure.
+
+Where the claim would be OVERSTATED, if taken too broadly:
+"Comprehensive" here does NOT mean "covers every possible way
+  this endpoint could receive invalid input" — only every way
+  the SCHEMA ITSELF formally declares as invalid. Business
+  rules, cross-field validation, and stateful constraints
+  (like the discount-code example) fall OUTSIDE this
+  guarantee entirely.</code></pre>
+<p>The honest, precise framing: "comprehensive by construction" relative to the SCHEMA'S declared constraints specifically — a genuinely strong, real guarantee within that scope, but not a claim that this page's mechanical approach alone constitutes complete negative testing in any broader sense.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why generate_constraint_violation_tests uses definition["minimum"] - 1 specifically, rather than some arbitrarily small negative number, to violate a minimum constraint.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This directly connects to Chapter 4's Boundary Testing page — the value JUST BELOW the declared minimum is the single most diagnostically valuable violation, since it specifically tests whether the boundary comparison itself is correct, not just whether "very wrong" values get rejected.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why minimum - 1 SPECIFICALLY, rather than an arbitrary very
+small number:
+Exactly matches Chapter 4's own boundary-testing principle —
+  a value JUST outside the valid range reveals whether the
+  ACTUAL comparison logic (&gt;= vs &gt;) is correct, in a way
+  a wildly invalid value (like -999999) wouldn't necessarily
+  distinguish.
+
+What an ARBITRARY very-negative value would MISS:
+If the real implementation has an off-by-one bug (accepting
+  ONE value below the true intended minimum), an ARBITRARILY
+  small test value would STILL correctly get REJECTED,
+  completely missing that specific, real bug — exactly the
+  boundary-testing lesson from Chapter 4 applied here.</code></pre>
+<p>This is a direct, deliberate application of Chapter 4's own boundary-testing principle within this chapter's mechanical generation — the CHOICE of exactly <code>minimum - 1</code>, rather than any invalid value, is precisely what makes this negative test genuinely diagnostic rather than just "technically invalid."</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might it be useful to ALSO generate a test using exactly the declared minimum value itself (not violating it), alongside this page's minimum - 1 negative test?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>These are genuinely complementary POSITIVE and NEGATIVE boundary tests — <code>minimum - 1</code> confirms the boundary correctly REJECTS just-below values; the exact minimum itself confirms the boundary correctly ACCEPTS the legitimately valid edge case, and only running one leaves the other direction unverified.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What minimum - 1 ALONE verifies:
+"Does the system correctly REJECT a value just below the
+  valid range?" — a NEGATIVE boundary test, exactly what this
+  page's function currently generates.
+
+What EXACTLY minimum, ALSO tested, would verify:
+"Does the system correctly ACCEPT the value AT the boundary
+  itself?" — a POSITIVE boundary test, directly connecting to
+  Chapter 4's OWN "the exact boundary value is the single most
+  valuable boundary test" argument — testing ONLY the invalid
+  side leaves the EQUALLY important valid-boundary case
+  completely unverified.</code></pre>
+<p>This is exactly Chapter 4's own three-point boundary standard (at, just-below, just-above) — this page's negative-testing function currently only generates ONE of those three points, and a genuinely complete implementation would generate all three, treating negative and positive boundary testing as the complementary pair Chapter 4 established they should be.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you extend this page's approach to generate a negative test for a TYPE mismatch specifically — sending a string where the schema declares an integer — given the current functions don't cover this case?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A genuinely useful addition mechanically substitutes a value of the WRONG type for each declared field, systematically covering this entire category the same way the existing functions cover required-field omission and constraint violation.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def generate_type_mismatch_tests(schema):
+    base_request = generate_request_body(schema)
+    tests = []
+    wrong_type_values = {
+        "integer": "not-a-number",
+        "string": 12345,
+        "array": "not-an-array",
+        "object": "not-an-object",
+    }
+    for field, definition in schema["properties"].items():
+        field_type = definition["type"]
+        if field_type in wrong_type_values:
+            modified = dict(base_request)
+            modified[field] = wrong_type_values[field_type]
+            tests.append({
+                "description": f"'{field}' sent as wrong type "
+                                f"(expected {field_type})",
+                "body": modified, "expected_status": "400",
+            })
+    return tests</code></pre>
+<p>This follows the exact same mechanical pattern as this page's other two functions — visiting the schema's own declared structure systematically (this time, the declared TYPE of each field) and generating one corresponding negative test per field, extending this chapter's "comprehensive by construction" guarantee to cover type mismatches as their own genuine category too.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

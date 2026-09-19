@@ -1,0 +1,111 @@
+<!doctype html>
+<html><head>
+<title>Playwright fill() and pressSequentially(): Complete Guide with Examples</title>
+<meta name="description" content="The difference between Playwright&#x27;s fill() and pressSequentially() for entering text, when each is correct, and how they behave differently with keystroke-driven UI." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/fill-and-press-sequentially.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1><code class="api-name">fill()</code> and <code class="api-name">pressSequentially()</code></h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="actions.html">Actions overview</a>, <a href="click-and-dblclick.html">click() and dblclick()</a></p>
+<article class="content">
+<h2 id="what-is-fill">What is <code>fill()</code>?</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>locator.fill(value: string, options?: { force?: boolean, timeout?: number })</code></pre>
+      <p><code>fill()</code> sets an input, textarea, or contenteditable element's value directly and instantly — clicking to focus it, clearing any existing value, and setting the new one in a single fast step, then dispatching an <code>input</code> event so the app's state updates.</p>
+
+      <h2 id="what-is-presssequentially">What is <code>pressSequentially()</code>?</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>locator.pressSequentially(text: string, options?: { delay?: number })</code></pre>
+      <p><code>pressSequentially()</code> types character by character, dispatching real <code>keydown</code>, <code>keypress</code>, and <code>keyup</code> events for each one — the same event sequence a physical keyboard produces.</p>
+
+      <h2 id="why-the-difference-matters">Why the difference matters</h2>
+      <p>Most form fields only care about the final value, and <code>fill()</code> is the right, fast default for those. But some UI reacts to <em>individual keystrokes</em> — live autocomplete, character counters, input masks (like a phone number formatter), or keystroke-based validation. <code>fill()</code> skips those intermediate events entirely, so if a field's behavior depends on them, <code>fill()</code> will look like it "didn't work" even though the value is technically set.</p>
+
+      <h2 id="basic-example">Basic Example</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>await page.getByLabel('Email').fill('user@example.com');</code></pre>
+
+      <h2 id="detailed-example-when-fill-silently-isn-t-enough">Detailed Example — When fill() Silently Isn't Enough</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ This search box shows live suggestions per keystroke — fill() sets the
+// value but never fires the keystroke events the suggestion dropdown listens for
+await page.getByRole('searchbox').fill('playwright');
+await expect(page.getByText('Playwright Test')).toBeVisible(); // fails — dropdown never opened
+
+// ✅ pressSequentially() fires real keystroke events, triggering the dropdown
+await page.getByRole('searchbox').pressSequentially('playwright', { delay: 100 });
+await expect(page.getByText('Playwright Test')).toBeVisible(); // passes</code></pre>
+      <p>The <code>delay</code> option (milliseconds between keystrokes) matters here too — some autocomplete implementations debounce input and won't fire a request for keystrokes typed faster than a threshold.</p>
+
+      <h2 id="real-world-example-masked-phone-input">Real-World Example — Masked Phone Input</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('phone number auto-formats as the user types', async ({ page }) =&gt; {
+  await page.goto('/profile');
+
+  const phoneField = page.getByLabel('Phone number');
+  await phoneField.pressSequentially('4155552671', { delay: 50 });
+
+  await expect(phoneField).toHaveValue('(415) 555-2671'); // mask applied live
+});</code></pre>
+
+      <h2 id="clear-removing-a-value-without-retyping">clear() — Removing a Value Without Retyping</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>await page.getByLabel('Coupon code').clear();
+await expect(page.getByLabel('Coupon code')).toHaveValue('');</code></pre>
+      <p><code>clear()</code> is a small but useful sibling of <code>fill()</code> — it empties a field's value without needing to pass an empty string to <code>fill('')</code>, and reads more clearly when that's the actual intent of the step.</p>
+
+      <h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Using pressSequentially() everywhere out of habit — slower for no benefit
+await page.getByLabel('Full name').pressSequentially('Jordan Lee');
+
+// ✅ Plain field with no keystroke-dependent behavior — fill() is faster and just as correct
+await page.getByLabel('Full name').fill('Jordan Lee');</code></pre>
+
+      <h2 id="common-mistakes">Common Mistakes</h2>
+      <ul>
+        <li><strong>Defaulting to <code>pressSequentially()</code> for every field</strong> "to be safe" — this makes the whole suite meaningfully slower for fields that never needed it.</li>
+        <li><strong>Not realizing why an autocomplete test is failing</strong> — a field silently not reacting to <code>fill()</code> because it needs real keystroke events is one of the most common sources of confusing action-related test failures.</li>
+        <li><strong>Forgetting <code>fill()</code> clears the existing value first</strong> — occasionally surprising when the intent was actually to append text (use <code>pressSequentially()</code> after focusing at the end, or read the current value and concatenate before filling).</li>
+      </ul>
+
+      <h2 id="edge-cases">Edge Cases</h2>
+      <ul>
+        <li><strong>Contenteditable elements</strong> (rich text editors) — <code>fill()</code> works on many, but complex WYSIWYG editors built on custom key handling sometimes require <code>pressSequentially()</code> or even direct keyboard shortcuts to behave correctly.</li>
+        <li><strong>Fields with client-side validation on blur</strong> — <code>fill()</code> focuses and sets the value but doesn't automatically blur; if a test needs blur-triggered validation to run, follow with an explicit <code>page.keyboard.press('Tab')</code> or click elsewhere.</li>
+      </ul>
+
+      <h2 id="debugging">Debugging</h2>
+      <p>If a field's value looks correct via <code>toHaveValue()</code> but dependent UI (a dropdown, a counter) doesn't update, suspect a keystroke-event dependency and try swapping <code>fill()</code> for <code>pressSequentially()</code> as the first diagnostic step.</p>
+
+      <h2 id="best-practices">Best Practices</h2>
+      <ul>
+        <li>Default to <code>fill()</code>; reach for <code>pressSequentially()</code> only once you've confirmed the field genuinely needs keystroke events.</li>
+        <li>Use <code>clear()</code> when the intent is specifically "empty this field," for readability.</li>
+        <li>Tune <code>delay</code> on <code>pressSequentially()</code> only as high as needed to satisfy a debounce — don't add delay speculatively.</li>
+      </ul>
+
+      <h2 id="practice-exercise">Practice Exercise</h2>
+      <p>A signup form has a username field that shows a live "checking availability..." indicator as you type. Write a test using the correct method to type a username and wait for the availability check to resolve.</p>
+
+      <h2 id="summary">Summary</h2>
+      <p><code>fill()</code> sets a value in one fast step and is the right default for ordinary form fields. <code>pressSequentially()</code> dispatches real per-character keystroke events and is required for autocomplete, input masks, or any UI that reacts to typing as it happens, not just the final value.</p>
+
+      <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A test using fill() passes, but a related test asserting an autocomplete dropdown appears fails. What's the likely cause and fix?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer"><code>fill()</code> sets the input's value directly without dispatching the individual keydown/keyup events the autocomplete's JavaScript listens for, so the dropdown's trigger logic never fires. Switching that specific action to <code>pressSequentially()</code>, which simulates real keystrokes, resolves it.</div>
+</details>
+<details class="faq-item">
+<summary>Why might fill() appear to 'do nothing' on a search box with live suggestions?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">fill() sets the value directly without dispatching keystroke events, so listeners waiting for keydown/keyup to trigger a debounced search never fire.</div>
+</details>
+<details class="faq-item">
+<summary>What does the delay option on pressSequentially() control?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The pause in milliseconds between simulated keystrokes — useful for satisfying a debounce threshold some inputs require.</div>
+</details>
+<details class="faq-item">
+<summary>How is clear() different from fill('')?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Functionally similar, but clear() reads more clearly when the intent is specifically 'empty this field,' not set it to a blank string.</div>
+</details>
+<details class="faq-item">
+<summary>Give an example of UI that specifically needs pressSequentially() instead of fill().<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">An input mask, like a phone number formatter that reformats as you type character by character.</div>
+</details>
+</div>
+</article>
+</body></html>

@@ -1,0 +1,126 @@
+<!doctype html>
+<html><head>
+<title>Environment-Based Deployment: The Complete GitHub Actions Pipeline</title>
+<meta name="description" content="The full deployment pipeline — push, build, test, deploy to test, approval, deploy to production — assembling everything from this course into one real, deliberately asymmetric workflow." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/environment-based-deployment-the-complete-pipeline.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Environment-Based Deployment: The Complete Pipeline</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="deployment-approvals-and-protection-rules.html">Deployment Approvals & Protection Rules</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Time to assemble everything from this chapter — and quite a lot from earlier ones — into one real, complete deployment pipeline for ShopEasy, exactly matching the shape from this chapter's hub page.</p>
+
+<h2 id="the-complete-pipeline">The Complete Pipeline</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>name: ShopEasy Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with: { name: build-output, path: dist/ }
+
+  test:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm ci
+      - run: npm test
+
+  deploy-test:
+    needs: test
+    environment: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { name: build-output, path: dist/ }
+      - run: echo "Deploying to test at ${{ vars.API_BASE_URL }}"
+
+  deploy-production:
+    needs: deploy-test
+    environment: production
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { name: build-output, path: dist/ }
+      - run: echo "Deploying to production at ${{ vars.API_BASE_URL }}"</code></pre>
+
+<h2 id="tracing-exactly-why-this-is-deliberately-asymmetric">Tracing Exactly Why This Is Deliberately Asymmetric</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>deploy-test:       no protection rules configured on the "test" environment
+                   → runs IMMEDIATELY once test passes, fully automatic
+
+deploy-production: "production" environment has required reviewers configured
+                   → PAUSES, waiting for explicit human approval, before running</code></pre>
+<p>Nothing in the <code>deploy-production</code> job's own YAML says "wait for approval" — that entire behavior comes from the environment's own protection rules (previous page), invisibly to anyone only reading this file. This is the real, working version of the asymmetry this chapter's hub page introduced conceptually.</p>
+
+<h2 id="everything-being-reused-from-earlier-chapters">Everything Being Reused From Earlier Chapters</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>- actions/checkout, setup-node, upload/download-artifact  (Ch. 5, 8)
+- needs: for job ordering                                    (Ch. 9)
+- environment: connecting jobs to their real configuration     (this chapter)
+- vars.API_BASE_URL resolving differently per environment        (this chapter)</code></pre>
+<p>This pipeline isn't introducing new mechanics at this point — it's a genuine demonstration that this course's individual pieces combine into something a real team could actually run.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why does <code>deploy-production</code> download the same <code>build-output</code> artifact rather than rebuilding the application from scratch? Rebuilding could genuinely produce a subtly different result than what was actually tested — a different dependency resolution, a different timestamp-sensitive value. Deploying the <em>exact same</em> artifact that was built once and tested is what makes the pipeline's guarantee meaningful: what gets tested is genuinely what gets deployed, not a fresh rebuild that merely resembles it.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Building separately for each deployment stage, rather than building once and reusing that exact artifact throughout the pipeline. Beyond the wasted time, this genuinely weakens the pipeline's core guarantee — you'd be testing one build and deploying a different one, even if they're supposed to be identical.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>This exact "build once, promote the same artifact through environments" pattern is a widely-recognized best practice across the CI/CD industry generally, not something specific to GitHub Actions — worth recognizing the underlying principle as one that applies regardless of which specific CI/CD tool a team happens to use.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Build once, and deploy that exact same artifact through every subsequent environment — never rebuild per stage.</li>
+  <li>Let protection rules live on the environment configuration, keeping the workflow file itself simple and environment-agnostic.</li>
+  <li>Design deliberate asymmetry — environments genuinely differing in risk should have genuinely different protection rules, not identical treatment out of habit.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>A complete deployment pipeline builds once, tests that build, and promotes the exact same artifact through increasingly protected environments.</li>
+  <li>Environment protection rules create real behavioral differences (automatic vs. approval-gated) without any corresponding difference in the workflow file's own YAML.</li>
+  <li>This pipeline is a genuine synthesis of checkout, artifacts, job dependencies, environments, and variables — concepts from across this entire course, not new mechanics.</li>
+</ul>
+
+<h2 id="challenge">🏆 Challenge</h2>
+<p>Extend this pipeline with a <code>notify</code> job that runs regardless of outcome (using <code>if: always()</code> from Chapter 9) after <code>deploy-production</code>, reporting whether the full pipeline — including the production deployment — actually succeeded.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why does this pipeline download the same build-output artifact for both deploy-test and deploy-production, rather than rebuilding for each?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Rebuilding separately for each stage risks producing a subtly different result than what was actually tested, weakening the pipeline's core guarantee that what gets tested is genuinely what gets deployed. Reusing the exact same artifact throughout ensures deployment is of the precise thing that was built once and verified, not a fresh rebuild that merely resembles it.</div>
+</details>
+<details class="faq-item">
+<summary>Why does deploy-production pause for approval while deploy-test runs automatically, even though both jobs have nearly identical YAML?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">The behavioral difference comes entirely from each job's connected environment configuration, not from anything written in the workflow file itself. The production environment has required reviewers configured as a protection rule, while the test environment doesn't — this asymmetry lives in the environment settings, invisible to someone only reading the workflow's YAML.</div>
+</details>
+<details class="faq-item">
+<summary>Why is "build once, deploy that same artifact everywhere" considered a widely-recognized CI/CD best practice, not just a GitHub Actions-specific convention?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">This principle addresses a genuine, universal concern in any CI/CD system — ensuring the exact thing that was tested is the exact thing that gets deployed, rather than a separately-built artifact that could subtly differ due to dependency resolution, timing, or environment differences during a second build. This concern and its solution apply regardless of which specific CI/CD tool a team happens to use.</div>
+</details>
+<details class="faq-item">
+<summary>What role does needs: play in connecting the four jobs in this pipeline together?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">needs: establishes the genuine, real ordering this pipeline requires — test must wait for build, deploy-test must wait for test, and deploy-production must wait for deploy-test. Without these explicit dependencies, the jobs would run in parallel by default, breaking the pipeline's actual intended sequence of build, verify, deploy progressively through increasingly protected environments.</div>
+</details>
+<details class="faq-item">
+<summary>Why does ${{ vars.API_BASE_URL }} correctly resolve to a different actual value in deploy-test versus deploy-production without any conditional logic in the workflow?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Each job is connected to a different environment via its own environment: key, and since API_BASE_URL is configured as an environment-scoped variable (covered earlier in this chapter) with a different value set for each environment, the same expression automatically resolves differently depending on which environment the job is actually connected to — no branching logic needed in the workflow itself.</div>
+</details>
+</div>
+</article>
+</body></html>

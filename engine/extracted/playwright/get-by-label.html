@@ -1,0 +1,116 @@
+<!doctype html>
+<html><head>
+<title>Playwright getByLabel(): Complete Guide with Real-World Examples</title>
+<meta name="description" content="How Playwright&#x27;s getByLabel() locator matches form fields to their labels, why it&#x27;s the second-best default after getByRole(), and how label association actually works in HTML." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/get-by-label.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1><code class="api-name">getByLabel()</code></h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="locators.html">Locators overview</a>, <a href="get-by-role.html">getByRole()</a></p>
+<article class="content">
+<h2 id="what-is-getbylabel">What is <code>getByLabel()</code>?</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>page.getByLabel(text: string | RegExp, options?: { exact?: boolean })</code></pre>
+      <p><code>getByLabel()</code> finds a form control (input, select, textarea) by the text of its associated <code>&lt;label&gt;</code> — the same association a browser uses when you click a label and focus jumps to its field.</p>
+
+      <h2 id="why-it-s-important">Why it's important</h2>
+      <p>Forms are one of the highest-value places to use a semantic locator: label text is stable (it's user-facing copy, not implementation detail) and, like <code>getByRole()</code>, using it forces the form to actually be accessible — if <code>getByLabel()</code> can't find a field, neither can a screen reader user tabbing through the form.</p>
+
+      <h2 id="mental-model-how-label-association-works">Mental Model: how label association works</h2>
+      <p>Playwright recognizes three ways a label can be tied to a field, mirroring how browsers themselves compute it:</p>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>&lt;!-- 1. Wrapping --&gt;
+&lt;label&gt;Email &lt;input type="email" /&gt;&lt;/label&gt;
+
+&lt;!-- 2. Explicit `for`/`id` --&gt;
+&lt;label for="email"&gt;Email&lt;/label&gt;
+&lt;input id="email" type="email" /&gt;
+
+&lt;!-- 3. aria-label (no visible &lt;label&gt; element at all) --&gt;
+&lt;input aria-label="Email" type="email" /&gt;</code></pre>
+      <p>All three are matched by the same <code>page.getByLabel('Email')</code> call — Playwright doesn't care which mechanism is used, only that the browser resolves the association.</p>
+
+      <h2 id="basic-example">Basic Example</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>await page.getByLabel('Email').fill('user@example.com');</code></pre>
+
+      <h2 id="detailed-example-a-full-form">Detailed Example — A Full Form</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>await page.getByLabel('Full name').fill('Debashish Rout');
+await page.getByLabel('Email').fill('debashish@example.com');
+await page.getByLabel('Password', { exact: true }).fill('correct-horse-battery-staple');
+await page.getByLabel('Confirm password').fill('correct-horse-battery-staple');
+await page.getByLabel('I agree to the terms').check();
+await page.getByRole('button', { name: 'Create account' }).click();</code></pre>
+      <p>Note <code>{ exact: true }</code> on "Password" — without it, the substring match would also match a "Confirm password" field, since "Password" is a substring of "Confirm password."</p>
+
+      <h2 id="real-world-example-checkout-address-form">Real-World Example — Checkout Address Form</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>test('checkout form accepts a valid address', async ({ page }) =&gt; {
+  await page.goto('/checkout');
+
+  await page.getByLabel('Street address').fill('221B Baker Street');
+  await page.getByLabel('City').fill('London');
+  await page.getByLabel('Postal code').fill('NW1 6XE');
+  await page.getByLabel('Country').selectOption('United Kingdom');
+
+  await page.getByRole('button', { name: 'Continue to payment' }).click();
+  await expect(page.getByRole('heading', { name: 'Payment' })).toBeVisible();
+});</code></pre>
+
+      <h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+      <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Fragile — tied to a generated or arbitrary id
+await page.locator('#field-7f3a2').fill('user@example.com');
+
+// ✅ Recommended — tied to what the user actually reads
+await page.getByLabel('Email').fill('user@example.com');</code></pre>
+
+      <h2 id="common-mistakes">Common Mistakes</h2>
+      <ul>
+        <li><strong>Using it on fields with no real label</strong> — a placeholder is not a label. <code>&lt;input placeholder="Email"&gt;</code> with no <code>&lt;label&gt;</code> won't be found by <code>getByLabel()</code>; use <code>getByPlaceholder()</code> instead, and flag the missing label as an accessibility gap.</li>
+        <li><strong>Not using <code>exact</code> when one label's text is a substring of another's</strong> ("Password" vs. "Confirm password"), causing an unexpected strict-mode violation.</li>
+        <li><strong>Assuming visual proximity means association</strong> — a label sitting next to a field in the layout with no <code>for</code>/wrapping relationship is not programmatically linked, even though it looks connected on screen.</li>
+      </ul>
+
+      <h2 id="edge-cases">Edge Cases</h2>
+      <ul>
+        <li><strong>Custom-styled checkboxes/radios</strong> built from a hidden native input plus a styled sibling — <code>getByLabel()</code> still works as long as the native input keeps its label association; verify this holds after any visual redesign of form controls.</li>
+        <li><strong>Multi-line or icon-decorated labels</strong> — Playwright matches on the label's full accessible text, so an icon with alt text inside the label counts toward the matched string.</li>
+      </ul>
+
+      <h2 id="debugging">Debugging</h2>
+      <p>If <code>getByLabel()</code> can't find a field that clearly has visible label text next to it, inspect the DOM for a real <code>for</code>/<code>id</code> pair or wrapping relationship — the visual layout can be deceptive; the association Playwright reads is structural, not positional.</p>
+
+      <h2 id="best-practices">Best Practices</h2>
+      <ul>
+        <li>Reach for <code>getByLabel()</code> as the default for any form field — it's second only to <code>getByRole()</code> in Playwright's recommended priority.</li>
+        <li>Use <code>exact: true</code> proactively on short label text likely to be a substring of a longer one nearby.</li>
+        <li>Treat a <code>getByLabel()</code> failure as a signal to check the form's actual accessibility, not just to switch locator strategy.</li>
+      </ul>
+
+      <h2 id="practice-exercise">Practice Exercise</h2>
+      <p>Given a form with fields labeled "Name," "Email," "Phone," and "Phone (work)," write locators for each that avoid strict-mode ambiguity.</p>
+
+      <h2 id="summary">Summary</h2>
+      <p><code>getByLabel()</code> finds form controls the same way a browser resolves label-to-field association — via wrapping, <code>for</code>/<code>id</code>, or <code>aria-label</code>. It's a top-priority locator for forms specifically, and a failure to match is often a real accessibility issue worth fixing in the app.</p>
+
+      <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A form field has a placeholder that says "Email" but <code>getByLabel('Email')</code> can't find it — why?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A placeholder is not a label. Unless the field also has a real <code>&lt;label&gt;</code> (wrapping, <code>for</code>/<code>id</code>, or <code>aria-label</code>), there's no programmatic association for <code>getByLabel()</code> to read — <code>getByPlaceholder()</code> is the correct locator here, and the missing label is worth flagging to the team as an accessibility gap.</div>
+</details>
+<details class="faq-item">
+<summary>Name the three ways a label can be associated with a field that getByLabel() recognizes.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Wrapping the input, a for/id pair, or an aria-label attribute.</div>
+</details>
+<details class="faq-item">
+<summary>Why would getByLabel('Password') accidentally match a 'Confirm Password' field?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Matching is substring-based by default, so 'Password' matches inside 'Confirm Password' unless exact: true is used.</div>
+</details>
+<details class="faq-item">
+<summary>Is a placeholder the same as a label for getByLabel() purposes?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">No — a placeholder has no programmatic label association, so getByLabel() can't find a field that only has a placeholder and no real label.</div>
+</details>
+<details class="faq-item">
+<summary>Why is a getByLabel() failure often worth investigating in the app itself?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It usually means the field lacks a real accessible label, which is an accessibility gap for real users too, not just a test problem.</div>
+</details>
+</div>
+</article>
+</body></html>

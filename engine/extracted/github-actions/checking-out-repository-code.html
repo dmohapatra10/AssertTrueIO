@@ -1,0 +1,108 @@
+<!doctype html>
+<html><head>
+<title>Checking Out Repository Code in GitHub Actions: actions/checkout Explained</title>
+<meta name="description" content="Why every workflow needs actions/checkout, and the options that actually matter — fetch-depth, checking out a different ref, and submodules." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/checking-out-repository-code.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Checking Out Repository Code</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="working-with-code-in-ci.html">Working with Code in CI overview</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p><code>actions/checkout</code> has appeared as the first step in nearly every example throughout this course, without ever being explained on its own. This page covers why it's needed and the options that actually matter in a real project.</p>
+
+<h2 id="why-do-we-need-it">Why do we need it?</h2>
+<p>A fresh GitHub-hosted runner starts completely empty — no code, no repository, nothing. <code>actions/checkout</code> downloads your repository's code onto that runner, which is why it's almost always the very first step in any real job.</p>
+
+<h2 id="the-basic-usage">The Basic Usage</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>steps:
+  - uses: actions/checkout@v4</code></pre>
+<p>By default, this checks out the specific commit that triggered the workflow — exactly the code that should actually be tested or built for this run.</p>
+
+<h2 id="fetch-depth-shallow-vs-full-history">fetch-depth — Shallow vs. Full History</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>- uses: actions/checkout@v4
+  with:
+    fetch-depth: 1    # default: only the latest commit (shallow)
+
+- uses: actions/checkout@v4
+  with:
+    fetch-depth: 0    # full history, every commit</code></pre>
+<p>By default, checkout fetches only the single most recent commit — genuinely faster, and sufficient for most CI tasks (building, testing). Some tasks genuinely need full history — computing a changelog, comparing against a specific older commit — and those need <code>fetch-depth: 0</code> explicitly.</p>
+
+<h2 id="checking-out-a-different-ref">Checking Out a Different Ref</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>- uses: actions/checkout@v4
+  with:
+    ref: develop</code></pre>
+<p>By default, checkout uses whatever triggered the workflow. <code>ref:</code> overrides this — useful for a workflow that deliberately needs to check out a specific branch, tag, or commit regardless of what actually triggered the run.</p>
+
+<h2 id="submodules">Submodules</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>- uses: actions/checkout@v4
+  with:
+    submodules: true</code></pre>
+<p>If a repository uses Git submodules (nested repositories referenced from within the main one), they aren't checked out by default — this needs to be explicitly requested, or any code depending on a submodule's contents will fail to find it.</p>
+
+<h2 id="detailed-example-choosing-options-for-a-real-scenario">Detailed Example — Choosing Options for a Real Scenario</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>ShopEasy's CI pipeline needs to:
+1. Build and test the current commit (fast, common case)
+2. A separate "changelog" workflow needs full commit history
+
+Pipeline 1 (build/test):
+  - uses: actions/checkout@v4
+    # default fetch-depth: 1 is genuinely sufficient and faster
+
+Pipeline 2 (changelog):
+  - uses: actions/checkout@v4
+    with:
+      fetch-depth: 0   # needs the FULL history to generate a real changelog</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why is <code>fetch-depth: 1</code> (shallow) the default, rather than always fetching full history just to be safe? Full history can be genuinely large for an older, active repository — fetching it on every single run when most tasks don't need it would add real, unnecessary time to every pipeline run. The default optimizes for the common case, while <code>fetch-depth: 0</code> remains available for the genuinely less common cases that need it.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Forgetting <code>actions/checkout</code> entirely and being confused when a later step fails with something like "file not found" or "not a git repository." This is one of the most common early mistakes — every step depending on the repository's actual code needs checkout to have run first, in that same job.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>Checkout needs to happen once per job, not once per workflow — since each job gets a completely fresh runner (covered in the previous chapter), a workflow with multiple jobs needing the repository's code needs <code>actions/checkout</code> repeated in each of those jobs separately.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Always include <code>actions/checkout</code> as the first step in any job that needs the repository's actual code.</li>
+  <li>Leave <code>fetch-depth</code> at its default (shallow) unless a specific task genuinely needs full history.</li>
+  <li>Explicitly enable <code>submodules: true</code> if your project actually uses Git submodules — don't assume they're included automatically.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>A fresh runner has no code at all — <code>actions/checkout</code> is what puts your repository's code onto it.</li>
+  <li>The default shallow checkout (latest commit only) is faster and sufficient for most tasks; full history needs <code>fetch-depth: 0</code> explicitly.</li>
+  <li>Checkout needs to happen in every job that needs the code — it doesn't carry over between jobs.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>For a hypothetical workflow that needs to compare the current commit against the commit from exactly 30 days ago, decide what <code>fetch-depth</code> setting would actually be necessary, and explain why the default wouldn't be sufficient for this specific task.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why does almost every real GitHub Actions job need actions/checkout as its very first step?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A GitHub-hosted runner starts as a completely empty virtual machine with no knowledge of your repository at all. actions/checkout explicitly downloads the repository's code onto that runner, which is a prerequisite for almost any subsequent step that needs to read, build, or test that actual code.</div>
+</details>
+<details class="faq-item">
+<summary>Why is fetch-depth: 1 the default rather than fetching the complete commit history every time?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Most CI tasks — building, running tests — only need the current state of the code, not its full history, and fetching complete history can be genuinely slow for an older or very active repository. Defaulting to a shallow, single-commit checkout optimizes for the common case, while fetch-depth: 0 remains available explicitly for the less common tasks that do need full history.</div>
+</details>
+<details class="faq-item">
+<summary>If a workflow has two separate jobs that both need the repository's code, does checkout need to run in both?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Yes — each job runs on its own separate, fresh runner with no shared filesystem between jobs. actions/checkout needs to be included as a step in every individual job that requires the repository's code, since nothing automatically carries over from one job's checkout to another's.</div>
+</details>
+<details class="faq-item">
+<summary>Why do Git submodules need an explicit submodules: true setting rather than being checked out automatically?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Submodules represent additional, separate repositories nested within the main one, and checking them out requires additional work and network requests beyond a standard checkout. Making this opt-in via an explicit setting avoids the extra overhead for the many projects that don't use submodules at all, while still supporting the ones that do.</div>
+</details>
+<details class="faq-item">
+<summary>What would you set the ref: option to if a workflow needed to check out a specific tag rather than whatever triggered the run?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">You'd set ref: to that specific tag's name, exactly as you would a branch name — ref: accepts branches, tags, or specific commit SHAs, and overrides checkout's default behavior of using whatever commit actually triggered the workflow. This is useful for a workflow that deliberately needs to operate on a specific, named version of the code regardless of what event started it running.</div>
+</details>
+</div>
+</article>
+</body></html>

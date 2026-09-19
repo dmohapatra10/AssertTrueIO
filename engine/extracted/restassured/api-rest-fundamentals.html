@@ -1,0 +1,191 @@
+<!doctype html>
+<html><head>
+<title>API &amp; REST Fundamentals: A Complete Guide Before You Touch RestAssured</title>
+<meta name="description" content="Understand APIs, REST principles, HTTP methods, status codes, headers, and the full request/response cycle before writing a single line of RestAssured — the foundation every API automation engineer needs." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/api-rest-fundamentals.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>API & REST Fundamentals</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> None — this is where the RestAssured track begins.</p>
+<article class="content">
+<h2 id="why-start-here-before-any-restassured-syntax">Why start here, before any RestAssured syntax?</h2>
+<p>It's tempting to jump straight to <code>given().when().get(...)</code> — it looks simple, and you can copy-paste your way to a passing test within minutes. But every RestAssured method you'll ever call is just a Java-shaped wrapper around an actual HTTP request. If you don't understand what's really happening on the wire — what a status code means, why a header exists, what separates a path parameter from a query parameter — you'll be able to write tests that pass, but you won't be able to explain <em>why</em> one fails, or design a new test for a scenario nobody showed you first. This chapter builds that foundation before RestAssured enters the picture at all.</p>
+
+<h2 id="what-is-an-api">What is an API?</h2>
+<p>An API (Application Programming Interface) is a defined contract that lets one piece of software ask another piece of software to do something, without needing to know how that something is implemented internally. When a mobile banking app shows your balance, it isn't reading your bank's database directly — it's calling an API that the bank exposes specifically for that purpose, and the bank's actual database, business logic, and infrastructure stay hidden behind that contract.</p>
+<p>This hiding is the whole point: the bank can completely rewrite its internal systems, and as long as the API contract stays the same, every app built against it keeps working unchanged. As an API automation engineer, you're specifically testing that contract — not the internal implementation behind it.</p>
+
+<h2 id="what-is-a-rest-api">What is a REST API?</h2>
+<p>REST (Representational State Transfer) is an architectural style for designing APIs — a set of conventions, not a rigid protocol or a specific technology. A REST API represents things (users, orders, accounts) as <strong>resources</strong>, each identified by a URL, and lets clients act on those resources using standard HTTP methods. <code>/users/42</code> represents a specific user; what you do to that user — read them, update them, delete them — is expressed by which HTTP method you use, not by a different URL for each action.</p>
+
+<h3>REST principles, briefly</h3>
+<ul>
+  <li><strong>Client-server separation</strong> — the client (your test, a mobile app, a browser) and the server are independent; either can change without breaking the other, as long as the contract holds.</li>
+  <li><strong>Statelessness</strong> — each request contains everything the server needs to process it; the server doesn't remember your previous request. This is precisely why authentication tokens get sent on <em>every</em> request rather than being "remembered" server-side between calls — a detail that becomes very relevant once you start writing tests.</li>
+  <li><strong>Resource-based URLs</strong> — URLs identify things (<code>/orders/1024</code>), not actions (<code>/getOrderById?id=1024</code> is a common but less RESTful pattern you'll still encounter in real projects).</li>
+  <li><strong>Uniform interface</strong> — the same small set of HTTP methods (GET, POST, PUT, PATCH, DELETE) is reused consistently across every resource, instead of each API inventing its own verbs.</li>
+</ul>
+
+<h2 id="client-server-architecture-and-the-full-request-response-cycle">Client-Server Architecture and the Full Request/Response Cycle</h2>
+<p>Every single API interaction you'll ever test follows this same shape:</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Client
+   ↓
+HTTP Request
+   ↓
+API Server
+   ↓
+Business Logic
+   ↓
+Database / External Services
+   ↓
+HTTP Response
+   ↓
+Client</code></pre>
+<p>Your RestAssured test <em>is</em> the client in this diagram. It sends an HTTP Request, the server runs its business logic (validating input, checking permissions, maybe calling a database or another service), and sends back an HTTP Response. Everything you'll test in this entire course — every assertion you'll ever write — is really just examining one of two things: did the right <strong>Request</strong> get constructed, and does the resulting <strong>Response</strong> reflect what the business logic should have done. Keep this shape in your head; it's the mental model this whole course keeps returning to.</p>
+
+<h2 id="http-and-https">HTTP and HTTPS</h2>
+<p><strong>HTTP</strong> (HyperText Transfer Protocol) is the protocol nearly all web APIs communicate over — a plain-text request/response format that both browsers and API clients like RestAssured speak natively. <strong>HTTPS</strong> is the same protocol wrapped in TLS encryption, so the request and response can't be read or tampered with in transit. Every production API you'll test uses HTTPS; you'll mostly encounter plain HTTP only against local development servers.</p>
+
+<h2 id="http-methods">HTTP Methods</h2>
+<p>These five methods cover the overwhelming majority of what you'll automate:</p>
+<table>
+  <thead><tr><th>Method</th><th>Purpose</th><th>Has a body?</th><th>Idempotent?</th></tr></thead>
+  <tbody>
+    <tr><td><code>GET</code></td><td>Retrieve a resource</td><td>No</td><td>Yes</td></tr>
+    <tr><td><code>POST</code></td><td>Create a new resource</td><td>Yes</td><td>No</td></tr>
+    <tr><td><code>PUT</code></td><td>Replace a resource entirely</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td><code>PATCH</code></td><td>Partially update a resource</td><td>Yes</td><td>Usually not</td></tr>
+    <tr><td><code>DELETE</code></td><td>Remove a resource</td><td>Rarely</td><td>Yes</td></tr>
+    <tr><td><code>HEAD</code></td><td>Same as GET, but headers only, no body</td><td>No</td><td>Yes</td></tr>
+    <tr><td><code>OPTIONS</code></td><td>Discover what methods a resource supports</td><td>No</td><td>Yes</td></tr>
+  </tbody>
+</table>
+<p><strong>Idempotent</strong> means calling it multiple times with the same input produces the same end state as calling it once. This isn't academic trivia — it directly shapes how you design tests: a POST retried after a timeout might create a duplicate resource, while a PUT retried the same way is safe by design. You'll rely on this distinction constantly once you get to API chaining and cleanup logic later in this course.</p>
+
+<h3>GET vs. POST</h3>
+<p><code>GET</code> retrieves data and should never change server state — a GET request is safe to call repeatedly, cache, retry, or even accidentally trigger twice with no consequence. <code>POST</code> creates something or triggers an action with a side effect, and calling it twice by accident (a network retry, a double-click) can create two records instead of one. This is exactly why GET requests don't carry a body — there's nothing to "submit," only criteria to describe what you want back — while POST requests carry a body describing what to create.</p>
+
+<h3>PUT vs. PATCH</h3>
+<p><code>PUT</code> conventionally replaces the <em>entire</em> resource with what you send — any field you omit can be reset to empty or default by a strict implementation. <code>PATCH</code> updates only the fields you actually include, leaving everything else untouched. Confusing these two is one of the most common real bugs in API test suites: sending a partial payload to a PUT endpoint that expects the full resource, and watching fields you never meant to touch silently disappear.</p>
+
+<h2 id="http-status-codes">HTTP Status Codes</h2>
+<p>The status code is the single most important piece of a response to understand correctly, because it tells you which of five broad outcomes happened before you even look at the body:</p>
+<table>
+  <thead><tr><th>Range</th><th>Meaning</th><th>Example</th></tr></thead>
+  <tbody>
+    <tr><td>2xx</td><td>Success</td><td>200 OK, 201 Created, 204 No Content</td></tr>
+    <tr><td>3xx</td><td>Redirection</td><td>301 Moved Permanently, 304 Not Modified</td></tr>
+    <tr><td>4xx</td><td>Client error — you sent something wrong</td><td>400, 401, 403, 404, 409</td></tr>
+    <tr><td>5xx</td><td>Server error — the server failed to handle a valid request</td><td>500, 502, 503</td></tr>
+  </tbody>
+</table>
+
+<h3>400 vs. 404</h3>
+<p><code>400 Bad Request</code> means the request itself was malformed or invalid — a missing required field, an invalid data type, unparseable JSON. <code>404 Not Found</code> means the request was perfectly well-formed, but the specific resource it asked for doesn't exist — <code>GET /users/99999</code> when no user 99999 exists. The distinction matters for test design: a 400 is a request-construction problem, a 404 is a data/existence problem, and asserting the wrong one for the wrong scenario is a common negative-testing mistake covered in depth in the Negative Testing chapter.</p>
+
+<h3>401 vs. 403</h3>
+<p><code>401 Unauthorized</code> means the server doesn't know who you are — no credentials, or invalid/expired credentials. <code>403 Forbidden</code> means the server knows exactly who you are, but you don't have permission to do what you're asking. A regular user hitting an admin-only endpoint gets a 403, not a 401 — they're authenticated, just not authorized. This distinction is exactly what "authentication vs. authorization" means in practice, covered next.</p>
+
+<h2 id="authentication-vs-authorization">Authentication vs. Authorization</h2>
+<p><strong>Authentication</strong> answers "who are you?" — logging in, presenting a token, proving your identity. <strong>Authorization</strong> answers "what are you allowed to do?" — given that you're authenticated, does your role or permission level let you perform this specific action? A valid, authenticated token can still get a 403 if the authenticated user simply isn't allowed to do what they're asking. You'll test both independently: authentication failures (bad/missing/expired tokens) and authorization failures (a real, valid user attempting something outside their role) are two genuinely different categories of negative test, covered fully in the Authentication chapter.</p>
+
+<h2 id="request-headers-response-headers-and-content-type">Request Headers, Response Headers, and Content-Type</h2>
+<p>Headers are metadata that travel alongside a request or response, separate from the actual body content. A few you'll use constantly:</p>
+<ul>
+  <li><strong><code>Content-Type</code></strong> — tells the server (on a request) or the client (on a response) what format the body is in, most commonly <code>application/json</code>. Get this wrong on a request and a perfectly valid JSON body can be rejected, because the server never even tried to parse it as JSON.</li>
+  <li><strong><code>Accept</code></strong> — tells the server what format <em>you</em> want the response in. Most JSON APIs default to JSON regardless, but some APIs genuinely support multiple formats and use this header to decide.</li>
+  <li><strong><code>Authorization</code></strong> — carries credentials, most often as <code>Bearer &lt;token&gt;</code> — the mechanism behind nearly every authenticated request you'll write.</li>
+</ul>
+
+<h2 id="request-body-and-response-body">Request Body and Response Body</h2>
+<p>The body is the actual payload — the data being sent (on POST/PUT/PATCH requests) or the data being returned (in most responses). GET requests conventionally have no body at all; anything they need to specify goes in the URL instead, via query or path parameters.</p>
+
+<h2 id="query-parameters-vs-path-parameters">Query Parameters vs. Path Parameters</h2>
+<p>Both appear in the URL, and both are easy to blur together as a beginner — but they express genuinely different intent:</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Path parameter — identifies WHICH resource:
+GET /users/42
+
+Query parameter — filters, sorts, or paginates WITHIN a resource collection:
+GET /users?status=active&page=2&limit=10</code></pre>
+<p>A path parameter is part of the resource's identity — <code>/users/42</code> and <code>/users/43</code> are two entirely different resources. A query parameter narrows or shapes a request against a resource (or collection) that already exists independent of that parameter — <code>/users?status=active</code> is still fundamentally the users collection, just filtered. If you find yourself unsure which to use when designing a test against a new endpoint, ask: "does this value change which resource I'm even talking about, or does it just adjust how I'm querying it?"</p>
+
+<h2 id="cookies">Cookies</h2>
+<p>Cookies are small pieces of data the server asks the client to store and send back on subsequent requests — commonly used for session-based authentication in older or hybrid web/API systems. Modern REST APIs more often use token-based authentication (covered in depth in Chapter 6) instead of cookies, since tokens fit REST's stateless principle more cleanly, but you'll still encounter cookie-based auth in real projects, especially ones with a shared web and API backend.</p>
+
+<h2 id="json-and-xml">JSON and XML</h2>
+<p>JSON (JavaScript Object Notation) is the dominant format for modern REST API bodies — lightweight, human-readable, and a natural fit for nested data:</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>{
+  "id": 101,
+  "name": "John",
+  "address": {
+    "city": "Delhi"
+  },
+  "roles": ["ADMIN", "USER"]
+}</code></pre>
+<p>XML predates JSON and is still common in older enterprise systems, SOAP-based services, and some financial/banking APIs. RestAssured supports validating both natively — this course focuses primarily on JSON since it's what you'll encounter most often, with XML handling covered where it genuinely differs.</p>
+
+<h2 id="common-mistakes-at-this-stage">Common Mistakes at This Stage</h2>
+<ul>
+  <li><strong>Treating a 403 as if it were a 401</strong> in a test assertion — they signal genuinely different problems (identity vs. permission), and conflating them produces misleading test failures.</li>
+  <li><strong>Assuming a query parameter and a path parameter are interchangeable</strong> because both "just go in the URL" — using the wrong one against a real API will produce a 404 or unexpected results, not a helpful error.</li>
+  <li><strong>Not distinguishing 400 from 404</strong> when writing negative tests, leading to a test that asserts the wrong status code for the wrong reason.</li>
+  <li><strong>Assuming GET requests are always side-effect-free in every real API</strong> — while this is the REST convention, poorly designed APIs occasionally violate it (a GET that increments a view counter, for instance); worth confirming for APIs you don't control.</li>
+</ul>
+
+<h2 id="recommended-approach">Recommended Approach</h2>
+<p>Before writing your first RestAssured line, spend five minutes with any API you're about to test and answer these questions: What resources does it expose? Which HTTP methods does each endpoint actually support? What does a successful response look like — status code and body shape? What does a realistic failure look like? This five-minute habit prevents the majority of confused, hard-to-debug early test failures.</p>
+
+<h2 id="debugging">Debugging</h2>
+<p>When an API behaves unexpectedly and you're not yet writing RestAssured code, use a tool like <code>curl</code> or Postman first to see the raw request and response — confirming the actual status code, headers, and body shape before you start troubleshooting test code. Most "my test is broken" problems at this stage turn out to be "I misunderstood what the API actually returns."</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Always check the actual status code and response shape of an endpoint (via curl/Postman/API docs) before writing an automated test against it — don't assume based on similar endpoints.</li>
+  <li>Learn to read status codes as a first diagnostic signal, before opening the response body.</li>
+  <li>Keep the Request/Response mental model (method, headers, body, params → status, headers, body) in mind for every test you write, in every chapter that follows.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Using a public test API (like <code>https://reqres.in</code> or <code>https://jsonplaceholder.typicode.com</code>), use <code>curl</code> to make three requests: a GET for a single resource, a GET for a resource that doesn't exist, and a POST creating a new resource. Note the status code and response shape for each, and identify which HTTP method and parameter type (path vs. query) each request used.</p>
+
+<h2 id="summary">Summary</h2>
+<p>An API is a contract between systems; REST is a style for designing that contract around resources and standard HTTP methods. Every API interaction follows the same request/response cycle, and understanding status codes, headers, body structure, and the path-vs-query and PUT-vs-PATCH distinctions gives you the vocabulary every later chapter — and every RestAssured method — builds directly on top of.</p>
+
+<h2 id="what-you-learned">What You Learned</h2>
+<p>✓ What an API and a REST API are<br />
+✓ The full client-server request/response cycle<br />
+✓ HTTP methods and which are idempotent<br />
+✓ Status code ranges, and the 400 vs. 404 / 401 vs. 403 distinctions<br />
+✓ Headers, body, query params vs. path params, cookies<br />
+✓ Authentication vs. authorization</p>
+
+<h2 id="related-topics">Related Topics</h2>
+<p>→ Getting Started with Java & RestAssured (next chapter)<br />
+→ Building HTTP Requests<br />
+→ Authentication & Authorization</p>
+      
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>What does REST's statelessness principle actually require of each request?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Each request must carry everything the server needs to process it — the server doesn't remember anything from a previous request, which is exactly why auth tokens are sent on every request rather than 'remembered' server-side.</div>
+</details>
+<details class="faq-item">
+<summary>Why is a path parameter part of a resource's identity while a query parameter isn't?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Two different path values (/users/42 vs /users/43) refer to two entirely different resources; a query parameter just filters or shapes a request against a collection that already exists independent of it.</div>
+</details>
+<details class="faq-item">
+<summary>What's the practical difference between 400 and 404 for negative test design?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">400 means the request itself was malformed or invalid (a request-construction problem); 404 means the request was well-formed but the specific resource doesn't exist (a data/existence problem) — asserting the wrong one for the wrong scenario is a common mistake.</div>
+</details>
+<details class="faq-item">
+<summary>Why does REST reuse the same small set of HTTP methods across every resource instead of custom verbs per endpoint?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">This is REST's uniform interface principle — reusing GET/POST/PUT/PATCH/DELETE consistently means a client can predict how to interact with any new resource without learning endpoint-specific verbs.</div>
+</details>
+<details class="faq-item">
+<summary>Why does this course start with REST fundamentals before touching any RestAssured syntax?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Every RestAssured method is just a Java-shaped wrapper around a real HTTP request — without understanding what a status code or header actually means, you can write tests that pass without being able to explain why one fails or design a new test for an unfamiliar scenario.</div>
+</details>
+</div>
+</article>
+</body></html>

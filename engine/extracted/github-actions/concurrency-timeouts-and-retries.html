@@ -1,0 +1,111 @@
+<!doctype html>
+<html><head>
+<title>Concurrency, Timeouts &amp; Retries in GitHub Actions: Building Reliable Workflows</title>
+<meta name="description" content="Preventing duplicate or conflicting workflow runs with concurrency groups, setting timeouts to catch stuck jobs, and using retries to handle genuine transient failures." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/concurrency-timeouts-and-retries.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Concurrency, Timeouts &amp; Retries</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="oidc-and-cloud-authentication.html">OIDC & Cloud Authentication</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Three genuinely distinct reliability concerns, each addressing a different way a real pipeline can misbehave: running when it shouldn't (concurrency), running forever when it should have stopped (timeouts), and failing on something genuinely transient that a second attempt would have succeeded at (retries).</p>
+
+<h2 id="concurrency-preventing-overlapping-runs">Concurrency — Preventing Overlapping Runs</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>concurrency:
+  group: deploy-production
+  cancel-in-progress: false</code></pre>
+<p>Without this, two people pushing to <code>main</code> in quick succession could trigger two <em>simultaneous</em> production deployments — a genuinely dangerous race condition. <code>concurrency</code> ensures only one workflow run in this named group executes at a time; a second one waits for the first to finish (or, with <code>cancel-in-progress: true</code>, cancels the first instead).</p>
+
+<h2 id="using-a-dynamic-concurrency-group">Using a Dynamic Concurrency Group</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true</code></pre>
+<p>This creates a separate concurrency group <em>per branch</em> — deployments to different branches don't block each other, but multiple pushes to the <em>same</em> branch in quick succession cancel the earlier, now-outdated run in favor of the latest one. Genuinely useful for CI runs on a pull request, where only the most recent push's results actually matter.</p>
+
+<h2 id="timeouts-catching-a-genuinely-stuck-job">Timeouts — Catching a Genuinely Stuck Job</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15   # if this job hasn't finished in 15 minutes, FAIL it
+    steps: [...]</code></pre>
+<p>Without a timeout, a genuinely stuck job (waiting on something that will never respond, an infinite loop) could run until GitHub's own default maximum (a genuinely long time), consuming real resources and delaying feedback the entire time. A deliberate, realistic timeout catches this far sooner.</p>
+
+<h2 id="retries-handling-genuinely-transient-failures">Retries — Handling Genuinely Transient Failures</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>- name: Deploy with retry
+  uses: nick-invision/retry@v2
+  with:
+    timeout_minutes: 5
+    max_attempts: 3
+    command: npm run deploy</code></pre>
+<p>Genuinely useful specifically for failures that are transient by nature — a brief network blip, a momentarily unavailable external service — where a second attempt has a real chance of succeeding. This is <em>not</em> appropriate for a genuine, reproducible failure (a real bug, a failing test) that would simply fail identically on every retry.</p>
+
+<h2 id="detailed-example-all-three-applied-to-a-real-deployment-job">Detailed Example — All Three, Applied to a Real Deployment Job</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy
+        uses: nick-invision/retry@v2
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          command: npm run deploy</code></pre>
+<p>This deployment job genuinely can't run twice simultaneously (concurrency), won't hang indefinitely if something goes wrong (timeout), and gets a real second and third chance against a transient failure specifically during the deploy step (retry) — three independent reliability concerns, each addressing something the others genuinely don't.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why would retrying a genuinely failing unit test (rather than a transient network issue) be the wrong use of a retry mechanism? A unit test failure is typically deterministic — the same code, the same inputs, produces the same (incorrect) result every single time. Retrying it would just fail three times instead of once, wasting CI time without ever actually succeeding, since nothing about the underlying problem is transient at all.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Never setting a <code>timeout-minutes</code> value, relying entirely on GitHub's own generous default maximum. A genuinely stuck job — waiting on a hung network call, an infinite retry loop in your own code — could run far longer than any realistic scenario needs, consuming real CI resources and delaying feedback the entire time it's stuck.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>A concurrency group name doesn't have to be a fixed string — as shown with <code>deploy-${{ github.ref }}</code>, it can genuinely incorporate expressions, letting you create exactly the granularity of concurrency control (per-branch, per-environment, or globally shared) that a specific situation actually needs.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Use <code>concurrency</code> for any workflow where two simultaneous runs could genuinely conflict or cause harm — deployments especially.</li>
+  <li>Set a realistic <code>timeout-minutes</code> on every job, based on how long that job should genuinely ever take, not GitHub's generous default.</li>
+  <li>Reserve retries specifically for genuinely transient failures, never as a way to paper over a real, reproducible bug.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li><code>concurrency</code> prevents overlapping or conflicting workflow runs, using a named group and a choice of cancel-or-wait behavior.</li>
+  <li><code>timeout-minutes</code> catches a genuinely stuck job well before GitHub's own default maximum, saving real time and resources.</li>
+  <li>Retries are appropriate specifically for transient failures — never a substitute for actually fixing a genuine, reproducible bug.</li>
+</ul>
+
+<h2 id="challenge">🏆 Challenge</h2>
+<p>For a CI workflow that runs on every pull request push, design a concurrency configuration that cancels an in-progress run for the same pull request when a new commit is pushed (since only the latest commit's results genuinely matter), and explain why <code>cancel-in-progress: true</code> is appropriate here but was deliberately <code>false</code> for the production deployment example on this page.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why might two people pushing to main in quick succession create a genuinely dangerous situation without a concurrency configuration?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Without concurrency control, both pushes could trigger separate workflow runs that execute simultaneously, potentially both attempting to deploy to production at the same time — a genuine race condition that could leave the production environment in an inconsistent or broken state. A concurrency group ensures only one run in that group executes at a time, either queuing the second or cancelling the first depending on configuration.</div>
+</details>
+<details class="faq-item">
+<summary>Why would cancel-in-progress: true be appropriate for a pull request's CI checks but not for a production deployment?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">For pull request CI, only the most recent commit's results genuinely matter — an in-progress check against an outdated commit is no longer useful once a newer commit has been pushed, so cancelling it and starting fresh makes sense. For a production deployment, cancelling an in-progress deployment partway through could leave production in a genuinely broken, half-deployed state, which is why letting it finish (or queuing the next one) is the safer choice instead.</div>
+</details>
+<details class="faq-item">
+<summary>Why is retrying a failing unit test generally the wrong use of a retry mechanism?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A unit test failure is typically deterministic — given the same code and the same inputs, it produces the same incorrect result every time, since nothing about the underlying problem is actually transient. Retrying it would simply fail multiple times instead of once, wasting CI time without any real chance of eventually succeeding, unlike a genuinely transient issue like a brief network interruption.</div>
+</details>
+<details class="faq-item">
+<summary>Why does setting a realistic timeout-minutes value matter even though GitHub Actions has its own default maximum job duration?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">GitHub's own default maximum is generously long, meaning a genuinely stuck job (an infinite loop, a hung network call waiting indefinitely) could run for a very long time before that default limit is even reached, consuming real CI resources and delaying feedback the entire time. A deliberate, realistic timeout based on how long the job should actually take catches this problem far sooner.</div>
+</details>
+<details class="faq-item">
+<summary>Why might a concurrency group name incorporate an expression like ${{ github.ref }} rather than being a fixed string?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A fixed concurrency group name applies globally across every branch or context, which may be more restrictive than actually needed — incorporating an expression like the current branch reference creates a separate concurrency group per branch, so deployments or checks on different branches don't unnecessarily block each other, while runs on the exact same branch still correctly avoid overlapping.</div>
+</details>
+</div>
+</article>
+</body></html>

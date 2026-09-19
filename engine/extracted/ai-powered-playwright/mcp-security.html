@@ -1,0 +1,137 @@
+<!doctype html>
+<html><head>
+<title>MCP Security</title>
+<meta name="description" content="Six real security concerns unique to exposing tools over a network — authentication, authorization, least privilege, allowlists, secrets, and auditability." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/mcp-security.html" />
+</head><body>
+<p class="difficulty">Advanced</p>
+<h1>MCP Security</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="ai-agent-plus-mcp-plus-playwright.html">AI Agent + MCP + Playwright</a></p>
+<article class="content">
+<h2>What You'll Learn</h2>
+<ul>
+  <li>Why standardized, reusable tool access introduces genuinely new security surface</li>
+  <li>Six real, concrete concerns — authentication, authorization, least privilege, allowlists, secrets, auditability</li>
+  <li>Chapter 15's closing interview questions</li>
+</ul>
+
+<h2>Introduction — A Genuinely New Surface</h2>
+<p>Chapter 14's <code>BROWSER_TOOLS</code> were only ever reachable by code that directly imported them — the codebase boundary itself was a real, if implicit, security boundary. This chapter's entire point was removing that boundary for genuine reusability. That removal has a real cost this page addresses directly.</p>
+
+<h2>How It Works — Six Real Concerns</h2>
+<pre><code>AUTHENTICATION   — WHO is this client, genuinely? A SERVER
+                    exposed beyond one trusted process needs a
+                    REAL way to verify client IDENTITY
+
+AUTHORIZATION       — GIVEN a verified identity, what is this
+                       SPECIFIC client actually ALLOWED to do?
+
+LEAST PRIVILEGE        — a client testing SEARCH shouldn'T
+                           automatically GET payment-related
+                           tools, even if the SAME server hosts
+                           BOTH
+
+TOOL ALLOWLISTS            — EXPLICITLY declaring which tools
+                               EACH client can call, rather than
+                               granting BLANKET access to
+                               EVERYTHING the server exposes
+
+SECRETS                        — API keys, credentials the
+                                   SERVER itself needs must
+                                   NEVER be exposed THROUGH the
+                                   protocol to CONNECTING clients
+
+AUDITABILITY                       — a REAL, complete log of
+                                       WHICH client called WHICH
+                                       tool, WHEN, with WHAT
+                                       arguments</code></pre>
+
+<h2>Why It Matters — A Concrete, Real Risk</h2>
+<p>Once ShopSmart's Playwright MCP server is reachable by multiple teams, a genuinely different risk exists that Chapter 14's single-codebase agent never faced: a client — perhaps a poorly-secured internal tool, perhaps a genuinely malicious one — could call <code>run_test</code> against production, or use <code>navigate</code> and <code>click_element</code> in ways Chapter 13's safety controls never anticipated for a single, trusted agent context.</p>
+
+<h2>Step-by-Step Implementation — A Real Allowlist Check</h2>
+<pre><code>// src/mcp-authorization.ts
+
+const CLIENT_ALLOWLISTS: Record&lt;string, string[]&gt; = {
+  'search-team-agent': ['navigate', 'click_element', 'read_page', 'screenshot'],
+  'checkout-team-agent': ['navigate', 'click_element', 'fill_field', 'read_page',
+    'screenshot', 'run_test', 'get_test_result'],
+  'trace-analysis-tool': ['read_trace'],
+};
+
+export function isToolCallAuthorized(
+  clientId: string, toolName: string
+): boolean {
+  const allowed = CLIENT_ALLOWLISTS[clientId];
+  return !!allowed && allowed.includes(toolName);
+}</code></pre>
+
+<h2>Code Explanation</h2>
+<p>This is the real, concrete implementation of least privilege from this page's list — the search team's agent genuinely cannot call <code>run_test</code> or anything checkout-specific, even though the same server hosts those tools for the checkout team. This directly extends Chapter 13's own safety-controls discipline, applied here to the genuinely new, multi-client reality MCP introduces.</p>
+
+<h2>Why It Matters — Connecting to Chapter 19</h2>
+<p>This tutorial's later security chapter covers these same six concerns at the level of an entire AI testing system. This page is that same discipline, applied specifically to the moment a codebase boundary stops being an implicit security boundary — exactly what happens the instant Chapter 14's tools become genuinely reusable via MCP.</p>
+
+<h2>Common Mistakes</h2>
+<ul>
+  <li><strong>Exposing an MCP server with no authentication, assuming "it's just for internal use."</strong> The entire value of this chapter was removing the codebase boundary — without real authentication, nothing meaningful replaces it.</li>
+  <li><strong>Granting every connected client access to every tool by default.</strong> This page's allowlist example exists specifically to prevent this — least privilege needs an explicit mechanism, not a hopeful assumption.</li>
+</ul>
+
+<h2>Best Practices</h2>
+<ul>
+  <li>Treat every one of this page's six concerns as genuinely required before exposing an MCP server beyond a single, trusted local process.</li>
+  <li>Default every new client to zero tool access, then add explicitly via an allowlist — never the reverse.</li>
+</ul>
+
+<h2>Hands-On Exercise</h2>
+<p>Design an allowlist, following this page's pattern, for a real or hypothetical set of clients that would connect to your own project's tools. Identify which of this page's six concerns you'd need to address first before genuinely exposing the server beyond your own local machine.</p>
+
+<h2>Key Takeaways</h2>
+<ul>
+  <li>Removing the implicit codebase-boundary security that Chapter 14's direct approach had is the real cost of this chapter's reusability — six concrete concerns need to replace it.</li>
+  <li>Least privilege and tool allowlists are what let a single server safely serve genuinely different clients with genuinely different real needs.</li>
+  <li>This page's discipline is the same one this tutorial's later security chapter applies system-wide — introduced here at the exact moment it first becomes necessary.</li>
+</ul>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Beginner: What real problem does MCP solve for Chapter 14's browser tools, and what does it explicitly NOT change?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>MCP solves reusability — Chapter 14's tools were only usable by code that directly imported them, and MCP exposes the same tools through a standardized protocol so any compatible client can discover and call them without needing the original source code. It explicitly does not change what the tools actually do — navigate, click, and fill behave identically before and after being exposed via MCP; only how a client reaches them changes.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Beginner: Name the three real components of MCP's architecture and what each one does.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>The host is the application actually using tools — Chapter 14's agent, in this track's case. The client lives inside the host and manages the real connection and protocol details. The server exposes the actual tools — the real Playwright browser actions, wrapped and made available over the protocol. The host never needs to know how the server implements a tool; the client handles the standardized communication between them.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Intermediate: Explain why rewiring Chapter 14's agent to use MCP required changing exactly one function, rather than a broader rewrite.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Chapter 14's architecture already separated planning, evaluation, guardrails, and execution into distinct functions. Only execution — reaching the actual browser action — depends on how tools are called; planning decides what to do, evaluation decides if the objective is met, and neither needs to know whether execution happens through a direct function call or through an MCP client. Because the separation was already clean, swapping executeAgentTool for executeAgentToolViaMcp is the only change needed — a direct benefit of the architecture Chapter 14 built.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Intermediate: Why does exposing tools via MCP introduce security concerns that Chapter 14's direct approach never had to address?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Chapter 14's tools were only reachable by code that directly imported the TypeScript file defining them — the codebase boundary itself functioned as an implicit security boundary, since nobody outside that codebase could call the tools at all. MCP deliberately removes this boundary to enable genuine reusability across teams and codebases. Once removed, nothing automatically replaces the protection it provided — real authentication, authorization, and the other concerns on this page become necessary specifically because the implicit protection is gone.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Advanced: Using the search-team and checkout-team example, explain why least privilege matters even when both teams' agents are trusted, non-malicious clients.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Least privilege isn't only about defending against malicious clients — it's about limiting the blast radius of a genuine mistake. If the search team's agent has unrestricted access to every tool the server hosts, a bug in its own reasoning, an unexpected hypothesis generated during exploration, or a misconfigured prompt could lead it to call run_test or checkout-specific tools it was never meant to use, potentially against real, sensitive flows. Restricting each client's access to only what its actual purpose requires means a mistake in the search team's agent simply cannot touch checkout functionality, regardless of how that mistake happened — the allowlist enforces a boundary that doesn't depend on every client's reasoning being perfectly correct every time.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Scenario-based: A teammate wants to skip building an allowlist for now, reasoning that only two internal teams currently use the MCP server and both are trusted. How would you respond, using this chapter's own reasoning?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd point to the least-privilege reasoning from this page's previous question: trust in the teams doesn't address the real risk, which is a mistake or unexpected behavior in either team's own agent reasoning, not malicious intent. Two trusted teams today doesn't mean the server stays at two clients — this chapter's entire motivation was genuine reusability, and a server without an allowlist mechanism built in from the start tends to stay without one as more clients are added later, when retrofitting it becomes a much bigger, riskier change. Building the allowlist now, even with just two permissive entries, costs relatively little and means every future client is added deliberately, with explicit access, rather than inheriting default blanket access because the mechanism was never built.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

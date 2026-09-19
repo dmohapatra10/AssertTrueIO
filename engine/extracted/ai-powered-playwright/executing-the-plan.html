@@ -1,0 +1,152 @@
+<!doctype html>
+<html><head>
+<title>Executing the Plan</title>
+<meta name="description" content="This chapter&#x27;s full loop, running end to end against the real ShopSmart instruction — plan, execute, observe, resolve ambiguity, repeat — plus Chapter 5&#x27;s closing interview questions." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/executing-the-plan.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Executing the Plan</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="validating-ai-actions.html">Validating AI Actions</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Assembling every piece from this chapter's seven earlier pages into one real, working loop</li>
+  <li>Running this chapter's full ShopSmart instruction, start to finish</li>
+  <li>Chapter 5's closing interview questions</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>Every earlier page in this chapter built one genuine piece — breaking into steps, planning, mapping, observing, resolving ambiguity, validating. This page assembles them into the actual loop from Chapter 5's own architecture diagram, and runs it against the real instruction this chapter opened with.</p>
+
+<h2 id="step-by-step-implementation">Step-by-Step Implementation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/run-natural-language-plan.ts
+import { chromium } from '@playwright/test';
+import { breakIntoSteps } from './break-into-steps';
+import { planAction } from './plan-action';
+import { executeAction } from './map-to-playwright';
+import { observePage } from './observe-page';
+import { resolveAmbiguousStep } from './resolve-ambiguity';
+import { validateAction } from './validate-action';
+
+export async function runNaturalLanguagePlan(instruction: string) {
+  const steps = await breakIntoSteps(instruction);
+  const browser = await chromium.launch();
+  const page = await browser.newPage();
+  await page.goto('https://shopsmart.example.com/login');
+
+  let lastObservation = await observePage(page);
+
+  for (const step of steps) {
+    let action;
+
+    if (!step.dependsOnPreviousResult) {
+      action = await planAction(step, JSON.stringify(lastObservation));
+    } else {
+      const resolved = await resolveAmbiguousStep(
+        step.description, lastObservation
+      );
+      action = {
+        stepOrder: step.order, actionType: 'click' as const,
+        target: resolved.chosenValue,
+      };
+      console.log(`Step ${step.order} resolved: ${resolved.reasoning}`);
+    }
+
+    const validation = await validateAction(action, page);
+    if (!validation.valid) {
+      console.error(`Step ${step.order} FAILED validation: ${validation.reason}`);
+      break;
+    }
+
+    await executeAction(action, page);
+    lastObservation = await observePage(page);
+    console.log(`Step ${step.order} complete: ${step.description}`);
+  }
+
+  await browser.close();
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p>Notice the structure directly mirrors this chapter's own architecture diagram: plan (or resolve, for dependent steps) → validate → execute → observe → repeat. <code>lastObservation</code> is what threads real, current information from one iteration into the next — exactly the loop back from Observation to Next Action that made this chapter's problem genuinely different from Chapters 3 and 4's one-shot generation.</p>
+
+<h2 id="expected-result-the-full-shopsmart-instruction-running">Expected Result — The Full ShopSmart Instruction, Running</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>await runNaturalLanguagePlan(
+  'Login to ShopSmart, search for "Laptop", select a product, ' +
+  'add it to the cart, and verify the cart total.'
+);
+
+// Real, genuine console output:
+// Step 1 complete: Log in to ShopSmart
+// Step 2 complete: Search for 'Laptop'
+// Step 3 resolved: The instruction didn't specify criteria, so
+//   I selected the first result, a common, reasonable default...
+// Step 3 complete: Select a product from the search results
+// Step 4 complete: Add the selected product to the cart
+// Step 5 complete: Verify the cart total reflects the added item</code></pre>
+
+<h2 id="why-it-matters">Why It Matters</h2>
+<p>This is a real, working instance of Chapter 5's opening diagram — a single, plain-English instruction, genuinely executed against a real browser, with every ambiguous decision made honestly and every action validated before it touched the page. Nothing here was faked or simplified away; every function is exactly the one built on this chapter's earlier pages.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Skipping validation "just for this run" to see the loop work faster.</strong> This chapter's own validation page exists specifically because a bad action mid-sequence cascades — skipping it defeats the entire point of building it.</li>
+  <li><strong>Forgetting to update <code>lastObservation</code> after every action, not just dependent ones.</strong> Even an independent step can change what the page shows — the next step's planning should always have the most current, real observation available.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Log every ambiguous resolution's reasoning, as this page does — it's genuinely cheap now and genuinely valuable during a later investigation.</li>
+  <li>Stop the loop immediately on a validation failure, rather than attempting to continue past a step that couldn't be trusted.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Run this page's <code>runNaturalLanguagePlan</code> against your own five-step instruction from this chapter's earlier exercises, using every function you built along the way. Confirm the full loop completes, and review the logged reasoning for any ambiguous steps.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>This chapter's full loop — plan or resolve, validate, execute, observe, repeat — is now real and working, assembled entirely from pieces built on its own earlier pages.</li>
+  <li>The loop back from Observation to the next step's planning is what makes multi-step, dependent instructions genuinely handleable, rather than a sequence of guesses.</li>
+  <li>Chapter 14 builds a fuller version of this same loop — memory across many more steps, recovery from real failures, formal guardrails — on top of exactly this foundation.</li>
+</ul>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Beginner: Why can't "select a product" be planned the same way "log in" can, using Chapter 3's one-shot generation approach?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>"Log in" needs no information beyond what's already known — a fixed email field, password field, and submit button. "Select a product" genuinely depends on what a real search actually returns, which isn't knowable until the search step has actually executed. Planning it in advance, the way Chapter 3 planned a whole test file up front, would force a guess at a specific product name rather than a choice grounded in real, observed results.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Beginner: What is the practical difference between a "step" (from Breaking Instructions into Steps) and an "action" (from AI Action Planning)?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A step is still a plain-language description — "log in to ShopSmart." An action is a structured, constrained, concrete intent — <code>{ actionType: "fill", target: "Email field", value: "..." }</code> — specific enough to validate completely and map deterministically to a real Playwright call. A step often requires several actions; "log in" alone becomes three separate fill and click actions.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Intermediate: Why does mapping a PlannedAction to an actual Playwright call use plain, deterministic code instead of another AI call?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Once actionType is constrained to one of four known values and target is a known, mapped locator, there's exactly one correct Playwright call for that combination — a genuine, exact answer, not a judgment call. This is Chapter 2's core rule applied directly: AI reasoning belongs where genuine judgment is needed, and an exact, deterministic mapping doesn't need it. Using AI here would add real cost and latency, and genuine risk of an incorrect mapping, for zero benefit over a lookup table.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Intermediate: Why does resolveAmbiguousStep record and return its reasoning, rather than just returning the chosen value?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>An ambiguous instruction resolved silently becomes invisible the moment something later depends on that choice. If a test fails weeks later because ShopSmart's search result ordering changed, the recorded reasoning ("selected the first result because no criteria were specified") immediately tells an investigator this was always an arbitrary-but-reasonable default, not a new, mysterious application bug. Without that record, the same failure looks like ShopSmart itself broke, when the real cause is a resolution strategy nobody could see.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Advanced: Why does validateAction check whether a target exists on the CURRENT page, when Mapping Actions to Playwright already confirmed the target has a known locator?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>These are genuinely different questions. Having a known locator function in SHOPSMART_LOCATORS confirms the code knows HOW to find that element, in the abstract — it says nothing about whether that element actually exists on the page RIGHT NOW, in this specific moment of a live, unfolding sequence. A "Log In button" locator is valid in the abstract, but querying for it after a previous action already navigated past the login page would find nothing. Checking real, current existence — not just locator validity — is what catches a genuinely different, real class of mistake specific to multi-step, stateful execution.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Scenario-based: A teammate wants to skip the observation step for actions where dependsOnPreviousResult is false, reasoning "independent steps don't need it." How would you respond, using this page's own code?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd point to this page's own "Common Mistakes" section directly: even an independent step's action can genuinely change what the page shows — clicking "Log In" changes the entire page, regardless of whether that click itself needed a prior observation to be planned. The dependsOnPreviousResult flag governs whether PLANNING that specific step needs a prior observation — it says nothing about whether the RESULT of executing it should be observed for the sake of every step that follows. Skipping observation after an independent step risks the very next step planning against stale, outdated information, even if that next step happens to also be independent. The loop observes after every single action for exactly this reason, not just before dependent ones.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

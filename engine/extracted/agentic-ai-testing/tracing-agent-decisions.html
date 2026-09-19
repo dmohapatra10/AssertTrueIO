@@ -1,0 +1,182 @@
+<!doctype html>
+<html><head>
+<title>Tracing Agent Decisions: The Full Reasoning Chain, Continuously</title>
+<meta name="description" content="Capturing the complete plan-reason-act-observe chain for every real production run, not just one deliberately constructed test scenario." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/tracing-agent-decisions.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Tracing Agent Decisions</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="structured-logging-for-ai-agents.html">Structured Logging for AI Agents</a></p>
+<article class="content">
+<h2 id="what-is-this-and-how-it-differs-from-chapter-12">What is this, and how it differs from Chapter 12</h2>
+<p>Chapter 12's Testing Agent Planning page evaluated ONE plan, for ONE deliberately chosen test scenario. A trace does the same KIND of capture — the full plan-reason-act-observe chain — but for EVERY real production run, continuously, not a single controlled test.</p>
+
+<h2 id="a-genuine-trace-one-real-production-run">A Genuine Trace, One Real Production Run</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>{
+  "run_id": "run-88213",
+  "objective": "Verify a user can add an item to their cart.",
+  "initial_plan": [
+    "Navigate to product page",
+    "Click 'Add to Cart'",
+    "Confirm cart total reflects the new item"
+  ],
+  "steps": [
+    {"step": 1, "reasoning": "Starting with navigation, per plan step 1.",
+     "action": "navigate_to", "result": "success"},
+    {"step": 2, "reasoning": "Product page loaded; clicking Add to Cart.",
+     "action": "click_element", "result": "success"},
+    {"step": 3, "reasoning": "Checking cart total to confirm success.",
+     "action": "get_page_text", "result": "cart-total: $27.50"}
+  ],
+  "replanning_events": [],
+  "final_outcome": "success",
+  "total_duration_ms": 3420
+}</code></pre>
+
+<h2 id="why-this-needs-to-happen-for-every-run-not-just-test-runs">Why This Needs to Happen for EVERY Run, Not Just Test Runs</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Chapter 12's PLAN evaluation ran ONCE, on ONE test SCENARIO,
+DELIBERATELY constructed. A TRACE captures the SAME kind of
+information but for EVERY SINGLE production RUN — hundreds
+per DAY — because the PREVIOUS page's ENTIRE argument was that
+UNANTICIPATED problems ONLY reveal themselves ACROSS many
+REAL runs, not ONE controlled test.
+
+WITHOUT continuous TRACING, if a PRODUCTION run's REASONING
+GENUINELY goes wrong in a way NOBODY tested for, THERE'S
+simply no RECORD of WHAT the agent was THINKING when it
+happened — exactly Chapter 12's OWN "duplicate click" problem,
+but NOW happening in PRODUCTION with NO evidence to
+INVESTIGATE it AFTERWARD.</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why does this trace include the <code>replanning_events</code> field even when it's empty for this particular run? Chapter 2's own architecture discussion established that re-planning is a real, expected agent behavior when observations don't match expectations. Capturing this field — even as an empty list — means a future query can distinguish "this run never needed to re-plan" from "we simply didn't record whether it did." An absent field is genuinely ambiguous; an explicitly empty field is a confirmed, positive fact worth having on record.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Reserving detailed reasoning traces for test runs and deliberate debugging sessions only, treating full tracing as too expensive for routine production use. This misses the previous page's central point — the problems worth catching are specifically the ones that occur in real, ordinary production runs nobody deliberately investigated.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>Storing the full reasoning text for every step (not just the action taken) costs real storage space, but it's exactly what makes a later investigation like Chapter 12's duplicate-click analysis possible after the fact — trimming reasoning text to save space defeats much of tracing's genuine purpose.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Trace every production run, not just deliberate test scenarios, since unanticipated problems specifically emerge from routine, real usage.</li>
+  <li>Capture fields explicitly, even when empty, to distinguish a confirmed absence from an unrecorded unknown.</li>
+  <li>Preserve full reasoning text, not just actions taken, since reasoning is what makes later investigation of unsound decisions possible.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Tracing captures the same plan-reason-act-observe information Chapter 12 evaluated for one test scenario, but for every real production run continuously.</li>
+  <li>Without continuous tracing, an unanticipated production reasoning failure leaves no record to investigate after the fact.</li>
+  <li>Explicitly recording fields like re-planning events, even when empty, preserves a confirmed fact rather than an ambiguous absence.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Extend this page's trace format with a hypothetical <code>replanning_events</code> entry for a run where the agent's initial plan needed revision — following Chapter 2's own re-planning discussion — including what observation triggered the change and what the revised plan looked like.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A team argues "full reasoning traces are expensive, let's only trace test runs, not routine production ones." Using the previous page's argument, what real risk does this create?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This EXACTLY inverts WHERE the GENUINE risk lives — the PREVIOUS page's ENTIRE argument was that UNANTICIPATED problems SPECIFICALLY emerge from ROUTINE production USE, not from DELIBERATE test SCENARIOS, meaning SKIPPING tracing for PRODUCTION runs skips TRACING exactly WHERE it's MOST needed.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why TEST runs are, IRONICALLY, the LOWER-risk place to TRACE:
+Test SCENARIOS are DELIBERATELY constructed, KNOWN situations
+  — if SOMETHING goes GENUINELY wrong there, it's LIKELY to
+  be CAUGHT and INVESTIGATED regardless, SINCE the team is
+  ALREADY paying CLOSE attention to THAT specific TEST.
+
+Why PRODUCTION runs are WHERE tracing is MOST valuable:
+The PREVIOUS page's THIRD-party script EXAMPLE happened
+  DURING routine PRODUCTION use — EXACTLY the KIND of run
+  this TEAM'S proposal would LEAVE untraced. WITHOUT a
+  TRACE, when THIS kind of problem OCCURS, there's SIMPLY
+  nothing to INVESTIGATE afterward.</code></pre>
+<p>The TEAM'S cost-saving INSTINCT is UNDERSTANDABLE, but it SKIPS tracing EXACTLY where the PREVIOUS page's OWN argument says the REAL, unanticipated RISKS actually LIVE — a GENUINELY backwards PRIORITIZATION given this CHAPTER'S core THESIS.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page argue an EXPLICITLY empty replanning_events field is MEANINGFULLY different from the FIELD simply being ABSENT?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>An ABSENT field is GENUINELY ambiguous — it COULD mean "NOTHING happened" or IT could mean "we SIMPLY didn't RECORD this" — an EXPLICITLY EMPTY field REMOVES that AMBIGUITY, CONFIRMING the POSITIVE fact that NO re-planning GENUINELY occurred.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What an ABSENT field GENUINELY leaves UNCERTAIN:
+IF replanning_events simply DOESN'T appear in a TRACE, a
+  FUTURE analyst has NO way to DISTINGUISH "this run NEVER
+  needed to RE-plan" FROM "our LOGGING system FAILED to
+  CAPTURE this field FOR this particular run" — a GENUINE,
+  meaningful AMBIGUITY.
+
+What an EXPLICITLY EMPTY field CONFIRMS instead:
+"replanning_events": [] is a POSITIVE, CONFIRMED statement —
+  the SYSTEM actively CHECKED for re-PLANNING events and
+  FOUND none, REMOVING the AMBIGUITY entirely and PROVIDING
+  a GENUINE, reliable FACT for future ANALYSIS to build
+  ON.</code></pre>
+<p>This is a GENUINELY important, PRACTICAL distinction in OBSERVABILITY design — DELIBERATE, explicit RECORDING of a NEGATIVE or EMPTY result is MEANINGFULLY different FROM simply NOT recording ANYTHING, and CONFLATING the TWO removes GENUINE, useful INFORMATION from the TRACE.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why THIS page insists on preserving FULL reasoning TEXT, not just the ACTIONS taken, connecting DIRECTLY to Chapter 12's OWN duplicate-click EXAMPLE.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Chapter 12's INVESTIGATION SPECIFICALLY needed to know WHAT the agent was REASONING at the MOMENT of the DUPLICATE click — WITHOUT the reasoning TEXT itself, ONLY the ACTION (click_element, TWICE) would be RECORDED, with NO way to DETERMINE whether it WAS a genuine ERROR-recovery attempt OR unexplained, UNSOUND repetition.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What TRACING only the ACTION (without REASONING) would
+GENUINELY lose:
+"click_element(role='button', NAME='Log In')" appearing
+  TWICE tells you WHAT happened, but NOTHING about WHY —
+  EXACTLY the GAP Chapter 12's OWN example STRUGGLED with,
+  needing to INVESTIGATE separately WHETHER this was a
+  GENUINE recovery ATTEMPT or UNEXPLAINED repetition.
+
+What PRESERVING the REASONING text GENUINELY provides:
+"the PREVIOUS click may NOT have registered; ATTEMPTING
+  again" — this DIRECTLY answers the QUESTION Chapter 12's
+  investigation NEEDED to ask, WITHOUT requiring SEPARATE,
+  after-the-FACT investigation to RECONSTRUCT what the AGENT
+  was actually THINKING.</code></pre>
+<p>This is a DIRECT, deliberate CONNECTION to Chapter 12's OWN foundational EXAMPLE — TRACING exists SPECIFICALLY to make THIS kind of investigation POSSIBLE without needing to RECONSTRUCT reasoning AFTER the fact, which is EXACTLY why TRIMMING reasoning text to SAVE storage space WOULD genuinely UNDERMINE tracing's CORE purpose.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might it be reasonable for a team to STILL apply SOME limits on trace RETENTION, even GIVEN this page's ARGUMENT that full reasoning text MATTERS?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This CONNECTS to a CONSISTENT theme ACROSS this COURSE — GENUINE value doesn't MEAN unlimited RETENTION is WARRANTED; a REASONABLE retention WINDOW (say, 90 DAYS of FULL detail, with OLDER traces SUMMARIZED or DISCARDED) balances THIS page's GENUINE argument AGAINST real, ONGOING storage COSTS.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why UNLIMITED retention would be GENUINELY excessive:
+STORING full reasoning TEXT for EVERY production run,
+  FOREVER, accumulates REAL, ONGOING storage COST that GROWS
+  WITHOUT bound — MOST traces from SIX months ago are
+  UNLIKELY to be QUERIED again, making INDEFINITE retention a
+  POOR use of ONGOING resources.
+
+Why a REASONABLE retention WINDOW still HONORS this page's
+CORE argument:
+KEEPING full DETAIL for a MEANINGFUL, recent WINDOW (WHERE
+  most GENUINE investigation NEEDS actually ARISE) WHILE
+  SUMMARIZING or DISCARDING older TRACES preserves the
+  GENUINE value THIS page argues FOR, without COMMITTING to
+  UNBOUNDED, ever-GROWING storage COSTS.</code></pre>
+<p>This MIRRORS the SAME "recurring LOGS need a CADENCE, not an ARCHIVE" principle FROM this COURSE'S own MEMORY-management GUIDANCE — GENUINE value JUSTIFIES CAPTURING full DETAIL, but a REASONABLE, BOUNDED retention POLICY is STILL a SENSIBLE, PRACTICAL complement, not a CONTRADICTION of THIS page's ARGUMENT.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you extend THIS page's trace FORMAT to specifically SUPPORT the KIND of aggregate ANALYSIS Chapter 12's Agent EVALUATION page performed — computing SCORES across MANY runs?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A GENUINELY useful EXTENSION would ADD a STANDARDIZED, top-LEVEL summary SECTION to EVERY trace SPECIFICALLY structured to FEED directly into Chapter 12's OWN scorecard COMPUTATION, WITHOUT needing to RE-PARSE the full STEP-by-step DETAIL for EVERY aggregate QUERY.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>{
+  "run_id": "run-88213",
+  ... (full trace AS BEFORE) ...
+  "scorecard_inputs": {          // NEW, standardized SECTION
+    "plan_had_confirmation_step": true,
+    "tool_selection_all_correct": true,
+    "tool_parameters_all_matched_real_elements": true,
+    "memory_influenced_behavior": null,  // n/a for THIS run —
+        // no repeated FAILURE occurred to TEST memory against
+    "state_matched_reality_throughout": true,
+    "required_recovery": false,
+  }
+}</code></pre>
+<p>This DIRECTLY connects THIS page's per-run TRACING to Chapter 12's OWN aggregate SCORECARD computation — RATHER than Chapter 12's compute_agent_scorecard NEEDING to RE-DERIVE these SIGNALS from RAW step-by-STEP data for EVERY run, EACH trace ALREADY includes the PRE-COMPUTED inputs THAT function NEEDS, EXACTLY the SAME "compute ONCE, at LOGGING time" principle THIS chapter'S OWN Structured Logging page ESTABLISHED, now APPLIED specifically to SUPPORT Chapter 12's OWN aggregate EVALUATION technique AT scale.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

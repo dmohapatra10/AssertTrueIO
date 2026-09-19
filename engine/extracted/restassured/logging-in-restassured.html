@@ -1,0 +1,61 @@
+<!doctype html>
+<html><head>
+<title>Logging in RestAssured: Request, Response, and Conditional Logging</title>
+<meta name="description" content="A complete guide to logging in RestAssured — request logging, response logging, conditional logging for clean CI output, and custom filters for real logging frameworks." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/logging-in-restassured.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Logging in RestAssured</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> Response Validation & Assertions, API Chaining & End-to-End Workflows (coming soon)</p>
+<article class="content">
+<h2 id="seeing-what-your-tests-are-actually-doing">Seeing What Your Tests Are Actually Doing</h2>
+<p>Earlier pages have mentioned logging in passing — a <code>.log().all()</code> here, a debugging tip there. Logging deserves its own treatment, because it's the difference between a failed test that tells you exactly what went wrong and one that leaves you guessing. Four pages:</p>
+<ol>
+  <li><a href="request-logging.html">Request Logging</a> — seeing exactly what you're about to send</li>
+  <li><a href="response-logging.html">Response Logging</a> — seeing exactly what came back</li>
+  <li><a href="conditional-logging.html">Conditional Logging</a> — the CI-friendly pattern real projects use</li>
+  <li><a href="custom-logging-and-filters.html">Custom Logging & Filters</a> — integrating with real logging frameworks instead of raw console output</li>
+</ol>
+
+<h2 id="why-this-comes-right-before-specifications">Why This Comes Right Before Specifications</h2>
+<p>Good logging habits genuinely need to be in place before you start building shared, reused request specifications next — once request construction gets abstracted behind a shared <code>RequestSpecification</code>, debugging "what did this actually send" becomes harder unless logging is already a comfortable, well-understood tool. Establishing it now, while requests are still simple and explicit, pays off directly once things get more abstracted.</p>
+
+<h2 id="the-core-tension-to-resolve">The Core Tension to Resolve</h2>
+<p>Logging every request and response in full detail is enormously useful while actively debugging — and enormously unhelpful in a CI pipeline running hundreds of passing tests, where it produces a wall of noise that makes finding the one genuine failure harder, not easier. Each page ahead builds toward resolving that tension: log everything while you're actively working on a test, log almost nothing once it's committed and passing reliably, and log automatically and completely the instant something actually fails.</p>
+
+<h2 id="a-quick-preview">A Quick Preview</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// While actively debugging — verbose, temporary
+given().log().all().when().get("/users/2");
+
+// In committed test code — silent unless something goes wrong
+.then().log().ifValidationFails().statusCode(200);
+
+// Project-wide — every request/response logged automatically via a filter
+RestAssured.filters(new RequestLoggingFilter(), new ResponseLoggingFilter());</code></pre>
+<p>These three lines represent the three levels this chapter covers, from most temporary/manual to most permanent/automatic. Start with Request Logging below.</p>
+      
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why does this chapter come right before Specifications instead of somewhere else?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Good logging habits matter more once request construction gets abstracted behind shared specs — debugging 'what did this actually send' becomes harder unless logging is already a comfortable, well-understood tool by then.</div>
+</details>
+<details class="faq-item">
+<summary>What's the core tension every page in this chapter resolves differently?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Full logging is enormously useful while actively debugging and enormously unhelpful in CI running hundreds of passing tests, producing noise that makes the one genuine failure harder to find.</div>
+</details>
+<details class="faq-item">
+<summary>What are the three levels of logging this chapter covers, from most temporary to most permanent?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">.log().all() for active manual debugging, .log().ifValidationFails() for committed test code, and a global Filter for project-wide automatic logging.</div>
+</details>
+<details class="faq-item">
+<summary>Why might a team eventually move from per-test logging calls to a project-wide Filter?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Repeating a logging call in every test, while functional, is still boilerplate multiplied across a large suite — a global filter applies consistent behavior everywhere at once with zero repetition.</div>
+</details>
+<details class="faq-item">
+<summary>Why does the Logging chapter come specifically before Specifications rather than somewhere else?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Good logging habits need to be comfortable BEFORE request construction gets abstracted behind shared specs — debugging 'what did this actually send' only gets harder once things are more abstracted, so it's better established while requests are still simple and explicit.</div>
+</details>
+</div>
+</article>
+</body></html>

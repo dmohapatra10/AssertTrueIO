@@ -1,0 +1,101 @@
+<!doctype html>
+<html><head>
+<title>Observation and Evaluation</title>
+<meta name="description" content="The one genuinely new box in this chapter&#x27;s diagram — deciding whether an objective has actually been met, a question no earlier chapter needed to answer explicitly." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/observation-and-evaluation.html" />
+</head><body>
+<p class="difficulty">Advanced</p>
+<h1>Observation and Evaluation</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="planning-and-execution.html">Planning and Execution</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Feeding a real tool result back into the conversation as an observation</li>
+  <li>Building the genuinely new Evaluator — deciding whether the objective has actually been met</li>
+  <li>Why this question is different from anything Chapter 5 or Chapter 13 needed to answer</li>
+</ul>
+
+<h2 id="introduction-the-one-genuinely-new-piece">Introduction — The One Genuinely New Piece</h2>
+<p>Chapter 14's architecture page was explicit that only one box in the diagram is genuinely new: the Evaluator. Chapter 5's loop finished once a known sequence of steps completed. Chapter 13's exploration stopped when a limit was hit. Neither ever had to ask, mid-run, "has the actual goal been achieved yet?" — this page builds that real capability.</p>
+
+<h2 id="step-by-step-implementation-observation-feeding-back-into-the-conversation">Step-by-Step Implementation — Observation, Feeding Back Into the Conversation</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/agent-observe.ts
+import Anthropic from '@anthropic-ai/sdk';
+import { AgentState } from './agent-state';
+
+export function recordObservation(
+  state: AgentState, toolUseId: string, resultText: string
+): void {
+  state.conversationHistory.push({
+    role: 'assistant',
+    content: [{ type: 'tool_use', id: toolUseId, name: '', input: {} }],
+  });
+  state.conversationHistory.push({
+    role: 'user',
+    content: [{ type: 'tool_result', tool_use_id: toolUseId, content: resultText }],
+  });
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p>This is Anthropic's real, required format for a tool result — the model needs to see its own tool call acknowledged, followed by the actual result, before it can reason about what to do next. This is genuinely different from Chapter 5's observation, which just returned a plain object; here, the observation has to be threaded back into the conversation in the specific shape the tool-calling protocol requires.</p>
+
+<h2 id="step-by-step-implementation-the-evaluator-built-from-scratch">Step-by-Step Implementation — The Evaluator, Built From Scratch</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// src/agent-evaluator.ts
+import { anthropic } from './ai-client';
+import { AgentState } from './agent-state';
+
+export interface EvaluationResult {
+  objectiveLikelyMet: boolean;
+  reasoning: string;
+  confidence: 'high' | 'medium' | 'low';
+}
+
+export async function evaluateProgress(
+  state: AgentState
+): Promise&lt;EvaluationResult&gt; {
+  const response = await anthropic.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 500,
+    system: `Evaluate whether this testing objective has
+genuinely been achieved, based on the FULL conversation so
+far. Be honest — do NOT report success unless the evidence
+genuinely supports it.`,
+    messages: [
+      ...state.conversationHistory,
+      { role: 'user', content: `Objective: "${state.objective}"
+Has this been genuinely achieved? Respond with ONLY valid JSON:
+{"objectiveLikelyMet": boolean, "reasoning": string,
+"confidence": "high" | "medium" | "low"}` },
+    ],
+  });
+
+  const textBlock = response.content.find((b) =&gt; b.type === 'text');
+  return JSON.parse((textBlock as any).text);
+}</code></pre>
+
+<h2 id="why-it-matters-this-is-a-genuinely-new-judgment-call">Why It Matters — This Is a Genuinely New Judgment Call</h2>
+<p>Notice the system prompt explicitly warns against overstating success — this connects directly to Chapter 9's honest-confidence discipline, now applied to the agent's own self-assessment. An agent that's overly eager to declare <code>objectiveLikelyMet: true</code> would terminate prematurely, missing real problems; one that's never confident would loop indefinitely, hitting Chapter 13's limits without ever recognizing genuine success. Getting this evaluation honest is what makes autonomous termination trustworthy at all.</p>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Letting the model that just took an action also evaluate whether the objective is met, in the same reasoning step.</strong> This risks the same overconfidence problem Chapter 9's own confidence-assessment page addressed — evaluation deserves its own, separate, honest pass.</li>
+  <li><strong>Skipping the required tool-result format when recording an observation.</strong> Anthropic's API expects this specific structure — omitting it breaks the conversation's ability to continue coherently.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Keep evaluation as a genuinely separate, explicit step from planning and execution — never assume success without asking the question directly.</li>
+  <li>Instruct the evaluator explicitly toward honesty over optimism, the same discipline Chapter 9 established for failure-analysis confidence.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Run <code>evaluateProgress</code> against a deliberately incomplete conversation history — one where only a navigation action has happened, nothing else. Confirm the evaluator correctly reports <code>objectiveLikelyMet: false</code> with honest, low confidence, rather than prematurely declaring success.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>The Evaluator is the one genuinely new capability this chapter builds — deciding whether an objective has actually been achieved, a question no earlier chapter's loop needed to answer explicitly.</li>
+  <li>Observation now requires threading a real tool result back into the conversation in Anthropic's specific required format, not just returning a plain object.</li>
+  <li>Honest, separate evaluation — rather than self-assessment bundled into the same step that took the action — is what makes autonomous termination trustworthy.</li>
+</ul>
+</article>
+</body></html>

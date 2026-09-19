@@ -1,0 +1,146 @@
+<!doctype html>
+<html><head>
+<title>Extracting &amp; Passing Dynamic Data Between RestAssured Requests</title>
+<meta name="description" content="How to correctly extract IDs, tokens, and other dynamic values from one RestAssured request and pass them into the next, avoiding hardcoded values entirely." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/extracting-and-passing-dynamic-data.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Extracting &amp; Passing Dynamic Data</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="the-full-crud-chain.html">The Full CRUD Chain</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Every step in a chained workflow after the first depends on some value produced by an earlier step — an ID, a token, a generated timestamp. This page is about doing that extraction and passing reliably, building on the Chapter 4 fundamentals of <code>extract()</code> and JsonPath.</p>
+
+<h2 id="the-core-pattern-generalized">The Core Pattern, Generalized</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Response step1 = given().body(payload1).when().post("/resource");
+String extractedValue = step1.jsonPath().getString("someField");
+
+Response step2 = given().pathParam("id", extractedValue).when().get("/resource/{id}");
+String anotherExtractedValue = step2.jsonPath().getString("anotherField");
+
+given().pathParam("id", anotherExtractedValue).when().get("/related-resource/{id}");</code></pre>
+<p>This chain can extend arbitrarily — each step's output becomes the next step's input. What matters is doing this deliberately and safely, not just mechanically stringing calls together.</p>
+
+<h2 id="extracting-ids">Extracting IDs</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>String orderId = given().body(newOrder).when().post("/orders")
+    .then().statusCode(201).extract().path("id");</code></pre>
+<p>The most common value threaded through a chain — almost every multi-step workflow revolves around a resource's ID, since it's what every subsequent request needs to identify which specific resource it's operating on.</p>
+
+<h2 id="extracting-tokens">Extracting Tokens</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>String authToken = given().body(credentials).when().post("/login")
+    .then().statusCode(200).extract().path("token");
+
+given().header("Authorization", "Bearer " + authToken).when().get("/profile");</code></pre>
+<p>Covered in depth in Chapter 6, but worth reiterating here specifically as a chaining pattern: a login step's output (the token) becomes an input to every subsequent request in the chain, exactly the same mechanism as extracting an ID.</p>
+
+<h2 id="extracting-dynamic-values-beyond-ids-and-tokens">Extracting Dynamic Values Beyond IDs and Tokens</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// A generated timestamp, used to verify ordering in a later step
+String createdAt = given().body(newOrder).when().post("/orders")
+    .then().extract().path("createdAt");
+
+// A computed total, verified against a later calculation
+double serverCalculatedTotal = given().pathParam("id", orderId).when().get("/orders/{id}")
+    .then().extract().path("total");
+assertThat(serverCalculatedTotal, closeTo(expectedTotal, 0.01));</code></pre>
+<p>Not every extracted value feeds into a URL or header — some are extracted specifically to verify against a value your test computes independently, confirming the server's calculation matches what it should be.</p>
+
+<h2 id="detailed-example-extracting-a-list-and-using-one-element">Detailed Example — Extracting a List and Using One Element</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void chainingThroughAListResponse() {
+    Response listResponse = given().when().get("/orders");
+    List&lt;String&gt; orderIds = listResponse.jsonPath().getList("data.id", String.class);
+    assertThat(orderIds, is(not(empty())));
+
+    String firstOrderId = orderIds.get(0);
+
+    given().pathParam("id", firstOrderId).when().get("/orders/{id}")
+        .then().statusCode(200);
+}</code></pre>
+<p>Extraction isn't limited to single scalar values — extracting a list and then using one of its elements in a follow-up request is a common pattern, particularly for tests that need to operate against "whatever the first/most-recent item happens to be" rather than a specifically known ID.</p>
+
+<h2 id="real-world-example-a-three-step-chain-with-two-extracted-values">Real-World Example — A Three-Step Chain With Two Extracted Values</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void createOrderThenApplyDiscountThenVerifyTotal() {
+    // Step 1: create, extract order ID
+    String orderId = given().body(newOrder).when().post("/orders")
+        .then().statusCode(201).extract().path("id");
+
+    // Step 2: apply a discount code, extract the resulting discounted total
+    double discountedTotal = given()
+        .pathParam("id", orderId)
+        .body(Map.of("code", "SAVE10"))
+    .when()
+        .post("/orders/{id}/apply-discount")
+    .then()
+        .statusCode(200)
+    .extract()
+        .path("total");
+
+    // Step 3: verify the order's stored total matches what step 2 returned
+    given().pathParam("id", orderId).when().get("/orders/{id}")
+        .then().statusCode(200).body("total", equalTo((float) discountedTotal));
+}</code></pre>
+<p>Two genuinely different extracted values (an ID and a computed total) flow through this three-step chain, each serving a different purpose — one identifies the resource throughout, the other verifies a calculation stayed consistent between the discount-application step and the final stored state.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Hardcoding a value from a PREVIOUS test run instead of extracting fresh
+given().pathParam("id", "12345").when().get("/orders/{id}"); // works once, breaks forever after
+
+// ✅ Extract the real value from the actual create step in THIS test run
+String orderId = given().body(newOrder).when().post("/orders").then().extract().path("id");
+given().pathParam("id", orderId).when().get("/orders/{id}");</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Hardcoding a value that should be extracted dynamically</strong> — works only as long as that specific ID happens to still exist, which it usually won't on a re-run against a clean environment.</li>
+  <li><strong>Not asserting on an extracted value before using it downstream</strong> — the same validate-then-extract discipline from Chapter 4, especially important the longer a chain gets.</li>
+  <li><strong>Extracting more than actually needed</strong> — pulling a dozen fields "just in case" when only two are actually used downstream adds noise without adding value.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>A value that needs light transformation before reuse</strong> (an extracted timestamp needing reformatting before being used as a query parameter) — handle this explicitly in Java between extraction and reuse, rather than assuming the raw extracted value is always directly usable as-is.</li>
+  <li><strong>Extracting from a response that might legitimately be empty</strong> (a list with zero items) — guard against this explicitly rather than assuming <code>.get(0)</code> always succeeds.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a chained test fails at a step several requests into the chain, check whether an earlier extraction actually produced the value you expected — printing every extracted value as it's obtained (even temporarily, during debugging) quickly reveals whether the chain broke at extraction or at the request that used the extracted value.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Always extract dynamic values fresh within the same test run — never hardcode a value from a previous run.</li>
+  <li>Assert on every extracted value's presence/correctness before using it in a subsequent step.</li>
+  <li>Extract only what's actually needed downstream, keeping the chain's data flow easy to follow.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Write a three-step chain: create a resource and extract its ID, use that ID to fetch a related sub-resource and extract a value from it, then use that second extracted value in a final assertion or request — confirming the full chain of dependent extractions works correctly end to end.</p>
+
+<h2 id="summary">Summary</h2>
+<p>Extracting and passing dynamic data — IDs, tokens, computed values — is the mechanism that turns a series of unrelated requests into a genuine chain. The discipline that keeps it reliable: extract fresh within the same test run rather than hardcoding, validate every extracted value before using it downstream, and extract only what's actually needed for the steps that follow.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why is hardcoding an ID from a previous test run a bad practice, even if the test passes when you first write it?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A hardcoded ID only remains valid as long as that specific resource still exists in whatever environment the test runs against. Test environments get reset, data gets cleaned up, and CI runs happen against fresh state — a hardcoded ID that worked once will eventually point at a resource that no longer exists, causing the test to fail for reasons entirely unrelated to whether the feature being tested actually works. Extracting the ID fresh, from a resource the test itself just created, means the test is self-contained and correct regardless of what environment or state it runs against.</div>
+</details>
+<details class="faq-item">
+<summary>Why is hardcoding an ID from a previous test run considered fragile?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A hardcoded ID only remains valid as long as that specific resource still exists — test environments get reset and data gets cleaned up, so a hardcoded value that worked once eventually points at nothing.</div>
+</details>
+<details class="faq-item">
+<summary>What's the deciding question for whether a value needs extraction rather than validation?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Are you about to use this value in a SUBSEQUENT request? If yes, extraction; if you're just confirming correctness and moving on, validation.</div>
+</details>
+<details class="faq-item">
+<summary>Why might you extract a computed value like a total, not just an ID?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Some extracted values exist specifically to verify against an independently-computed expectation — confirming a server-side calculation stayed consistent, not to feed into another request's URL or body.</div>
+</details>
+<details class="faq-item">
+<summary>What's a practical guard against extracting from a list that might be empty?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Explicitly check the list isn't empty before calling .get(0) — assuming a match always exists produces a confusing exception rather than a clear, expected failure when the list is genuinely empty.</div>
+</details>
+</div>
+</article>
+</body></html>

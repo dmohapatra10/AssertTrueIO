@@ -1,0 +1,207 @@
+<!doctype html>
+<html><head>
+<title>Playwright with GitHub Actions: A Complete CI/CD Pipeline</title>
+<meta name="description" content="A complete, working GitHub Actions workflow for running Playwright tests in CI — browser install, sharding, artifact uploads, and how CI differs from local execution." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/github-actions-cicd.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>GitHub Actions CI/CD</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="test-reporting.html">Test Reporting</a>, <a href="parallel-execution-and-workers.html">Parallel Execution & Workers</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+  <p>This chapter takes everything from Configuration, Reporting, and Parallel Execution and assembles it into one complete, working GitHub Actions pipeline — the practical destination all of those chapters were building toward.</p>
+
+  <h2 id="why-it-s-important">Why it's important</h2>
+  <p>Tests that only run on a developer's laptop provide much less value than tests that run automatically on every pull request. Getting the CI setup right the first time avoids a long tail of environment-specific bugs (missing system dependencies, wrong Node version, no browser binaries) that don't exist locally.</p>
+
+  <h2 id="a-complete-working-workflow">A Complete Working Workflow</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># .github/workflows/playwright.yml
+name: Playwright Tests
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: Run Playwright tests
+        run: npx playwright test
+        env:
+          BASE_URL: ${{ secrets.STAGING_BASE_URL }}
+          CI: true
+
+      - name: Upload HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14</code></pre>
+
+  <h2 id="why-with-deps-and-npm-ci">Why --with-deps and npm ci</h2>
+  <p>Two small but essential details, both different from local development habits:</p>
+  <ul>
+    <li><strong><code>npm ci</code> instead of <code>npm install</code></strong> — installs exactly what's in <code>package-lock.json</code>, faster and fully reproducible; <code>npm install</code> can update the lockfile unexpectedly in CI, which you never want.</li>
+    <li><strong><code>--with-deps</code> on browser install</strong> — Linux CI images typically lack the system libraries browsers need (fonts, codecs, graphics libraries); this flag installs them alongside the browser binaries. Omitting it is one of the most common causes of a "works locally, fails in CI" browser-launch error.</li>
+  </ul>
+
+  <h2 id="basic-example-matrix-execution-across-browsers">Basic Example — Matrix Execution Across Browsers</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        project: [chromium, firefox, webkit]
+    steps:
+      # ...same setup steps...
+      - run: npx playwright test --project=${{ matrix.project }}</code></pre>
+  <p>This runs the three browser projects (from the Projects & Environments chapter) as three separate parallel CI jobs rather than sequentially within one job — genuinely parallel at the CI infrastructure level, on top of Playwright's own worker parallelism within each job.</p>
+
+  <h2 id="detailed-example-test-sharding-for-very-large-suites">Detailed Example — Test Sharding for Very Large Suites</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      # ...same setup steps...
+      - run: npx playwright test --shard=${{ matrix.shard }}/4</code></pre>
+  <p>Sharding splits the <em>same</em> test suite across multiple CI machines (shard 1 of 4, 2 of 4, etc.), each running a quarter of the tests — a different, complementary axis of parallelism from the browser matrix above, and the right tool once a suite is large enough that even full worker parallelism on one machine isn't fast enough.</p>
+
+  <h2 id="real-world-example-combining-matrix-secrets-and-conditional-retries">Real-World Example — Combining Matrix, Secrets, and Conditional Retries</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>name: Playwright Tests
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [chromium, firefox]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm ci
+      - run: npx playwright install --with-deps
+      - run: npx playwright test --project=${{ matrix.project }}
+        env:
+          BASE_URL: ${{ secrets.STAGING_BASE_URL }}
+          TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
+          TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
+          CI: true
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ matrix.project }}
+          path: playwright-report/</code></pre>
+  <p><code>fail-fast: false</code> ensures a failure in the Firefox job doesn't cancel the still-running Chromium job — without it, GitHub Actions cancels remaining matrix jobs the moment any one fails, which hides results you'd otherwise want to see. Secrets are read via <code>${{ secrets.NAME }}</code>, configured in the repository settings — never hardcoded, consistent with the environment-variable pattern from the Configuration and Authentication chapters.</p>
+
+  <h2 id="how-ci-differs-from-local-execution">How CI Differs From Local Execution</h2>
+  <ul>
+    <li><strong>No cached browser binaries</strong> — every run installs fresh unless you add explicit dependency caching, unlike a local machine where they persist.</li>
+    <li><strong>Different, often more limited CPU allocation</strong> — a fixed <code>workers</code> count (Parallel Execution chapter) is usually more predictable than auto-detection on shared CI hardware.</li>
+    <li><strong>No interactive debugging</strong> — <code>--debug</code> and UI Mode aren't practical in CI; traces and the HTML report (Reporting chapter) are how you investigate a CI-only failure after the fact.</li>
+    <li><strong>Retries are more often appropriate</strong> — genuine environmental noise (network variance, shared-runner contention) is more common in CI than locally.</li>
+  </ul>
+
+  <h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># ❌ Missing --with-deps — will fail to launch browsers on a fresh Ubuntu runner
+- run: npx playwright install
+
+# ✅ Installs the system libraries browsers actually need
+- run: npx playwright install --with-deps</code></pre>
+
+  <h2 id="common-mistakes">Common Mistakes</h2>
+  <ul>
+    <li><strong>Omitting <code>--with-deps</code></strong>, causing browser launch failures that don't reproduce locally where those system libraries already happen to be present.</li>
+    <li><strong>Using <code>npm install</code> instead of <code>npm ci</code></strong> in CI, risking an unexpectedly updated lockfile.</li>
+    <li><strong>Forgetting <code>if: always()</code></strong> on the artifact upload step, losing the report exactly when a failure needs investigating.</li>
+    <li><strong>Not setting <code>fail-fast: false</code></strong> on a matrix build, hiding results from jobs that were cancelled after an unrelated one failed first.</li>
+    <li><strong>Hardcoding credentials directly in the workflow file</strong> instead of using repository secrets.</li>
+  </ul>
+
+  <h2 id="edge-cases">Edge Cases</h2>
+  <ul>
+    <li><strong>Self-hosted runners with pre-installed browsers</strong> — <code>--with-deps</code> and fresh installs may be unnecessary overhead there; cache or skip the install step based on your specific runner setup.</li>
+    <li><strong>Very long-running suites hitting GitHub Actions' job time limits</strong> — sharding (shown above) is the standard fix, splitting one long job into several shorter parallel ones.</li>
+  </ul>
+
+  <h2 id="debugging">Debugging</h2>
+  <p>When a CI-only failure needs investigation, download the uploaded HTML report artifact and open it locally with <code>npx playwright show-report path/to/downloaded/report</code> — this gives full access to traces, screenshots, and videos exactly as if you'd run the failing test yourself, without needing to reproduce the CI environment.</p>
+
+  <h2 id="best-practices">Best Practices</h2>
+  <ul>
+    <li>Always use <code>npm ci</code> and <code>playwright install --with-deps</code> in CI.</li>
+    <li>Upload the HTML report as an artifact with <code>if: always()</code> on every run.</li>
+    <li>Use a browser matrix and/or sharding once a suite is large enough to benefit from CI-level (not just worker-level) parallelism.</li>
+    <li>Store all credentials as repository secrets, referenced via <code>${{ secrets.NAME }}</code>, never hardcoded.</li>
+    <li>Set <code>fail-fast: false</code> on matrix builds so one project's failure doesn't hide another's results.</li>
+  </ul>
+
+  <h2 id="practice-exercise">Practice Exercise</h2>
+  <p>Write a GitHub Actions workflow that runs a Playwright suite sharded across 3 machines, uploads a merged HTML report as an artifact, and reads a staging <code>BASE_URL</code> and test credentials from repository secrets.</p>
+
+  <h2 id="summary">Summary</h2>
+  <p>A working Playwright CI pipeline installs dependencies with <code>npm ci</code>, browsers with <code>--with-deps</code>, runs tests with environment-driven config and secrets, and always uploads the HTML report as an artifact regardless of outcome. Browser matrices and sharding are two complementary ways to scale CI-level parallelism once worker parallelism on a single machine isn't enough.</p>
+
+  <h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why is npx playwright install --with-deps specifically important in CI but often unnecessary locally?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A developer's local machine typically already has the system-level libraries (fonts, codecs, graphics dependencies) that browsers need to launch, since it's a general-purpose development environment. A fresh CI runner image is minimal by design and usually lacks them — <code>--with-deps</code> installs those system dependencies alongside the browser binaries, which is why omitting it is a common cause of browser launch failures that only appear in CI.</div>
+</details>
+<details class="faq-item">
+<summary>The workflow uploads the HTML report with if: always(), even though every other step runs only on success by default. A teammate asks why bother — "if the tests failed, isn't the report useless anyway?" How would you respond, with a concrete example of why this matters?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>The opposite is true — a report from a <em>passing</em> run is rarely looked at, while a report from a <em>failing</em> run is exactly the thing someone needs to actually diagnose what went wrong. Without <code>if: always()</code>, a failing test stops the job before the upload step ever runs (the default fail-fast behavior), which means the one run where the report was actually needed is precisely the run where it never gets published.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>steps:
+  - run: npx playwright test          # fails — job would normally stop here
+  - name: Upload HTML report
+    if: always()                        # runs regardless of the line above
+    uses: actions/upload-artifact@v4
+    with:
+      name: playwright-report
+      path: playwright-report/
+
+# Without if: always() — a real, common failure mode:
+# PR #482 fails in CI. Developer opens the Actions tab to see why.
+# No report was ever uploaded, because the test step's failure
+# skipped the upload step too. Developer has nothing to look at
+# except a bare pass/fail log — has to re-run locally to actually
+# see what broke, wasting real time on every single CI failure.</code></pre>
+<p>The report itself doesn't change based on outcome — it's the same HTML file either way — but <em>whether it gets published</em> absolutely does, unless <code>always()</code> overrides that default.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why use npm ci instead of npm install in a CI pipeline?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">npm ci installs exactly what's in the lockfile, faster and fully reproducible; npm install can unexpectedly update the lockfile.</div>
+</details>
+<details class="faq-item">
+<summary>What's the difference between a browser matrix and test sharding?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A browser matrix runs the same tests across different browser projects in parallel CI jobs; sharding splits the same suite across multiple machines, each running a portion of it.</div>
+</details>
+<details class="faq-item">
+<summary>Why set fail-fast: false on a matrix build?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Without it, one project's failure cancels the other still-running jobs, hiding results you'd otherwise want to see.</div>
+</details>
+</div>
+</article>
+</body></html>

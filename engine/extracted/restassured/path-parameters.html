@@ -1,0 +1,134 @@
+<!doctype html>
+<html><head>
+<title>RestAssured Path Parameters: .pathParam() Deep Dive</title>
+<meta name="description" content="How to use RestAssured&#x27;s .pathParam() to identify specific resources in a URL, including multiple path parameters and named matching." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/path-parameters.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Path Parameters</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="query-parameters.html">Query Parameters</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>given()
+    .pathParam("id", 123)
+.when()
+    .get("/users/{id}");
+// Resulting URL: /users/123</code></pre>
+<p><code>.pathParam()</code> fills a named placeholder (<code>{id}</code>) inside the URL string itself — used specifically for values that identify <em>which resource</em> a request is about, not for filtering or sorting a collection (that's what query parameters, covered on the previous page, are for).</p>
+
+<h2 id="named-matching-not-positional">Named Matching, Not Positional</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>given()
+    .pathParam("orderId", 500)
+    .pathParam("customerId", 42)
+.when()
+    .get("/customers/{customerId}/orders/{orderId}");
+// Correctly resolves regardless of the ORDER the .pathParam() calls appear in —
+// RestAssured matches by NAME against the {placeholder} in the URL string</code></pre>
+<p>This matters in practice: you can declare <code>.pathParam()</code> calls in whatever order is most readable, and RestAssured still resolves each one against its matching <code>{name}</code> placeholder correctly, regardless of the URL's actual placeholder order.</p>
+
+<h2 id="multiple-path-parameters-a-nested-resource">Multiple Path Parameters — A Nested Resource</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>given()
+    .pathParam("customerId", 42)
+    .pathParam("orderId", 500)
+.when()
+    .get("/customers/{customerId}/orders/{orderId}")
+.then()
+    .statusCode(200);</code></pre>
+<p>Nested resource URLs like this are common in real APIs — an order genuinely belongs to a specific customer, and the URL structure reflects that relationship directly. Both path parameters identify part of "which specific resource" the request is about.</p>
+
+<h2 id="real-world-example-path-params-combined-with-a-request-body">Real-World Example — Path Params Combined with a Request Body</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>given()
+    .pathParam("customerId", 42)
+    .contentType(ContentType.JSON)
+    .body(newOrder)
+.when()
+    .post("/customers/{customerId}/orders")
+.then()
+    .statusCode(201);</code></pre>
+<p>This is a common real shape: a path parameter identifying the parent resource (which customer), combined with a body describing what to create (the new order) — the path says <em>where</em>, the body says <em>what</em>.</p>
+
+<h2 id="url-encoding-of-path-parameter-values">URL Encoding of Path Parameter Values</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>given()
+    .pathParam("username", "john doe") // contains a space
+.when()
+    .get("/users/{username}");
+// RestAssured automatically encodes this to /users/john%20doe</code></pre>
+<p>Just like query parameters, path parameter values are URL-encoded automatically — a value containing a space, a slash, or other reserved character is transformed into its safe encoded form without any extra effort on your part. This is another concrete reason to prefer <code>.pathParam()</code> over manual string concatenation: forgetting to encode a value by hand produces a URL that looks fine in your test code but is actually malformed on the wire, often manifesting as a confusing 404.</p>
+
+<h2 id="detailed-example-a-realistic-three-level-resource-hierarchy">Detailed Example — A Realistic Three-Level Resource Hierarchy</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>@Test
+void getSpecificReviewForAProduct() {
+    given()
+        .pathParam("storeId", "store-42")
+        .pathParam("productId", "prod-1001")
+        .pathParam("reviewId", "rev-77")
+    .when()
+        .get("/stores/{storeId}/products/{productId}/reviews/{reviewId}")
+    .then()
+        .statusCode(200)
+        .body("rating", greaterThanOrEqualTo(1));
+}</code></pre>
+<p>Three levels of nesting is about as deep as path-based resource identification comfortably goes in most well-designed APIs — each level narrows down to a more specific resource, and every one of the three values here is genuinely part of "which resource," not a filter or sort criterion, which is exactly what makes path parameters the correct tool for all three.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Manually building the URL with string concatenation
+given().when().get("/users/" + userId);
+
+// ✅ Named path parameter — clearer intent, and RestAssured
+// handles any necessary encoding of the value automatically
+given().pathParam("id", userId).when().get("/users/{id}");</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Using a query parameter where a path parameter belongs</strong> — sending <code>?id=123</code> instead of <code>/users/123</code> when the API's actual routing expects the latter produces a completely different (likely non-matching) URL.</li>
+  <li><strong>Forgetting to declare a <code>.pathParam()</code> for every <code>{placeholder}</code> in the URL string</strong> — RestAssured throws a clear error here, but it's an easy thing to miss when copy-pasting a URL template.</li>
+  <li><strong>String-concatenating a URL manually</strong> instead of using named path parameters — works for simple cases, but loses the encoding safety and readability of the named approach.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>Path parameter values containing special characters</strong> (a resource ID that happens to include a slash or other reserved character) — RestAssured URL-encodes the value automatically, which is exactly the safety lost by manual string concatenation.</li>
+  <li><strong>Very deeply nested resource paths</strong> (three or more path parameters) — worth pausing to consider whether the API design itself, not your test code, has gotten unnecessarily complex; this is sometimes a genuine API design smell worth flagging.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a request against a path-parameterized URL returns an unexpected 404, confirm the resolved URL is actually what you expect via <code>.log().all()</code> — a typo'd parameter name (one that doesn't match any <code>{placeholder}</code> in the URL string) fails clearly, but a wrong <em>value</em> for a correctly-named parameter just produces a URL pointing at the wrong (or non-existent) resource.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Always use named <code>.pathParam()</code> calls rather than manual URL string concatenation.</li>
+  <li>Reserve path parameters specifically for values that identify which resource is being addressed — not for filtering or sorting, which belongs in query parameters.</li>
+  <li>Name your path parameters to exactly match their <code>{placeholder}</code> in the URL string, even though matching is by name rather than order — consistent naming avoids confusion when reading the code later.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Write a test against a nested resource URL with two path parameters (a parent and child ID), declaring the <code>.pathParam()</code> calls in the opposite order from how they appear in the URL string, and confirm via <code>.log().all()</code> that the resolved URL is still correct.</p>
+
+<h2 id="summary">Summary</h2>
+<p><code>.pathParam()</code> fills named <code>{placeholder}</code> values in a URL string, matched by name rather than declaration order — the correct tool for identifying which specific resource (or nested resource) a request addresses, as distinct from query parameters, which filter or shape a request against a collection that already exists independent of them.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Does the order in which you call .pathParam() need to match the order placeholders appear in the URL string?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">No — RestAssured matches each <code>.pathParam()</code> call to its corresponding <code>{placeholder}</code> in the URL by name, not by the order the calls appear in your code. You can declare <code>.pathParam("orderId", ...)</code> before <code>.pathParam("customerId", ...)</code> even if the URL string is <code>/customers/{customerId}/orders/{orderId}</code>, and it resolves correctly either way — what matters is that every name used matches a placeholder actually present in the URL.</div>
+</details>
+<details class="faq-item">
+<summary>Does the order you declare .pathParam() calls need to match their order in the URL?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">No — RestAssured matches each .pathParam() call to its {placeholder} by NAME, not by declaration order, so you can declare them in whatever order is most readable.</div>
+</details>
+<details class="faq-item">
+<summary>Are path parameter values automatically URL-encoded?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Yes — a value containing a space or reserved character is encoded automatically, which is exactly the safety lost by manually concatenating a URL string instead.</div>
+</details>
+<details class="faq-item">
+<summary>Why might a very deeply nested path (four or more parameters) be worth questioning?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">It can be a sign the API's own resource design has gotten unnecessarily complex — worth flagging as a design consideration, not just something to work around in test code.</div>
+</details>
+<details class="faq-item">
+<summary>What happens if a URL template has a {placeholder} with no matching .pathParam() call?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">RestAssured throws a clear error — an easy thing to miss when copy-pasting a URL template, but it fails loudly rather than silently sending a malformed URL.</div>
+</details>
+</div>
+</article>
+</body></html>

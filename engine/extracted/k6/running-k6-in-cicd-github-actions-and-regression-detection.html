@@ -1,0 +1,158 @@
+<!doctype html>
+<html><head>
+<title>Running k6 in CI/CD: GitHub Actions, Automated Reports &amp; Regression Detection</title>
+<meta name="description" content="A real GitHub Actions pipeline running k6 automatically, failing the build on a threshold violation, archiving results as artifacts, and detecting regressions against a stored baseline." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/running-k6-in-cicd-github-actions-and-regression-detection.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Running k6 in CI/CD: GitHub Actions &amp; Regression Detection</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="correlating-k6-metrics-with-application-and-infrastructure.html">Correlating k6 Metrics With Application & Infrastructure Metrics</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Everything in this course has been about writing and running a genuinely good k6 test. This page is about running it automatically — on every push, on a schedule — with real consequences (a failed build) when a threshold is violated.</p>
+
+<h2 id="a-real-github-actions-workflow">A Real GitHub Actions Workflow</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>name: Performance Tests
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 2 * * *'  # nightly at 2am
+
+jobs:
+  k6-load-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run k6 load test
+        uses: grafana/k6-action@v0.3.1
+        with:
+          filename: tests/load/checkout-load.js
+        env:
+          TARGET_ENV: staging
+          API_KEY: ${{ secrets.STAGING_API_KEY }}</code></pre>
+<p>This runs on every push to <code>main</code> and every night, on a schedule — exactly the "scheduled performance tests" from the original spec, using the exact <code>__ENV</code>-based configuration and secrets handling from Chapter 9, now supplied by GitHub's own secrets management instead of a developer's local shell.</p>
+
+<h2 id="threshold-based-build-failures">Threshold-Based Build Failures</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// The exact thresholds from Chapter 11's framework example
+export const options = {
+  thresholds: {
+    http_req_duration: ['p(95)&lt;800'],
+    checks: ['rate>0.97'],
+  },
+};</code></pre>
+<p>This is the payoff of Chapter 7's threshold work: k6 exits with a non-zero status code when a configured threshold fails, and GitHub Actions treats a non-zero exit as a failed step — which fails the whole workflow. No separate "build failure" logic needs to be written; it falls directly out of the threshold mechanism already covered.</p>
+
+<h2 id="archiving-results-as-artifacts">Archiving Results as Artifacts</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>      - name: Run k6 and save results
+        run: k6 run --out json=results.json tests/load/checkout-load.js
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-results-${{ github.run_id }}
+          path: results.json</code></pre>
+<p>Every run's raw results get archived, retrievable later — genuinely useful for investigating a failure after the fact, or as the data source for regression detection (below), which needs access to previous runs' actual results, not just their pass/fail status.</p>
+
+<h2 id="regression-detection-against-a-stored-baseline">Regression Detection Against a Stored Baseline</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// A small script comparing this run's key metrics against a stored baseline
+const currentP95 = extractP95(currentResults);
+const baselineP95 = extractP95(baselineResults); // from a previous, known-good run
+
+const regressionThreshold = baselineP95 * 1.15; // 15% tolerance
+
+if (currentP95 > regressionThreshold) {
+  console.log(`REGRESSION: p95 ${currentP95}ms exceeds baseline ${baselineP95}ms by more than 15%`);
+  process.exit(1);
+}</code></pre>
+<p>This is genuinely different from a fixed threshold (Chapter 7) — rather than checking against an absolute target, this compares against a recent, real baseline specifically to catch a regression relative to <em>where the system actually was</em>, which can be a meaningfully tighter, more sensitive check than a fixed threshold that only catches a gross, absolute failure.</p>
+
+<h2 id="detailed-example-the-complete-pipeline-end-to-end">Detailed Example — The Complete Pipeline, End to End</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>name: Performance Tests
+on: { push: { branches: [main] }, schedule: [{ cron: '0 2 * * *' }] }
+
+jobs:
+  performance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run smoke test first (Chapter 10's principle)
+        uses: grafana/k6-action@v0.3.1
+        with: { filename: tests/smoke/checkout-smoke.js }
+        env: { TARGET_ENV: staging, API_KEY: ${{ secrets.STAGING_API_KEY }} }
+
+      - name: Run load test (only if smoke test passed)
+        uses: grafana/k6-action@v0.3.1
+        with: { filename: tests/load/checkout-load.js }
+        env: { TARGET_ENV: staging, API_KEY: ${{ secrets.STAGING_API_KEY }} }
+
+      - name: Upload results as artifact
+        uses: actions/upload-artifact@v4
+        with: { name: k6-results-${{ github.run_id }}, path: results.json }
+
+      - name: Check for regression against baseline
+        run: node scripts/check-regression.js results.json baseline.json</code></pre>
+<p>This single pipeline chains together nearly every practice from this entire course — running a smoke test before a larger one (Chapter 10), threshold-based failure (Chapter 7), secrets handled correctly (Chapter 9), results archived as artifacts, and explicit regression detection against a real baseline.</p>
+
+<h2 id="fragile-vs-recommended">❌ Fragile vs. ✅ Recommended</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// ❌ Running k6 manually, occasionally, when someone remembers to
+
+// ✅ Running k6 automatically on every push and on a nightly schedule,
+// with threshold-based failures, archived results, and regression
+// detection — no human needs to remember anything</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Running a large test on every single push</strong> without a smoke test gate first — wastes CI time and resources on an expensive test when a quick smoke test would have caught a basic bug immediately.</li>
+  <li><strong>Never archiving results as artifacts</strong> — losing the actual data needed to investigate a failure after the fact, or to serve as a baseline for regression detection.</li>
+  <li><strong>Setting up a pipeline that runs k6 but never gates the build on its results</strong> — collecting data nobody automatically acts on, the exact same gap covered when comparing checks and thresholds back in Chapter 7.</li>
+</ul>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<ul>
+  <li><strong>A regression check with too tight a tolerance</strong> — 15% was used above as an example, but too tight a margin risks false regressions from normal run-to-run variance; deriving a reasonable tolerance from real historical variance (Chapter 7's baseline-derivation principle) applies here too.</li>
+  <li><strong>A scheduled nightly test failing with no one immediately available to investigate</strong> — worth having a clear process (an alert, a designated on-call responsibility) for what actually happens when a scheduled run fails, not just the failure detection itself.</li>
+</ul>
+
+<h2 id="debugging">Debugging</h2>
+<p>If a CI pipeline running k6 never actually catches a real regression that later reaches production, check whether the pipeline's thresholds and regression detection are actually wired to fail the build — a pipeline that runs the test but doesn't gate on its results provides the appearance of protection without the substance.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Gate a larger test behind a smoke test in the pipeline, not just in isolated local runs.</li>
+  <li>Always archive results as artifacts, both for post-failure investigation and as regression-detection baselines.</li>
+  <li>Derive regression tolerance from real historical variance, not an arbitrary percentage.</li>
+  <li>Ensure the pipeline actually fails the build on a threshold or regression violation — collecting data without gating on it defeats the purpose.</li>
+</ul>
+
+<h2 id="practice-exercise">Practice Exercise</h2>
+<p>Design a GitHub Actions workflow for a project with three test types (smoke, load, and a nightly soak test) — deciding which triggers each should run on (every push, nightly, or both), and where a threshold failure should stop the pipeline before wasting time on a subsequent, more expensive step.</p>
+
+<h2 id="summary">Summary</h2>
+<p>Running k6 automatically in CI/CD — on every push and on a schedule — with real threshold-based build failures, archived results, and regression detection against a stored baseline is the practical destination for everything covered across this entire course: workload modeling, thresholds, proper session handling, and framework architecture all exist specifically to make this kind of automated, trustworthy pipeline possible. This is what turns performance testing from an occasional, manual task into a genuine, ongoing engineering safeguard.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why does a k6 threshold failure automatically fail a GitHub Actions build, without any additional CI-specific logic?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">k6 exits with a non-zero status code when a configured threshold fails, and CI systems like GitHub Actions treat a non-zero exit code from any step as a failed step, which fails the overall workflow. This means the threshold mechanism already covered — with no CI-specific wiring needed — directly produces the build-failure behavior a pipeline needs.</div>
+</details>
+<details class="faq-item">
+<summary>Why is regression detection against a stored baseline meaningfully different from a fixed threshold?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A fixed threshold checks against an absolute target, which is useful but relatively coarse — it only catches a gross failure that crosses that specific line. Regression detection compares against a recent, real baseline from the system's own actual prior performance, which can catch a meaningful but smaller degradation relative to where the system genuinely was, potentially well before it would ever cross a fixed threshold's absolute line.</div>
+</details>
+<details class="faq-item">
+<summary>Why should a smoke test typically run before a larger load test within the same CI pipeline?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">This applies the same principle from earlier in this course at the pipeline level — if the script has a basic bug, a smoke test catches it quickly and cheaply, before the pipeline wastes real CI time and resources running an expensive load test that would fail for the same underlying reason, just far more slowly and expensively.</div>
+</details>
+<details class="faq-item">
+<summary>Why does archiving k6 results as CI artifacts matter beyond just investigating a failed build?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Archived results serve as the actual data source for regression detection — comparing a current run against a "baseline" requires having that baseline's real, specific data stored somewhere accessible, not just knowing a previous run "passed." Without archiving, there's no concrete historical data to compare a new run against, which regression detection fundamentally depends on.</div>
+</details>
+<details class="faq-item">
+<summary>What real gap exists in a CI pipeline that runs k6 successfully but never actually fails the build on a poor result?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">This is the same gap covered when distinguishing checks from thresholds — data is being collected and technically available, but nothing in the pipeline actually acts on it, meaning a genuinely serious performance regression could pass through CI completely unnoticed, undermining the entire purpose of running the test automatically in the first place. The pipeline needs to be explicitly wired so a threshold or regression violation causes a real build failure, not just a report nobody is guaranteed to read.</div>
+</details>
+</div>
+</article>
+</body></html>

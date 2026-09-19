@@ -1,0 +1,183 @@
+<!doctype html>
+<html><head>
+<title>Why AI Agents Need Testing: Working Isn&#x27;t the Same as Correct</title>
+<meta name="description" content="Why an agent reaching the right final outcome doesn&#x27;t confirm it got there soundly — a real example of correct-result-from-unsound-reasoning, and why that gap matters." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/why-ai-agents-need-testing.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Why AI Agents Need Testing</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="testing-ai-agents.html">Testing AI Agents overview</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>An agent that reaches the correct final answer can still have gotten there through genuinely unsound reasoning — and unsound reasoning that happened to work this time is a real, meaningful risk for the next run, even when the outcome alone looks fine.</p>
+
+<h2 id="a-genuine-right-answer-wrong-reasoning-case">A Genuine "Right Answer, Wrong Reasoning" Case</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>GOAL: "Verify a user with valid credentials can log into
+ShopEasy, ending up on their account dashboard."
+
+Chapter 3's QAAgent, given this goal, reports:
+  Success: True
+  Summary: "TASK COMPLETE. Login succeeded, dashboard reached."
+  Steps taken: 4
+
+This LOOKS like a clean, correct pass. But examining the FULL
+history reveals something genuinely concerning:
+
+Step 1: fill_field(label='Email') → "Filled field labeled 'Email'"
+Step 2: fill_field(label='Password') → "Filled field labeled 'Password'"
+Step 3: click_element(role='button', name='Log In') → "Clicked"
+Step 4: click_element(role='button', name='Log In') → "Clicked"
+         (a SECOND, DUPLICATE click, never explained in the
+         summary — the agent's REASONING never mentioned why
+         it clicked TWICE, and the FINAL report doesn't
+         acknowledge this at all)</code></pre>
+
+<h2 id="why-this-genuinely-matters-even-though-the-test-passed">Why This Genuinely Matters, Even Though the Test "Passed"</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>The OUTCOME (reached the dashboard) is genuinely correct. But
+the PATH reveals something worth real concern: did the FIRST
+click silently fail, requiring a SECOND attempt the agent
+never explained? Or did the agent simply reason UNNECESSARILY,
+clicking twice for no real reason? EITHER explanation is worth
+knowing — a silently-failing first click is a genuine,
+concerning application signal; unexplained redundant actions
+are a genuine agent-reasoning concern. The SUMMARY alone
+reported neither.</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might an agent that "passes" through unsound or unexplained reasoning be a genuinely worse long-term risk than one that fails clearly and honestly? A clear failure gets investigated immediately — nobody trusts a red result blindly. A "pass" built on unexplained, potentially unsound reasoning creates false confidence: the team moves on, trusting a result that happened to work this time for reasons nobody actually verified. The next run, under slightly different conditions, that same unsound reasoning pattern might not produce a correct outcome at all — and by then, nobody's watching for it, because it "passed" before.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Evaluating an agent purely by whether its final report says "success," without examining whether the actual sequence of actions and reasoning that produced that success was genuinely sound. This chapter's remaining pages exist specifically because the FINAL OUTCOME and the PROCESS that produced it are genuinely separate things worth verifying independently.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>A genuinely useful habit when reviewing any agent run, passing or failing: read the full action history looking specifically for anything the final summary DOESN'T mention. A summary that omits a genuinely unusual step (like this page's duplicate click) is itself a signal worth investigating.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Verify an agent's process, not just its final outcome — a correct result from unsound reasoning is a genuine, real risk for future runs.</li>
+  <li>Read full action histories for anything the agent's own summary doesn't explain or acknowledge.</li>
+  <li>Treat an unexplained but "successful" run with the same scrutiny as an outright failure, not less.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>An agent reaching the correct final outcome doesn't confirm the reasoning and actions that produced it were genuinely sound.</li>
+  <li>A "pass" built on unexplained or unsound reasoning creates false confidence that can fail on a future run under different conditions.</li>
+  <li>Testing an agent means verifying its process as well as its outcome — exactly what this chapter's remaining six pages are structured to do.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>For this page's duplicate-click example, write out two genuinely different investigations you'd run to distinguish "the first click silently failed" from "the agent reasoned unnecessarily" — and explain what evidence source from Chapter 8 would help resolve each one.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A teammate reviews this page's example and says "it still reached the dashboard, so who cares about the extra click?" How would you respond?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd point out that the OUTCOME being correct this time doesn't tell us anything about whether the SAME unexplained behavior would still produce a correct outcome under slightly different conditions — exactly this page's core argument about false confidence.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What "it worked, who cares" GENUINELY overlooks:
+If the FIRST click silently failed (one real, plausible
+  explanation), that's a GENUINE signal about either the
+  APPLICATION (a real, intermittent UI issue) or the AGENT'S
+  click tool (a real, intermittent reliability issue) — EITHER
+  one is worth knowing about NOW, not after it eventually
+  causes an ACTUAL failure on some future run where the SECOND
+  click ALSO doesn't succeed.
+
+Why THIS specific instance "working" doesn't rule this out:
+A ONE-OFF successful recovery doesn't confirm the underlying
+  cause is harmless — it just means THIS particular run
+  happened to succeed DESPITE whatever's actually going on,
+  exactly the kind of false confidence this page warns about.</code></pre>
+<p>"It worked" answers a narrower question than the teammate thinks it does — it confirms THIS run's outcome, not that the underlying, unexplained behavior is safe to leave uninvestigated going forward.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page argue that a CLEAR failure is, in a real sense, less risky than an UNEXPLAINED pass?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A clear failure triggers investigation by its very nature — nobody trusts a red result without looking; an unexplained pass triggers NOTHING, since the surface-level signal (success) suggests everything is fine, even when the underlying process genuinely wasn't sound.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What happens NATURALLY with a CLEAR failure:
+A red result is IMPOSSIBLE to ignore — someone investigates,
+  by default, simply because the team's normal process demands
+  it. The genuine, real problem gets SURFACED and addressed.
+
+What happens NATURALLY with an UNEXPLAINED pass:
+NOTHING, by default — the green checkmark satisfies the
+  team's normal process completely, and the UNDERLYING,
+  genuinely concerning behavior (like the unexplained duplicate
+  click) continues UNNOTICED, precisely BECAUSE nothing in the
+  standard workflow prompts anyone to look closer at a
+  "successful" run.</code></pre>
+<p>This is exactly why this page insists on examining PROCESS, not just OUTCOME — the failure mode this page describes is specifically dangerous because it doesn't trigger any of the natural safeguards a clear failure automatically would.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why this page connects its recommended investigation technique back to Chapter 8, rather than treating agent-process verification as an entirely new skill.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>The underlying diagnostic work — distinguishing "did the click actually fail" from "did the agent reason unnecessarily" — needs exactly the same kind of multi-evidence-source investigation Chapter 8 already taught, just applied to an agent's own action history instead of a traditional test's stack trace.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What Chapter 8 ALREADY established, directly reusable here:
+Trace analysis can show WHETHER the first click's underlying
+  Playwright action genuinely registered or silently failed —
+  the SAME network/DOM evidence Chapter 8's Screenshot and
+  Trace Analysis page taught you to examine, now applied to
+  investigating an AGENT'S action rather than a TRADITIONAL
+  test's assertion failure.
+
+Why this ISN'T a genuinely new skill, just a new APPLICATION:
+The actual INVESTIGATIVE TECHNIQUE (gather multiple evidence
+  sources, reason about what they collectively support) is
+  IDENTICAL to Chapter 8's approach — only the SPECIFIC
+  QUESTION being investigated (why did the agent click twice)
+  is new, not the underlying method for answering it.</code></pre>
+<p>This is a deliberate, useful connection — this chapter doesn't need to invent new diagnostic techniques from scratch; it largely applies Chapter 8's own multi-evidence investigative approach to a new kind of subject (an agent's own reasoning and actions, not a traditional test's failure).</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might an agent's own summary ("TASK COMPLETE. Login succeeded.") be an unreliable source for detecting the kind of problem this page describes?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>The summary is generated by the SAME agent whose reasoning is in question — if the agent's own reasoning didn't flag the duplicate click as noteworthy in the moment, there's no genuine reason to expect its OWN summary would retroactively flag it either.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why the SUMMARY can't be trusted to SELF-REPORT this kind of
+issue:
+The agent's REASONING, at step 4, apparently didn't consider
+  the duplicate click WORTH EXPLAINING (nothing in the history
+  shows it acknowledging or justifying the second click) — an
+  agent that DIDN'T flag something as noteworthy DURING the
+  run has no particular reason to SUDDENLY recognize it as
+  noteworthy when GENERATING its own summary AFTERWARD.
+
+Why this means a HUMAN (or a SEPARATE analysis process) needs
+to examine the FULL history directly:
+Relying SOLELY on the agent's own self-reported summary means
+  INHERITING whatever blind spots existed in its ORIGINAL,
+  in-the-moment reasoning — exactly why this page's "Quick
+  Tip" recommends examining the FULL history for what the
+  summary DOESN'T mention, rather than trusting the summary
+  alone.</code></pre>
+<p>This is a genuinely important, practical point: an agent's self-report is generated by the same reasoning process being evaluated, so it shares that process's blind spots — genuine verification needs an INDEPENDENT look at the full record, not just trust in the agent's own account of what happened.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you design an automated check specifically to flag runs like this page's example — where the action count seems higher than a clean run of the same task would need — without requiring a human to manually review every single run's full history?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A genuinely useful automated check compares each run's step count against a baseline established from multiple genuinely clean runs of the SAME objective, flagging outliers for human review rather than requiring every run to be manually examined.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def flag_unusual_step_count(run_report, historical_step_counts):
+    from statistics import mean, stdev
+    if len(historical_step_counts) &lt; 10:
+        return "Insufficient history to establish a baseline yet."
+
+    baseline_mean = mean(historical_step_counts)
+    baseline_stdev = stdev(historical_step_counts)
+    actual_steps = run_report["steps_taken"]
+
+    if actual_steps &gt; baseline_mean + (2 * baseline_stdev):
+        return (f"FLAGGED: this run took {actual_steps} steps, "
+                f"notably more than the typical "
+                f"{baseline_mean:.1f} — worth reviewing the full "
+                f"history for unexplained actions.")
+    return "Step count within normal range."</code></pre>
+<p>This directly reuses the statistical baseline-and-outlier approach from Chapter 9's flaky-test detection and Chapter 7's trend analysis — applying that SAME general technique (compare against an established normal range, flag genuine outliers) to a NEW kind of signal specifically relevant to this chapter's concern: an agent taking MORE steps than a clean run of the SAME objective typically needs, exactly the pattern this page's own duplicate-click example would trigger.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

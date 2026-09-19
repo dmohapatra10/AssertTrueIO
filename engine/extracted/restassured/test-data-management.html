@@ -1,0 +1,78 @@
+<!doctype html>
+<html><head>
+<title>Test Data Management in RestAssured: A Complete Guide</title>
+<meta name="description" content="How to handle realistic test data in RestAssured — static vs dynamic data, builders, data-driven testing, Faker, environment-specific data, and cleanup." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/test-data-management.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Test Data Management</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="request-response-specifications.html">Request & Response Specifications</a></p>
+<article class="content">
+<h2 id="handling-test-data-deliberately">Handling Test Data Deliberately</h2>
+<p>Every test so far has used data — a user's name, an order's quantity, a login credential. Handling that data deliberately rather than accidentally is covered across six pages:</p>
+<ol>
+  <li><a href="static-vs-dynamic-test-data.html">Static vs. Dynamic Test Data</a> — and why hardcoded shared data breaks tests in ways that aren't obvious upfront</li>
+  <li><a href="test-data-builders.html">Test Data Builders</a> — constructing realistic, readable test payloads</li>
+  <li><a href="data-driven-testing-with-json-and-csv.html">Data-Driven Testing with JSON & CSV</a> — running the same test logic against many data sets</li>
+  <li><a href="generating-data-with-faker.html">Generating Data with Faker</a> — realistic, varied data without hand-writing it</li>
+  <li><a href="environment-specific-test-data.html">Environment-Specific Test Data</a> — data that correctly varies by environment</li>
+  <li><a href="test-data-cleanup-strategies.html">Test Data Cleanup Strategies</a> — keeping a shared environment from filling up with test artifacts</li>
+</ol>
+
+<h2 id="the-core-flow-behind-all-of-this">The Core Flow Behind All of This</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Test
+ ↓
+Test Data Builder
+ ↓
+API Request
+ ↓
+Response
+ ↓
+Cleanup</code></pre>
+<p>This is the shape a well-designed data-dependent test takes: the test itself stays focused on behavior, a builder (or generator) constructs the actual payload, the request/response cycle exercises the real API, and cleanup ensures nothing is left behind. Each page ahead fills in one part of this pipeline.</p>
+
+<h2 id="why-this-matters-more-than-it-first-looks">Why This Matters More Than It First Looks</h2>
+<p>A surprising fraction of flaky, hard-to-reproduce test failures trace back to test data problems, not real application bugs — two tests racing to create a user with the same hardcoded email, a shared "test123@example.com" account whose state drifted after months of manual poking, a CSV fixture nobody's updated since the API's schema changed. Treating test data as a first-class design concern, not an afterthought, is what prevents this entire category of problem.</p>
+
+<h2 id="the-four-canonical-negative-scenarios">The Four Canonical Negative Scenarios</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Create user with valid data          → 201
+Create user with invalid email       → 400
+Create duplicate user                → 409
+Create user with missing field       → 400</code></pre>
+<p>These four scenarios — one happy path, three variations of "wrong input" — recur constantly in API testing, and this chapter's tools (builders, data-driven testing, Faker) are largely about generating exactly these kinds of variations efficiently, rather than hand-writing four nearly-identical test methods.</p>
+
+<h2 id="common-mistakes-to-watch-for">Common Mistakes to Watch For</h2>
+<ul>
+  <li><strong>Hardcoding shared test data</strong> (a fixed email, a fixed ID) that multiple tests or parallel runs collide over.</li>
+  <li><strong>Generating data without cleaning it up</strong>, letting a shared environment accumulate orphaned test artifacts over time.</li>
+  <li><strong>Treating data-driven testing as just "loop over a list"</strong> without considering how failures in one data row are reported and distinguished from failures in another.</li>
+</ul>
+
+<h2 id="what-you-ll-be-able-to-do">What You'll Be Able to Do</h2>
+<p>By the end of the six pages that follow, you should be able to design test data that's safe under parallel execution, build data-driven tests that clearly report which specific input caused a failure, generate realistic varied data without hand-authoring every value, and clean up whatever a test creates regardless of which environment it ran against. Start with Static vs. Dynamic Test Data below.</p>
+      
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Why do many flaky, hard-to-reproduce test failures actually trace back to test data, not real bugs?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Two tests racing to create the same hardcoded email, a shared account whose state drifted over time, an outdated fixture — these produce intermittent failures that look like application bugs but are really test data design problems.</div>
+</details>
+<details class="faq-item">
+<summary>What's the flow this whole chapter builds toward?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Test -> Test Data Builder -> API Request -> Response -> Cleanup — the test stays focused on behavior, a builder constructs the payload, the real API gets exercised, and cleanup ensures nothing is left behind.</div>
+</details>
+<details class="faq-item">
+<summary>Why do the four canonical negative scenarios (valid, invalid email, duplicate, missing field) recur so often in API testing?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">They represent the fundamental shapes of things that can go wrong with any input-accepting endpoint — this chapter's tools (builders, data-driven testing, Faker) exist largely to generate these variations efficiently.</div>
+</details>
+<details class="faq-item">
+<summary>What's the practical cost of NOT cleaning up test-generated data over time?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">A shared environment slowly accumulates orphaned records, eventually causing unrelated tests to fail (list endpoints returning unexpectedly large results) or cluttering dashboards real people use for manual testing.</div>
+</details>
+<details class="faq-item">
+<summary>Why does a surprising number of flaky test failures trace back to test data rather than real application bugs?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">Two tests racing to create the same hardcoded value, a shared account whose state drifted, an outdated fixture — these produce intermittent failures that look like bugs but are really test data design problems, exactly what this chapter exists to prevent.</div>
+</details>
+</div>
+</article>
+</body></html>

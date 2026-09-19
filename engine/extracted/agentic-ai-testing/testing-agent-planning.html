@@ -1,0 +1,187 @@
+<!doctype html>
+<html><head>
+<title>Testing Agent Planning: Is the Rough Plan Actually Reasonable?</title>
+<meta name="description" content="Verifying an agent&#x27;s plan against the goal it was given, before any execution happens — catching a plan that&#x27;s technically valid but genuinely doesn&#x27;t match what was asked." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/testing-agent-planning.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Testing Agent Planning</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="why-ai-agents-need-testing.html">Why AI Agents Need Testing</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>Chapter 2's Agent Planning page taught what a genuinely good plan looks like — rough, goal-oriented, appropriately unspecific. This page is about verifying an agent's ACTUAL plan against that standard, before a single action ever executes.</p>
+
+<h2 id="a-genuine-plan-level-check">A Genuine Plan-Level Check</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>GOAL: "Verify that a user with valid credentials can log into
+ShopEasy, ending up on their account dashboard."
+
+The agent's OWN generated plan (captured BEFORE execution
+begins — this requires the agent to expose its plan as a
+distinct, inspectable step, not bury it inside execution):
+  1. Navigate to the login page
+  2. Fill in valid credentials
+  3. Submit the login form
+  4. Confirm the dashboard is reached
+
+def evaluate_plan_quality(goal, plan, client):
+    prompt = f"""Given this goal and this agent's generated
+plan, assess: does the plan genuinely address the STATED goal?
+Is it appropriately ROUGH (goal-oriented steps) rather than
+overly specific (exact selectors, exact values)? Does it
+include a genuine way to CONFIRM the goal's success condition
+was actually met?
+
+Goal: {goal}
+Plan: {plan}"""
+    result = client.messages.create(
+        model="claude-sonnet-4-6", max_tokens=300,
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return result.content[0].text</code></pre>
+
+<h2 id="a-genuine-plan-level-failure-this-would-catch">A Genuine Plan-Level Failure This Would Catch</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>A DIFFERENT, WORSE plan for the SAME goal:
+  1. Navigate to the login page
+  2. Fill in valid credentials
+  3. Submit the login form
+
+Structurally REASONABLE-looking — but comparing against the
+GOAL directly reveals a genuine gap: the goal explicitly says
+"ending up on their account dashboard," and this plan has NO
+step confirming that outcome at all. The agent might
+TECHNICALLY complete steps 1-3 and call the task done, without
+EVER actually verifying the dashboard was reached — exactly
+the kind of plan-level gap worth catching BEFORE execution,
+not discovered only after a genuinely incomplete run.</code></pre>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why does catching this specific gap BEFORE execution matter more than catching it AFTER, given that Chapter 3's loop would presumably still eventually reach some kind of conclusion? A plan missing an explicit success-confirmation step doesn't necessarily cause an obvious, visible failure — the agent might simply report "TASK COMPLETE" after step 3, having technically done everything its (flawed) plan specified, without ever genuinely confirming the goal's actual success condition. This produces a false-positive "success" report, exactly the kind of unsound-but-passing result the previous page warned about — catching the gap at the PLAN level, before execution, prevents this specific false confidence from ever being generated in the first place.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Only ever evaluating an agent by its final outcome, never by examining the plan it generated before acting on it. This page's own example shows a plan-level gap that could produce a false "success" — catching this requires looking at the plan itself, not just waiting to see what happens when the agent executes it.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>For plan-quality evaluation to be possible at all, an agent's architecture needs to expose its plan as a genuinely separate, inspectable artifact — if planning and execution are fully entangled in code with no distinct checkpoint, there's nothing concrete to evaluate before execution begins.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Evaluate an agent's plan against its stated goal before execution, not only the final outcome after the fact.</li>
+  <li>Check specifically that a plan includes a genuine way to confirm the goal's actual success condition, not just its mechanical steps.</li>
+  <li>Design agent architectures to expose planning as a distinct, inspectable step, making this kind of pre-execution evaluation genuinely possible.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Plan-level testing checks an agent's generated plan against its actual goal before any execution happens, catching gaps that could otherwise produce false "success" reports.</li>
+  <li>A structurally reasonable-looking plan can still be missing a genuine confirmation step for the goal's actual success condition.</li>
+  <li>This kind of testing requires an agent architecture that exposes planning as a distinct, evaluable step, not buried entirely inside execution.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Write a plan for the goal "verify a user can successfully apply a valid discount code at checkout" that has a genuine, different gap than this page's missing-confirmation example — then write the corrected version, and explain specifically what <code>evaluate_plan_quality</code> should flag about the original.</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A reviewer says "the agent's plan looks fine to me — three reasonable, sequential steps." Using this page's example, what specifically might they be missing?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>They're likely evaluating whether each individual step looks reasonable in isolation, without checking the plan AS A WHOLE against the goal's full, stated success condition — exactly the gap this page's own three-step example demonstrates.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What "three reasonable steps" superficially LOOKS like:
+Navigate, fill credentials, submit — each INDIVIDUAL step is
+  genuinely sensible and well-formed on its own.
+
+What this SURFACE-LEVEL review MISSES:
+The GOAL explicitly states "ending up on their account
+  dashboard" as PART of what success means — and NONE of the
+  three steps actually CONFIRMS this happened. The plan is
+  INTERNALLY coherent while being INCOMPLETE relative to the
+  ACTUAL goal it was supposed to address.</code></pre>
+<p>The fix for the reviewer's own process: don't just ask "does each step make sense" — ask "does the FULL SET of steps, together, genuinely address EVERY part of the stated goal," exactly the comparison this page's <code>evaluate_plan_quality</code> function is specifically designed to make.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page argue that a missing confirmation step is worse than it might initially seem, connecting to the previous page's discussion?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This connects directly to the previous page's core concern — a plan missing its confirmation step doesn't just produce an INCOMPLETE run, it can produce a FALSE "success" report, exactly the unsound-but-passing outcome that page warned creates dangerous, false confidence.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why this ISN'T just "a minor gap in thoroughness":
+Without a CONFIRMATION step, the agent might complete steps 1-3,
+  observe NOTHING contradicting success, and REPORT "TASK
+  COMPLETE" — even if the LOGIN actually FAILED silently
+  (perhaps redirecting back to the login page with a subtle
+  error the agent never explicitly CHECKED for, since its plan
+  never told it to look).
+
+Why this is EXACTLY the previous page's concern, made concrete:
+A "successful"-LOOKING report, built on a plan that never
+  actually VERIFIED the goal's real success condition, is
+  PRECISELY the "correct-looking outcome, unsound process"
+  pattern the previous page argued is genuinely MORE dangerous
+  than an honest, visible failure.</code></pre>
+<p>This is a deliberate, direct continuation — plan-level testing (this page) is specifically valuable because it can catch, BEFORE execution, exactly the kind of gap that would otherwise produce the false-confidence problem the previous page introduced conceptually.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why this page insists the agent's plan needs to be "exposed as a genuinely separate, inspectable artifact" — isn't the FINAL result enough to evaluate?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>The final result alone can't reveal a PLAN-LEVEL gap the way this page's own example shows — by the time you HAVE a final result, the flawed plan has ALREADY potentially produced a false-positive "success," which is exactly the outcome you wanted to CATCH before it happened, not diagnose after the fact.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What evaluating ONLY the final result can tell you:
+Whether THIS SPECIFIC RUN happened to produce a correct-
+  looking outcome — but by DEFINITION, this is AFTER the plan
+  has ALREADY been used to guide execution, meaning any
+  PLAN-LEVEL flaw has ALREADY had its chance to cause a
+  problem (like a false-positive "success").
+
+What evaluating the PLAN ITSELF, BEFORE execution, provides
+INSTEAD:
+A chance to catch the GAP (missing confirmation step) BEFORE
+  it can EVER produce a misleading result — genuinely
+  PREVENTIVE, rather than only DIAGNOSTIC after the fact.</code></pre>
+<p>This is the core, practical argument for why plan-level testing deserves its OWN dedicated page and technique, rather than simply relying on outcome-based testing — it catches an ENTIRE CATEGORY of problem at a point where prevention is still possible, not just after-the-fact diagnosis.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might evaluate_plan_quality's prompt specifically ask whether the plan is "appropriately rough" rather than just asking whether it's "good"?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This directly reuses Chapter 2's own specific standard for plan quality — "good" alone is vague and could reward an OVERLY SPECIFIC plan that seems thorough, while "appropriately rough" checks for the EXACT property Chapter 2 established as genuinely important: leaving room for the reasoner to handle specifics using REAL, current observation.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Why a VAGUE "is this a good plan" prompt is INSUFFICIENT:
+An overly SPECIFIC plan (hardcoded selectors, exact expected
+  text) might SUPERFICIALLY look "thorough" and "good" to an
+  evaluator without the SPECIFIC context Chapter 2 established
+  — but Chapter 2's Agent Planning page was EXPLICIT that this
+  specificity is actually a GENUINE weakness, not a strength.
+
+Why "appropriately ROUGH" is the CORRECT, specific standard:
+This directly encodes Chapter 2's OWN established criteria —
+  goal-oriented steps, not locked-in technical specifics —
+  into the EVALUATION prompt itself, ensuring the evaluator
+  checks for the SAME property this course has consistently
+  argued actually matters for GOOD agent planning.</code></pre>
+<p>This is a genuinely good example of an evaluation prompt encoding a SPECIFIC, previously-established standard, rather than a generic quality judgment — connecting THIS chapter's testing techniques directly back to the SPECIFIC architectural principles Chapter 2 built up, rather than evaluating against some independent, less precise notion of "good."</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you extend this page's approach to test whether an agent's RE-PLANNING (from Chapter 2's own discussion) is genuinely sound, not just its initial plan?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A genuinely useful extension would capture EVERY plan revision during a run (not just the initial one) and evaluate each new plan against BOTH the original goal AND the specific observation that triggered the re-planning, checking the revision genuinely, appropriately responds to what was actually observed.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def evaluate_replan_quality(goal, triggering_observation,
+                              original_plan, revised_plan, client):
+    prompt = f"""An agent's original plan was: {original_plan}
+It then observed: {triggering_observation}
+And revised its plan to: {revised_plan}
+
+Does the REVISED plan genuinely, appropriately respond to
+what was ACTUALLY observed? Does it still address the
+ORIGINAL goal: {goal}? Or does the revision seem like an
+OVERREACTION, UNDERREACTION, or GENUINELY unrelated change
+given what was actually observed?"""
+    result = client.messages.create(
+        model="claude-sonnet-4-6", max_tokens=300,
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return result.content[0].text</code></pre>
+<p>This directly extends this page's own technique to Chapter 2's re-planning capability specifically — checking not just whether an initial plan is sound, but whether the agent's ADAPTATION to a genuinely unexpected observation is ITSELF reasonable, exactly the kind of deeper, process-level verification this entire chapter argues is necessary beyond simply checking final outcomes.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

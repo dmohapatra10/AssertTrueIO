@@ -1,0 +1,113 @@
+<!doctype html>
+<html><head>
+<title>Why Flaky Tests Should Not Simply Be Suppressed</title>
+<meta name="description" content="Closing this chapter honestly — quarantining or retrying a flaky test without investigation is a genuine, costly mistake this chapter&#x27;s entire pipeline exists to prevent." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/why-flaky-tests-should-not-simply-be-suppressed.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Why Flaky Tests Should Not Simply Be Suppressed</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="ai-root-cause-analysis-and-recommended-fixes.html">AI Root Cause Analysis and Recommended Fixes</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Why suppression — retry, skip, or quarantine — is a genuine, real cost, not a reasonable shortcut</li>
+  <li>What suppression actually hides, concretely</li>
+  <li>Chapter 12's closing interview questions</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>This entire chapter built a real pipeline — detect, diagnose with grounded evidence, recommend a specific fix. It's worth being explicit about why that real work matters, by naming honestly what the easier alternative — suppression — actually costs.</p>
+
+<h2 id="how-it-works-what-suppression-actually-does">How It Works — What Suppression Actually Does</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>RETRY until PASS:
+  Hides the FLAKINESS from CI's own output — but the
+  UNDERLYING cause (Chapter 12'S own five categories) is
+  STILL there, STILL affecting REAL users in PRODUCTION
+
+SKIP or QUARANTINE:
+  Removes COVERAGE entirely — the FEATURE this test was
+  VERIFYING is now GENUINELY untested, not just UNRELIABLY
+  tested
+
+BOTH: the test SUITE'S dashboard looks HEALTHIER, while the
+REAL, underlying problem — a RACE condition, a GENUINE timing
+issue — remains COMPLETELY unaddressed</code></pre>
+
+<h2 id="why-it-matters-a-concrete-real-cost">Why It Matters — A Concrete, Real Cost</h2>
+<p>If ShopSmart's checkout flakiness traces back to a genuine race condition — the "Place Order" button becoming clickable before the payment form has finished validating — retrying until the test passes doesn't fix this. A real customer, clicking at the same unlucky moment a retry happened to avoid, could genuinely submit an order with invalid payment information. The flaky test was never lying; it was correctly, if inconsistently, surfacing a real, user-facing bug.</p>
+
+<h2 id="example-the-honest-alternative-this-chapter-built">Example — The Honest Alternative This Chapter Built</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>SUPPRESSION: mark the test as "known flaky," configure extra
+  retries, move on. The RACE condition remains, affecting
+  REAL users unpredictably, FOREVER, until someone happens
+  to investigate it FOR unrelated reasons.
+
+THIS CHAPTER'S approach: detect (deterministically), diagnose
+  (with REAL, trace-grounded evidence), recommend a SPECIFIC,
+  cause-appropriate fix, and route it through Chapter 11'S
+  OWN validated, human-approved healing PIPELINE — the actual
+  RACE condition gets FIXED, not hidden.</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Configuring automatic retries as a permanent solution, rather than a temporary stopgap while genuine investigation happens.</strong> Retries hide symptoms; they never address the real, underlying cause this chapter's pipeline is built to find.</li>
+  <li><strong>Treating a quarantined test as "handled."</strong> Quarantine removes coverage — the feature it tested is now genuinely unverified, a real, ongoing cost, not a resolved problem.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Treat retries as a temporary measure while this chapter's real pipeline investigates, never as the final response to a flaky test.</li>
+  <li>Track quarantined tests explicitly and revisit them — a test quarantined and forgotten is coverage silently lost, permanently.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Review your own project for any currently retried, skipped, or quarantined tests. For each one, honestly assess whether it's ever been genuinely investigated using something like this chapter's pipeline, or whether it's simply been suppressed and forgotten.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Suppression — retrying, skipping, or quarantining — hides a flaky test's symptoms without addressing its real, underlying cause.</li>
+  <li>A flaky test is often correctly, if inconsistently, surfacing a genuine bug that affects real users unpredictably.</li>
+  <li>This chapter's entire pipeline — detection, trace-grounded diagnosis, cause-specific recommendation, and Chapter 11's healing process — exists specifically to replace suppression with a genuine fix.</li>
+</ul>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Beginner: Why can't a single test failure alone establish that a test is genuinely flaky?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A single failure is equally consistent with genuine flakiness, a real one-time external cause (like a network outage), or the start of a genuine, consistent regression. Only evidence across multiple runs — specifically, the same commit producing different outcomes — can distinguish genuine flakiness from these other possibilities. This is why Chapter 12 builds real history collection before any flakiness detection happens.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Beginner: What genuinely new technique does this chapter's classification step use that a general failure-analysis approach couldn't?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>It diffs an actual passing trace against an actual failing trace from the same test, reusing Chapter 10's trace extraction directly. This grounds the classification in a real, measured difference between two genuine runs — like a specific API call taking meaningfully longer in the failing run — rather than reasoning from a single failure's error message alone.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Intermediate: Explain why detecting a flakiness pattern is described as not needing AI, while diagnosing its cause does.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Detecting the pattern — does the same commit produce different outcomes across enough runs — is an exact, countable question with one correct answer once real history exists; deterministic code answers it completely reliably. Diagnosing why a test is flaky is genuinely different: it requires reasoning about which of several plausible causes best explains a specific pattern of evidence, a judgment call rather than a count. This is the same distinction Chapter 2 established generally, applied specifically to flaky test analysis.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Intermediate: Why does this chapter provide cause-specific guidance when generating a fix recommendation, rather than asking generally for "a fix for this flaky test"?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Without cause-specific guidance, a model tends to suggest a familiar, generic pattern — usually some form of wait or retry — regardless of whether it's actually appropriate for the specific underlying cause. A network-variance fix (a longer, specific timeout) and a race-condition fix (an explicit wait for a specific condition) are genuinely different remedies; applying the wrong one, like a longer timeout for a genuine race condition, can mask the symptom intermittently without ever fixing the actual problem.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Advanced: A team retries flaky tests automatically and reports a healthy-looking 99% pass rate on their dashboard. Using this chapter's own reasoning, why might this dashboard be genuinely misleading?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>The 99% figure reflects the outcome after retries hid the underlying inconsistency — it says nothing about how often the first attempt genuinely failed, which is exactly the signal this chapter's detection pipeline is built to surface. If a checkout test's first attempt fails 20% of the time due to a genuine race condition, and retries mask this down to a 99% final pass rate, the dashboard is accurately reporting CI outcomes while completely obscuring the real, user-facing risk: actual ShopSmart customers don't get a free retry when they click at an unlucky moment. The dashboard's health and the application's genuine health have quietly diverged.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Scenario-based: A teammate wants to quarantine a flaky test indefinitely because "we have coverage for that feature elsewhere." How would you respond, using this chapter's own reasoning?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd want to understand specifically what the quarantined test was verifying that the "elsewhere" coverage doesn't — often a flaky test exists precisely because it exercises a genuinely different path or edge case than the more stable tests. Beyond that, I'd point to this chapter's central argument: the flakiness itself is real, diagnosable information, not just an inconvenience to route around. If this test's flakiness traces back to a genuine race condition or shared-state issue, that same underlying problem may well affect the "elsewhere" coverage too, just not visibly yet. I'd suggest running this chapter's pipeline on the test before quarantining it — a specific, cause-grounded diagnosis takes real but bounded effort, and quarantining without that investigation risks leaving a genuine, user-facing bug both untested and unfixed indefinitely.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

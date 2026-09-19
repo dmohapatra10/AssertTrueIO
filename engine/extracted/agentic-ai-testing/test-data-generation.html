@@ -1,0 +1,202 @@
+<!doctype html>
+<html><head>
+<title>Test Data Generation: The Actual Values That Bring Scenarios to Life</title>
+<meta name="description" content="How to use AI to generate realistic test data for a set of scenarios, why realistic beats random, and the real risks of AI-generated data worth checking for." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/test-data-generation.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Test Data Generation</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="edge-cases.html">Edge Cases</a></p>
+<article class="content">
+<h2 id="what-is-this">What is this?</h2>
+<p>A scenario says WHAT to test ("apply an expired code"). Test data is the actual, concrete value that makes it real ("code SUMMER23, expired 2026-01-15"). This page is about generating that data well — genuinely realistic, not just technically valid.</p>
+
+<h2 id="why-realistic-beats-merely-valid">Why Realistic Beats Merely Valid</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>❌ Technically valid but genuinely unrealistic test data:
+  Discount code: "aaaaaaaaaa"
+  Order value: $0.01
+  Email: "a@a.a"
+
+  These are all technically WELL-FORMED, but nothing about them
+  resembles what a genuine ShopEasy user or marketing team would
+  actually produce — they don't exercise realistic conditions.
+
+✅ Genuinely realistic test data:
+  Discount code: "SUMMER23" (matches a real, plausible marketing
+    campaign naming pattern)
+  Order value: $67.43 (a genuinely plausible real cart total,
+    not a suspiciously round or trivial number)
+  Email: "test-user+shopeasy@example.com" (a realistic format,
+    using a domain conventionally reserved for testing)</code></pre>
+<p>Realistic data matters because it's more likely to exercise the SAME code paths and edge conditions real usage actually hits — an unrealistic value can accidentally sidestep genuine complexity that real data would have exposed.</p>
+
+<h2 id="a-genuinely-useful-prompt-for-test-data">A Genuinely Useful Prompt for Test Data</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def generate_test_data(scenario, client):
+    prompt = f"""Generate realistic test data for this test
+scenario. The data should look like something a REAL user or
+system would genuinely produce — not obviously synthetic
+placeholder values. Explain briefly why each value is realistic
+for this specific context.
+
+Scenario: {scenario}
+"""
+    response = client.messages.create(
+        model="claude-sonnet-4-6", max_tokens=512,
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return response.content[0].text
+
+# Example call:
+data = generate_test_data(
+    "Apply a discount code that has already expired", client
+)</code></pre>
+
+<h2 id="a-real-risk-worth-checking-for">A Real Risk Worth Checking For</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>AI-generated test data can genuinely include values that LOOK
+plausible but are actually subtly wrong for the real system —
+worth explicitly checking, not just trusting:
+
+- An email domain that's genuinely someone else's real,
+  registered domain (use example.com, reserved specifically
+  for this purpose, or your organization's own test domain)
+- A discount code that happens to COLLIDE with a genuine, real
+  production code, if test data generation isn't scoped to a
+  safe, isolated test environment
+- Dates that are already in the past relative to WHEN THE TEST
+  ACTUALLY RUNS, if "expired" was generated as a fixed date
+  rather than calculated relative to the current date</code></pre>
+<p>This last one is a genuinely common, real bug: a scenario needing "a code that expires in the future" or "a code that's already expired" should generate dates RELATIVE to when the test runs, not a fixed date that will eventually become stale as time passes.</p>
+
+<h2 id="think-about-it">🧠 Think About It</h2>
+<p>Why might a discount code test using a fixed date like "expired on 2025-01-15" eventually become a genuinely broken test, even though it was completely correct when first written? A test asserting behavior for an "expired" code needs the code to GENUINELY be in the past relative to whenever the test actually runs — a fixed date is only in the past temporarily, and once real time catches up and passes it, "already expired" testing would silently need a NON-expired code instead to test the opposite (still-valid) scenario, quietly inverting what the test was actually checking without anyone noticing.</p>
+
+<h2 id="common-mistake">⚠️ Common Mistake</h2>
+<p>Using obviously synthetic placeholder values ("test123", "aaa@aaa.com") that don't resemble genuine, realistic usage, then being surprised when a test passes despite a real bug that only manifests with more realistic, varied data. Realistic test data isn't just about appearances — it genuinely increases the chance of exercising real code paths and conditions.</p>
+
+<h2 id="quick-tip">💡 Quick Tip</h2>
+<p>When generating date-based test data (expiration dates, order timestamps), always generate them RELATIVE to the current date at test-run time, not as fixed, hardcoded dates — this is a genuinely common, real source of tests that quietly break or invert their meaning months later.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Generate genuinely realistic test data, not just technically valid placeholder values.</li>
+  <li>Explicitly review AI-generated data for values that could collide with real, production data or use genuinely reserved namespaces (example.com, a dedicated test domain).</li>
+  <li>Generate date-based test data relative to the current date at test-run time, never as a fixed, hardcoded date.</li>
+</ul>
+
+<h2 id="key-takeaway">🎯 Key Takeaway</h2>
+<ul>
+  <li>Test data brings a scenario to life with concrete values — genuinely realistic data increases the chance of exercising real, meaningful code paths.</li>
+  <li>AI-generated data needs the same review discipline as generated scenarios — checking specifically for domain collisions, unrealistic values, and fixed dates that will eventually become stale.</li>
+  <li>Date-based test data generated as a fixed value rather than relative to test-run time is a genuinely common, real source of tests that silently break or invert their meaning over time.</li>
+</ul>
+
+<h2 id="try-it-yourself">🛠️ Try It Yourself</h2>
+<p>Generate realistic test data for the "two users applying the same single-use code simultaneously" edge case from the previous page — including realistic values for both users and the shared code — and explicitly check your own generated data against this page's three real-risk categories (domain collision, unrealistic values, fixed dates).</p>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>A generated test uses the discount code "TESTCODE1" with an expiration date of "2024-06-01," hardcoded directly into the test. A year later, this test starts failing in a confusing way. Diagnose what happened.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This is exactly the fixed-date problem this page warns about — the test was likely originally checking "expired code correctly rejected," which worked fine while 2024-06-01 was genuinely in the past, but the test's actual MEANING silently depends on the relationship between that fixed date and whenever the test happens to run.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What likely happened, concretely:
+When WRITTEN (say, early 2024): 2024-06-01 was a future date,
+  so this test may have ACTUALLY been checking "code is still
+  valid," not "code is expired" — already possibly the WRONG
+  test for its own stated intent, depending on exactly when
+  it was written relative to that date.
+
+A YEAR LATER: 2024-06-01 is now clearly in the past. If the
+  test's assertions were written assuming the code would still
+  be VALID, they'd now start failing, since the code is
+  genuinely expired relative to today — the test's actual
+  real-world meaning shifted without any code change at all.</code></pre>
+<p>The fix: regenerate the expiration date RELATIVE to the current date at test-run time — "expiration date = today minus 30 days" for a genuinely, reliably expired code, or "today plus 30 days" for a genuinely, reliably valid one — so the test's actual meaning stays stable regardless of when it happens to run.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why might using "example.com" specifically for test email addresses matter, rather than any domain that happens to look plausible?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>"example.com" is specifically reserved by internet standards for documentation and testing purposes — it's guaranteed to never resolve to a real, active mailbox someone else owns, which a random plausible-looking domain genuinely can't guarantee.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>The real risk with a plausible-but-arbitrary domain:
+"test@realcompany.com" — this domain might actually belong to
+  a REAL organization, with REAL email addresses. A test that
+  actually sends an email (even accidentally, during a bug)
+  could genuinely reach a real inbox that has nothing to do
+  with your testing at all.
+
+Why example.com specifically avoids this:
+It's formally reserved (per RFC 2606) specifically so that NO
+  real mail service, website, or system should ever treat it
+  as a genuine, live domain — using it is a deliberate,
+  reliable way to guarantee test data can never accidentally
+  reach or affect a real, unrelated party.</code></pre>
+<p>This is a small but genuinely important detail — "looks realistic" and "is safe to use as test data" are related but distinct properties, and reserved testing domains specifically satisfy both at once, which arbitrary realistic-looking domains don't reliably guarantee.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Explain why "aaaaaaaaaa" as a discount code is a worse test value than "SUMMER23," even though both are technically valid strings the system would accept.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Both might pass basic format validation, but "aaaaaaaaaa" doesn't resemble any genuine, realistic usage pattern, meaning it's less likely to exercise the same code paths and conditions that actual, real discount codes would encounter in production.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>What "SUMMER23" genuinely resembles, that "aaaaaaaaaa" doesn't:
+Real marketing codes typically combine a THEME word with a
+  YEAR or campaign identifier — this pattern might interact
+  with real, genuine system behavior an unrealistic string
+  wouldn't: case-insensitivity handling on a MIXED alphanumeric
+  string, length validation tuned around REALISTIC code
+  lengths, or display formatting that assumes a genuinely
+  typical code shape.
+
+"aaaaaaaaaa" is UNLIKELY to reveal problems specific to how
+  the system handles NUMBERS mixed with letters, or genuinely
+  varied code lengths, since it's a single repeated character
+  — technically valid, but not representative of real usage
+  patterns that a genuine system needs to handle correctly.</code></pre>
+<p>The deeper point: "valid" and "representative of real usage" are different properties — test data should aim for both, since data that's merely valid but unrepresentative can miss genuine bugs that only manifest with realistic, varied real-world input.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Why does this page's generate_test_data prompt ask the LLM to explain WHY each value is realistic, rather than just requesting the values themselves?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>The explanation makes the generated data genuinely reviewable — a human can check whether the STATED reasoning actually holds up, rather than having to independently judge realism from the bare value alone with no insight into the generation's own reasoning.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Bare value alone (harder to review):
+"SUMMER23" — a reviewer has to independently judge: is this
+  actually realistic? On what basis? No stated reasoning to
+  check against.
+
+Value WITH stated reasoning (this page's actual approach):
+"SUMMER23 — realistic because it matches a common seasonal
+  marketing-campaign naming convention (theme + year)." — a
+  reviewer can directly evaluate whether THIS SPECIFIC
+  reasoning genuinely holds up, agreeing or pushing back on
+  a concrete, stated justification rather than guessing at
+  the AI's unstated reasoning.</code></pre>
+<p>This mirrors the same principle from the "From Requirement to Test Scenario" page's request for expected outcomes — making AI output genuinely reviewable, not just the raw result, is a consistent theme worth applying across every stage of this chapter's generation process.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>How would you generate genuinely realistic test data specifically for the "malformed input" edge case from the previous page (a code with leading/trailing whitespace or unexpected special characters)?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This case genuinely needs a different approach than the "realistic marketing code" examples elsewhere on this page — here, the actual GOAL is deliberately unusual, malformed input, so "realistic" means realistic mistakes a genuine user might actually make, not a clean, well-formed value.</p>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>Genuinely realistic MALFORMED test data, specifically:
+"  SUMMER23  " (genuine leading/trailing spaces — a REAL,
+  common mistake from copy-pasting a code from an email or
+  promotional flyer, accidentally including surrounding
+  whitespace)
+
+"SUMMER23!" (a trailing punctuation mark — plausible if a
+  user copied a code directly from a sentence like "Use code
+  SUMMER23!" without noticing the exclamation point got
+  included in their copy-paste)
+
+LESS realistic for this specific purpose (too exotic):
+A string of random Unicode control characters — technically
+  "malformed," but doesn't resemble any GENUINE, realistic
+  user mistake — more useful for security-specific fuzz
+  testing than this page's ordinary QA context.</code></pre>
+<p>The key insight: "realistic" doesn't always mean "clean and well-formed" — for a malformed-input test specifically, realistic means resembling genuine, plausible USER MISTAKES, which is a genuinely different (but equally valid) standard than the well-formed marketing-code examples used elsewhere in this page.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>

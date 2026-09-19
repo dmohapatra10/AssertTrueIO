@@ -1,0 +1,110 @@
+<!doctype html>
+<html><head>
+<title>Risk-Based Test Generation and Prioritization</title>
+<meta name="description" content="Generation produces genuinely more scenarios than you can always run — this page uses AI to rank them by real business risk, not just to make more of them." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/risk-based-test-generation-and-prioritization.html" />
+</head><body>
+<p class="difficulty">Beginner</p>
+<h1>Risk-Based Test Generation and Prioritization</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="validation-and-security-test-generation.html">Validation and Security Test Generation</a></p>
+<article class="content">
+<h2 id="what-you-ll-learn">What You'll Learn</h2>
+<ul>
+  <li>Why generation alone isn't the finish line — five categories can easily produce more scenarios than you can run every time</li>
+  <li>Using AI to rank test cases by genuine business risk</li>
+  <li>Combining priority with a real execution constraint, like a CI time budget</li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+<p>This chapter's previous four pages can genuinely produce dozens of test cases for one ShopSmart feature. Running every single one, every single time, is often not realistic — a CI pipeline has a real time budget, and Chapter 16 covers this pressure directly. This page is about deciding what's genuinely worth running, and when, not generating even more.</p>
+
+<h2 id="how-it-works-ranking-by-genuine-business-risk">How It Works — Ranking by Genuine Business Risk</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export interface PrioritizedCase extends TestCase {
+  riskScore: number;
+  riskReason: string;
+}
+
+export async function prioritizeByRisk(
+  testCases: TestCase[], businessContext: string
+): Promise&lt;PrioritizedCase[]&gt; {
+  const prompt = `Business context: ${businessContext}
+
+Test cases to prioritize:
+${JSON.stringify(testCases, null, 2)}
+
+For each test case, assign a riskScore from 1 (low) to 5
+(high) based on: how central this is to revenue, how often
+this path is used by real users, and how severe a real
+failure here would genuinely be. Include a one-sentence
+riskReason for each score.
+
+Respond with ONLY valid JSON:
+{"prioritized": [{"id": string, "riskScore": number,
+"riskReason": string}]}`;
+
+  const raw = await askClaude(prompt);
+  const parsed = JSON.parse(raw);
+  const scoreMap = new Map(
+    parsed.prioritized.map((p: any) => [p.id, p])
+  );
+  return testCases
+    .map((tc) => ({
+      ...tc,
+      riskScore: scoreMap.get(tc.id)?.riskScore ?? 1,
+      riskReason: scoreMap.get(tc.id)?.riskReason ?? 'Not scored',
+    }))
+    .sort((a, b) => b.riskScore - a.riskScore);
+}</code></pre>
+
+<h2 id="code-explanation">Code Explanation</h2>
+<p>The <code>?? 1</code> fallback matters more than it looks — if the model's response is missing a score for some test case (a genuine, real possibility with any AI-generated response), that case defaults to the lowest risk rather than crashing the whole function or silently vanishing from the list. This is the same defensive validation discipline from Chapter 3, applied to a new failure mode.</p>
+
+<h2 id="example-applying-it-to-checkout-s-negative-cases">Example — Applying It to Checkout's Negative Cases</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>const ranked = await prioritizeByRisk(
+  negativeCheckoutCases,
+  'ShopSmart is an e-commerce app; checkout directly drives revenue. A broken checkout with a large user base losing money is the highest-severity category of failure.'
+);
+
+// A REAL, plausible ranking:
+// riskScore 5: "Attempt checkout with invalid payment card
+//   number" — directly blocks revenue if handled wrong
+// riskScore 3: "Attempt checkout with expired session" —
+//   real, but recoverable, less frequent
+// riskScore 2: "Attempt checkout with unusually long address
+//   field" — real edge case, low real-world frequency</code></pre>
+
+<h2 id="why-it-matters-combining-priority-with-a-real-constraint">Why It Matters — Combining Priority with a Real Constraint</h2>
+<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>function selectWithinBudget(
+  ranked: PrioritizedCase[], maxCases: number
+): PrioritizedCase[] {
+  return ranked.slice(0, maxCases);
+}
+
+// A CI run with only 10 minutes of budget for THIS feature's
+// negative tests runs the TOP-ranked cases first — genuinely
+// prioritizing what matters most, not just running the FIRST
+// ten cases that happened to be GENERATED</code></pre>
+
+<h2 id="common-mistakes">Common Mistakes</h2>
+<ul>
+  <li><strong>Running test cases in generation order rather than risk order.</strong> Generation order reflects nothing about real importance — it's just the order the model happened to produce them in.</li>
+  <li><strong>Treating a low <code>riskScore</code> as "don't ever test this."</strong> It means "not always, every run" — Chapter 16's intelligent test selection covers exactly how to decide when a lower-priority case still deserves a run.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+  <li>Give the model real business context — revenue impact, usage frequency — the same way you'd brief a new team member on what actually matters most.</li>
+  <li>Always include a defensive fallback for a missing score, the same discipline Chapter 3 established for any AI response your code depends on.</li>
+</ul>
+
+<h2 id="hands-on-exercise">Hands-On Exercise</h2>
+<p>Take the boundary and edge cases you generated in this chapter's earlier pages and run them through <code>prioritizeByRisk</code>, with real business context for your own application. Check whether the ranking matches your own intuition — and if it doesn't, consider whether your <code>businessContext</code> was specific enough.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+  <li>Generation across five categories easily outpaces what's realistic to run every time — prioritization is a genuinely separate, necessary skill.</li>
+  <li>Risk-based ranking uses real business context — revenue impact, usage frequency, failure severity — not arbitrary generation order.</li>
+  <li>Combining a risk ranking with an execution budget is what actually makes generation practical at scale, setting up Chapter 16's CI-specific test selection.</li>
+</ul>
+</article>
+</body></html>

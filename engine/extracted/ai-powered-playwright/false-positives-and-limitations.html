@@ -1,0 +1,116 @@
+<!doctype html>
+<html><head>
+<title>False Positives and Limitations</title>
+<meta name="description" content="Closing this chapter honestly — visual AI is genuinely unreliable at precise measurement, can vary between identical runs, and costs real, measurably more than text." />
+<link rel="canonical" href="https://asserttrue.io/TRACK/false-positives-and-limitations.html" />
+</head><body>
+<p class="difficulty">Advanced</p>
+<h1>False Positives and Limitations</h1>
+<p class="prereqs"><strong>Prerequisites:</strong> <a href="ai-visual-bug-detection.html">AI Visual Bug Detection</a></p>
+<article class="content">
+<h2>What You'll Learn</h2>
+<ul>
+  <li>Three genuine, real limitations of visual AI checking, honestly stated</li>
+  <li>A concrete case where pixel diffing remains clearly the better tool</li>
+  <li>Chapter 17's closing interview questions</li>
+</ul>
+
+<h2>Introduction</h2>
+<p>This chapter has built real, working visual checks — description, semantic validation, comparison, bug detection. It's worth closing with the same honesty this track has applied to every other AI capability: what these checks genuinely can't be trusted to do reliably.</p>
+
+<h2>How It Works — Three Real Limitations</h2>
+<pre><code>1. UNRELIABLE at PRECISE measurement
+   "Is this button EXACTLY 2 pixels off from its INTENDED
+   position" is GENUINELY hard for a model to answer
+   RELIABLY — this is EXACTLY what Chapter 17's OPENING
+   page's pixel diff does PERFECTLY, and visual AI does NOT
+
+2. INCONSISTENT between IDENTICAL runs
+   The SAME screenshot, sent TWICE, can occasionally produce
+   SLIGHTLY different descriptions or judgments — a REAL
+   consequence of probabilistic output, the SAME limitation
+   Chapter 2 introduced GENERALLY, now visible CONCRETELY here
+
+3. GENUINELY more EXPENSIVE than text
+   Image tokens cost REAL, measurably more than the SAME
+   information as TEXT — Chapter 18'S own cost chapter covers
+   this in DEPTH, but it's WORTH stating plainly here too</code></pre>
+
+<h2>Why It Matters — A Concrete Case Where Pixel Diffing Wins</h2>
+<p>ShopSmart needs to verify a checkout button sits exactly 24 pixels from the page's right edge, per a precise design specification. This is exactly the wrong job for anything in this chapter — Chapter 17's opening page's <code>toHaveScreenshot</code>, with a tight <code>maxDiffPixels</code> tolerance, is genuinely the correct, reliable tool. Visual AI's honest strength is meaning and context, not precise measurement.</p>
+
+<h2>Example — Demonstrating Real Inconsistency</h2>
+<pre><code>// Running detectVisualBugs TWICE against the EXACT SAME
+// screenshot, with NOTHING changed:
+
+// Run 1: { bugsFound: [{ category: "cut-off-text", ... }] }
+// Run 2: { bugsFound: [] }
+
+// The SAME image, the SAME prompt — a GENUINE, real
+// consequence of probabilistic output, not a BUG in this
+// chapter'S code</code></pre>
+<p>This isn't a flaw in this chapter's implementation — it's an honest, structural property of the underlying model, the same probabilistic reality Chapter 2 introduced at the very start of this track, now made visible in a genuinely new context.</p>
+
+<h2>Common Mistakes</h2>
+<ul>
+  <li><strong>Trusting a single visual AI check's result with the same confidence as a pixel diff.</strong> This page's inconsistency example shows why that confidence isn't earned — a pixel diff never varies between identical runs; visual AI genuinely can.</li>
+  <li><strong>Using visual AI for precise, pixel-level requirements.</strong> This page's checkout-button example is exactly the wrong fit — Chapter 17's opening page's deterministic tool remains correct for this specific kind of question.</li>
+</ul>
+
+<h2>Best Practices</h2>
+<ul>
+  <li>Reserve pixel diffing for precise, exact requirements; reach for this chapter's techniques specifically for meaning, context, and tolerance of intentional variation.</li>
+  <li>For anything genuinely consequential, consider running a visual AI check more than once and treating disagreement between runs as a real signal worth a closer, human look.</li>
+</ul>
+
+<h2>Hands-On Exercise</h2>
+<p>Run this chapter's <code>detectVisualBugs</code> function three times against the exact same screenshot. Compare the results honestly — note whether they're identical, and if not, what genuinely differs between runs.</p>
+
+<h2>Key Takeaways</h2>
+<ul>
+  <li>Visual AI is genuinely unreliable for precise, pixel-level measurement — that job still belongs to Chapter 17's opening page's deterministic tool.</li>
+  <li>Identical inputs can produce different outputs across runs — a real, structural consequence of probabilistic behavior, not a flaw specific to this chapter's code.</li>
+  <li>Image-based checks cost genuinely more than text — a real factor worth weighing before reaching for this chapter's techniques by default.</li>
+</ul>
+
+<h2 id="interview-questions">Interview Questions</h2>
+<div class="faq-accordion">
+<details class="faq-item" open>
+<summary>Beginner: What is the real, structural difference between what a pixel diff can tell you and what AI image understanding can tell you?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>A pixel diff can tell you precisely whether two images are identical, and exactly where they differ, but has no understanding of what either image actually shows or whether a difference is good or bad. AI image understanding can tell you what a page means and whether it satisfies a real requirement, but genuinely struggles with precise, pixel-level measurement. They answer fundamentally different kinds of questions — "did this change" versus "does this make sense."</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Beginner: Why does this chapter's code send images as part of a content array rather than as a single string, like every earlier chapter's prompts?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Anthropic's API represents multi-part messages, including images, as an array of typed content blocks — an image block carrying base64-encoded pixel data, and a text block carrying the actual instruction. This is a genuinely different structure from the plain text strings every earlier chapter's prompts used, since a prompt is no longer just words — it now includes real, actual visual data the model can see directly.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Intermediate: Explain why detecting unexpected UI changes explicitly labels the before and after images with text blocks, rather than just sending both images in sequence.<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>Without explicit labels, the model has to infer which image represents the earlier state and which represents the later one, purely from their order in the array — an inference that adds unnecessary ambiguity to an already genuinely hard comparative task. Explicit "BEFORE:" and "AFTER:" text blocks remove that ambiguity entirely, letting the model focus its reasoning on what actually changed between the two states rather than first needing to correctly guess which image is which.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Intermediate: Why does this chapter treat the same-screenshot-twice inconsistency example as an honest limitation rather than a bug to fix?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>This inconsistency is a genuine, structural consequence of the underlying model's probabilistic behavior — the same property Chapter 2 introduced at the very beginning of this track when distinguishing deterministic automation from probabilistic AI. It isn't caused by an error in this chapter's code, and no code-level fix would eliminate it, since the variability comes from the model's own generation process, not from how the screenshot is captured or the prompt is written. Treating it honestly as a real, inherent limitation — rather than pretending it's a solvable bug — is what lets someone make an informed decision about when this chapter's techniques are and aren't the right fit.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Advanced: A team wants to replace all of their Playwright toHaveScreenshot pixel-diff tests with this chapter's semantic visual validation, reasoning that semantic checks are "smarter." How would you respond?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd push back using this chapter's own honest accounting of what each tool is actually good at. Semantic validation is genuinely better at tolerating intentional redesign and checking meaning rather than exact appearance, but it's genuinely worse at precise measurement and can produce different results across identical runs, neither of which is true of a pixel diff. A wholesale replacement would lose real, valuable coverage for anything requiring exact positioning or an exact, specified look — the checkout button's 24-pixel requirement from this page's own example is exactly the kind of check that would get meaningfully worse under a blanket switch. The two techniques are complementary, not a strict upgrade path from one to the other — the right approach is choosing per test based on what that specific test actually needs to verify, not replacing one tool with another because it sounds more sophisticated.</p>
+</div>
+</details>
+<details class="faq-item">
+<summary>Scenario-based: A visual bug detection check flags a genuine-looking bug in a screenshot, but re-running it against the exact same image reports no bugs at all. A teammate asks which result to trust. How would you respond, using this chapter's own reasoning?<span class="faq-chev">&#9662;</span></summary>
+<div class="faq-answer">
+<p>I'd explain that this disagreement is itself the real, useful signal here, not a question with a single correct answer to look up — this page's own example showed the exact same inconsistency happening for the exact same underlying reason, probabilistic variation between runs. Rather than picking one result to trust and discarding the other, I'd treat the disagreement as a reason for a human to actually look at the screenshot directly and make the call themselves — which is exactly the kind of case this chapter argues visual AI should support human judgment on, not replace it entirely. If this pattern shows up often for a particular kind of check, that's also worth noting as a sign this specific check might be better served by a different technique, like the precise pixel-diff approach from earlier in this chapter, rather than continuing to re-run the AI check hoping for a consistent answer.</p>
+</div>
+</details>
+</div>
+</article>
+</body></html>
